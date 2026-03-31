@@ -30,6 +30,10 @@ vi.mock('@config/database', () => ({
         driver: 'sqlite',
         database: 'db.sqlite',
       },
+      d1: {
+        driver: 'd1',
+        database: 'zintrust-d1',
+      },
       postgres: {
         driver: 'postgresql',
         host: 'localhost',
@@ -151,6 +155,30 @@ describe('MigrateWorkerCommand', () => {
 
     expect(ErrorHandler.warn).not.toHaveBeenCalledWith(
       expect.stringContaining('Missing adapter for driver:')
+    );
+  });
+
+  it('prefers explicit connection option over env fallback', async () => {
+    process.env['WORKER_PERSISTENCE_DB_CONNECTION'] = 'postgres';
+
+    const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
+    const cmd = MigrateWorkerCommand.create();
+
+    await cmd.execute({ status: true, connection: 'd1' });
+
+    expect(ErrorHandler.info).toHaveBeenCalledWith(expect.stringContaining('Adapter: d1'));
+  });
+
+  it('registers the connection option for the command', async () => {
+    const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
+    const cmd = MigrateWorkerCommand.create();
+    const option = vi.fn().mockReturnThis();
+
+    cmd.addOptions?.({ option } as any);
+
+    expect(option).toHaveBeenCalledWith(
+      '--connection <name>',
+      'Use a specific database connection for worker migrations'
     );
   });
 

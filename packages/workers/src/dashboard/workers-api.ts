@@ -278,6 +278,10 @@ async function getWorkersFromMixedPersistence(
       ...transformToWorkerData(redisRecords, 'redis'),
     ];
 
+    if (workers.length === 0) {
+      return getWorkersFromFileFallback(limit, query.includeInactive === true);
+    }
+
     return {
       workers,
       total:
@@ -312,6 +316,11 @@ async function getWorkersFromSinglePersistence(
       { driver: normalizedDriver },
       { offset, limit, includeInactive: query.includeInactive }
     );
+
+    if (driverRecords.length === 0) {
+      return getWorkersFromFileFallback(limit, query.includeInactive === true);
+    }
+
     const workers = transformToWorkerData(driverRecords, normalizedDriver);
 
     return {
@@ -327,6 +336,35 @@ async function getWorkersFromSinglePersistence(
       workers: [],
       total: 0,
       drivers: getAvailableDriversFromDrivers([normalizeDriver(persistenceDriver)]),
+      effectiveLimit: limit,
+      prePaginated: false,
+    };
+  }
+}
+
+async function getWorkersFromFileFallback(
+  limit: number,
+  includeInactive: boolean
+): Promise<PersistenceResult> {
+  try {
+    const discovered = await WorkerFactory.listFileBackedRecords();
+    const filtered = includeInactive
+      ? discovered
+      : discovered.filter((record) => record.activeStatus !== false);
+
+    return {
+      workers: transformToWorkerData(filtered, 'memory'),
+      total: filtered.length,
+      drivers: getAvailableDriversFromDrivers(['memory']),
+      effectiveLimit: limit,
+      prePaginated: false,
+    };
+  } catch (error) {
+    Logger.debug('File-backed worker fallback failed', error);
+    return {
+      workers: [],
+      total: 0,
+      drivers: getAvailableDriversFromDrivers(['memory']),
       effectiveLimit: limit,
       prePaginated: false,
     };
@@ -527,17 +565,17 @@ async function getQueueData(): Promise<QueueData> {
     // Get queue statistics based on QUEUE_DRIVER
     switch (queueDriver) {
       case 'redis':
-        return getRedisQueueData();
+        return await getRedisQueueData();
       case 'database':
-        return getDatabaseQueueData();
+        return await getDatabaseQueueData();
       case 'db':
-        return getDatabaseQueueData();
+        return await getDatabaseQueueData();
       default:
-        return getMemoryQueueData();
+        return await getMemoryQueueData();
     }
   } catch (error) {
     Logger.error('Error fetching queue data:', error);
-    return getMemoryQueueData();
+    return await getMemoryQueueData();
   }
 }
 
@@ -603,7 +641,12 @@ async function getDatabaseQueueData(): Promise<QueueData> {
     const db = await useEnsureDbConnected();
 
     // Get queue statistics from actual database tables using proper query builder
-    const queueStats = (await db
+    const queueStats: {
+      totalQueues: number;
+      totalJobs: number;
+      processingJobs: number;
+      failedJobs: number;
+    } | null = await db
       .table('queue_jobs')
       .select('COUNT(DISTINCT queue) as totalQueues')
       .selectAs('COUNT(*)', 'totalJobs')
@@ -612,12 +655,7 @@ async function getDatabaseQueueData(): Promise<QueueData> {
         'processingJobs'
       )
       .selectAs('SUM(CASE WHEN failed_at IS NOT NULL THEN 1 ELSE 0 END)', 'failedJobs')
-      .first()) as {
-      totalQueues: number;
-      totalJobs: number;
-      processingJobs: number;
-      failedJobs: number;
-    } | null;
+      .first();
 
     const stats = queueStats || {
       totalQueues: 0,
@@ -733,7 +771,9 @@ async function enrichWithDetails(workers: WorkerData[]): Promise<WorkerData[]> {
 async function buildWorkerDetails(worker: WorkerData): Promise<WorkerData> {
   try {
     const persistenceOverride = resolvePersistenceOverride(worker.driver);
-    const persisted = await WorkerFactory.getPersisted(worker.name, persistenceOverride);
+    const persisted =
+      (await WorkerFactory.getPersisted(worker.name, persistenceOverride)) ??
+      (await WorkerFactory.getFileBackedRecord(worker.name));
     const health = await getWorkerHealthSnapshot(worker.name, worker.health);
     const metrics = await getWorkerMetricsSnapshot(worker.name, worker);
     const configuration = buildWorkerConfiguration(worker, persisted);
@@ -893,6 +933,13 @@ export async function getWorkerDetails(name: string, driver?: string): Promise<W
     const record = await WorkerFactory.getPersisted(name, { driver: normalizedDriver });
     if (record) {
       worker = buildWorkerFromRecord(record, normalizedDriver);
+    }
+  }
+
+  if (!worker) {
+    const fileBacked = await WorkerFactory.getFileBackedRecord(name);
+    if (fileBacked) {
+      worker = buildWorkerFromRecord(fileBacked, 'memory');
     }
   }
 

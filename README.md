@@ -80,6 +80,15 @@ New projects include an `.env` with safe defaults (and the generator will backfi
 - `PORT=7777`
 - `LOG_LEVEL=debug`
 
+If you need a project-local Node/Docker bootstrap file, reuse the stock core bootstrap instead of copying the full framework bootstrap into your app:
+
+```typescript
+// src/boot/bootstrap.ts
+import '@zintrust/core/boot';
+
+export {};
+```
+
 ## Adapters (on-demand installs)
 
 ZinTrust ships a minimal core. Database/cache/etc. integrations are installed explicitly via adapter packages.

@@ -7,6 +7,7 @@ WORKDIR /app
 # Reuse npm cache across builds (requires BuildKit)
 ENV NPM_CONFIG_CACHE=/root/.npm
 ENV NPM_CONFIG_PREFER_OFFLINE=true
+ENV DIST_SKIP_NPM_VERSION_CHECK=true
 
 # Upgrade Alpine base packages first so OS-level security fixes land in the image.
 RUN apk upgrade --no-cache \

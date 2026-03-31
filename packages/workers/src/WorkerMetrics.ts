@@ -111,7 +111,7 @@ const getValidClient = async (): Promise<RedisConnection> => {
 
   // If no client, create one
   if (!redisClient) {
-    redisClient = createRedisConnection(cachedConfig);
+    redisClient = createRedisConnection(cachedConfig, 3, { subsystem: 'worker-metrics' });
   }
 
   const client = redisClient;
@@ -358,7 +358,7 @@ const WorkerMetrics = Object.freeze({
     }
 
     cachedConfig = config;
-    redisClient = createRedisConnection(config);
+    redisClient = createRedisConnection(config, 3, { subsystem: 'worker-metrics' });
     Logger.info('WorkerMetrics initialized');
   },
 

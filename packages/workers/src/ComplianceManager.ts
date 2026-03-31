@@ -344,7 +344,7 @@ export const ComplianceManager = Object.freeze({
       return;
     }
 
-    redisClient = createRedisConnection(redisConfig);
+    redisClient = createRedisConnection(redisConfig, 3, { subsystem: 'worker-compliance' });
     complianceConfig = {
       gdpr: { ...DEFAULT_CONFIG.gdpr, ...config?.gdpr },
       hipaa: { ...DEFAULT_CONFIG.hipaa, ...config?.hipaa },

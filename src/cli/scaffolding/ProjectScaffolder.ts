@@ -5,6 +5,7 @@
 
 import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { EnvData } from '@cli/scaffolding/env';
+import { toCompatibleGovernanceVersion } from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { randomBytes } from '@node-singletons/crypto';
@@ -335,12 +336,12 @@ const resolveTemplateMetadata = (
   meta: TemplateJson,
   fallback?: ProjectTemplate
 ): Pick<ProjectTemplate, 'name' | 'description' | 'directories'> => {
-  const name = typeof meta.name === 'string' ? meta.name : fallback?.name ?? templateName;
+  const name = typeof meta.name === 'string' ? meta.name : (fallback?.name ?? templateName);
   const description =
-    typeof meta.description === 'string' ? meta.description : fallback?.description ?? '';
+    typeof meta.description === 'string' ? meta.description : (fallback?.description ?? '');
   const directories = Array.isArray(meta.directories)
     ? coerceStringArray(meta.directories)
-    : fallback?.directories ?? [];
+    : (fallback?.directories ?? []);
 
   return { name, description, directories };
 };
@@ -591,6 +592,8 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     .slice(0, 14);
 
   state.variables = {
+    coreVersion: loadCoreVersion(),
+    governanceVersion: toCompatibleGovernanceVersion(loadCoreVersion()),
     projectName: options.name,
     projectSlug: options.name,
     author: options.author ?? 'Your Name',
@@ -599,7 +602,6 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     database: options.database ?? 'sqlite',
     template: state.templateName,
     migrationTimestamp,
-    coreVersion: loadCoreVersion(),
   };
 };
 

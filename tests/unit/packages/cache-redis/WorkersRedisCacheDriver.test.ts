@@ -28,6 +28,51 @@ vi.mock('@zintrust/core', async () => {
 import { RedisCacheDriver } from '../../../../packages/cache-redis/src/index';
 
 describe('Redis cache driver (Workers)', () => {
+  it('uses shared redis transport when proxy mode is enabled', async () => {
+    vi.resetModules();
+
+    const proxyClient = {
+      connect: async () => undefined,
+      quit: async () => undefined,
+      get: async (key: string) => store.get(key) ?? null,
+      set: async (key: string, value: string) => {
+        store.set(key, value);
+        return 'OK';
+      },
+      del: async (key: string) => (store.delete(key) ? 1 : 0),
+      exists: async (key: string) => (store.has(key) ? 1 : 0),
+      flushdb: async () => {
+        store.clear();
+      },
+    };
+
+    vi.doMock('@zintrust/core', async () => {
+      const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
+      return {
+        ...actual,
+        Env: {
+          ...actual.Env,
+          REDIS_PROXY_URL: 'http://127.0.0.1:8791/redis',
+          USE_REDIS_PROXY: true,
+        },
+        createRedisConnection: () => proxyClient,
+      };
+    });
+
+    const { RedisCacheDriver: RedisCacheDriverWithProxy } =
+      await import('../../../../packages/cache-redis/src/index');
+    const cache = RedisCacheDriverWithProxy.create({
+      driver: 'redis',
+      host: 'localhost',
+      port: 6379,
+      ttl: 60,
+    });
+
+    await cache.set('proxy-key', { ok: true });
+    await expect(cache.get<{ ok: boolean }>('proxy-key')).resolves.toEqual({ ok: true });
+    await expect(cache.has('proxy-key')).resolves.toBe(true);
+  });
+
   it('uses ioredis connection when sockets enabled', async () => {
     const originalEnv = (globalThis as unknown as { env?: unknown }).env;
     (globalThis as unknown as { env?: unknown }).env = {

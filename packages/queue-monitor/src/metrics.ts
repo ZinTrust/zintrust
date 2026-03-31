@@ -115,7 +115,7 @@ const getStatsImpl = async (
 };
 
 export const createMetrics = (config: RedisConfig): Metrics => {
-  const redis = createRedisConnection(config);
+  const redis = createRedisConnection(config, 3, { subsystem: 'queue-monitor-metrics' });
 
   return Object.freeze({
     recordJob: (queue, status, job, error) => recordJobImpl(redis, queue, status, job, error),

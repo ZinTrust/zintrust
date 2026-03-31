@@ -82,6 +82,7 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
       'worker:start-all',
       'worker:stop',
       'worker:restart',
+      'worker:doctor',
       'worker:summary',
     ],
     installCommand: 'npm install @zintrust/workers',

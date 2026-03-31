@@ -123,6 +123,15 @@ function applyBump(bumpType) {
   // Update package.json + package-lock.json without creating a git tag.
   run(`npm version ${bumpType} --no-git-tag-version`);
 
+  // Keep all workspace package versions, peer ranges, and workspace lockfile entries aligned
+  // with the new core version so the CI sync check remains green after the bump commit.
+  run('node scripts/release/sync-package-versions.mjs');
+
+  // Workaround: `workflow_run` workflows use the workflow definition from the default branch.
+  // The `release-pr.yml` in `master` might be missing `packages/*/package.json` in its `git add` step.
+  // We stage them here so the subsequent `git commit` includes them.
+  run('git add package.json package-lock.json packages/*/package.json');
+
   const pkg = readJson('./package.json');
   return pkg.version;
 }

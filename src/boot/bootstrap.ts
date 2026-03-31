@@ -12,6 +12,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
+import { WorkerProjectAutoImports } from '@runtime/WorkerProjectAutoImports';
 import { loadWorkersModule } from '@runtime/WorkersModule';
 
 let appInstance: ReturnType<typeof Application.create> | undefined;
@@ -207,6 +208,14 @@ async function useWorkerStarter(): Promise<void> {
   // Initialize worker management system
   let workerInit: { autoStartPersistedWorkers?: () => Promise<void> } | null = null;
   try {
+    const projectWorkerEntrypoint =
+      await WorkerProjectAutoImports.tryImportProjectWorkerEntrypoint();
+    if (!projectWorkerEntrypoint.ok && projectWorkerEntrypoint.reason === 'import-failed') {
+      Logger.warn(
+        `Project worker entrypoint import failed: ${projectWorkerEntrypoint.errorMessage ?? 'Unknown error'}`
+      );
+    }
+
     const workers = await loadWorkersModule();
     if (workers?.WorkerInit !== undefined) {
       workerInit = workers.WorkerInit;

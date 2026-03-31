@@ -1,4 +1,4 @@
-import { MiddlewareKeys } from '@config/middleware';
+import { MiddlewareKeys, isKnownMiddlewareName } from '@config/middleware';
 import { Router } from '@core-routes/Router';
 import { RouteRegistry } from '@core-routes/RouteRegistry';
 import { registerRoutes } from '@routes/api';
@@ -18,7 +18,7 @@ describe('Architecture: route middleware registry', () => {
 
     for (const route of RouteRegistry.list()) {
       for (const name of route.middleware ?? []) {
-        if (!allowed.has(name)) {
+        if (!allowed.has(name) && !isKnownMiddlewareName(name)) {
           unknown.push({ method: route.method, path: route.path, middleware: name });
         }
       }

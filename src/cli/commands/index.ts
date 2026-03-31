@@ -11,8 +11,10 @@ export {
   CreateCommand,
   CreateMigrationCommand,
 } from '@cli/commands/CreateCommand';
+export { D1ProxyCommand } from '@cli/commands/D1ProxyCommand';
 export { DebugCommand } from '@cli/commands/DebugCommand';
 export { JwtDevCommand } from '@cli/commands/JwtDevCommand';
+export { KvProxyCommand } from '@cli/commands/KvProxyCommand';
 export { LogsCleanupCommand } from '@cli/commands/LogsCleanupCommand';
 export { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 export { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';

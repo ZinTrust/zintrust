@@ -64,6 +64,15 @@ Or continue importing from core if you prefer (core re-exports the workers API w
 import { WorkerFactory } from '@zintrust/core';
 ```
 
+### Optional Project Worker Entrypoint
+
+Fresh ZinTrust apps can also keep an optional `src/zintrust.workers.ts` file. The normal Node runtime,
+Docker worker containers, and worker CLI commands auto-load it when present.
+
+This file is intended for project-owned worker bootstrap logic such as grouped imports or processor-spec
+pre-registration. For simple workers that export `workerDefinition`, you can rely on file-backed discovery
+without adding extra container-specific wiring.
+
 ## Environment Variables
 
 These environment variables control worker behavior. Set only what you need.
@@ -207,6 +216,30 @@ export async function initializeWorkers() {
 }
 ```
 
+For file-backed discovery, worker files can also export a first-class `workerDefinition` object.
+This gives fresh projects explicit metadata even before any worker row has been persisted.
+
+```typescript
+export const workerDefinition = Object.freeze({
+  name: 'email-sender',
+  queueName: 'emails',
+  version: '1.0.0',
+  autoStart: false,
+  activeStatus: true,
+  concurrency: 1,
+  processorSpec: 'app/Workers/EmailSenderWorker.ts',
+});
+
+export async function ZinTrustProcessor(payload: unknown): Promise<void> {
+  // handle job payload
+}
+
+export default ZinTrustProcessor;
+```
+
+ZinTrust uses this metadata as a fallback when persistence is empty, so dashboards and start flows can
+still discover workers from project files in fresh apps.
+
 **Processor specs**
 
 Processor specs can be either file paths or URLs. Behavior differs by runtime:
@@ -290,33 +323,42 @@ Set `autoStart: false` to register a worker without starting it, then use CLI or
 
 ### Overview
 
-Worker auto-start functionality in ZinTrust is designed to provide controlled initialization of workers based on persistence driver compatibility. This is a security and resource management feature to prevent uncontrolled worker initialization.
+Worker auto-start remains persisted-first. When `WORKER_AUTO_START=true`, ZinTrust first checks persisted
+worker records across the configured persistence targets. If no persisted auto-start candidates exist,
+it falls back to file-backed worker definitions discovered in the project.
 
 ### Auto-Start Behavior
 
-Only workers that use the **WORKER_PERSISTENCE_DRIVER** are eligible for automatic startup when auto-start is enabled. Workers with different persistence drivers must be started manually.
+Persisted workers that resolve as auto-start candidates are started first. File-backed workers are only
+considered when persisted auto-start candidates are absent, which preserves existing runtime behavior for
+projects already using worker persistence.
 
 ```bash
 # Environment configuration
-WORKER_PERSISTENCE_DRIVER=redis  # or mongodb, memory, etc.
-WORKER_AUTO_START=true           # Enable auto-start for persistence driver workers
+WORKER_PERSISTENCE_DRIVER=redis
+WORKER_AUTO_START=true
 ```
 
-### Supported Persistence Drivers
+### File-Backed Fallback Rules
 
-The following persistence drivers support auto-start:
+- File-backed auto-start only runs when persisted auto-start discovery returns no candidates.
+- File-backed workers still respect `autoStart` and `activeStatus` from the exported `workerDefinition`.
+- Duplicate file-backed worker names are de-duplicated; the first discovered definition wins.
+- File-backed fallback uses the existing `startFromPersisted(...)` path, so processor resolution stays consistent.
 
-- **Redis** (`redis`) - Workers using Redis backend
-- **MongoDB** (`mongodb`) - Workers using MongoDB backend
-- **Memory** (`memory`) - Workers using in-memory backend
-- **Cloudflare D1** (`cloudflare-d1`) - Workers using Cloudflare D1 backend
+### Worker Persistence Migrations
 
-### Workers Requiring Manual Start
+Use the worker migration command against the connection that stores your worker tables:
 
-Workers that use **different persistence drivers** than `WORKER_PERSISTENCE_DRIVER` must be started manually:
+```bash
+zin migrate:worker
+zin migrate:worker --status
+zin migrate:worker --connection d1
+zin migrate:worker --connection d1-remote
+zin migrate:worker --connection my-custom-worker-db
+```
 
-- **Via API:** `POST /api/workers/{workerName}/start`
-- **Via CLI:** `zin worker:start {workerName}`
+If you omit `--connection`, ZinTrust checks `WORKER_PERSISTENCE_DB_CONNECTION` and falls back to `default`.
 
 ### Resource Monitoring Environment Gate
 

@@ -15,6 +15,7 @@ type WorkerCommandsModule = {
     createWorkerStartAllCommand: () => CliCommandProvider;
     createWorkerStopCommand: () => CliCommandProvider;
     createWorkerRestartCommand: () => CliCommandProvider;
+    createWorkerDoctorCommand: () => CliCommandProvider;
     createWorkerSummaryCommand: () => CliCommandProvider;
   };
 };
@@ -38,6 +39,7 @@ const getWorkerProviders = (): Array<[string, CliCommandProvider]> => {
     ['worker:start-all', WorkerCommands.createWorkerStartAllCommand()],
     ['worker:stop', WorkerCommands.createWorkerStopCommand()],
     ['worker:restart', WorkerCommands.createWorkerRestartCommand()],
+    ['worker:doctor', WorkerCommands.createWorkerDoctorCommand()],
     ['worker:summary', WorkerCommands.createWorkerSummaryCommand()],
   ];
 };

@@ -67,7 +67,8 @@ const createIoredisClient = (params: {
         password: Env.get('REDIS_PASSWORD', ''),
         db,
       },
-      3
+      3,
+      { subsystem: 'cache' }
     ) as unknown as RedisClientLike;
 
     return client !== null && typeof client.get === 'function' ? client : null;

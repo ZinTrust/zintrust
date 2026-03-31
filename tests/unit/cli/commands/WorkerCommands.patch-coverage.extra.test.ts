@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Logger } from '@config/logger';
+
 const createHealthyWorkersModule = (): {
   loadWorkersModule: ReturnType<typeof vi.fn>;
 } => ({
@@ -72,6 +74,19 @@ vi.mock('@config/logger', () => ({
   Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('@runtime/WorkerProjectAutoImports', () => ({
+  WorkerProjectAutoImports: {
+    tryImportProjectWorkerEntrypoint: vi.fn(async () => ({ ok: false, reason: 'not-found' })),
+  },
+}));
+
+vi.mock('@runtime/WorkersModule', async () => {
+  const workers = await import('@zintrust/workers');
+  return {
+    loadWorkersModule: vi.fn(async () => workers),
+  };
+});
+
 describe('WorkerCommands extra patch coverage', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 
@@ -113,5 +128,169 @@ describe('WorkerCommands extra patch coverage', () => {
     await expect(WorkerCommands.createWorkerListCommand().execute({})).rejects.toThrow('exit:1');
 
     exitSpy.mockRestore();
+  });
+
+  it('warns when the project worker entrypoint import fails', async () => {
+    vi.doMock('@runtime/WorkerProjectAutoImports', () => ({
+      WorkerProjectAutoImports: {
+        tryImportProjectWorkerEntrypoint: vi.fn(async () => ({
+          ok: false,
+          reason: 'import-failed',
+          errorMessage: 'boom',
+        })),
+      },
+    }));
+    vi.doMock('@runtime/WorkersModule', createHealthyWorkersModule);
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+    await WorkerCommands.createWorkerListCommand().execute({});
+
+    expect(Logger.warn).toHaveBeenCalledWith('Project worker entrypoint import failed: boom');
+  });
+
+  it('uses workers module selectAutoStartNames when available', async () => {
+    process.env['WORKER_AUTO_START'] = 'true';
+
+    const selectAutoStartNames = vi.fn(() => ({ names: [], source: 'none' as const }));
+
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerFactory: {
+          list: () => [],
+          listPersisted: async () => [],
+          listPersistedRecords: async () => [{ name: 'persisted-worker', autoStart: true }],
+          listFileBackedRecords: async () => [{ name: 'file-worker', autoStart: true }],
+          getHealth: async () => ({ score: 99, status: 'healthy' }),
+          getMetrics: async () => ({ processed: 1 }),
+          get: async () => null,
+          stop: async () => undefined,
+          restart: async () => undefined,
+          start: async () => undefined,
+          startFromPersisted: async () => undefined,
+        },
+        WorkerRegistry: { status: () => null },
+        HealthMonitor: { getSummary: async () => ({ details: [] }) },
+        ResourceMonitor: {
+          getCurrentUsage: () => ({
+            cpu: 1,
+            memory: { percent: 2, used: 3 },
+            cost: { hourly: 4, daily: 5 },
+          }),
+        },
+        selectAutoStartNames,
+      })),
+    }));
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+    await WorkerCommands.createWorkerStartAllCommand().execute({});
+
+    expect(selectAutoStartNames).toHaveBeenCalledWith(
+      [{ name: 'persisted-worker', autoStart: true }],
+      [{ name: 'file-worker', autoStart: true }],
+      Logger.warn
+    );
+    expect(Logger.info).toHaveBeenCalledWith(
+      'No auto-start eligible persisted or file-backed workers found.'
+    );
+
+    delete process.env['WORKER_AUTO_START'];
+  });
+
+  it('falls back to persisted auto-start records when selector is unavailable', async () => {
+    process.env['WORKER_AUTO_START'] = 'true';
+
+    const startFromPersisted = vi.fn(async () => undefined);
+
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerFactory: {
+          list: () => [],
+          listPersisted: async () => ['persisted-worker'],
+          listPersistedRecords: async () => [
+            { name: 'persisted-worker', autoStart: true, activeStatus: true },
+          ],
+          getHealth: async () => ({ score: 99, status: 'healthy' }),
+          getMetrics: async () => ({ processed: 1 }),
+          get: async () => null,
+          stop: async () => undefined,
+          restart: async () => undefined,
+          start: async () => undefined,
+          startFromPersisted,
+        },
+        WorkerRegistry: { status: () => null },
+        HealthMonitor: { getSummary: async () => ({ details: [] }) },
+        ResourceMonitor: {
+          getCurrentUsage: () => ({
+            cpu: 1,
+            memory: { percent: 2, used: 3 },
+            cost: { hourly: 4, daily: 5 },
+          }),
+        },
+      })),
+    }));
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+    await WorkerCommands.createWorkerStartAllCommand().execute({});
+
+    expect(startFromPersisted).toHaveBeenCalledWith('persisted-worker');
+    expect(Logger.info).toHaveBeenCalledWith(
+      'Worker start-all summary',
+      expect.objectContaining({ started: 1, skipped: 0, failed: 0, total: 1 })
+    );
+
+    delete process.env['WORKER_AUTO_START'];
+  });
+
+  it('logs first-fault diagnostics when worker:start-all hits a config-style failure', async () => {
+    process.env['WORKER_AUTO_START'] = 'true';
+    process.env['WORKER_ENABLED'] = 'true';
+    process.env['QUEUE_ENABLED'] = 'true';
+    process.env['RUNTIME_MODE'] = 'containers';
+    process.env['QUEUE_DRIVER'] = 'redis';
+    delete process.env['APP_KEY'];
+
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerFactory: {
+          list: () => [],
+          listPersisted: async () => ['persisted-worker'],
+          listPersistedRecords: async () => [
+            { name: 'persisted-worker', autoStart: true, activeStatus: true },
+          ],
+          getHealth: async () => ({ score: 99, status: 'healthy' }),
+          getMetrics: async () => ({ processed: 1 }),
+          get: async () => null,
+          stop: async () => undefined,
+          restart: async () => undefined,
+          start: async () => undefined,
+          startFromPersisted: async () => {
+            throw new Error('QUEUE_HTTP_PROXY_KEY or APP_KEY is required');
+          },
+        },
+        WorkerRegistry: { status: () => null },
+        HealthMonitor: { getSummary: async () => ({ details: [] }) },
+        ResourceMonitor: {
+          getCurrentUsage: () => ({
+            cpu: 1,
+            memory: { percent: 2, used: 3 },
+            cost: { hourly: 4, daily: 5 },
+          }),
+        },
+      })),
+    }));
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+    await WorkerCommands.createWorkerStartAllCommand().execute({});
+
+    expect(Logger.error).toHaveBeenCalledWith(
+      'Likely missing env keys for worker startup',
+      expect.arrayContaining(['QUEUE_HTTP_PROXY_KEY', 'APP_KEY'])
+    );
+
+    delete process.env['WORKER_AUTO_START'];
+    delete process.env['WORKER_ENABLED'];
+    delete process.env['QUEUE_ENABLED'];
+    delete process.env['RUNTIME_MODE'];
+    delete process.env['QUEUE_DRIVER'];
   });
 });

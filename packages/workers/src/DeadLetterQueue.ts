@@ -260,7 +260,7 @@ export const DeadLetterQueue = Object.freeze({
       return;
     }
 
-    redisClient = createRedisConnection(config);
+    redisClient = createRedisConnection(config, 3, { subsystem: 'worker-dlq' });
     retentionPolicy = policy;
 
     // Start cleanup interval if auto-delete is enabled

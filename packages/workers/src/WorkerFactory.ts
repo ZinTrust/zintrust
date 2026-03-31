@@ -12,6 +12,9 @@ import {
   ErrorFactory,
   generateUuid,
   getBullMQSafeQueueName,
+  isFunction,
+  isNonEmptyString,
+  isObject,
   JobStateTracker,
   Logger,
   NodeSingletons,
@@ -138,9 +141,6 @@ const resolvePackageSpecifierUrl = (specifier: string): string | null => {
   }
 };
 
-const escapeRegExp = (value: string): string =>
-  value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-
 const rewriteProcessorImports = (code: string): string => {
   const replacements: Array<{ from: string; to: string }> = [];
   const coreUrl = resolvePackageSpecifierUrl('@zintrust/core');
@@ -152,8 +152,8 @@ const rewriteProcessorImports = (code: string): string => {
 
   let updated = code;
   for (const { from, to } of replacements) {
-    const pattern = new RegExp(String.raw`(['"])${escapeRegExp(from)}\1`, 'g');
-    updated = updated.replace(pattern, `$1${to}$1`);
+    updated = updated.replaceAll(`'${from}'`, `'${to}'`);
+    updated = updated.replaceAll(`"${from}"`, `"${to}"`);
   }
 
   return updated;
@@ -398,6 +398,56 @@ const processorRegistry = new Map<string, WorkerFactoryConfig['processor']>();
 const processorPathRegistry = new Map<string, string>();
 const processorResolvers: ProcessorResolver[] = [];
 const processorSpecRegistry = new Map<string, WorkerFactoryConfig['processor']>();
+const queueWorkerMetaKey = '__zintrustQueueWorkerMeta';
+const fileWorkerDefinitionExportKeys = Object.freeze([
+  'workerDefinition',
+  'workerConfig',
+  'zintrustWorker',
+  'ZinTrustWorker',
+  'worker',
+  'defaultWorkerDefinition',
+]);
+const workerDiscoveryDirectories = Object.freeze([
+  ['dist', 'app', 'Workers'],
+  ['dist', 'src', 'workers'],
+  ['dist', 'src', 'Workers'],
+  ['app', 'Workers'],
+  ['src', 'workers'],
+  ['src', 'Workers'],
+]);
+const workerDiscoveryExtensions = new Set(['.js', '.mjs', '.cjs', '.ts']);
+
+type QueueWorkerMeta = Readonly<{
+  kindLabel: string;
+  defaultQueueName: string;
+  maxAttempts: number;
+}>;
+
+type FileWorkerDefinition = Partial<
+  Pick<
+    WorkerRecord,
+    | 'name'
+    | 'queueName'
+    | 'version'
+    | 'status'
+    | 'autoStart'
+    | 'concurrency'
+    | 'region'
+    | 'processorSpec'
+    | 'activeStatus'
+    | 'features'
+    | 'infrastructure'
+    | 'datacenter'
+  >
+> & {
+  processor?: WorkerFactoryConfig['processor'];
+};
+
+type DiscoveredFileWorker = {
+  record: WorkerRecord;
+  processor?: WorkerFactoryConfig['processor'];
+  sourcePath: string;
+};
 
 type CachedProcessor = {
   code: string;
@@ -493,6 +543,411 @@ const parseCacheControl = (value: string | null): { maxAge?: number } => {
 const getProcessorSpecConfig = (): typeof workersConfig.processorSpec =>
   workersConfig.processorSpec;
 
+const toPosixPath = (value: string): string => value.split(path.sep).join('/');
+
+const isUpperAlpha = (value: string): boolean => /^[A-Z]$/.test(value);
+
+const isLowerAlphaOrDigit = (value: string): boolean => /^[a-z\d]$/.test(value);
+
+const isAlphaNumeric = (value: string): boolean => /^[A-Za-z\d]$/.test(value);
+
+const shouldInsertWorkerNameDash = (
+  previous: string,
+  current: string,
+  next: string | undefined
+): boolean => {
+  if (!isAlphaNumeric(previous) || !isAlphaNumeric(current)) return false;
+
+  if (isLowerAlphaOrDigit(previous) && isUpperAlpha(current)) {
+    return true;
+  }
+
+  if (isUpperAlpha(previous) && isUpperAlpha(current) && isLowerAlphaOrDigit(next ?? '')) {
+    return true;
+  }
+
+  return false;
+};
+
+const toKebabWorkerName = (value: string): string => {
+  if (!isNonEmptyString(value)) return value;
+
+  let normalized = '';
+
+  for (let index = 0; index < value.length; index += 1) {
+    const current = value[index] ?? '';
+    const previous = index > 0 ? (value[index - 1] ?? '') : '';
+    const next = value[index + 1];
+
+    if (current === ' ' || current === '_') {
+      if (!normalized.endsWith('-')) normalized += '-';
+      continue;
+    }
+
+    if (shouldInsertWorkerNameDash(previous, current, next) && !normalized.endsWith('-')) {
+      normalized += '-';
+    }
+
+    normalized += current;
+  }
+
+  return normalized.replaceAll(/-+/g, '-');
+};
+
+const normalizeWorkerFileName = (fileName: string): string => {
+  const baseName = fileName.replace(/\.[^.]+$/, '');
+  return toKebabWorkerName(baseName).toLowerCase();
+};
+
+const supportsWorkerFileDiscovery = (): boolean => {
+  return (
+    isNodeRuntime() &&
+    canUseProjectFileImports() &&
+    typeof NodeSingletons.fs.readdirSync === 'function' &&
+    typeof NodeSingletons.fs.statSync === 'function'
+  );
+};
+
+const isSupportedWorkerModuleFile = (fileName: string): boolean => {
+  if (!isNonEmptyString(fileName)) return false;
+  if (fileName.endsWith('.d.ts')) return false;
+  if (fileName.includes('.test.') || fileName.includes('.spec.')) return false;
+  return workerDiscoveryExtensions.has(path.extname(fileName));
+};
+
+const getWorkerDiscoveryDirectories = (): string[] => {
+  if (!supportsWorkerFileDiscovery()) return [];
+  const root = resolveProjectRoot();
+  return workerDiscoveryDirectories.map((segments) => path.join(root, ...segments));
+};
+
+const listWorkerDefinitionFiles = (): string[] => {
+  if (!supportsWorkerFileDiscovery()) return [];
+
+  const discovered = new Set<string>();
+
+  for (const directory of getWorkerDiscoveryDirectories()) {
+    try {
+      if (!NodeSingletons.fs.existsSync(directory)) continue;
+      const stats = NodeSingletons.fs.statSync(directory);
+      if (!stats.isDirectory()) continue;
+
+      const entries = NodeSingletons.fs.readdirSync(directory, { withFileTypes: true }) as Array<{
+        name: string;
+        isFile: () => boolean;
+      }>;
+
+      for (const entry of entries) {
+        if (!entry.isFile() || !isSupportedWorkerModuleFile(entry.name)) continue;
+        discovered.add(path.join(directory, entry.name));
+      }
+    } catch (error) {
+      Logger.debug(`Worker file discovery failed for directory: ${directory}`, error);
+    }
+  }
+
+  return Array.from(discovered);
+};
+
+const getProjectRelativeWorkerSpec = (sourcePath: string): string => {
+  const relativePath = path.relative(resolveProjectRoot(), sourcePath);
+  return isNonEmptyString(relativePath) ? toPosixPath(relativePath) : toPosixPath(sourcePath);
+};
+
+const isQueueWorkerMeta = (value: unknown): value is QueueWorkerMeta => {
+  return (
+    isObject(value) &&
+    isNonEmptyString(value['kindLabel']) &&
+    isNonEmptyString(value['defaultQueueName']) &&
+    typeof value['maxAttempts'] === 'number'
+  );
+};
+
+const getExportedQueueWorkerMeta = (mod: Record<string, unknown>): QueueWorkerMeta | undefined => {
+  for (const value of Object.values(mod)) {
+    if (!isObject(value)) continue;
+    const meta = value[queueWorkerMetaKey];
+    if (isQueueWorkerMeta(meta)) return meta;
+  }
+
+  return undefined;
+};
+
+const assignStringDefinitionField = <TKey extends keyof FileWorkerDefinition>(
+  definition: FileWorkerDefinition,
+  key: TKey,
+  value: unknown
+): void => {
+  if (isNonEmptyString(value)) {
+    definition[key] = value as FileWorkerDefinition[TKey];
+  }
+};
+
+const assignBooleanDefinitionField = <TKey extends keyof FileWorkerDefinition>(
+  definition: FileWorkerDefinition,
+  key: TKey,
+  value: unknown
+): void => {
+  if (typeof value === 'boolean') {
+    definition[key] = value as FileWorkerDefinition[TKey];
+  }
+};
+
+const assignObjectDefinitionField = <TKey extends keyof FileWorkerDefinition>(
+  definition: FileWorkerDefinition,
+  key: TKey,
+  value: unknown
+): void => {
+  if (isObject(value)) {
+    definition[key] = value as FileWorkerDefinition[TKey];
+  }
+};
+
+const assignConcurrencyDefinitionField = (
+  definition: FileWorkerDefinition,
+  value: unknown
+): void => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    definition.concurrency = Math.max(1, Math.floor(value));
+  }
+};
+
+const assignProcessorDefinitionField = (definition: FileWorkerDefinition, value: unknown): void => {
+  if (isFunction(value)) {
+    definition.processor = value as WorkerFactoryConfig['processor'];
+  }
+};
+
+const normalizeFileWorkerDefinition = (value: unknown): FileWorkerDefinition | undefined => {
+  if (!isObject(value)) return undefined;
+
+  const definition: FileWorkerDefinition = {};
+
+  assignStringDefinitionField(definition, 'name', value['name']);
+  assignStringDefinitionField(definition, 'queueName', value['queueName']);
+  assignStringDefinitionField(definition, 'version', value['version']);
+  assignStringDefinitionField(definition, 'status', value['status']);
+  assignStringDefinitionField(definition, 'region', value['region']);
+  assignStringDefinitionField(definition, 'processorSpec', value['processorSpec']);
+  assignBooleanDefinitionField(definition, 'autoStart', value['autoStart']);
+  assignBooleanDefinitionField(definition, 'activeStatus', value['activeStatus']);
+  assignObjectDefinitionField(definition, 'features', value['features']);
+  assignObjectDefinitionField(definition, 'infrastructure', value['infrastructure']);
+  assignObjectDefinitionField(definition, 'datacenter', value['datacenter']);
+  assignConcurrencyDefinitionField(definition, value['concurrency']);
+  assignProcessorDefinitionField(definition, value['processor']);
+
+  return definition;
+};
+
+const getExportedFileWorkerDefinition = (
+  mod: Record<string, unknown>
+): FileWorkerDefinition | undefined => {
+  for (const key of fileWorkerDefinitionExportKeys) {
+    const normalized = normalizeFileWorkerDefinition(mod[key]);
+    if (normalized) return normalized;
+  }
+
+  const defaultExport = mod['default'];
+  if (!isFunction(defaultExport)) {
+    const normalized = normalizeFileWorkerDefinition(defaultExport);
+    if (normalized) return normalized;
+  }
+
+  return undefined;
+};
+
+const importWorkerDefinitionModule = async (
+  sourcePath: string
+): Promise<Record<string, unknown> | undefined> => {
+  if (!supportsWorkerFileDiscovery()) return undefined;
+
+  try {
+    return (await import(NodeSingletons.url.pathToFileURL(sourcePath).href)) as Record<
+      string,
+      unknown
+    >;
+  } catch (error) {
+    Logger.debug(`Failed to import worker definition module: ${sourcePath}`, error);
+    return undefined;
+  }
+};
+
+const resolveDiscoveredWorkerProcessor = (
+  definition: FileWorkerDefinition | undefined,
+  mod: Record<string, unknown>,
+  sourcePath: string
+): WorkerFactoryConfig['processor'] | undefined => {
+  if (definition?.processor) return definition.processor;
+  return extractZinTrustProcessor(mod, sourcePath) ?? pickProcessorFromModule(mod, sourcePath);
+};
+
+const resolveDiscoveredWorkerName = (
+  definition: FileWorkerDefinition | undefined,
+  sourcePath: string
+): string => {
+  return (
+    definition?.name ?? normalizeWorkerFileName(path.basename(sourcePath, path.extname(sourcePath)))
+  );
+};
+
+const resolveDiscoveredQueueName = (
+  definition: FileWorkerDefinition | undefined,
+  queueWorkerMeta: QueueWorkerMeta | undefined,
+  recordName: string
+): string => {
+  if (definition?.queueName) return definition.queueName;
+  if (queueWorkerMeta?.defaultQueueName) return queueWorkerMeta.defaultQueueName;
+  return `${recordName}-queue`;
+};
+
+const resolveDiscoveredProcessorSpec = (
+  definition: FileWorkerDefinition | undefined,
+  sourcePath: string
+): string => {
+  return definition?.processorSpec ?? getProjectRelativeWorkerSpec(sourcePath);
+};
+
+const resolveDiscoveredVersion = (definition: FileWorkerDefinition | undefined): string => {
+  return definition?.version ?? '1.0.0';
+};
+
+const resolveDiscoveredStatus = (definition: FileWorkerDefinition | undefined): string => {
+  return definition?.status ?? WorkerCreationStatus.STOPPED;
+};
+
+const resolveDiscoveredAutoStart = (definition: FileWorkerDefinition | undefined): boolean => {
+  return definition?.autoStart ?? false;
+};
+
+const resolveDiscoveredConcurrency = (definition: FileWorkerDefinition | undefined): number => {
+  return definition?.concurrency ?? 1;
+};
+
+const resolveDiscoveredActiveStatus = (definition: FileWorkerDefinition | undefined): boolean => {
+  return definition?.activeStatus ?? true;
+};
+
+const buildDiscoveredWorkerRecord = (
+  definition: FileWorkerDefinition | undefined,
+  queueWorkerMeta: QueueWorkerMeta | undefined,
+  sourcePath: string
+): WorkerRecord | undefined => {
+  const recordName = resolveDiscoveredWorkerName(definition, sourcePath);
+
+  if (!isNonEmptyString(recordName)) return undefined;
+
+  return {
+    name: recordName,
+    queueName: resolveDiscoveredQueueName(definition, queueWorkerMeta, recordName),
+    version: resolveDiscoveredVersion(definition),
+    status: resolveDiscoveredStatus(definition),
+    autoStart: resolveDiscoveredAutoStart(definition),
+    concurrency: resolveDiscoveredConcurrency(definition),
+    region: definition?.region ?? null,
+    processorSpec: resolveDiscoveredProcessorSpec(definition, sourcePath),
+    activeStatus: resolveDiscoveredActiveStatus(definition),
+    features: definition?.features ?? null,
+    infrastructure: definition?.infrastructure ?? null,
+    datacenter: definition?.datacenter ?? null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+};
+
+const buildDiscoveredWorker = (
+  mod: Record<string, unknown>,
+  sourcePath: string
+): DiscoveredFileWorker | undefined => {
+  const definition = getExportedFileWorkerDefinition(mod);
+  const queueWorkerMeta = getExportedQueueWorkerMeta(mod);
+  const processor = resolveDiscoveredWorkerProcessor(definition, mod, sourcePath);
+  const record = buildDiscoveredWorkerRecord(definition, queueWorkerMeta, sourcePath);
+  if (!record) return undefined;
+
+  return {
+    record,
+    processor,
+    sourcePath,
+  };
+};
+
+const resolveStartFromPersistedRecord = async (
+  name: string,
+  persistenceOverride?: WorkerPersistenceConfig
+): Promise<{ record: WorkerRecord; discovered: DiscoveredFileWorker | null }> => {
+  const persistedRecord = await getPersistedRecord(name, persistenceOverride);
+  const discovered = persistedRecord ? null : await getDiscoveredFileWorker(name);
+  const effectiveRecord = persistedRecord ?? discovered?.record ?? null;
+
+  if (!effectiveRecord) {
+    throw ErrorFactory.createNotFoundError(`Worker "${name}" not found in persistence store`);
+  }
+
+  return { record: effectiveRecord, discovered };
+};
+
+const resolveStartFromPersistedProcessor = async (
+  name: string,
+  record: WorkerRecord,
+  discovered: DiscoveredFileWorker | null
+): Promise<WorkerFactoryConfig['processor']> => {
+  let processor = await resolveProcessor(name);
+
+  if (!processor && discovered?.processor) {
+    processor = discovered.processor;
+  }
+
+  const spec = record.processorSpec ?? undefined;
+  if (!processor && spec) {
+    try {
+      processor = await resolveProcessorSpec(spec);
+    } catch (error) {
+      Logger.error(`Failed to resolve processor module for "${name}"`, error);
+    }
+  }
+
+  if (!processor) {
+    throw ErrorFactory.createConfigError(
+      `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorSpec.`
+    );
+  }
+
+  return processor;
+};
+
+const discoverFileBackedWorkers = async (): Promise<DiscoveredFileWorker[]> => {
+  const files = listWorkerDefinitionFiles();
+  if (files.length === 0) return [];
+
+  const discovered = new Map<string, DiscoveredFileWorker>();
+
+  for (const filePath of files) {
+    // eslint-disable-next-line no-await-in-loop
+    const mod = await importWorkerDefinitionModule(filePath);
+    if (!mod) continue;
+
+    const discoveredWorker = buildDiscoveredWorker(mod, filePath);
+    if (!discoveredWorker) continue;
+
+    if (discovered.has(discoveredWorker.record.name)) {
+      Logger.warn(
+        `Duplicate file-backed worker definition detected for "${discoveredWorker.record.name}". Keeping the first discovered module.`
+      );
+      continue;
+    }
+
+    discovered.set(discoveredWorker.record.name, discoveredWorker);
+  }
+
+  return Array.from(discovered.values());
+};
+
+const getDiscoveredFileWorker = async (name: string): Promise<DiscoveredFileWorker | null> => {
+  const discovered = await discoverFileBackedWorkers();
+  return discovered.find((entry) => entry.record.name === name) ?? null;
+};
+
 const computeSha256 = async (value: string): Promise<string> => {
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
     const data = new TextEncoder().encode(value);
@@ -579,7 +1034,7 @@ const waitForWorkerConnection = async (
     const checkConnection = async (): Promise<void> => {
       try {
         // Check if worker is actually running
-        const isRunning = await worker.isRunning();
+        const isRunning = await worker.isRunning(); // NOSONAR - BullMQ's isRunning method
         if (!isRunning) {
           throw ErrorFactory.createWorkerError('Worker not running');
         }
@@ -778,7 +1233,7 @@ const cacheProcessorFromResponse = async (params: {
   const rawCode = await readResponseBody(response, config.fetchMaxSizeBytes);
   const code = rewriteProcessorImports(rawCode);
   const mod = await importModuleFromCode({ code, normalized, cacheKey });
-  const processor = extractZinTrustProcessor(mod as Record<string, unknown>, normalized);
+  const processor = extractZinTrustProcessor(mod, normalized);
   if (!processor) {
     throw ErrorFactory.createConfigError('INVALID_PROCESSOR_URL_EXPORT');
   }
@@ -1574,15 +2029,13 @@ const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): Red
   let normalizedDb = fallbackDb;
   if (typeof config.db === 'number') {
     normalizedDb = config.db;
-  } else if (typeof (config as { database?: number }).database === 'number') {
-    normalizedDb = (config as { database?: number }).database as number;
   }
 
   return {
     host: requireRedisHost(config.host, context),
     port: config.port,
     db: normalizedDb,
-    password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
+    password: config.password ?? Env.get('REDIS_PASSWORD'),
   };
 };
 
@@ -1748,7 +2201,7 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
     );
     const key_prefix = persistence.keyPrefix ?? keyPrefix();
     logRedisPersistenceConfig(redisConfig, key_prefix, 'resolveWorkerStore');
-    const client = createRedisConnection(redisConfig);
+    const client = createRedisConnection(redisConfig, 3, { subsystem: 'worker-persistence' });
     next = RedisWorkerStore.create(client, key_prefix);
   } else if (persistence.driver === 'database') {
     const explicitConnection =
@@ -1802,7 +2255,7 @@ const createWorkerStore = async (persistence: WorkerPersistenceConfig): Promise<
     );
     const key_prefix = persistence.keyPrefix ?? keyPrefix();
     logRedisPersistenceConfig(redisConfig, key_prefix, 'createWorkerStore');
-    const client = createRedisConnection(redisConfig);
+    const client = createRedisConnection(redisConfig, 3, { subsystem: 'worker-persistence' });
     return RedisWorkerStore.create(client, key_prefix);
   }
 
@@ -1970,13 +2423,9 @@ const resolveAutoScalerConfig = (input: AutoScalerConfig | undefined): AutoScale
 const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): WorkerOptions => {
   const options = config.options ? { ...config.options } : ({} as WorkerOptions);
 
-  if (options.prefix === undefined) {
-    options.prefix = getBullMQSafeQueueName();
-  }
+  options.prefix ??= getBullMQSafeQueueName();
 
-  if (options.autorun === undefined) {
-    options.autorun = autoStart;
-  }
+  options.autorun ??= autoStart;
   if (options.connection) return options;
 
   const redisConfig = resolveRedisConfigWithFallback(
@@ -2844,31 +3293,13 @@ export const WorkerFactory = Object.freeze({
     name: string,
     persistenceOverride?: WorkerPersistenceConfig
   ): Promise<void> {
-    const record = await getPersistedRecord(name, persistenceOverride);
-    if (!record) {
-      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found in persistence store`);
-    }
+    const { record, discovered } = await resolveStartFromPersistedRecord(name, persistenceOverride);
 
     if (record.activeStatus === false) {
       throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
     }
 
-    let processor = await resolveProcessor(name);
-
-    const spec = record.processorSpec ?? undefined;
-    if (!processor && spec) {
-      try {
-        processor = await resolveProcessorSpec(spec);
-      } catch (error) {
-        Logger.error(`Failed to resolve processor module for "${name}"`, error);
-      }
-    }
-
-    if (!processor) {
-      throw ErrorFactory.createConfigError(
-        `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorSpec.`
-      );
-    }
+    const processor = await resolveStartFromPersistedProcessor(name, record, discovered);
 
     await WorkerFactory.create({
       name: record.name,
@@ -2883,6 +3314,22 @@ export const WorkerFactory = Object.freeze({
       features: record.features as WorkerFactoryConfig['features'],
       datacenter: record.datacenter as WorkerFactoryConfig['datacenter'],
     });
+  },
+
+  /**
+   * List worker definitions discovered from project files.
+   */
+  async listFileBackedRecords(): Promise<WorkerRecord[]> {
+    const discovered = await discoverFileBackedWorkers();
+    return discovered.map((entry) => entry.record);
+  },
+
+  /**
+   * Get a file-backed worker definition by name.
+   */
+  async getFileBackedRecord(name: string): Promise<WorkerRecord | null> {
+    const discovered = await getDiscoveredFileWorker(name);
+    return discovered?.record ?? null;
   },
 
   /**

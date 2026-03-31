@@ -63,6 +63,85 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   let sharedConnection: RedisConnection | null = null;
   let lockProviderCache: ReturnType<typeof createLockProvider> | null = null;
 
+  const isRedisProxyEnabled = (): boolean => {
+    return Env.USE_REDIS_PROXY === true || Env.get('REDIS_PROXY_URL', '').trim() !== '';
+  };
+
+  const assertProxyAndWorkersCompatibility = (isWorkersRuntime: boolean): void => {
+    if (isRedisProxyEnabled() && shouldUseHttpProxyDriver() === false) {
+      throw ErrorFactory.createConfigError(
+        'BullMQ Redis driver does not support REDIS proxy transport directly. Enable QUEUE_HTTP_PROXY_ENABLED=true for queue proxy mode, or disable REDIS proxy mode for direct BullMQ access.'
+      );
+    }
+
+    if (isWorkersRuntime && Cloudflare.isCloudflareSocketsEnabled() === false) {
+      throw ErrorFactory.createConfigError(
+        'BullMQ Redis driver requires ENABLE_CLOUDFLARE_SOCKETS=true in Cloudflare Workers. To use HTTP queue proxy mode, set QUEUE_HTTP_PROXY_ENABLED=true and QUEUE_HTTP_PROXY_URL.'
+      );
+    }
+  };
+
+  const resolveQueueRedisConfig = (): {
+    host: string;
+    port: number;
+    password?: string;
+    database: number;
+  } => {
+    const workersHost = Cloudflare.getWorkersVar('WORKERS_REDIS_HOST');
+    const workersPortRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_PORT');
+    const workersPassword = Cloudflare.getWorkersVar('WORKERS_REDIS_PASSWORD');
+    const workersDbRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_QUEUE_DB');
+
+    return {
+      host: workersHost !== null && workersHost.trim() !== '' ? workersHost.trim() : Env.REDIS_HOST,
+      port:
+        workersPortRaw !== null && Number.isFinite(Number.parseInt(workersPortRaw, 10))
+          ? Number.parseInt(workersPortRaw, 10)
+          : Env.REDIS_PORT,
+      password:
+        workersPassword !== null && workersPassword.trim() !== ''
+          ? workersPassword
+          : Env.REDIS_PASSWORD,
+      database:
+        workersDbRaw !== null && Number.isFinite(Number.parseInt(workersDbRaw, 10))
+          ? Number.parseInt(workersDbRaw, 10)
+          : Env.getInt('REDIS_QUEUE_DB', 0),
+    };
+  };
+
+  const assertWorkersHostIsReachable = (
+    isWorkersRuntime: boolean,
+    redisConfig: { host: string }
+  ): void => {
+    if (
+      isWorkersRuntime &&
+      (redisConfig.host === 'localhost' || redisConfig.host === '127.0.0.1')
+    ) {
+      throw ErrorFactory.createConfigError(
+        'Redis host cannot be localhost in Cloudflare Workers. Use a public Redis host, or enable queue HTTP proxy mode with QUEUE_HTTP_PROXY_ENABLED=true and QUEUE_HTTP_PROXY_URL.'
+      );
+    }
+  };
+
+  const createSharedBullMqConnection = (): RedisConnection => {
+    const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
+    assertProxyAndWorkersCompatibility(isWorkersRuntime);
+
+    const redisConfig = resolveQueueRedisConfig();
+    assertWorkersHostIsReachable(isWorkersRuntime, redisConfig);
+
+    return createRedisConnection(
+      {
+        host: redisConfig.host,
+        port: redisConfig.port,
+        password: redisConfig.password,
+        db: redisConfig.database,
+      },
+      3,
+      { subsystem: 'queue-bullmq' }
+    );
+  };
+
   const getDefaultLockDriveName = (): string => {
     const driver = queueConfig.default;
     return driver.length > 0 ? driver : ZintrustLang.REDIS;
@@ -98,59 +177,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
   const getSharedConnection = (): RedisConnection => {
     if (sharedConnection) return sharedConnection;
-
-    const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
-
-    if (isWorkersRuntime && Cloudflare.isCloudflareSocketsEnabled() === false) {
-      throw ErrorFactory.createConfigError(
-        'BullMQ Redis driver requires ENABLE_CLOUDFLARE_SOCKETS=true in Cloudflare Workers. To use HTTP queue proxy mode, set QUEUE_HTTP_PROXY_ENABLED=true and QUEUE_HTTP_PROXY_URL.'
-      );
-    }
-
-    const workersHost = Cloudflare.getWorkersVar('WORKERS_REDIS_HOST');
-    const workersPortRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_PORT');
-    const workersPassword = Cloudflare.getWorkersVar('WORKERS_REDIS_PASSWORD');
-    const workersDbRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_QUEUE_DB');
-
-    const resolvedHost =
-      workersHost !== null && workersHost.trim() !== '' ? workersHost.trim() : Env.REDIS_HOST;
-
-    const resolvedPort =
-      workersPortRaw !== null && Number.isFinite(Number.parseInt(workersPortRaw, 10))
-        ? Number.parseInt(workersPortRaw, 10)
-        : Env.REDIS_PORT;
-
-    const resolvedPassword =
-      workersPassword !== null && workersPassword.trim() !== ''
-        ? workersPassword
-        : Env.REDIS_PASSWORD;
-
-    const resolvedDb =
-      workersDbRaw !== null && Number.isFinite(Number.parseInt(workersDbRaw, 10))
-        ? Number.parseInt(workersDbRaw, 10)
-        : Env.getInt('REDIS_QUEUE_DB', 0);
-
-    const redisConfig = {
-      host: resolvedHost,
-      port: resolvedPort,
-      password: resolvedPassword,
-      database: resolvedDb,
-    };
-
-    if (
-      isWorkersRuntime &&
-      (redisConfig.host === 'localhost' || redisConfig.host === '127.0.0.1')
-    ) {
-      throw ErrorFactory.createConfigError(
-        'Redis host cannot be localhost in Cloudflare Workers. Use a public Redis host, or enable queue HTTP proxy mode with QUEUE_HTTP_PROXY_ENABLED=true and QUEUE_HTTP_PROXY_URL.'
-      );
-    }
-    sharedConnection = createRedisConnection({
-      host: redisConfig.host,
-      port: redisConfig.port,
-      password: redisConfig.password,
-      db: redisConfig.database,
-    });
+    sharedConnection = createSharedBullMqConnection();
     return sharedConnection; // sharedConnection is IoRedis (compatible with BullMQ)
   };
 
@@ -429,6 +456,8 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         ? deduplication.ttl
         : undefined;
     const replace = (deduplication as { replace?: boolean }).replace === true;
+    const jobId = jobOptions.jobId ?? generateUuid();
+    jobOptions.jobId = jobId;
 
     // Check existing lock
     const hasExistingLock = await checkExistingLock(
@@ -436,7 +465,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       provider,
       replace,
       queue,
-      jobOptions.jobId as string
+      jobId
     );
     if (hasExistingLock) {
       return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
@@ -448,7 +477,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       provider,
       ttl,
       queue,
-      jobOptions.jobId as string
+      jobId
     );
     if (!lockAcquired) {
       return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
@@ -499,7 +528,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         const q = getQueue(queue);
 
         // Extract BullMQ options from payload with proper typing
-        const payloadData = payload as BullMQPayload;
+        const payloadData = payload;
         const jobOptions = createJobOptions(payloadData);
         requestedJobId = jobOptions.jobId;
         // Handle deduplication

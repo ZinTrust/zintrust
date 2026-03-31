@@ -22,6 +22,24 @@ import { Env } from '@/config/env';
 import { BullMQRedisQueue } from '../../../../packages/queue-redis/src/BullMQRedisQueue';
 
 describe('BullMQ Redis queue (Workers)', () => {
+  it('fails fast when redis proxy mode is enabled without queue HTTP proxy mode', async () => {
+    try {
+      Env.setSource({
+        USE_REDIS_PROXY: 'true',
+        REDIS_PROXY_URL: 'http://127.0.0.1:8791/redis',
+        QUEUE_HTTP_PROXY_ENABLED: 'false',
+      });
+
+      await expect(
+        BullMQRedisQueue.enqueue('jobs', {
+          payload: { ok: true },
+        } as any)
+      ).rejects.toThrow(/Failed to enqueue job via BullMQ/);
+    } finally {
+      Env.setSource(null);
+    }
+  });
+
   it('uses HTTP proxy fallback when enabled', async () => {
     const originalFetch = globalThis.fetch;
 

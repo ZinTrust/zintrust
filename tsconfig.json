@@ -30,6 +30,7 @@
       "@zintrust/queue-redis": ["./packages/queue-redis/src/index.ts"],
       "@zintrust/queue-redis/*": ["./packages/queue-redis/src/*"],
       "@zintrust/core/proxy": ["./src/proxy.ts"],
+      "@zintrust/core/proxy/*": ["./src/proxy/*"],
       "@zintrust/core/start": ["./src/start.ts"],
       "@zintrust/core/cli": ["./src/cli.ts"],
       "@/*": ["./src/*"],

@@ -12,6 +12,8 @@ Use `config/middleware.ts` for three different extension points:
 - `route`: register project middleware by key or override a built-in middleware key
 - `responders`: reshape built-in auth, CSRF, rate-limit, validation, and JSON error payloads without replacing the middleware logic
 
+For route-level rate limiting, metadata also supports inline keys in the form `rateLimit:<max>:<windowInMinutes>`. That lets a project declare `middleware: ['rateLimit:6:1']` or `middleware: ['rateLimit:100:0.4']` without first adding another named entry to `route`.
+
 Example responder wiring:
 
 ```ts

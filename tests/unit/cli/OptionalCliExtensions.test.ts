@@ -39,6 +39,7 @@ describe('OptionalCliExtensions', () => {
     expect(commands).toContain('worker:start-all');
     expect(commands).toContain('worker:stop');
     expect(commands).toContain('worker:restart');
+    expect(commands).toContain('worker:doctor');
     expect(commands).toContain('worker:summary');
   });
 
@@ -75,6 +76,7 @@ describe('OptionalCliExtensions', () => {
             'worker:start-all',
             'worker:stop',
             'worker:restart',
+            'worker:doctor',
             'worker:summary',
           ],
           installCommand: 'npm install @zintrust/workers',

@@ -193,7 +193,7 @@ export const ClusterLock = Object.freeze({
       return;
     }
 
-    const client = createRedisConnection(config);
+    const client = createRedisConnection(config, 3, { subsystem: 'worker-cluster-lock' });
     redisClient = client;
     startHeartbeat(client);
 

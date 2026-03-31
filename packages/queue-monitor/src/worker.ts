@@ -13,7 +13,7 @@ export const createWorker = (
   redisConfig: RedisConfig,
   metrics: Metrics
 ): QueueWorker => {
-  const connection = createRedisConnection(redisConfig);
+  const connection = createRedisConnection(redisConfig, 3, { subsystem: 'queue-monitor-worker' });
   const prefix = getBullMQSafeQueueName();
 
   const worker = new Worker(queueName, processor, {

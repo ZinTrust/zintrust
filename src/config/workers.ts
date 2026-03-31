@@ -4,6 +4,11 @@
  * Sealed namespace for immutability
  */
 
+import {
+  createRedisProxyConnection,
+  ensureRedisTransportMode,
+  type RedisTransportOptions,
+} from '@/tools/redis/RedisTransport';
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
@@ -213,7 +218,16 @@ const resolveEffectiveRedisConfig = (
   return config;
 };
 
-export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORedis => {
+export const createRedisConnection = (
+  config: RedisConfig,
+  maxRetries = 3,
+  options?: RedisTransportOptions
+): IORedis => {
+  const mode = ensureRedisTransportMode(config, options);
+  if (mode === 'proxy') {
+    return createRedisProxyConnection(config, options) as unknown as IORedis;
+  }
+
   const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
   const proxySettings = getProxySettings();
   const effectiveConfig = resolveEffectiveRedisConfig(config, isWorkersRuntime, proxySettings);

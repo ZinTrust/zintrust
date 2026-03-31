@@ -152,8 +152,16 @@ export interface IHash {
 Protect your API from brute-force attacks using the `RateLimiter` middleware:
 
 ```typescript
-router.get('/login', 'AuthController@login', { middleware: ['throttle:6,1'] });
+Router.post(router, '/login', loginHandler, {
+  middleware: ['rateLimit:6:1'],
+});
+
+Router.post(router, '/bursty-endpoint', burstHandler, {
+  middleware: ['rateLimit:100:0.4'],
+});
 ```
+
+The inline route syntax is `rateLimit:<max>:<windowInMinutes>`. Fractional minute windows are supported, so `rateLimit:100:0.4` means 100 requests every 24 seconds.
 
 ### Interface Reference
 

@@ -550,16 +550,62 @@ type RouteDef = {
     | 'ZT_PROXY_SMTP'
   >;
   prefix: `/${string}`;
+  internalPrefix: `/zin/${string}`;
 };
 
 const ROUTES: Readonly<Record<string, RouteDef>> = Object.freeze({
-  mysql: { binding: 'ZT_PROXY_MYSQL', prefix: '/mysql' },
-  postgres: { binding: 'ZT_PROXY_POSTGRES', prefix: '/postgres' },
-  redis: { binding: 'ZT_PROXY_REDIS', prefix: '/redis' },
-  mongodb: { binding: 'ZT_PROXY_MONGODB', prefix: '/mongodb' },
-  sqlserver: { binding: 'ZT_PROXY_SQLSERVER', prefix: '/sqlserver' },
-  smtp: { binding: 'ZT_PROXY_SMTP', prefix: '/smtp' },
+  mysql: { binding: 'ZT_PROXY_MYSQL', prefix: '/mysql', internalPrefix: '/zin/mysql' },
+  postgres: {
+    binding: 'ZT_PROXY_POSTGRES',
+    prefix: '/postgres',
+    internalPrefix: '/zin/postgres',
+  },
+  redis: { binding: 'ZT_PROXY_REDIS', prefix: '/redis', internalPrefix: '/zin/redis' },
+  mongodb: {
+    binding: 'ZT_PROXY_MONGODB',
+    prefix: '/mongodb',
+    internalPrefix: '/zin/mongodb',
+  },
+  sqlserver: {
+    binding: 'ZT_PROXY_SQLSERVER',
+    prefix: '/sqlserver',
+    internalPrefix: '/zin/sqlserver',
+  },
+  smtp: { binding: 'ZT_PROXY_SMTP', prefix: '/smtp', internalPrefix: '/zin/smtp' },
 });
+
+const matchesPrefix = (pathname: string, prefix: string): boolean => {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+};
+
+const resolveRoute = (
+  request: Request
+):
+  | {
+      def: RouteDef;
+      nextRequest: Request;
+    }
+  | undefined => {
+  const pathname = new URL(request.url).pathname;
+
+  for (const def of Object.values(ROUTES)) {
+    if (matchesPrefix(pathname, def.prefix)) {
+      return {
+        def,
+        nextRequest: rewritePrefix(request, def.prefix),
+      };
+    }
+
+    if (matchesPrefix(pathname, def.internalPrefix)) {
+      return {
+        def,
+        nextRequest: request,
+      };
+    }
+  }
+
+  return undefined;
+};
 
 export default {
   async fetch(request: Request, env: ZintrustContainersProxyEnv): Promise<Response> {
@@ -580,14 +626,12 @@ export default {
       );
     }
 
-    const segments = url.pathname.split('/').filter((p) => p.trim() !== '');
-    const firstSegment = segments.length > 0 ? segments[0] : '';
-
-    const def = ROUTES[firstSegment];
-    if (!def) {
+    const resolved = resolveRoute(request);
+    if (!resolved) {
       return createJson({ error: 'not_found', message: 'Unknown proxy route' }, { status: 404 });
     }
 
+    const { def, nextRequest } = resolved;
     const namespace = env[def.binding];
     if (!namespace || typeof namespace.getByName !== 'function') {
       return createJson(
@@ -602,7 +646,6 @@ export default {
       );
     }
     const stub = namespace.getByName(CONTAINER_INSTANCE_NAME);
-    const nextRequest = rewritePrefix(request, def.prefix);
 
     return fetchWithContainerRetry(stub, nextRequest);
   },

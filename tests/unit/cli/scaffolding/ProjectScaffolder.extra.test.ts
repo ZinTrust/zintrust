@@ -32,6 +32,13 @@ describe('ProjectScaffolder extra tests', () => {
     expect(result.success).toBe(true);
     expect(fs.existsSync(path.join(projectPath, '.env'))).toBe(true);
     expect(fs.existsSync(path.join(projectPath, '.zintrust.json'))).toBe(true);
+    expect(fs.existsSync(path.join(projectPath, 'src/boot/bootstrap.ts'))).toBe(true);
+
+    const bootFile = await fsPromises.readFile(
+      path.join(projectPath, 'src/boot/bootstrap.ts'),
+      'utf8'
+    );
+    expect(bootFile).toContain("import '@zintrust/core/boot';");
 
     const packageJson = JSON.parse(
       await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')

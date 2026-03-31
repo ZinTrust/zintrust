@@ -271,6 +271,21 @@ function patchFile({ file, outDir, aliases }) {
   let next = original;
   let replacements = 0;
 
+  const replaceStaticStatements = (pattern) => {
+    next = next.replaceAll(pattern, (match, lineStart, prefix, quote, specifier, suffix = '') => {
+      const specialRewrite = rewriteSpecialRelativeSpecifier(specifier);
+      if (specialRewrite) {
+        replacements += 1;
+        return `${lineStart}${prefix}${quote}${specialRewrite}${quote}${suffix}`;
+      }
+
+      const rewritten = rewriteSpecifier({ filePath: file, specifier, outDir, aliases });
+      if (!rewritten) return match;
+      replacements += 1;
+      return `${lineStart}${prefix}${quote}${rewritten}${quote}${suffix}`;
+    });
+  };
+
   /**
    * Static imports/exports + bare imports.
    * - import x from '...'
@@ -278,20 +293,11 @@ function patchFile({ file, outDir, aliases }) {
    * - export { x } from '...'
    * - import '...'
    */
-  next = next.replaceAll(
-    /(\b(?:import|export)\b[\s\S]*?\bfrom\s*|\bimport\s*)(['"])([^'"\n]+?)\2/g,
-    (match, prefix, quote, specifier) => {
-      const specialRewrite = rewriteSpecialRelativeSpecifier(specifier);
-      if (specialRewrite) {
-        replacements += 1;
-        return `${prefix}${quote}${specialRewrite}${quote}`;
-      }
-      const rewritten = rewriteSpecifier({ filePath: file, specifier, outDir, aliases });
-      if (!rewritten) return match;
-      replacements += 1;
-      return `${prefix}${quote}${rewritten}${quote}`;
-    }
-  );
+  replaceStaticStatements(/(^|\n)(\s*import\s+[^\n'";]+?\s+from\s*)(['"])([^'"\n]+?)\3(;?)/gm);
+  replaceStaticStatements(/(^|\n)(\s*export\s+\*\s+from\s*)(['"])([^'"\n]+?)\3(;?)/gm);
+  replaceStaticStatements(/(^|\n)(\s*export\s+\{[^\n]+\}\s+from\s*)(['"])([^'"\n]+?)\3(;?)/gm);
+  replaceStaticStatements(/(^|\n)(\s*import\s*)(['"])([^'"\n]+?)\3(;?)/gm);
+
   // Dynamic import('...')
   next = next.replaceAll(
     /(\bimport\s*\(\s*)(['"])([^'"\n]+?)\2(\s*\))/g,

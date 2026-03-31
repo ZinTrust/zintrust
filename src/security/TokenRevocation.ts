@@ -219,12 +219,16 @@ const createDatabaseStore = (params: {
 };
 
 const createRedisStore = (params: { keyPrefix: string }): TokenRevocationStore => {
-  const client = createRedisConnection({
-    host: Env.REDIS_HOST,
-    port: Env.REDIS_PORT,
-    password: Env.REDIS_PASSWORD,
-    db: Env.getInt('JWT_REVOCATION_REDIS_DB', Env.REDIS_DB),
-  });
+  const client = createRedisConnection(
+    {
+      host: Env.REDIS_HOST,
+      port: Env.REDIS_PORT,
+      password: Env.REDIS_PASSWORD,
+      db: Env.getInt('JWT_REVOCATION_REDIS_DB', Env.REDIS_DB),
+    },
+    3,
+    { subsystem: 'jwt-revocation' }
+  );
 
   return {
     async revoke(key: RevocationKey): Promise<void> {
