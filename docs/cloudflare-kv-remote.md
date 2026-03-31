@@ -11,6 +11,8 @@ Cloudflare KV is a Workers binding (not a Redis-like server you can connect to d
 zin deploy kv-proxy
 ```
 
+`zin deploy kv-proxy` now syncs Cloudflare secrets from the project `.zintrust.json` manifest before `wrangler deploy` when matching keys are selected by `cloudflare.shared_env`, `cloudflare.targets`, and `cloudflare.wrangler_envs["kv-proxy"]`.
+
 ## Local CLI
 
 ```bash
@@ -24,6 +26,8 @@ This command auto-adds `env.kv-proxy` to `wrangler.jsonc` when the environment b
 ```bash
 zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
 ```
+
+That manual command remains available, but it is no longer required as a separate pre-deploy step for the standard `zin deploy kv-proxy` flow.
 
 ---
 

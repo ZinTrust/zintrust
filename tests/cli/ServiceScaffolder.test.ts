@@ -93,6 +93,23 @@ describe('ServiceScaffolder Scaffolding Basic', () => {
 
   describe('scaffold Basic', () => {
     it('should create service with all files', async () => {
+      fs.writeFileSync(
+        path.join(testDir, '.zintrust.json'),
+        JSON.stringify(
+          {
+            name: 'test-app',
+            cloudflare: {
+              shared_env: ['APP_KEY'],
+              targets: {
+                worker: [],
+              },
+            },
+          },
+          null,
+          2
+        )
+      );
+
       const options: ServiceOptions = {
         name: 'users',
         domain: 'ecommerce',
@@ -137,6 +154,9 @@ describe('ServiceScaffolder Scaffolding Basic', () => {
       expect(wranglerContent).toContain(
         '"../zintrust.runtime.wg.js": "../../../../src/zintrust.runtime.wg.ts"'
       );
+
+      const config = JSON.parse(fs.readFileSync(path.join(testDir, '.zintrust.json'), 'utf-8'));
+      expect(config.cloudflare.targets['ecommerce/users']).toEqual([]);
     });
 
     it('should reject existing service', async () => {

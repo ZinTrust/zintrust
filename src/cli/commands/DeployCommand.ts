@@ -4,6 +4,10 @@
  */
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
+import {
+  reportCloudflareSecretSync,
+  syncCloudflareSecrets,
+} from '@cli/cloudflare/CloudflareSecretSync';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -14,6 +18,9 @@ import type { Command } from 'commander';
 type DeployCommandOptions = CommandOptions & {
   env?: string;
   config?: string;
+  envPath?: string;
+  target?: string;
+  syncSecrets?: boolean;
 };
 
 const runCompose = async (args: string[]): Promise<void> => {
@@ -58,7 +65,36 @@ const deployProxyStack = async (label: string): Promise<void> => {
   Logger.info(`✅ ${label} deployed.`);
 };
 
-const runDeploy = async (target: string, options: DeployCommandOptions): Promise<void> => {
+const syncWranglerSecrets = async (
+  cmd: IBaseCommand,
+  cwd: string,
+  wranglerEnv: string,
+  options: DeployCommandOptions
+): Promise<void> => {
+  if (options.syncSecrets === false) return;
+
+  const result = await syncCloudflareSecrets({
+    log: cmd,
+    cwd,
+    wranglerEnvs: [wranglerEnv],
+    envPath:
+      typeof options.envPath === 'string' && options.envPath.trim() !== ''
+        ? options.envPath
+        : '.env',
+    configPath: typeof options.config === 'string' ? options.config.trim() : undefined,
+    target: typeof options.target === 'string' ? options.target : undefined,
+    requireSelection: false,
+  });
+
+  if (result.selectedKeys.length === 0) return;
+  reportCloudflareSecretSync(cmd, result);
+};
+
+const runDeploy = async (
+  cmd: IBaseCommand,
+  target: string,
+  options: DeployCommandOptions
+): Promise<void> => {
   const normalizedTarget = target.trim().toLowerCase();
 
   if (normalizedTarget === 'cw' || normalizedTarget === 'cwr') {
@@ -90,6 +126,7 @@ const runDeploy = async (target: string, options: DeployCommandOptions): Promise
   }
 
   Logger.info(`Deploying to Cloudflare environment: ${environment}`);
+  await syncWranglerSecrets(cmd, process.cwd(), environment, options);
 
   const exitCode = await SpawnUtil.spawnAndWait({
     command: 'wrangler',
@@ -102,7 +139,7 @@ const runDeploy = async (target: string, options: DeployCommandOptions): Promise
 };
 
 const createDeployCommand = (): IBaseCommand => {
-  return BaseCommand.create({
+  const cmd = BaseCommand.create({
     name: 'deploy',
     description: 'Deploy ZinTrust to Cloudflare Workers',
     addOptions: (command: Command) => {
@@ -117,6 +154,16 @@ const createDeployCommand = (): IBaseCommand => {
         '-c, --config <path>',
         'Wrangler config file (e.g. wrangler.containers-proxy.jsonc)'
       );
+      command.option(
+        '--env-path <path>',
+        'Path to env file used when syncing Cloudflare secrets',
+        '.env'
+      );
+      command.option(
+        '--target <id>',
+        'Cloudflare worker target key from .zintrust.json cloudflare.targets'
+      );
+      command.option('--no-sync-secrets', 'Skip Cloudflare secret sync before wrangler deploy');
     },
     execute: async (options: DeployCommandOptions): Promise<void> => {
       // Note: BaseCommand.create sets up action handler that calls execute(options).
@@ -134,9 +181,11 @@ const createDeployCommand = (): IBaseCommand => {
       // So 'target' will be available in options.args[0]
 
       const target = options.args?.[0] ?? 'worker';
-      await runDeploy(target, options);
+      await runDeploy(cmd, target, options);
     },
   });
+
+  return cmd;
 };
 
 /**

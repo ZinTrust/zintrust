@@ -209,6 +209,17 @@ describe('Cloudflare Containers proxy CLI commands (patch coverage)', () => {
         renameSync: vi.fn(),
       }));
       vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn() } }));
+      const syncCloudflareSecrets = vi.fn(async () => ({
+        selectedKeys: [],
+        pushedKeys: [],
+        failures: [],
+        dryRun: false,
+      }));
+      const reportCloudflareSecretSync = vi.fn();
+      vi.doMock('@cli/cloudflare/CloudflareSecretSync', () => ({
+        syncCloudflareSecrets,
+        reportCloudflareSecretSync,
+      }));
       const spawnAndWait = vi.fn(async () => 0);
       vi.doMock('@cli/utils/spawn', () => ({ SpawnUtil: { spawnAndWait } }));
 
@@ -216,6 +227,16 @@ describe('Cloudflare Containers proxy CLI commands (patch coverage)', () => {
         await import('@cli/commands/DeployContainersProxyCommand');
 
       await expect(DeployContainersProxyCommand.create().execute({})).rejects.toThrow('exit:0');
+      expect(syncCloudflareSecrets).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cwd: '/cwd',
+          configPath: 'wrangler.containers-proxy.jsonc',
+          wranglerEnvs: ['production'],
+          envPath: '.env',
+          requireSelection: false,
+        })
+      );
+      expect(reportCloudflareSecretSync).not.toHaveBeenCalled();
       expect(spawnAndWait).toHaveBeenCalledWith({
         command: 'wrangler',
         args: ['deploy', '--config', 'wrangler.containers-proxy.jsonc', '--env', 'production'],
@@ -238,6 +259,43 @@ describe('Cloudflare Containers proxy CLI commands (patch coverage)', () => {
       await expect(
         DeployContainersProxyCommand.create().execute({ config: 'missing.jsonc' })
       ).rejects.toThrow(/Wrangler config not found/i);
+    });
+
+    it('skips secret sync when disabled', async () => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+        throw new Error(`exit:${String(code)}`);
+      }) as never);
+
+      vi.spyOn(process, 'cwd').mockReturnValue('/cwd');
+
+      vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+      vi.doMock('@node-singletons/fs', () => ({
+        existsSync: vi.fn((path: string) => path === '/cwd/wrangler.containers-proxy.jsonc'),
+        renameSync: vi.fn(),
+      }));
+      const syncCloudflareSecrets = vi.fn(async () => ({
+        selectedKeys: ['APP_KEY'],
+        pushedKeys: ['APP_KEY'],
+        failures: [],
+        dryRun: false,
+      }));
+      vi.doMock('@cli/cloudflare/CloudflareSecretSync', () => ({
+        syncCloudflareSecrets,
+        reportCloudflareSecretSync: vi.fn(),
+      }));
+      vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn() } }));
+      const spawnAndWait = vi.fn(async () => 0);
+      vi.doMock('@cli/utils/spawn', () => ({ SpawnUtil: { spawnAndWait } }));
+
+      const { DeployContainersProxyCommand } =
+        await import('@cli/commands/DeployContainersProxyCommand');
+
+      await expect(
+        DeployContainersProxyCommand.create().execute({ syncSecrets: false })
+      ).rejects.toThrow('exit:0');
+
+      expect(syncCloudflareSecrets).not.toHaveBeenCalled();
+      exitSpy.mockRestore();
     });
   });
 

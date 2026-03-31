@@ -5,6 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
+import { isArray, isObject } from '@helper/index';
 import * as path from '@node-singletons/path';
 
 export interface ServiceOptions {
@@ -36,6 +37,8 @@ const buildRouteImportExpression = (domain: string, serviceName: string): string
 
 const getServiceConfigRoot = (domain: string, serviceName: string): string =>
   `src/services/${domain}/${serviceName}/config`;
+
+const getServiceId = (domain: string, serviceName: string): string => `${domain}/${serviceName}`;
 
 /**
  * ServiceScaffolder generates microservices with all necessary files
@@ -115,6 +118,7 @@ export function scaffold(
     ensureProjectRuntimeFiles(projectRoot, options);
     const filesCreated = createServiceFiles(servicePath, options);
     updateServiceManifest(projectRoot, options);
+    ensureCloudflareServiceTarget(projectRoot, options);
 
     return Promise.resolve({
       success: true,
@@ -137,7 +141,7 @@ export function scaffold(
 
 function ensureProjectRuntimeFiles(projectRoot: string, options: ServiceOptions): void {
   const domain = options.domain ?? 'default';
-  const serviceId = `${domain}/${options.name}`;
+  const serviceId = getServiceId(domain, options.name);
   const routeImportExpression = buildRouteImportExpression(domain, options.name);
   const bootstrapDir = path.join(projectRoot, 'src', 'bootstrap');
   FileGenerator.createDirectory(bootstrapDir);
@@ -184,7 +188,7 @@ export default Object.freeze({ serviceManifest });
 
 function updateServiceManifest(projectRoot: string, options: ServiceOptions): void {
   const domain = options.domain ?? 'default';
-  const serviceId = `${domain}/${options.name}`;
+  const serviceId = getServiceId(domain, options.name);
   const routeImportExpression = buildRouteImportExpression(domain, options.name);
   const manifestPath = path.join(projectRoot, 'src', 'bootstrap', 'service-manifest.ts');
   if (!FileGenerator.fileExists(manifestPath)) return;
@@ -216,6 +220,37 @@ function updateServiceManifest(projectRoot: string, options: ServiceOptions): vo
 
   const next = `${current.slice(0, markerIndex)}${entry}${current.slice(markerIndex)}`;
   FileGenerator.writeFile(manifestPath, next, { overwrite: true });
+}
+
+function ensureCloudflareServiceTarget(projectRoot: string, options: ServiceOptions): void {
+  const configPath = path.join(projectRoot, '.zintrust.json');
+  if (!FileGenerator.fileExists(configPath)) return;
+
+  try {
+    const raw = FileGenerator.readFile(configPath);
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isObject(parsed)) return;
+
+    const config = { ...parsed };
+    const cloudflare = isObject(config['cloudflare']) ? { ...config['cloudflare'] } : {};
+    const targets = isObject(cloudflare['targets']) ? { ...cloudflare['targets'] } : {};
+
+    const domain = options.domain ?? 'default';
+    const serviceId = getServiceId(domain, options.name);
+    if (isArray(targets[serviceId])) return;
+
+    targets[serviceId] = [];
+    cloudflare['targets'] = targets;
+    config['cloudflare'] = cloudflare;
+
+    FileGenerator.writeFile(`${configPath}`, `${JSON.stringify(config, null, 2)}\n`, {
+      overwrite: true,
+    });
+  } catch (error) {
+    Logger.warn(
+      `Unable to update .zintrust.json Cloudflare targets for ${options.domain ?? 'default'}/${options.name}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }
 
 /**
