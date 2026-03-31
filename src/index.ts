@@ -209,6 +209,7 @@ export {
 // Events
 export { EventDispatcher } from '@events/EventDispatcher';
 export type { EventListener, EventMap, IEventDispatcher } from '@events/EventDispatcher';
+export { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 
 // Sessions
 export { SessionManager } from '@session/SessionManager';
@@ -232,10 +233,13 @@ export type {
 // Config (core-owned)
 export { Env } from '@config/env';
 export { Logger } from '@config/logger';
+export type { LogSink } from '@config/logger';
 
 export { LocalD1Resolver } from '@cli/d1/LocalD1Resolver';
 export { WranglerConfig } from '@cli/d1/WranglerConfig';
 export { WranglerD1 } from '@cli/d1/WranglerD1';
+export { OptionalCliCommandRegistry } from '@cli/OptionalCliCommandRegistry';
+export type { CliCommandProvider } from '@cli/OptionalCliCommandRegistry';
 export { appConfig } from '@config/app';
 export type { AppConfig } from '@config/app';
 

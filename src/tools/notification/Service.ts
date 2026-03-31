@@ -1,4 +1,5 @@
 import notificationConfig from '@config/notification';
+import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { NotificationConfig } from '@notification/config';
 import { ConsoleDriver } from '@notification/drivers/Console';
@@ -72,8 +73,9 @@ export const NotificationService = Object.freeze({
 
     const driverName = NotificationConfig.getDriver();
     const driver = NotificationRegistry.get(driverName);
-
-    return driver.send(recipient, message, options);
+    const result = await driver.send(recipient, message, options);
+    SystemDebuggerBridge.emitNotification(driverName, [driverName], recipient);
+    return result;
   },
 
   async sendVia(
@@ -87,13 +89,18 @@ export const NotificationService = Object.freeze({
     const cfg = resolveChannelConfig(channelName) as { driver?: unknown };
 
     switch (cfg.driver) {
-      case 'console':
-        return ConsoleDriver.send(recipient, message, options);
+      case 'console': {
+        const result = await ConsoleDriver.send(recipient, message, options);
+        SystemDebuggerBridge.emitNotification(channelName, ['console'], recipient);
+        return result;
+      }
 
       case 'slack': {
         const slackCfg = cfg as { webhookUrl: string };
         const payload: Record<string, unknown> = { text: message, ...options };
-        return SlackDriver.send({ webhookUrl: slackCfg.webhookUrl }, payload);
+        const result = await SlackDriver.send({ webhookUrl: slackCfg.webhookUrl }, payload);
+        SystemDebuggerBridge.emitNotification(channelName, ['slack'], recipient);
+        return result;
       }
 
       case 'twilio': {
@@ -102,7 +109,7 @@ export const NotificationService = Object.freeze({
           authToken: string;
           fromNumber: string;
         };
-        return TwilioDriver.send(
+        const result = await TwilioDriver.send(
           {
             accountSid: twilioCfg.accountSid,
             authToken: twilioCfg.authToken,
@@ -110,15 +117,19 @@ export const NotificationService = Object.freeze({
           },
           { to: recipient, body: message }
         );
+        SystemDebuggerBridge.emitNotification(channelName, ['twilio'], recipient);
+        return result;
       }
 
       case 'termii': {
-        return sendTermii(
+        const result = await sendTermii(
           cfg as { apiKey?: unknown; sender?: unknown; endpoint?: unknown },
           recipient,
           message,
           options
         );
+        SystemDebuggerBridge.emitNotification(channelName, ['termii'], recipient);
+        return result;
       }
 
       default:

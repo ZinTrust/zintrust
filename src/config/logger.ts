@@ -321,6 +321,8 @@ const logDebug = (message: string, data?: unknown, category?: string): void => {
     category,
     data: redactSensitiveData(data),
   });
+
+  dispatchToSinks('debug', message, data);
 };
 
 const logInfo = (message: string, data?: unknown, category?: string): void => {
@@ -342,6 +344,8 @@ const logInfo = (message: string, data?: unknown, category?: string): void => {
     category,
     data: redactSensitiveData(data),
   });
+
+  dispatchToSinks('info', message, data);
 };
 
 const logWarn = (message: string, data?: unknown, category?: string): void => {
@@ -363,6 +367,8 @@ const logWarn = (message: string, data?: unknown, category?: string): void => {
     category,
     data: redactSensitiveData(data),
   });
+
+  dispatchToSinks('warn', message, data);
 };
 
 const logError = (message: string, error?: unknown, category?: string): void => {
@@ -390,6 +396,8 @@ const logError = (message: string, error?: unknown, category?: string): void => 
     category,
     error: errorMessage,
   });
+
+  dispatchToSinks('error', message, error);
 };
 
 const logFatal = (message: string, error?: unknown, category?: string): void => {
@@ -418,6 +426,8 @@ const logFatal = (message: string, error?: unknown, category?: string): void => 
     error: errorMessage,
   });
 
+  dispatchToSinks('fatal', message, error);
+
   if (isProduction() && typeof process !== 'undefined') {
     process.exit(1);
   }
@@ -440,6 +450,43 @@ const createLoggerScope = (scope: string): ILogger => {
     fatal(message: string, error?: unknown): void {
       logFatal(`[${scope}] ${message}`, error, scope);
     },
+  };
+};
+
+/**
+ * External log sink. Receives every log line after the built-in sinks have fired.
+ * Return value is ignored; errors are swallowed to protect the caller.
+ */
+export type LogSink = (level: LogLevel, message: string, context?: Record<string, unknown>) => void;
+
+const loggerSinks: LogSink[] = [];
+
+const dispatchToSinks = (level: LogLevel, message: string, data?: unknown): void => {
+  if (loggerSinks.length === 0) return;
+  let context: Record<string, unknown> | undefined;
+
+  if (data !== null && typeof data === 'object' && !Array.isArray(data)) {
+    context = data as Record<string, unknown>;
+  } else if (data === undefined) {
+    context = undefined;
+  } else {
+    context = { value: data };
+  }
+
+  for (const sink of loggerSinks) {
+    try {
+      sink(level, message, context);
+    } catch {
+      // best-effort — sinks must never crash the caller
+    }
+  }
+};
+
+const addSink = (fn: LogSink): (() => void) => {
+  loggerSinks.push(fn);
+  return (): void => {
+    const idx = loggerSinks.indexOf(fn);
+    if (idx !== -1) loggerSinks.splice(idx, 1);
   };
 };
 
@@ -466,6 +513,7 @@ export const Logger = Object.freeze({
   fatal: logFatal,
   cleanLogsOnce,
   scope: createLoggerScope,
+  addSink,
 });
 
 export default Logger;

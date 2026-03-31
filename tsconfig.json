@@ -25,6 +25,8 @@
       "@zintrust/db-sqlserver/*": ["./packages/db-sqlserver/src/*"],
       "@zintrust/workers": ["./packages/workers/src/index.ts"],
       "@zintrust/workers/*": ["./packages/workers/src/*"],
+      "@zintrust/system-debugger": ["./packages/system-debugger/src/index.ts"],
+      "@zintrust/system-debugger/*": ["./packages/system-debugger/src/*"],
       "@zintrust/queue-monitor": ["./packages/queue-monitor/src/index.ts"],
       "@zintrust/queue-monitor/*": ["./packages/queue-monitor/src/*"],
       "@zintrust/queue-redis": ["./packages/queue-redis/src/index.ts"],
@@ -123,6 +125,8 @@
     "database/**/*",
     "packages/workers/src/**/*",
     "packages/workers/migrations/**/*.ts",
+    "packages/system-debugger/src/**/*",
+    "packages/system-debugger/migrations/**/*.ts",
     "packages/queue-redis/src/**/*",
     "env.d.ts",
     "processors"

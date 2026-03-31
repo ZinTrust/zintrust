@@ -1,4 +1,5 @@
 import { mailConfig } from '@config/mail';
+import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 import type { MailAddress } from '@mail/drivers/SendGrid';
@@ -108,6 +109,10 @@ type MailMessage = {
   attachments: Awaited<ReturnType<typeof resolveAttachments>>;
 };
 
+const normalizeMailRecipients = (to: SendMailInput['to']): string => {
+  return Array.isArray(to) ? to.join(', ') : to;
+};
+
 const sendWithDriver = async (
   driver: ReturnType<typeof mailConfig.getDriver>,
   message: MailMessage
@@ -157,7 +162,7 @@ const createMailer = (
       const storage = createStorageWrapper();
       const attachments = await resolveAttachments(input.attachments, { storage });
 
-      return sendWithDriver(driver, {
+      const result = await sendWithDriver(driver, {
         to: input.to,
         from,
         subject: input.subject,
@@ -165,6 +170,9 @@ const createMailer = (
         html: input.html,
         attachments,
       });
+
+      SystemDebuggerBridge.emitMail(normalizeMailRecipients(input.to), input.subject);
+      return result;
     },
   });
 

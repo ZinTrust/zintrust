@@ -1,3 +1,4 @@
+import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { Logger } from '@config/logger';
 
 export type EventMap = Record<string, unknown>;
@@ -85,6 +86,8 @@ export const EventDispatcher = Object.freeze({
         const set = listeners.get(event);
         if (set === undefined) return;
 
+        SystemDebuggerBridge.emitEvent(event, set.size, payload);
+
         // Snapshot to avoid mutation during iteration affecting dispatch.
         const snapshot = Array.from(set);
         for (const listener of snapshot) {
@@ -98,6 +101,8 @@ export const EventDispatcher = Object.freeze({
       ): Promise<void> {
         const set = listeners.get(event);
         if (set === undefined) return;
+
+        SystemDebuggerBridge.emitEvent(event, set.size, payload);
 
         const snapshot = Array.from(set);
 

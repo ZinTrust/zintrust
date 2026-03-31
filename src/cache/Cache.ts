@@ -13,6 +13,7 @@ import { MemoryDriver } from '@cache/drivers/MemoryDriver';
 import { MongoDriver } from '@cache/drivers/MongoDriver';
 import { RedisDriver } from '@cache/drivers/RedisDriver';
 import { cacheConfig } from '@config/cache';
+import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
@@ -109,7 +110,9 @@ function getDriverInstance(storeName?: string): CacheDriver {
  */
 const get = async <T>(key: string): Promise<T | null> => {
   const prefixedKey = autoPrefixKey(key);
+  const startedAt = Date.now();
   const value = await getDriverInstance().get<T>(prefixedKey);
+  SystemDebuggerBridge.emitCache('get', prefixedKey, Date.now() - startedAt, value !== null);
   return value;
 };
 
@@ -118,7 +121,9 @@ const get = async <T>(key: string): Promise<T | null> => {
  */
 const set = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
   const prefixedKey = autoPrefixKey(key);
+  const startedAt = Date.now();
   await getDriverInstance().set(prefixedKey, value, ttl);
+  SystemDebuggerBridge.emitCache('set', prefixedKey, Date.now() - startedAt);
 };
 
 /**
@@ -126,14 +131,18 @@ const set = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
  */
 const del = async (key: string): Promise<void> => {
   const prefixedKey = autoPrefixKey(key);
+  const startedAt = Date.now();
   await getDriverInstance().delete(prefixedKey);
+  SystemDebuggerBridge.emitCache('delete', prefixedKey, Date.now() - startedAt);
 };
 
 /**
  * Clear all items from the cache
  */
 const clear = async (): Promise<void> => {
+  const startedAt = Date.now();
   await getDriverInstance().clear();
+  SystemDebuggerBridge.emitCache('clear', 'zt:*', Date.now() - startedAt);
 };
 
 /**
@@ -141,7 +150,9 @@ const clear = async (): Promise<void> => {
  */
 const has = async (key: string): Promise<boolean> => {
   const prefixedKey = autoPrefixKey(key);
+  const startedAt = Date.now();
   const exists = await getDriverInstance().has(prefixedKey);
+  SystemDebuggerBridge.emitCache('has', prefixedKey, Date.now() - startedAt, exists);
   return exists;
 };
 
@@ -164,26 +175,42 @@ type CacheStore = Readonly<{
 const store = (name?: string): CacheStore => {
   const getFromStore = async <T>(key: string): Promise<T | null> => {
     const prefixedKey = autoPrefixKey(key);
-    return getDriverInstance(name).get<T>(prefixedKey);
+    const startedAt = Date.now();
+    const value = await getDriverInstance(name).get<T>(prefixedKey);
+    SystemDebuggerBridge.emitCache('get', prefixedKey, Date.now() - startedAt, value !== null);
+    return value;
   };
 
   const setInStore = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
     const prefixedKey = autoPrefixKey(key);
+    const startedAt = Date.now();
     await getDriverInstance(name).set(prefixedKey, value, ttl);
+    SystemDebuggerBridge.emitCache('set', prefixedKey, Date.now() - startedAt);
   };
 
   const delFromStore = async (key: string): Promise<void> => {
     const prefixedKey = autoPrefixKey(key);
+    const startedAt = Date.now();
     await getDriverInstance(name).delete(prefixedKey);
+    SystemDebuggerBridge.emitCache('delete', prefixedKey, Date.now() - startedAt);
   };
 
   const clearStore = async (): Promise<void> => {
+    const startedAt = Date.now();
     await getDriverInstance(name).clear();
+    SystemDebuggerBridge.emitCache(
+      'clear',
+      `store:${String(name ?? 'default')}`,
+      Date.now() - startedAt
+    );
   };
 
   const hasInStore = async (key: string): Promise<boolean> => {
     const prefixedKey = autoPrefixKey(key);
-    return getDriverInstance(name).has(prefixedKey);
+    const startedAt = Date.now();
+    const exists = await getDriverInstance(name).has(prefixedKey);
+    SystemDebuggerBridge.emitCache('has', prefixedKey, Date.now() - startedAt, exists);
+    return exists;
   };
 
   const getStoreDriver = (): CacheDriver => {

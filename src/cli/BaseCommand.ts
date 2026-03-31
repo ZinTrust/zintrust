@@ -3,6 +3,7 @@
  * All CLI commands extend this class
  */
 
+import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
@@ -26,6 +27,12 @@ export interface IBaseCommand {
   warn(message: string): void;
   debug(message: unknown): void;
 }
+
+const toCommandArguments = (options: CommandOptions): Record<string, unknown> => {
+  return Object.fromEntries(
+    Object.entries(options).filter(([, value]) => typeof value !== 'function')
+  );
+};
 
 /**
  * Command Factory Helper
@@ -70,10 +77,26 @@ export const BaseCommand = Object.freeze({
         const options = args.at(-2) as CommandOptions;
         const commandArgs = args.slice(0, -2) as string[];
         options.args = commandArgs;
+        const startedAt = Date.now();
 
         try {
           await config.execute(options);
+          SystemDebuggerBridge.emitCommand(
+            config.name,
+            toCommandArguments(options),
+            0,
+            Date.now() - startedAt
+          );
         } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          SystemDebuggerBridge.emitCommand(
+            config.name,
+            toCommandArguments(options),
+            1,
+            Date.now() - startedAt,
+            message
+          );
+
           if (error instanceof Error) {
             ErrorFactory.createTryCatchError('Command execution failed', error);
             ErrorHandler.handle(error, undefined, false);

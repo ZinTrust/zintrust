@@ -1,0 +1,37 @@
+import { DebuggerContext } from '../context';
+import type { IDebuggerWatcher, IDebuggerWatcherConfig, NotificationContent } from '../types';
+import { EntryType } from '../types';
+
+let _storage: IDebuggerWatcherConfig['storage'] | null = null;
+
+const emit = (notification: string, channels: string[], notifiable?: string): void => {
+  if (!_storage) return;
+  const content: NotificationContent = {
+    notification,
+    channels,
+    notifiable,
+    hostname: DebuggerContext.getHostname(),
+  };
+  _storage
+    .writeEntry({
+      uuid: crypto.randomUUID(),
+      batchId: DebuggerContext.getBatchId(),
+      type: EntryType.NOTIFICATION,
+      content,
+      tags: [notification, ...channels],
+      isLatest: true,
+      createdAt: DebuggerContext.now(),
+    })
+    .catch(() => undefined);
+};
+
+export const NotificationWatcher: IDebuggerWatcher & { emit: typeof emit } = Object.freeze({
+  emit,
+  register({ storage, config }: IDebuggerWatcherConfig): () => void {
+    if (config.watchers.notification === false) return () => undefined;
+    _storage = storage;
+    return () => {
+      _storage = null;
+    };
+  },
+});
