@@ -25,9 +25,6 @@
   "peerDependencies": {
     "@zintrust/core": "^0.4.41"
   },
-  "devDependencies": {
-    "@zintrust/core": "file:../../dist"
-  },
   "publishConfig": {
     "access": "public"
   },

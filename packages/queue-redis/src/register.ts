@@ -19,7 +19,7 @@ const importCore = async (): Promise<unknown> => {
   }
 };
 
-const core = (await importCore()) as unknown as {
+const core = (await importCore()) as {
   Queue?: QueueApi;
 };
 
