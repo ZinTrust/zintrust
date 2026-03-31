@@ -9,11 +9,9 @@ import * as path from '@node-singletons/path';
 
 type node_env = 'development' | 'production' | 'testing';
 type EnvMap = Record<string, string>;
+const PACK_CONTROL_KEYS = new Set(['USE_PACK', 'PACK_KEYS']);
 
 const safeEnvGet = (key: string, defaultValue = ''): string => {
-  const envAny = Env as unknown as { get?: (k: string, d?: string) => string };
-  if (typeof envAny.get === 'function') return envAny.get(key, defaultValue);
-
   const fromProcess = typeof process === 'undefined' ? undefined : process.env?.[key];
   if (typeof fromProcess === 'string' && fromProcess !== '') return fromProcess;
   return defaultValue;
@@ -127,6 +125,19 @@ const readEnvFileIfExists = (cwd: string, filename: string): EnvMap | undefined 
   return parseEnvFile(raw);
 };
 
+const readPackEnvFileIfExists = (cwd: string): EnvMap | undefined => {
+  const parsed = readEnvFileIfExists(cwd, '.env.pack');
+  if (parsed === undefined) return undefined;
+
+  const filtered: EnvMap = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (PACK_CONTROL_KEYS.has(key)) continue;
+    filtered[key] = value;
+  }
+
+  return filtered;
+};
+
 const resolveAppMode = (cwd: string): string | undefined => {
   const existing = safeEnvGet('NODE_ENV', '');
   if (existing.trim() !== '') return normalizeAppMode(existing);
@@ -195,12 +206,14 @@ let cached: CachedLoadState | undefined;
 const loadFromCwd = (cwd: string, overrideExisting: boolean): LoadState => {
   const mode = resolveAppMode(cwd);
   const files = filesLoader(cwd, mode);
+  const loadedFiles: string[] = [];
 
   let baseApplied = false;
 
   for (const file of files) {
     const parsed = readEnvFileIfExists(cwd, file);
     if (!parsed) continue;
+    loadedFiles.push(file);
 
     if (file === '.env') {
       applyToProcessEnv(parsed, overrideExisting);
@@ -212,12 +225,18 @@ const loadFromCwd = (cwd: string, overrideExisting: boolean): LoadState => {
     applyToProcessEnv(parsed, baseApplied ? false : overrideExisting);
   }
 
+  const packedEnv = readPackEnvFileIfExists(cwd);
+  if (packedEnv !== undefined) {
+    applyToProcessEnv(packedEnv, false);
+    loadedFiles.push('.env.pack');
+  }
+
   // Set NODE_ENV to the normalized mode if we have one (after applying files)
   if (mode !== undefined) {
     safeEnvSet('NODE_ENV', mode as node_env);
   }
 
-  return { loadedFiles: files, mode };
+  return { loadedFiles, mode };
 };
 
 const loadFromFile = (filePath: string, overrideExisting: boolean): LoadState => {

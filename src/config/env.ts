@@ -7,14 +7,45 @@
  */
 
 import type { ProcessLike } from '@config/type';
+import { isArray, isNonEmptyString, isObject } from '@helper/index';
 
 export type EnvSource = Record<string, unknown> | (() => Record<string, unknown>);
+export type ResolvedEnvState = {
+  values: Record<string, string>;
+  sources: Record<string, string>;
+  packedEnabled: boolean;
+  packedKeys: string[];
+};
 
 // Cache process check once at module load time
 const processLike: ProcessLike | undefined =
   typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
 
 let externalEnvSource: EnvSource | null = null;
+const DIRECT_ENV_SOURCE = 'direct-env';
+const PACKED_ENV_ENABLE_KEY = 'USE_PACK';
+const PACKED_ENV_KEYS_KEY = 'PACK_KEYS';
+const PACKED_ENV_CONTROL_KEYS = new Set([PACKED_ENV_ENABLE_KEY, PACKED_ENV_KEYS_KEY]);
+
+const createPackedEnvError = (message: string, details?: unknown): Error => {
+  const error = Object.create(globalThis.Error.prototype) as Error & {
+    code?: string;
+    statusCode?: number;
+    details?: unknown;
+    name?: string;
+    message?: string;
+  };
+
+  error.name = 'ConfigError';
+  error.message = message;
+  error.code = 'CONFIG_ERROR';
+  error.statusCode = 500;
+  if (details !== undefined) {
+    error.details = details;
+  }
+
+  return error;
+};
 
 const getGlobalEnv = (): Record<string, unknown> | undefined => {
   const env = (globalThis as { env?: unknown }).env;
@@ -22,7 +53,7 @@ const getGlobalEnv = (): Record<string, unknown> | undefined => {
   return env as Record<string, unknown>;
 };
 
-const getEnvSource = (): Record<string, unknown> => {
+const getRawEnvSource = (): Record<string, unknown> => {
   if (typeof externalEnvSource === 'function') return externalEnvSource();
   if (externalEnvSource !== null) return externalEnvSource;
 
@@ -37,6 +68,17 @@ const getEnvSource = (): Record<string, unknown> => {
   return processLike?.env ?? {};
 };
 
+const normalizePackedScalar = (packName: string, key: string, value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+
+  throw createPackedEnvError(
+    `${packName} contains unsupported value for ${key}. Expected a flat string-compatible value.`
+  );
+};
+
 const normalizeEnvValue = (value: unknown): string => {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
@@ -45,6 +87,117 @@ const normalizeEnvValue = (value: unknown): string => {
   }
   return '';
 };
+
+const isDirectEnvScalar = (
+  value: unknown
+): value is string | number | boolean | bigint | null | undefined => {
+  return (
+    value === null ||
+    value === undefined ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  );
+};
+
+const parsePackedEnvKeys = (
+  env: Record<string, unknown>
+): { enabled: boolean; packKeys: string[] } => {
+  const enabled = normalizeEnvValue(env[PACKED_ENV_ENABLE_KEY]).trim().toLowerCase() === 'true';
+  if (!enabled) {
+    return { enabled: false, packKeys: [] };
+  }
+
+  const raw = normalizeEnvValue(env[PACKED_ENV_KEYS_KEY]);
+  const packKeys = raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item, index, items) => item !== '' && items.indexOf(item) === index);
+
+  if (packKeys.length === 0) {
+    throw createPackedEnvError('USE_PACK is true but PACK_KEYS is empty');
+  }
+
+  return { enabled: true, packKeys };
+};
+
+const parsePackedPayload = (packName: string, payload: unknown): Record<string, unknown> => {
+  if (!isNonEmptyString(normalizeEnvValue(payload))) {
+    throw createPackedEnvError(`PACK_KEYS contains ${packName} but env.${packName} is missing`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(normalizeEnvValue(payload)) as unknown;
+  } catch (error) {
+    throw createPackedEnvError(`${packName} did not parse as a JSON object`, error);
+  }
+
+  if (!isObject(parsed) || isArray(parsed)) {
+    throw createPackedEnvError(`${packName} did not parse as a JSON object`);
+  }
+
+  return parsed;
+};
+
+const applyPackedPayload = (
+  values: Record<string, string>,
+  sources: Record<string, string>,
+  packName: string,
+  payload: Record<string, unknown>
+): void => {
+  for (const [rawKey, rawValue] of Object.entries(payload)) {
+    const key = rawKey.trim();
+    if (!isNonEmptyString(key)) continue;
+    if (PACKED_ENV_CONTROL_KEYS.has(key)) continue;
+    if (isObject(rawValue) || isArray(rawValue) || rawValue === null || rawValue === undefined) {
+      throw createPackedEnvError(
+        `${packName} contains unsupported value for ${key}. Nested or null values are not supported.`
+      );
+    }
+
+    values[key] = normalizePackedScalar(packName, key, rawValue);
+    sources[key] = packName;
+  }
+};
+
+const overlayDirectEnvValues = (
+  values: Record<string, string>,
+  sources: Record<string, string>,
+  env: Record<string, unknown>
+): void => {
+  for (const [key, rawValue] of Object.entries(env)) {
+    if (!isDirectEnvScalar(rawValue)) continue;
+    values[key] = normalizeEnvValue(rawValue);
+    sources[key] = DIRECT_ENV_SOURCE;
+  }
+};
+
+const resolvePackedEnvState = (env: Record<string, unknown>): ResolvedEnvState => {
+  const values: Record<string, string> = {};
+  const sources: Record<string, string> = {};
+  const { enabled, packKeys } = parsePackedEnvKeys(env);
+
+  if (enabled) {
+    for (const packName of packKeys) {
+      applyPackedPayload(values, sources, packName, parsePackedPayload(packName, env[packName]));
+    }
+  }
+
+  overlayDirectEnvValues(values, sources, env);
+
+  return {
+    values,
+    sources,
+    packedEnabled: enabled,
+    packedKeys: packKeys,
+  };
+};
+
+const getResolvedEnvState = (): ResolvedEnvState => resolvePackedEnvState(getRawEnvSource());
+
+const getEnvSource = (): Record<string, unknown> => getResolvedEnvState().values;
 
 export const getProcessLike = (): ProcessLike | undefined => processLike;
 
@@ -55,11 +208,31 @@ export const dirnameFromExecPath = (execPath: string, platform?: string): string
   return execPath.slice(0, lastSep);
 };
 
+export const getOptional = (key: string): string | undefined => {
+  const env = getEnvSource();
+  return Object.prototype.hasOwnProperty.call(env, key) ? normalizeEnvValue(env[key]) : undefined;
+};
+
+export const has = (key: string): boolean => {
+  const env = getEnvSource();
+  return Object.prototype.hasOwnProperty.call(env, key);
+};
+
+export const getSourceOf = (key: string): string | undefined => {
+  return getResolvedEnvState().sources[key];
+};
+
+export const snapshotSources = (): Record<string, string> => {
+  return { ...getResolvedEnvState().sources };
+};
+
+export const getResolvedState = (): ResolvedEnvState => getResolvedEnvState();
+
 // Private helper functions
 export const get = (key: string, defaultValue?: string): string => {
   const env = getEnvSource();
   const value = normalizeEnvValue(env[key]);
-  return value === '' ? defaultValue ?? '' : value;
+  return value === '' ? (defaultValue ?? '') : value;
 };
 
 export const getInt = (key: string, defaultValue: number): number => {
@@ -118,13 +291,18 @@ const PROXY_SECRET_FALLBACK = get('APP_KEY', '');
 export const Env = Object.freeze({
   // Helper functions
   get,
+  getOptional,
   getInt,
   getBool,
   getFloat,
+  has,
   set,
   unset,
   setSource,
   snapshot,
+  getSourceOf,
+  snapshotSources,
+  getResolvedState,
 
   // Core
   NODE_ENV: get('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'],

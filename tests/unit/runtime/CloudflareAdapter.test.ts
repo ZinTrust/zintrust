@@ -143,6 +143,26 @@ describe('CloudflareAdapter', () => {
     expect(typeof env.dbConnection).toBe('string');
   });
 
+  it('sets packed worker env values on the shared Env facade', async () => {
+    (globalThis as unknown as { env?: Record<string, unknown> }).env = {
+      USE_PACK: 'true',
+      PACK_KEYS: 'K1',
+      K1: JSON.stringify({ APP_NAME: 'Packed Worker App', JWT_SECRET: 'worker-secret' }),
+      APP_NAME: 'Direct Worker App',
+    };
+
+    CloudflareAdapter.create({
+      handler: async () => undefined,
+    });
+
+    const { Env } = await import('@/config/env');
+    expect(Env.get('APP_NAME')).toBe('Direct Worker App');
+    expect(Env.get('JWT_SECRET')).toBe('worker-secret');
+    expect(Env.getSourceOf('JWT_SECRET')).toBe('K1');
+
+    (globalThis as unknown as { env?: Record<string, unknown> }).env = undefined;
+  });
+
   it('handle should include error details when NODE_ENV=development', async () => {
     process.env.NODE_ENV = 'development';
     vi.resetModules();

@@ -13,6 +13,22 @@ import { Env } from '@zintrust/core';
 // Env.NODE_ENV
 ```
 
+## Packed env mode
+
+ZinTrust supports packed env resolution for Cloudflare-style secret bindings.
+
+Use this when secrets are delivered as JSON strings under one or more env keys and you still want application code to read them through normal `Env.get(...)` calls.
+
+```env
+USE_PACK=true
+PACK_KEYS=WORKER_SECRETS
+WORKER_SECRETS={"APP_KEY":"secret","JWT_SECRET":"jwt-secret"}
+```
+
+Resolved packed values are merged into the `Env` view, later pack keys override earlier pack keys, and direct env values override packed values.
+
+For the full workflow, Cloudflare examples, `.env.pack` local development support, and diagnostics helpers such as `Env.getSourceOf(...)`, see [docs/cloudflare-packed-secrets.md](./cloudflare-packed-secrets.md).
+
 ## Core application
 
 | Key                 | Default       | Description                                                         |
@@ -26,6 +42,8 @@ import { Env } from '@zintrust/core';
 | `APP_NAME`          | `ZinTrust`    | Application name (also used for proxy signing fallback).            |
 | `APP_KEY`           | empty         | Primary app secret (base64 or raw) used for encryption and signing. |
 | `APP_PREVIOUS_KEYS` | empty         | Optional rotation keys (comma-separated or JSON array).             |
+| `USE_PACK`          | `false`       | Enables packed env resolution when set to `true`.                   |
+| `PACK_KEYS`         | empty         | Comma-separated list of JSON env bindings to merge into `Env`.      |
 | `APP_TIMEZONE`      | `UTC`         | Default timezone for the app runtime.                               |
 | `CSRF_SKIP_PATHS`   | empty         | Comma-separated paths to bypass CSRF, e.g. `/api/*`.                |
 | `RUNTIME`           | empty         | Optional runtime identifier.                                        |

@@ -71,41 +71,12 @@ export const detectRuntimePlatform = (): RuntimePlatform => {
 
 export const RUNTIME_PLATFORM: RuntimePlatform = detectRuntimePlatform();
 
-const normalizeEnvValue = (value: unknown): string => {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-    return String(value);
-  }
-  return '';
-};
-
-const readEnvFromRecord = (record: Record<string, unknown>, key: string): string => {
-  return normalizeEnvValue(record[key]);
-};
-
 const createWorkersEnvReader = (): RuntimeEnvReader => {
   return {
-    get(key: string, defaultValue: string = ''): string {
-      const env = Cloudflare.getWorkersEnv() ?? {};
-      const value = readEnvFromRecord(env, key);
-      return value === '' ? defaultValue : value;
-    },
-    getInt(key: string, defaultValue: number = 0): number {
-      const raw = this.get(key, String(defaultValue));
-      const parsed = Number.parseInt(raw, 10);
-      return Number.isFinite(parsed) ? parsed : defaultValue;
-    },
-    getFloat(key: string, defaultValue: number = 0): number {
-      const raw = this.get(key, String(defaultValue));
-      const parsed = Number.parseFloat(raw);
-      return Number.isFinite(parsed) ? parsed : defaultValue;
-    },
-    getBool(key: string, defaultValue: boolean = false): boolean {
-      const raw = this.get(key, defaultValue ? 'true' : 'false').toLowerCase();
-      if (raw === '') return defaultValue;
-      return raw === 'true' || raw === '1';
-    },
+    get: (key: string, defaultValue?: string): string => Env.get(key, defaultValue),
+    getInt: (key: string, defaultValue?: number): number => Env.getInt(key, defaultValue ?? 0),
+    getFloat: (key: string, defaultValue?: number): number => Env.getFloat(key, defaultValue ?? 0),
+    getBool: (key: string, defaultValue?: boolean): boolean => Env.getBool(key, defaultValue),
   };
 };
 

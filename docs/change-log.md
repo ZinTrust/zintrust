@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-03-31
 
+- Added a packed Cloudflare secret compatibility mode to the core env surface. When `USE_PACK=true`, ZinTrust now expands JSON secret bindings listed in `PACK_KEYS` into the resolved `Env.get(...)` view, keeps direct env values above packed values, tracks the winning source for diagnostics, and auto-loads local `.env.pack` files for Node-side development without overriding the direct control keys.
 - Extended the Cloudflare shared-env manifest workflow so deploy commands now reuse the same target-aware secret selection as `zin put cloudflare`, letting `zin deploy`, `zin deploy d1-proxy`, `zin deploy kv-proxy`, and `zin deploy:ccp` sync selected Worker secrets automatically before `wrangler deploy` unless `--no-sync-secrets` is passed.
 - Updated microservice scaffolding so new services automatically register their canonical `domain/name` ID under `.zintrust.json -> cloudflare.targets`, keeping service-specific Cloudflare secret selection aligned with the generated runtime manifest and service-local Worker config.
 
