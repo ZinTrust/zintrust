@@ -7,6 +7,7 @@ const mocked = vi.hoisted(() => ({
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
   join: vi.fn((...parts: string[]) => parts.join('/')),
+  dirname: vi.fn((value: string) => value.split('/').slice(0, -1).join('/')),
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('@node-singletons/fs', () => ({
 
 vi.mock('@node-singletons/path', () => ({
   join: (...args: string[]) => mocked.join(...args),
+  dirname: (...args: [string]) => mocked.dirname(...args),
 }));
 
 vi.mock('@config/logger', () => ({
