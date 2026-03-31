@@ -19,6 +19,17 @@ npm install @zintrust/cloudflare-containers-proxy
 zin deploy:ccp
 ```
 
+`zin deploy:ccp` now uses the same `.zintrust.json` Cloudflare manifest as `zin put cloudflare` before running `wrangler deploy`. By default it resolves `cloudflare.shared_env`, `cloudflare.targets["containers-proxy"]`, and `cloudflare.wrangler_envs["<env>"]`, then uploads the selected secrets from `.env`.
+
+Useful flags:
+
+```bash
+zin deploy:ccp --env staging
+zin deploy:ccp --env production --env-path .env.production
+zin deploy:ccp --target containers-proxy
+zin deploy:ccp --no-sync-secrets
+```
+
 ## Local CLI
 
 ```bash
@@ -30,6 +41,8 @@ npm run dev:cp
 ```bash
 zin put cloudflare --wg staging --var proxy_env --config wrangler.containers-proxy.jsonc
 ```
+
+Use `zin put cloudflare` when you want a manual sync only. For normal deploys, `zin deploy:ccp` now performs the same manifest-driven secret sync automatically unless you opt out with `--no-sync-secrets`.
 
 ## Configuration
 

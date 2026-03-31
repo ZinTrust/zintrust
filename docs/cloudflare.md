@@ -17,6 +17,16 @@ To keep runtime-specific global access centralized, ZinTrust provides a small he
 
 This module is used by adapters/drivers to resolve bindings without duplicating Workers-specific logic.
 
+## Packed secret bindings
+
+Cloudflare Workers can now expose packed JSON secret bindings through the normal ZinTrust env surface.
+
+When `USE_PACK=true`, ZinTrust reads the binding names in `PACK_KEYS`, parses each one as a JSON object, and merges the flattened keys into `Env.get(...)` and `RuntimeServices.create('cloudflare').env`.
+
+Direct Worker bindings still override packed values.
+
+For full usage, local `.env.pack` support, precedence rules, and diagnostics helpers, see [docs/cloudflare-packed-secrets.md](./cloudflare-packed-secrets.md).
+
 ## D1 Database
 
 Cloudflare D1 is a native serverless SQL database. ZinTrust provides a dedicated adapter to use D1 as your primary ORM database.

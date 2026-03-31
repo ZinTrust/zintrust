@@ -13,6 +13,8 @@ This keeps D1 private (no public DB port) and enables strong service-to-service 
 zin deploy d1-proxy
 ```
 
+`zin deploy d1-proxy` now syncs Cloudflare secrets from the project `.zintrust.json` manifest before `wrangler deploy` when matching keys are selected by `cloudflare.shared_env`, `cloudflare.targets`, and `cloudflare.wrangler_envs["d1-proxy"]`.
+
 ## Local CLI
 
 ```bash
@@ -26,6 +28,8 @@ This command auto-adds `env.d1-proxy` to `wrangler.jsonc` when the environment b
 ```bash
 zin put cloudflare --wg d1-proxy --var d1_env --env_path .env
 ```
+
+That manual command remains available, but it is no longer required as a separate pre-deploy step for the standard `zin deploy d1-proxy` flow.
 
 ---
 

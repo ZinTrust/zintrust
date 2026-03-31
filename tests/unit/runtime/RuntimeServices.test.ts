@@ -32,4 +32,17 @@ describe('RuntimeServices', () => {
     expect(services.env.get('SAMPLE_VALUE')).toBe('ok');
     expect(services.env.getInt('SAMPLE_INT', 0)).toBe(42);
   });
+
+  it('creates cloudflare runtime services with packed env bindings', () => {
+    (globalThis as { env?: Record<string, unknown> }).env = {
+      USE_PACK: 'true',
+      PACK_KEYS: 'K1',
+      K1: JSON.stringify({ SAMPLE_VALUE: 'packed', SAMPLE_INT: '7' }),
+      SAMPLE_VALUE: 'direct',
+    };
+
+    const services = RuntimeServices.create('cloudflare');
+    expect(services.env.get('SAMPLE_VALUE')).toBe('direct');
+    expect(services.env.getInt('SAMPLE_INT', 0)).toBe(7);
+  });
 });

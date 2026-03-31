@@ -153,6 +153,30 @@ const createProjectConfigFile = (
       server: {
         port: variables['port'] ?? 7777,
       },
+      cloudflare: {
+        shared_env: ['APP_KEY', 'JWT_SECRET', 'SESSION_SECRET'],
+        targets: {
+          worker: [],
+          'containers-proxy': [
+            'MYSQL_PROXY_KEY_ID',
+            'MYSQL_PROXY_SECRET',
+            'POSTGRES_PROXY_KEY_ID',
+            'POSTGRES_PROXY_SECRET',
+            'REDIS_PROXY_KEY_ID',
+            'REDIS_PROXY_SECRET',
+            'MONGODB_PROXY_KEY_ID',
+            'MONGODB_PROXY_SECRET',
+            'SQLSERVER_PROXY_KEY_ID',
+            'SQLSERVER_PROXY_SECRET',
+            'SMTP_PROXY_KEY_ID',
+            'SMTP_PROXY_SECRET',
+          ],
+        },
+        wrangler_envs: {
+          'd1-proxy': ['D1_REMOTE_KEY_ID', 'D1_REMOTE_SECRET'],
+          'kv-proxy': ['KV_REMOTE_KEY_ID', 'KV_REMOTE_SECRET'],
+        },
+      },
     };
 
     fs.writeFileSync(fullPath, JSON.stringify(config, null, 2));

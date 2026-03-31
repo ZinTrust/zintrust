@@ -91,6 +91,7 @@ describe('ConnectionManager coverage', () => {
 
   it('rejects when pool exhausted and times out', async () => {
     const restore = await registerSqliteStub();
+    vi.useFakeTimers();
 
     const { ConnectionManager } = await import('@/orm/ConnectionManager');
     const instance = ConnectionManager.getInstance({
@@ -102,15 +103,18 @@ describe('ConnectionManager coverage', () => {
     try {
       await instance.getConnection('c1');
       const pending = instance.getConnection('c2');
+      const captured = pending.catch((error: unknown) => error);
 
-      const rejection = expect(pending).rejects.toThrow('Connection pool exhausted');
-      await new Promise((resolve) => setTimeout(resolve, 30100));
-      await rejection;
+      await vi.advanceTimersByTimeAsync(30001);
+      const error = await captured;
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toHaveProperty('message');
+      expect((error as Error).message).toContain('Connection pool exhausted');
       await instance.closeAll();
     } finally {
       restore();
     }
-  }, 35000);
+  });
 
   it('creates a new connection when ping fails', async () => {
     const { ConnectionManager } = await import('@/orm/ConnectionManager');

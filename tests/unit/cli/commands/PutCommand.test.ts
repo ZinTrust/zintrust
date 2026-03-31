@@ -176,6 +176,38 @@ describe('PutCommand', () => {
     expect(options?.timeout).toBe(120000);
   });
 
+  it('resolves shared and wrangler-env keys from cloudflare manifest when --var is omitted', async () => {
+    vi.mocked(readFileSync).mockReturnValueOnce(
+      JSON.stringify({
+        cloudflare: {
+          shared_env: ['APP_KEY'],
+          wrangler_envs: {
+            'd1-proxy': ['D1_REMOTE_SECRET'],
+          },
+        },
+      })
+    );
+    vi.mocked(EnvFile.read).mockResolvedValue({
+      APP_KEY: 'app-secret',
+      D1_REMOTE_SECRET: 'remote-secret',
+    });
+
+    const cmd = PutCommand.create();
+    await cmd.execute({
+      args: ['cloudflare'],
+      wg: ['d1-proxy'],
+      dryRun: true,
+    });
+
+    expect(vi.mocked(ErrorHandler.info)).toHaveBeenCalledWith('[dry-run] put APP_KEY -> d1-proxy');
+    expect(vi.mocked(ErrorHandler.info)).toHaveBeenCalledWith(
+      '[dry-run] put D1_REMOTE_SECRET -> d1-proxy'
+    );
+    expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
+      'Cloudflare secrets report: pushed=2, failed=0'
+    );
+  });
+
   it('returns empty config when .zintrust.json is missing and warns for empty group', async () => {
     vi.mocked(existsSync).mockReturnValue(false);
     vi.mocked(EnvFile.read).mockResolvedValue({ APP_KEY: 'app-secret' });

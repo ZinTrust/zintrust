@@ -240,6 +240,30 @@ describe('EnvFileLoader', () => {
     await project.dispose();
   });
 
+  it('loads .env.pack without overriding direct control keys', async () => {
+    const project = await createTempProject({
+      '.env': ['USE_PACK=true', 'PACK_KEYS=K1', 'APP_NAME=Direct App'].join('\n'),
+      '.env.pack': [
+        'K1={"APP_NAME":"Packed App","JWT_SECRET":"packed-secret"}',
+        'USE_PACK=false',
+        'PACK_KEYS=K2',
+      ].join('\n'),
+    });
+
+    process.chdir(project.dir);
+    vi.resetModules();
+
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+    const state = EnvFileLoader.load({ overrideExisting: true });
+
+    expect(state.loadedFiles).toContain('.env.pack');
+    expect(process.env['USE_PACK']).toBe('true');
+    expect(process.env['PACK_KEYS']).toBe('K1');
+    expect(process.env['K1']).toContain('Packed App');
+
+    await project.dispose();
+  });
+
   it('syncs PORT and APP_PORT in applyCliOverrides', async () => {
     const project = await createTempProject({});
     process.chdir(project.dir);

@@ -407,6 +407,15 @@ describe('ProjectScaffolder Configuration', () => {
     expect(config.name).toBe('my-app');
     expect(config.database).toBeDefined();
     expect(config.server).toBeDefined();
+    expect(config.cloudflare).toEqual(
+      expect.objectContaining({
+        shared_env: expect.arrayContaining(['APP_KEY', 'JWT_SECRET', 'SESSION_SECRET']),
+        targets: expect.objectContaining({ worker: [] }),
+        wrangler_envs: expect.objectContaining({
+          'd1-proxy': expect.arrayContaining(['D1_REMOTE_KEY_ID', 'D1_REMOTE_SECRET']),
+        }),
+      })
+    );
   });
 
   it('should create .env file', () => {

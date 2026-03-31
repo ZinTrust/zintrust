@@ -4,6 +4,8 @@ const mocked = vi.hoisted(() => ({
   spawnAndWait: vi.fn(),
   existsSync: vi.fn(),
   join: vi.fn((...parts: string[]) => parts.join('/')),
+  syncCloudflareSecrets: vi.fn(),
+  reportCloudflareSecretSync: vi.fn(),
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -30,6 +32,11 @@ vi.mock('@config/logger', () => ({
   Logger: mocked.logger,
 }));
 
+vi.mock('@cli/cloudflare/CloudflareSecretSync', () => ({
+  syncCloudflareSecrets: (...args: any[]) => mocked.syncCloudflareSecrets(...args),
+  reportCloudflareSecretSync: (...args: any[]) => mocked.reportCloudflareSecretSync(...args),
+}));
+
 describe('DeployCommand', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -37,6 +44,12 @@ describe('DeployCommand', () => {
 
     mocked.existsSync.mockReturnValue(true);
     mocked.spawnAndWait.mockResolvedValue(0);
+    mocked.syncCloudflareSecrets.mockResolvedValue({
+      selectedKeys: [],
+      pushedKeys: [],
+      failures: [],
+      dryRun: false,
+    });
   });
 
   it('deploys container stack with cw target using docker compose', async () => {
@@ -98,8 +111,44 @@ describe('DeployCommand', () => {
 
     await cmd.execute({ args: ['worker'], env: 'production' });
 
+    expect(mocked.syncCloudflareSecrets).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cwd: process.cwd(),
+        wranglerEnvs: ['production'],
+        envPath: '.env',
+        requireSelection: false,
+      })
+    );
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({ command: 'wrangler', args: ['deploy', '--env', 'production'] })
+    );
+  });
+
+  it('reports synced secrets before wrangler deploy when keys are selected', async () => {
+    mocked.syncCloudflareSecrets.mockResolvedValueOnce({
+      selectedKeys: ['APP_KEY'],
+      pushedKeys: ['APP_KEY'],
+      failures: [],
+      dryRun: false,
+    });
+
+    const { DeployCommand } = await import('@cli/commands/DeployCommand');
+    const cmd = DeployCommand.create();
+
+    await cmd.execute({ args: ['worker'] });
+
+    expect(mocked.reportCloudflareSecretSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips secret sync when disabled', async () => {
+    const { DeployCommand } = await import('@cli/commands/DeployCommand');
+    const cmd = DeployCommand.create();
+
+    await cmd.execute({ args: ['worker'], syncSecrets: false });
+
+    expect(mocked.syncCloudflareSecrets).not.toHaveBeenCalled();
+    expect(mocked.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'wrangler', args: ['deploy', '--env', 'worker'] })
     );
   });
 

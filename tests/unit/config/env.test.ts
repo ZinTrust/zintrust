@@ -133,5 +133,50 @@ describe('Env Config', () => {
 
       (globalThis as { env?: unknown }).env = originalGlobalEnv;
     });
+
+    it('resolves packed env values and tracks their source', async () => {
+      delete (process.env as Record<string, string | undefined>)['APP_NAME'];
+      process.env['USE_PACK'] = 'true';
+      process.env['PACK_KEYS'] = 'K1,K2,K1';
+      process.env['K1'] = JSON.stringify({ APP_NAME: 'Packed App', JWT_SECRET: 'first-secret' });
+      process.env['K2'] = JSON.stringify({ JWT_SECRET: 'second-secret', USE_PACK: 'ignored' });
+
+      vi.resetModules();
+      const { Env: PackedEnv } = await import('../../../src/config/env');
+
+      expect(PackedEnv.get('APP_NAME')).toBe('Packed App');
+      expect(PackedEnv.get('JWT_SECRET')).toBe('second-secret');
+      expect(PackedEnv.getSourceOf('APP_NAME')).toBe('K1');
+      expect(PackedEnv.getSourceOf('JWT_SECRET')).toBe('K2');
+      expect(PackedEnv.snapshotSources()['USE_PACK']).toBe('direct-env');
+    });
+
+    it('keeps direct env values above packed values', async () => {
+      process.env['USE_PACK'] = 'true';
+      process.env['PACK_KEYS'] = 'K1';
+      process.env['K1'] = JSON.stringify({ APP_NAME: 'Packed App', JWT_SECRET: 'packed-secret' });
+      process.env['APP_NAME'] = 'Direct App';
+
+      vi.resetModules();
+      const { Env: PackedEnv } = await import('../../../src/config/env');
+
+      expect(PackedEnv.get('APP_NAME')).toBe('Direct App');
+      expect(PackedEnv.get('JWT_SECRET')).toBe('packed-secret');
+      expect(PackedEnv.getSourceOf('APP_NAME')).toBe('direct-env');
+      expect(PackedEnv.has('JWT_SECRET')).toBe(true);
+      expect(PackedEnv.getOptional('MISSING_PACKED_KEY')).toBeUndefined();
+    });
+
+    it('rejects invalid packed env payloads', async () => {
+      process.env['USE_PACK'] = 'true';
+      process.env['PACK_KEYS'] = 'K1';
+      process.env['K1'] = JSON.stringify({ APP_NAME: { nested: 'nope' } });
+
+      vi.resetModules();
+
+      await expect(import('../../../src/config/env')).rejects.toThrow(
+        /K1 contains unsupported value for APP_NAME/i
+      );
+    });
   });
 });

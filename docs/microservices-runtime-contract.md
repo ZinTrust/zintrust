@@ -63,6 +63,24 @@ Examples:
 
 ZinTrust normalizes internal lookups to this format. Bare names can still work when they are unambiguous, but developer-facing config and diagnostics should prefer the canonical ID.
 
+When `.zintrust.json` exists at the project root, scaffolded services also register that canonical ID under `cloudflare.targets` automatically. That keeps Cloudflare secret selection aligned with the same service ID used by the runtime manifest and service-local `wrangler.jsonc` files.
+
+Example:
+
+```json
+{
+  "cloudflare": {
+    "shared_env": ["APP_KEY", "JWT_SECRET", "SESSION_SECRET"],
+    "targets": {
+      "worker": [],
+      "ecommerce/users": []
+    }
+  }
+}
+```
+
+Add service-specific secret keys to that target when the service needs extra Cloudflare Worker secrets beyond the shared set.
+
 ## Service Manifest
 
 The root runtime reads service definitions from `src/bootstrap/service-manifest.ts`.
