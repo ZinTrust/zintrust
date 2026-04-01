@@ -65,15 +65,18 @@ export const HttpWatcher: IDebuggerWatcher = Object.freeze({
 
     const middleware: Parameters<
       NonNullable<IDebuggerWatcherConfig['registerMiddleware']>
-    >[0] = async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
-      if (shouldIgnore(req, config)) return next();
+    >[0] = async (req: unknown, res: unknown, next: () => Promise<void>): Promise<void> => {
+      const request = req as IRequest;
+      const response = res as IResponse;
+
+      if (shouldIgnore(request, config)) return next();
 
       const start = DebuggerContext.now();
       const batchId = DebuggerContext.getBatchId();
 
       await next();
 
-      const content = buildEntry(req, res, start, config);
+      const content = buildEntry(request, response, start, config);
       const tags = AuthTag.append([]);
       if (content.responseStatus >= 500) tags.push('failed');
 
