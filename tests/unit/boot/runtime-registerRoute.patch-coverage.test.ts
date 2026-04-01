@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockRuntimeDatabaseModule = (): void => {
+  vi.doMock('@orm/Database', () => ({ useDatabase: vi.fn(() => ({})) }));
+};
+
 describe('runtime/registerRoute patch coverage', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -152,6 +156,7 @@ describe('runtime/registerRoute patch coverage', () => {
       Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
+    mockRuntimeDatabaseModule();
 
     const { createLifecycle } = await import('@/boot/registry/runtime');
 
@@ -253,6 +258,7 @@ describe('runtime/registerRoute patch coverage', () => {
       Logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
       default: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
     }));
+    mockRuntimeDatabaseModule();
 
     const { createLifecycle } = await import('@/boot/registry/runtime');
     const lifecycle = createLifecycle({
@@ -352,6 +358,7 @@ describe('runtime/registerRoute patch coverage', () => {
       Logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
       default: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
     }));
+    mockRuntimeDatabaseModule();
 
     const { createLifecycle } = await import('@/boot/registry/runtime');
     const lifecycle = createLifecycle({
@@ -457,6 +464,7 @@ describe('runtime/registerRoute patch coverage', () => {
       Logger: { info: infoSpy, warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       default: { info: infoSpy, warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
+    mockRuntimeDatabaseModule();
 
     const { createLifecycle } = await import('@/boot/registry/runtime');
     const lifecycle = createLifecycle({
@@ -475,5 +483,145 @@ describe('runtime/registerRoute patch coverage', () => {
     expect(infoSpy).toHaveBeenCalledWith(
       'Skipping worker module initialization (WORKER_ENABLED=false).'
     );
+  });
+
+  it('createLifecycle only mounts the debugger when the plugin file opted in', async () => {
+    const tryImportOptionalSpy = vi.fn(async (specifier: string) => {
+      if (specifier === '@zintrust/system-debugger') {
+        return {
+          DebuggerConfig: {
+            merge: () => ({ enabled: true, connection: 'default' }),
+          },
+          DebuggerStorage: {
+            resolveStorage: vi.fn(() => ({ stats: vi.fn() })),
+          },
+          registerDebuggerRoutes: vi.fn((router: { routes: Array<{ path: string }> }) => {
+            router.routes.push({ path: '/debugger' });
+          }),
+        };
+      }
+
+      if (specifier === '@zintrust/system-debugger/register') {
+        return {};
+      }
+
+      return undefined;
+    });
+    const useDatabaseSpy = vi.fn(() => ({}));
+
+    vi.doMock('@node-singletons/fs', () => ({ existsSync: vi.fn(() => true), mkdirSync: vi.fn() }));
+    vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+    vi.doMock('@cache/CacheRuntimeRegistration', () => ({
+      registerCachesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@orm/DatabaseRuntimeRegistration', () => ({
+      registerDatabasesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/queue/QueueRuntimeRegistration', () => ({
+      registerQueuesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/broadcast/BroadcastRuntimeRegistration', () => ({
+      registerBroadcastersFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/storage/StorageRuntimeRegistration', () => ({
+      registerDisksFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/notification/NotificationRuntimeRegistration', () => ({
+      registerNotificationChannelsFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@registry/registerRoute', () => ({
+      registerMasterRoutes: vi.fn(async () => undefined),
+      tryImportOptional: tryImportOptionalSpy,
+    }));
+    vi.doMock('@registry/worker', () => ({ registerWorkerShutdownHook: vi.fn() }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({ WorkerInit: {}, registerWorkerRoutes: vi.fn() })),
+      loadQueueMonitorModule: vi.fn(async () => null),
+    }));
+    vi.doMock('@runtime-config/queue', () => ({ default: { monitor: { enabled: false } } }));
+    vi.doMock('@/config', () => ({
+      appConfig: { port: 7777, dockerWorker: false, worker: false },
+      cacheConfig: {},
+      databaseConfig: { default: 'sqlite', connections: {} },
+      queueConfig: { drivers: { redis: {} } },
+      storageConfig: {},
+    }));
+    vi.doMock('@common/ExternalServiceUtils', () => ({
+      readEnvString: vi.fn((key: string) => {
+        const values: Record<string, string> = {
+          DEBUGGER_ENABLED: 'true',
+          DEBUGGER_BASE_PATH: '/debugger',
+          DEBUGGER_MIDDLEWARE: '',
+        };
+        return values[key] ?? '';
+      }),
+    }));
+    vi.doMock('@config/cloudflare', () => ({ Cloudflare: { getWorkersEnv: () => null } }));
+    vi.doMock('@config/features', () => ({ FeatureFlags: { initialize: vi.fn() } }));
+    vi.doMock('@/health/StartupHealthChecks', () => ({
+      StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@config/StartupConfigValidator', () => ({
+      StartupConfigValidator: { assertValid: vi.fn() },
+    }));
+    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
+      StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
+      StartupConfigFile: {
+        Middleware: 'config/middleware.ts',
+        Cache: 'config/cache.ts',
+        Database: 'config/database.ts',
+        Queue: 'config/queue.ts',
+        Storage: 'config/storage.ts',
+        Mail: 'config/mail.ts',
+        Broadcast: 'config/broadcast.ts',
+        Notification: 'config/notification.ts',
+      },
+    }));
+    vi.doMock('@config/broadcast', () => ({ default: { default: 'default', drivers: {} } }));
+    vi.doMock('@config/notification', () => ({ default: { default: 'default', drivers: {} } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@orm/Database', () => ({ useDatabase: useDatabaseSpy }));
+
+    const { createLifecycle } = await import('@/boot/registry/runtime');
+
+    const routerWithoutPlugin = { routes: [], getRoutes: vi.fn(), getNamedRoutes: vi.fn() } as any;
+    const lifecycleWithoutPlugin = createLifecycle({
+      environment: 'development',
+      resolvedBasePath: '/workspace',
+      router: routerWithoutPlugin,
+      shutdownManager: { add: vi.fn(), run: vi.fn(async () => undefined) } as any,
+      getBooted: () => false,
+      setBooted: vi.fn(),
+    });
+
+    await lifecycleWithoutPlugin.boot();
+
+    expect(tryImportOptionalSpy).not.toHaveBeenCalledWith('@zintrust/system-debugger');
+    expect(routerWithoutPlugin.routes).toHaveLength(0);
+    expect(useDatabaseSpy).not.toHaveBeenCalled();
+
+    (
+      globalThis as { __zintrust_system_debugger_plugin_requested__?: boolean }
+    ).__zintrust_system_debugger_plugin_requested__ = true;
+
+    const routerWithPlugin = { routes: [], getRoutes: vi.fn(), getNamedRoutes: vi.fn() } as any;
+    const lifecycleWithPlugin = createLifecycle({
+      environment: 'development',
+      resolvedBasePath: '/workspace',
+      router: routerWithPlugin,
+      shutdownManager: { add: vi.fn(), run: vi.fn(async () => undefined) } as any,
+      getBooted: () => false,
+      setBooted: vi.fn(),
+    });
+
+    await lifecycleWithPlugin.boot();
+
+    expect(tryImportOptionalSpy).toHaveBeenCalledWith('@zintrust/system-debugger');
+    expect(tryImportOptionalSpy).toHaveBeenCalledWith('@zintrust/system-debugger/register');
+    expect(useDatabaseSpy).toHaveBeenCalledWith(undefined, 'default');
+    expect(routerWithPlugin.routes).toContainEqual({ path: '/debugger' });
   });
 });

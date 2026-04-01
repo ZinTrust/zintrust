@@ -5,6 +5,9 @@ import { Logger } from '@zintrust/core';
 import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, LogContent } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
+
+type LoggerSink = (level: string, message: string, context?: Record<string, unknown>) => void;
 
 const LEVEL_PRIORITY: Record<string, number> = {
   debug: 0,
@@ -20,7 +23,15 @@ export const LogWatcher: IDebuggerWatcher = Object.freeze({
 
     const minPriority = LEVEL_PRIORITY[config.logMinLevel] ?? 1;
 
-    const unsubscribe = Logger.addSink((level, message, context) => {
+    const loggerWithSink = Logger as typeof Logger & {
+      addSink?: (fn: LoggerSink) => () => void;
+    };
+
+    if (typeof loggerWithSink.addSink !== 'function') {
+      return () => undefined;
+    }
+
+    const unsubscribe = loggerWithSink.addSink((level, message, context) => {
       if ((LEVEL_PRIORITY[level] ?? 0) < minPriority) return;
 
       const content: LogContent = {
@@ -36,7 +47,7 @@ export const LogWatcher: IDebuggerWatcher = Object.freeze({
           batchId: DebuggerContext.getBatchId(),
           type: EntryType.LOG,
           content,
-          tags: [],
+          tags: AuthTag.append([]),
           isLatest: true,
           createdAt: DebuggerContext.now(),
         })

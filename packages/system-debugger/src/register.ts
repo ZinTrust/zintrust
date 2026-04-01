@@ -1,8 +1,13 @@
 /**
  * @zintrust/system-debugger register side-effect module.
  *
- * Import this file once in your bootstrap to activate all debugger watchers:
- *   import '@zintrust/system-debugger/register';
+ * For plugin-file activation, prefer:
+ *   import '@zintrust/system-debugger/plugin';
+ *
+ * The framework boot layer will lazy-load this register module once the app
+ * runtime is ready. Importing this file directly is still supported for
+ * advanced manual bootstrap flows that intentionally activate the debugger
+ * after databases and the kernel are available.
  *
  * Config is read from environment variables (DEBUGGER_* keys) matching
  * the defaults in DebuggerConfig. For custom overrides supply them via
@@ -16,9 +21,24 @@
  */
 import { DebuggerConfig } from './config';
 import { DebuggerContext } from './context';
-import { DebuggerStorage } from './storage/DebuggerStorage';
+import { DebuggerStorage } from './storage';
+import type { IDebuggerWatcherConfig } from './types';
 
 export type {}; // side-effect ESM module
+
+type GlobalDebuggerRegisterState = {
+  __zintrust_system_debugger_register_initialized__?: boolean;
+  __zintrust_system_debugger_plugin_requested__?: boolean;
+};
+
+const globalDebuggerRegisterState = globalThis as unknown as GlobalDebuggerRegisterState;
+globalDebuggerRegisterState.__zintrust_system_debugger_plugin_requested__ = true;
+const debuggerAlreadyInitialized =
+  globalDebuggerRegisterState.__zintrust_system_debugger_register_initialized__ === true;
+
+if (!debuggerAlreadyInitialized) {
+  globalDebuggerRegisterState.__zintrust_system_debugger_register_initialized__ = true;
+}
 
 const importCore = async (): Promise<unknown> => {
   try {
@@ -38,25 +58,47 @@ type CoreApi = {
   RequestContext?: {
     current(): unknown;
   };
-  getKernel?: () => Promise<{ registerGlobalMiddleware(fn: unknown): void }>;
 };
 
-const resolveKernel = async (
-  getKernel: CoreApi['getKernel']
-): Promise<{ registerGlobalMiddleware(fn: unknown): void } | null> => {
-  if (!getKernel) return null;
+type GlobalMiddlewareRegistrarState = {
+  __zintrust_register_global_middleware__?: IDebuggerWatcherConfig['registerMiddleware'];
+  __zintrust_pending_global_middlewares__?: Array<
+    Parameters<NonNullable<IDebuggerWatcherConfig['registerMiddleware']>>[0]
+  >;
+};
 
-  try {
-    return await getKernel();
-  } catch {
-    return null;
-  }
+const resolveRegisterMiddleware = (): NonNullable<IDebuggerWatcherConfig['registerMiddleware']> => {
+  const globalMiddlewareRegistrarState = globalThis as unknown as GlobalMiddlewareRegistrarState;
+
+  return (middleware): void => {
+    const registerMiddleware =
+      globalMiddlewareRegistrarState.__zintrust_register_global_middleware__;
+    if (typeof registerMiddleware === 'function') {
+      registerMiddleware(middleware);
+      return;
+    }
+
+    globalMiddlewareRegistrarState.__zintrust_pending_global_middlewares__ ??= [];
+    globalMiddlewareRegistrarState.__zintrust_pending_global_middlewares__.push(middleware);
+  };
+};
+
+const resolveDebuggerConnectionName = (
+  env: Pick<NonNullable<CoreApi['Env']>, 'get'> | undefined,
+  configuredConnection?: string
+): string => {
+  const explicitConnection = configuredConnection?.trim();
+  if (explicitConnection !== undefined && explicitConnection !== '') return explicitConnection;
+
+  const defaultConnection = env?.get('DB_CONNECTION', '').trim() ?? '';
+  if (defaultConnection === '') return 'default';
+  return defaultConnection;
 };
 
 const core = (await importCore()) as CoreApi;
 const Env = core.Env;
 
-if (Env) {
+if (!debuggerAlreadyInitialized && Env) {
   const enabled = Env.getBool('DEBUGGER_ENABLED', false);
 
   if (enabled) {
@@ -78,7 +120,7 @@ if (Env) {
       logMinLevel,
     });
 
-    const db = core.useDatabase?.(undefined, connection ?? 'default');
+    const db = core.useDatabase?.(undefined, resolveDebuggerConnectionName(Env, connection));
 
     if (db) {
       const storage = DebuggerStorage.resolveStorage(db);
@@ -133,13 +175,7 @@ if (Env) {
 
       const watcherArgs = { storage, config, db };
 
-      // Wire HttpWatcher via kernel if available (may be async — does not block)
-      const kernel = await resolveKernel(core.getKernel);
-
-      const registerMiddleware = kernel
-        ? (fn: unknown): void => kernel.registerGlobalMiddleware(fn)
-        : undefined;
-      HttpWatcher.register({ ...watcherArgs, registerMiddleware });
+      HttpWatcher.register({ ...watcherArgs, registerMiddleware: resolveRegisterMiddleware() });
 
       QueryWatcher.register(watcherArgs);
       LogWatcher.register(watcherArgs);
@@ -162,11 +198,11 @@ if (Env) {
       HttpClientWatcher.register(watcherArgs);
     } else {
       // eslint-disable-next-line no-console
-      console.warn('[system-debugger] Could not resolve database connection — skipping init.');
+      console.warn('[system-debugger] Could not resolve database connection - skipping init.');
     }
   }
-} else {
-  // Running outside a ZinTrust project — skip init silently.
+} else if (!debuggerAlreadyInitialized) {
+  // Running outside a ZinTrust project - skip init silently.
   // eslint-disable-next-line no-console
-  console.warn('[system-debugger] @zintrust/core not found — debugger will not be activated.');
+  console.warn('[system-debugger] @zintrust/core not found - debugger will not be activated.');
 }

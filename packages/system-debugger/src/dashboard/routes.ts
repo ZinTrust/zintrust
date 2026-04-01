@@ -3,8 +3,7 @@
  * Mounts the SPA + all REST API endpoints under the configured basePath.
  * Auth is NOT applied here — callers add middleware via routeOptions.
  */
-import type { IRouter, RouteOptions } from '@zintrust/core';
-import { Router } from '@zintrust/core';
+import { appConfig, Router, type IRouter, type RouteOptions } from '@zintrust/core';
 import type { IDebuggerStorage } from '../types';
 import {
   addMonitoring,
@@ -44,7 +43,7 @@ export const registerDebuggerRoutes = (
     router,
     base,
     (_req, res) => {
-      res.html(buildDashboardHtml(base));
+      res.html(buildDashboardHtml(base, appConfig.name));
     },
     routeOptions
   );
@@ -53,7 +52,7 @@ export const registerDebuggerRoutes = (
     router,
     `${base}/*`,
     (_req, res) => {
-      res.html(buildDashboardHtml(base));
+      res.html(buildDashboardHtml(base, appConfig.name));
     },
     routeOptions
   );

@@ -11,6 +11,7 @@ import type {
   RequestContent,
 } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
 import { redactHeaders, redactObject } from '../utils/redact';
 
 const buildEntry = (
@@ -67,9 +68,7 @@ export const HttpWatcher: IDebuggerWatcher = Object.freeze({
       await next();
 
       const content = buildEntry(req, res, start, config);
-      const tags: string[] = [];
-      const userId = DebuggerContext.getUserId();
-      if (userId) tags.push(`Auth:${userId}`);
+      const tags = AuthTag.append([]);
       if (content.responseStatus >= 500) tags.push('failed');
 
       storage

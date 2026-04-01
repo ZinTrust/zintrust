@@ -5,6 +5,7 @@
 import { DebuggerContext } from '../context';
 import type { CacheContent, IDebuggerWatcher, IDebuggerWatcherConfig } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
 import { redactString } from '../utils/redact';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
@@ -31,7 +32,7 @@ const emit = (
       batchId: DebuggerContext.getBatchId(),
       type: EntryType.CACHE,
       content,
-      tags: [],
+      tags: AuthTag.append([]),
       isLatest: true,
       createdAt: DebuggerContext.now(),
     })

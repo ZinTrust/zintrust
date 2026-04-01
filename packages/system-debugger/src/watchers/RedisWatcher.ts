@@ -1,6 +1,7 @@
 import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, RedisContent } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
 
@@ -14,7 +15,7 @@ const emit = (command: string, duration: number): void => {
       batchId: DebuggerContext.getBatchId(),
       type: EntryType.REDIS,
       content,
-      tags: [command.toUpperCase()],
+      tags: AuthTag.append([command.toUpperCase()]),
       isLatest: true,
       createdAt: DebuggerContext.now(),
     })

@@ -2,17 +2,18 @@
  * QueryWatcher — hooks into Database.onAfterQuery to record SQL entries.
  */
 import { DebuggerContext } from '../context';
-import { DebuggerStorage } from '../storage/DebuggerStorage';
+import { DebuggerStorage } from '../storage';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, QueryContent } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
 
 const bindingsInterpolated = (sql: string, params: unknown[]): string => {
   // Inline params for display only — safe, not for re-execution.
   let i = 0;
-  return sql.replace(/\?/g, () => {
+  return sql.replaceAll('?', () => {
     const val = params[i++];
     if (val === null || val === undefined) return 'NULL';
-    if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+    if (typeof val === 'string') return `'${val.replaceAll("'", "''")}'`;
     return String(val);
   });
 };
@@ -39,7 +40,7 @@ export const QueryWatcher: IDebuggerWatcher = Object.freeze({
         hostname: DebuggerContext.getHostname(),
       };
 
-      const tags: string[] = [];
+      const tags = AuthTag.append([]);
       if (slow) tags.push('slow');
 
       storage

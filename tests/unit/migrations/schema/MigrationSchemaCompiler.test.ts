@@ -43,4 +43,18 @@ describe('MigrationSchemaCompiler', () => {
       })
     ).toThrow();
   });
+
+  it('should emit CREATE UNIQUE INDEX for composite unique constraints', () => {
+    const table = MigrationBlueprint.create('entry_tags');
+
+    table.string('entry_uuid');
+    table.string('tag');
+    table.unique(['entry_uuid', 'tag']);
+
+    const sql = MigrationSchemaCompiler.compileCreateTable('sqlite', table.getDefinition());
+
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "uniq_entry_tags_entry_uuid_tag" ON "entry_tags" ("entry_uuid", "tag")'
+    );
+  });
 });

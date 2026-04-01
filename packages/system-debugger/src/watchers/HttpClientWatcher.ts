@@ -1,6 +1,7 @@
 import { DebuggerContext } from '../context';
 import type { ClientRequestContent, IDebuggerWatcher, IDebuggerWatcherConfig } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
 import { redactHeaders } from '../utils/redact';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
@@ -14,7 +15,7 @@ const emit = (
   duration: number
 ): void => {
   if (!_storage) return;
-  const tags = [method.toUpperCase()];
+  const tags = AuthTag.append([method.toUpperCase()]);
   if (responseStatus >= 400) tags.push('failed');
   const content: ClientRequestContent = {
     method: method.toUpperCase(),

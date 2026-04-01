@@ -14,8 +14,8 @@ export { DebuggerConfig } from './config';
 // ---------------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------------
-export { DebuggerStorage } from './storage/DebuggerStorage';
-export type { IDebuggerStorage } from './storage/DebuggerStorage';
+export { DebuggerStorage } from './storage';
+export type { IDebuggerStorage } from './storage';
 
 // ---------------------------------------------------------------------------
 // Context

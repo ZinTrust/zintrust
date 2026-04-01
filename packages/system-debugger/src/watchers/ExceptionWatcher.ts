@@ -5,12 +5,23 @@
  * process-level unhandledRejection/uncaughtException listener as fallback.
  */
 import { DebuggerContext } from '../context';
-import { DebuggerStorage } from '../storage/DebuggerStorage';
 import type { ExceptionContent, IDebuggerWatcher, IDebuggerWatcherConfig } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
+import { familyHash } from '../utils/familyHash';
 
 const getLinePreview = (_file: string, _line: number): Record<string, string> => {
   return {};
+};
+
+const parseStackFrame = (line: string): { file: string; line: number } | null => {
+  const trimmed = line.trim();
+  const wrappedFramePattern = /at .+ \((.+):(\d+):\d+\)/;
+  const directFramePattern = /at (.+):(\d+):\d+/;
+  const match = wrappedFramePattern.exec(trimmed) ?? directFramePattern.exec(trimmed);
+  if (!match) return null;
+
+  return { file: match[1], line: Number.parseInt(match[2], 10) };
 };
 
 const buildContent = (err: Error): ExceptionContent => {
@@ -18,12 +29,7 @@ const buildContent = (err: Error): ExceptionContent => {
   const trace: ExceptionContent['trace'] = stack
     .split('\n')
     .slice(1)
-    .map((l) => {
-      const match =
-        l.trim().match(/at .+ \((.+):(\d+):\d+\)/) ?? l.trim().match(/at (.+):(\d+):\d+/);
-      if (!match) return null;
-      return { file: match[1], line: parseInt(match[2], 10) };
-    })
+    .map(parseStackFrame)
     .filter((x): x is { file: string; line: number } => x !== null)
     .slice(0, 20);
 
@@ -42,7 +48,7 @@ const buildContent = (err: Error): ExceptionContent => {
   };
 };
 
-let _storage: ReturnType<typeof DebuggerStorage.resolveStorage> | null = null;
+let _storage: IDebuggerWatcherConfig['storage'] | null = null;
 let _listenerRefCount = 0;
 
 const handleUncaughtException = (error: unknown): void => {
@@ -71,7 +77,7 @@ const captureException = (err: unknown): void => {
   if (!(err instanceof Error)) return;
 
   const content = buildContent(err);
-  const hash = DebuggerStorage.familyHash(`${content.class}:${content.file}:${content.line}`);
+  const hash = familyHash(`${content.class}:${content.file}:${content.line}`);
   const uuid = crypto.randomUUID();
 
   storage
@@ -81,7 +87,7 @@ const captureException = (err: unknown): void => {
       familyHash: hash,
       type: EntryType.EXCEPTION,
       content,
-      tags: [content.class],
+      tags: AuthTag.append([content.class]),
       isLatest: true,
       createdAt: DebuggerContext.now(),
     })

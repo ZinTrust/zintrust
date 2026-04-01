@@ -19,7 +19,6 @@ import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { D1ProxyCommand } from '@cli/commands/D1ProxyCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
-import { DebuggerClearCommand, DebuggerPruneCommand } from '@cli/commands/DebuggerCommand';
 import { DeployCommand } from '@cli/commands/DeployCommand';
 import { DeployContainerProxiesCommand } from '@cli/commands/DeployContainerProxiesCommand';
 import { DeployContainersProxyCommand } from '@cli/commands/DeployContainersProxyCommand';
@@ -128,8 +127,6 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     D1LearnCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),
-    DebuggerPruneCommand,
-    DebuggerClearCommand,
     SecretsCommand.create(),
     ConfigCommand.create(),
     ContainerWorkersCommand.create(),

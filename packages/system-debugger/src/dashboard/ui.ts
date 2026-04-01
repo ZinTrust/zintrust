@@ -2,293 +2,188 @@
  * Debugger dashboard SPA — inline HTML served at basePath.
  * Full REST API registered under basePath/api/*.
  */
+const BRAND_SVG = `<svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="zt-debugger-brand" x1="15" y1="15" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8" />
+      <stop offset="1" stop-color="#22c55e" />
+    </linearGradient>
+  </defs>
+  <path
+    d="M50 8L18 22V46C18 66.2 32 84.1 50 92C68 84.1 82 66.2 82 46V22L50 8Z"
+    stroke="url(#zt-debugger-brand)"
+    stroke-width="6"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M34 54H42L46 44L52 62L58 50H66"
+    stroke="white"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="34" cy="54" r="2.8" fill="white" fill-opacity="0.7" />
+  <circle cx="66" cy="50" r="2.8" fill="white" fill-opacity="0.7" />
+  <path
+    d="M30 28H70"
+    stroke="white"
+    stroke-opacity="0.12"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+</svg>`;
+
+const encodeSvgDataUri = (svg: string): string => {
+  const compactSvg = svg.replaceAll(/>\s+</g, '><').trim();
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(compactSvg)}`;
+};
+
 const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZinTrust Debugger</title>
+  <meta name="color-scheme" content="dark light">
+  <title>__DEBUGGER_TITLE__</title>
+  <link rel="icon" type="image/svg+xml" href="__DEBUGGER_FAVICON__">
+  <script>
+    (function(){
+      const KEY='zintrust-debugger-theme';
+      let theme='dark';
+      try{
+        const stored=window.localStorage.getItem(KEY);
+        if(stored==='light'||stored==='dark') theme=stored;
+        else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches) theme='light';
+      }catch{}
+      document.documentElement.dataset.theme=theme;
+    })();
+  </script>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
-    header{background:#1e293b;padding:16px 24px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #334155}
-    header h1{font-size:18px;font-weight:600;color:#f1f5f9}
-    header .badge{font-size:11px;background:#0ea5e9;color:#fff;padding:2px 8px;border-radius:999px}
-    #app{display:flex;height:calc(100vh - 57px)}
-    nav{width:200px;background:#1e293b;border-right:1px solid #334155;padding:16px 0;flex-shrink:0}
-    nav button{display:block;width:100%;text-align:left;padding:8px 20px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:13px;transition:color .15s,background .15s}
-    nav button:hover,nav button.active{color:#f1f5f9;background:#0f172a}
-    main{flex:1;overflow:auto;padding:24px}
-    .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-    .toolbar input,.toolbar select{background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:6px 10px;border-radius:6px;font-size:13px}
-    .toolbar button{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:13px}
-    .btn-primary{background:#0ea5e9;color:#fff}
-    .btn-danger{background:#ef4444;color:#fff}
-    .btn-sm{padding:3px 8px;font-size:12px;border-radius:4px;border:none;cursor:pointer;background:#334155;color:#e2e8f0}
-    table{width:100%;border-collapse:collapse;font-size:13px}
-    th{text-align:left;padding:8px 12px;background:#1e293b;color:#94a3b8;font-weight:500;border-bottom:1px solid #334155;position:sticky;top:0}
-    td{padding:8px 12px;border-bottom:1px solid #1e293b;vertical-align:top;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    tr:hover td{background:#1e293b}
-    .tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;margin:1px;background:#334155;color:#94a3b8}
-    .tag.failed{background:#7f1d1d;color:#fca5a5}
-    .tag.slow{background:#78350f;color:#fcd34d}
-    .detail{background:#1e293b;border-radius:8px;padding:16px;overflow:auto}
-    pre{white-space:pre-wrap;word-break:break-all;font-size:12px;color:#a5f3fc}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
-    .pill-request{background:#1d4ed8;color:#bfdbfe}
-    .pill-query{background:#166534;color:#bbf7d0}
-    .pill-exception{background:#991b1b;color:#fecaca}
-    .pill-log{background:#5b21b6;color:#ddd6fe}
-    .pill-job,.pill-batch{background:#92400e;color:#fde68a}
-    .pill-cache{background:#164e63;color:#a5f3fc}
-    .pill-schedule,.pill-command{background:#1e3a5f;color:#bae6fd}
-    .pill-mail,.pill-notification{background:#831843;color:#fbcfe8}
-    .pill-auth{background:#1f2937;color:#d1d5db}
-    .pill-event,.pill-model{background:#064e3b;color:#a7f3d0}
-    .pill-redis{background:#7f1d1d;color:#fca5a5}
-    .pill-gate{background:#312e81;color:#c7d2fe}
-    .pill-middleware{background:#374151;color:#d1fae5}
-    .pill-dump,.pill-view{background:#1c1917;color:#e7e5e4}
-    .pill-client_request{background:#0c4a6e;color:#bae6fd}
-    .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px}
-    .stat-card{background:#1e293b;border-radius:8px;padding:16px;border:1px solid #334155}
-    .stat-card .label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-    .stat-card .value{font-size:28px;font-weight:700;color:#f1f5f9}
-    .pagination{display:flex;gap:6px;margin-top:12px;align-items:center;font-size:13px;color:#94a3b8}
-    .pagination button{background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:4px 10px;border-radius:4px;cursor:pointer}
-    .pagination button:disabled{opacity:.4;cursor:default}
-    .empty{color:#64748b;text-align:center;padding:48px;font-size:14px}
-    .back{color:#0ea5e9;cursor:pointer;font-size:13px;margin-bottom:12px;display:inline-block}
-    .back:hover{text-decoration:underline}
-    #monitoring section{margin-bottom:24px}
-    #monitoring h3{font-size:14px;color:#94a3b8;margin-bottom:8px}
-    #monitoring .tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-    #monitoring .tag-item{background:#1e293b;border:1px solid #334155;border-radius:999px;padding:4px 12px;font-size:13px;display:flex;align-items:center;gap:6px}
-    #monitoring .tag-item button{background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;line-height:1}
-    #monitoring .add-form{display:flex;gap:6px}
-    #monitoring .add-form input{flex:1}
+    :root{--bg:#08111f;--bg-accent:#0c1b31;--panel:rgba(12,27,49,.82);--panel-strong:#13233b;--panel-soft:rgba(15,23,42,.58);--line:rgba(148,163,184,.2);--text:#f1f5f9;--muted:#94a3b8;--accent:#38bdf8;--accent-strong:#0ea5e9;--success:#22c55e;--warn:#f59e0b;--danger:#ef4444;--shadow:0 24px 70px rgba(2,8,23,.35);--radius:20px;--radius-sm:14px;--font:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--mono:'SF Mono',SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace}
+    html[data-theme='light']{--bg:#f6f9fc;--bg-accent:#edf4ff;--panel:rgba(255,255,255,.92);--panel-strong:#ffffff;--panel-soft:rgba(255,255,255,.78);--line:#d7e1ee;--text:#0f172a;--muted:#52627a;--accent:#0284c7;--accent-strong:#0369a1;--success:#16a34a;--warn:#d97706;--danger:#dc2626;--shadow:0 24px 60px rgba(15,23,42,.08)}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%}body{min-height:100vh;font-family:var(--font);color:var(--text);background:radial-gradient(circle at top left,rgba(56,189,248,.18),transparent 32%),radial-gradient(circle at top right,rgba(34,197,94,.14),transparent 28%),linear-gradient(180deg,var(--bg-accent) 0%,var(--bg) 52%,var(--bg) 100%)}button,input,select{font:inherit}
+    .page{min-height:100vh;padding:24px}.shell{max-width:1240px;margin:0 auto;display:grid;gap:18px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);backdrop-filter:blur(16px)}
+    .header{padding:20px 22px 18px;display:grid;gap:18px}.header-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.brand{display:flex;align-items:center;gap:14px;min-width:0}.brand-mark{width:54px;height:54px;border-radius:16px;border:1px solid rgba(56,189,248,.22);background:linear-gradient(180deg,rgba(56,189,248,.16),rgba(34,197,94,.12));display:grid;place-items:center;flex:none}.brand-mark svg{width:34px;height:34px;display:block}.brand-copy{min-width:0}.brand-kicker{margin:0 0 6px;font-size:.76rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:700}.brand-copy h1{margin:0;font-size:1.58rem;line-height:1.05}.brand-copy p{margin:8px 0 0;color:var(--muted);max-width:56rem;line-height:1.55}.project-chip{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel-soft);font-size:.84rem;font-weight:800;color:var(--text)}.project-chip-label{color:var(--muted);font-weight:700}.header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.status-chip,.hero-chip{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel-soft);font-size:.86rem;font-weight:700;color:var(--muted)}.status-dot{width:8px;height:8px;border-radius:999px;background:linear-gradient(180deg,var(--success),#86efac);box-shadow:0 0 0 6px rgba(34,197,94,.12)}.btn{height:42px;border-radius:12px;border:1px solid var(--line);background:var(--panel-soft);color:var(--text);padding:0 14px;font-weight:700;cursor:pointer;transition:border-color .18s ease,transform .18s ease,color .18s ease,background .18s ease}.btn:hover{transform:translateY(-1px);border-color:rgba(56,189,248,.45);color:var(--accent)}.btn-primary{background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff;border-color:transparent;box-shadow:0 14px 28px rgba(14,165,233,.18)}.btn-primary:hover{color:#fff}.btn-danger{background:rgba(239,68,68,.12);color:#fecaca;border-color:rgba(239,68,68,.18)}html[data-theme='light'] .btn-danger{color:var(--danger)}
+    .hero{display:grid;gap:14px}.hero-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.hero h2{margin:0;font-size:2rem;line-height:1.02}.hero p{margin:10px 0 0;color:var(--muted);max-width:60rem;line-height:1.65}.hero-meta{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.nav-rows{display:grid;gap:12px}.tab-row,.shortcut-row{display:flex;gap:10px;flex-wrap:wrap}.tab-button,.shortcut-button{display:inline-flex;align-items:center;gap:10px;border:none;border-radius:14px;padding:12px 14px;background:transparent;color:var(--muted);cursor:pointer;transition:background .18s ease,color .18s ease,border-color .18s ease;box-shadow:inset 0 0 0 1px var(--line)}.tab-button:hover,.shortcut-button:hover{background:rgba(56,189,248,.1);color:var(--text)}.tab-button.active,.shortcut-button.active{background:rgba(56,189,248,.14);color:var(--text);box-shadow:inset 0 0 0 1px rgba(56,189,248,.32)}.button-copy{display:grid;gap:2px;text-align:left}.button-title{font-weight:800}.button-meta{font-size:.78rem;color:var(--muted)}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}.stat-card{padding:20px;position:relative;overflow:hidden}.stat-card::after{content:'';position:absolute;right:-18px;bottom:-26px;width:92px;height:92px;border-radius:28px;background:linear-gradient(135deg,rgba(56,189,248,.16),rgba(34,197,94,.08));transform:rotate(18deg)}.stat-label{font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:12px}.stat-value{font-size:2.35rem;font-weight:800;line-height:1}.stat-meta{margin-top:10px;color:var(--muted);font-size:.9rem;line-height:1.5}
+    .content-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,.95fr);gap:18px}.side-stack{display:grid;gap:18px}.section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:22px 24px 16px}.section-head h3{margin:0;font-size:1.04rem}.section-head p{margin:6px 0 0;color:var(--muted);font-size:.92rem;line-height:1.5}.toolbar{display:flex;flex-wrap:wrap;gap:10px;padding:0 24px 18px}.control,.toolbar input,.toolbar select{height:44px;border-radius:13px;border:1px solid var(--line);background:var(--panel-strong);color:var(--text);padding:0 14px;min-width:0}.toolbar input,.toolbar select{flex:1 1 180px}.toolbar input::placeholder{color:var(--muted)}
+    .table-wrap{overflow:auto;padding:0 14px 14px}table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}th{padding:14px;color:var(--muted);font-size:.75rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--line)}td{padding:15px 14px;border-bottom:1px solid var(--line);vertical-align:top;background:transparent}.row-button{cursor:pointer;transition:background .18s ease}.row-button:hover td{background:rgba(56,189,248,.06)}.summary{font-weight:800;line-height:1.45;color:var(--text)}.summary-sub{margin-top:6px;color:var(--muted);font-size:.88rem;line-height:1.45}.mono{font-family:var(--mono)}.empty{padding:44px 24px;color:var(--muted);text-align:center;line-height:1.65}.pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px 24px;color:var(--muted);flex-wrap:wrap}.pagination-controls{display:flex;gap:8px}.pagination button{height:40px;min-width:92px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel-strong);color:var(--text);cursor:pointer}.pagination button:disabled{opacity:.45;cursor:not-allowed}
+    .activity-list{list-style:none;margin:0;padding:0 24px 24px}.activity-item{padding:14px 0;border-top:1px solid var(--line)}.activity-item:first-child{border-top:none}.activity-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.activity-time{color:var(--muted);font-size:.85rem}.activity-summary{margin-top:8px;color:var(--text);line-height:1.48}.back-link{display:inline-flex;align-items:center;gap:8px;margin:0 0 14px;color:var(--accent);font-weight:800;cursor:pointer}.detail-card{padding:24px}.detail-meta{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 20px;color:var(--muted);font-size:.9rem}.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px}.detail-box{padding:16px;border-radius:16px;background:var(--panel-soft);border:1px solid var(--line)}.detail-box h4{margin:0 0 10px;font-size:.92rem}.detail-box dl{margin:0;display:grid;gap:8px}.detail-box dt{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-box dd{margin:0;color:var(--text);line-height:1.45}.detail-card pre{margin:0;background:#06101f;color:#dbeafe;padding:18px;border-radius:16px;overflow:auto;white-space:pre-wrap;word-break:break-word;border:1px solid rgba(56,189,248,.14)}html[data-theme='light'] .detail-card pre{background:#eef4fb;color:#0f172a;border-color:#d7e1ee}.trace-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 16px}.trace-tab{border:none;border-radius:12px;padding:10px 12px;background:transparent;color:var(--muted);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);font-weight:800}.trace-tab.active{background:rgba(56,189,248,.12);color:var(--text);box-shadow:inset 0 0 0 1px rgba(56,189,248,.28)}.trace-panel{padding:18px;border-radius:16px;background:var(--panel-soft);border:1px solid var(--line)}.trace-list{display:grid;gap:12px}.trace-item{padding:14px 0;border-top:1px solid var(--line)}.trace-item:first-child{border-top:none}.trace-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.trace-item-summary{margin-top:8px;line-height:1.52;color:var(--text)}.trace-note{color:var(--muted);line-height:1.6}
+    .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:.78rem;font-weight:800;margin:0 6px 6px 0;border:1px solid rgba(56,189,248,.18)}button.tag{cursor:pointer}html[data-theme='light'] .tag{color:#075985}.tag.failed{background:rgba(239,68,68,.14);color:#fecaca;border-color:rgba(239,68,68,.2)}html[data-theme='light'] .tag.failed{color:#b91c1c}.tag.slow{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.slow{color:#92400e}.type-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border:1px solid transparent}.pill-request{background:rgba(56,189,248,.14);color:#93c5fd}.pill-query{background:rgba(34,197,94,.12);color:#86efac}.pill-exception{background:rgba(239,68,68,.14);color:#fecaca}.pill-log{background:rgba(168,85,247,.14);color:#ddd6fe}.pill-job,.pill-batch{background:rgba(245,158,11,.14);color:#fde68a}.pill-cache{background:rgba(20,184,166,.14);color:#99f6e4}.pill-schedule,.pill-command{background:rgba(14,165,233,.14);color:#bae6fd}.pill-mail,.pill-notification{background:rgba(236,72,153,.14);color:#fbcfe8}.pill-auth{background:rgba(148,163,184,.16);color:#e2e8f0}.pill-event,.pill-model{background:rgba(74,222,128,.14);color:#bbf7d0}.pill-redis{background:rgba(239,68,68,.12);color:#fecaca}.pill-gate{background:rgba(99,102,241,.14);color:#c7d2fe}.pill-middleware{background:rgba(45,212,191,.12);color:#ccfbf1}.pill-dump,.pill-view{background:rgba(148,163,184,.14);color:#e2e8f0}.pill-client-request{background:rgba(59,130,246,.14);color:#bfdbfe}html[data-theme='light'] .pill-request{color:#1d4ed8}html[data-theme='light'] .pill-query{color:#166534}html[data-theme='light'] .pill-exception{color:#b91c1c}html[data-theme='light'] .pill-log{color:#6d28d9}html[data-theme='light'] .pill-job,html[data-theme='light'] .pill-batch{color:#92400e}html[data-theme='light'] .pill-cache{color:#115e59}html[data-theme='light'] .pill-schedule,html[data-theme='light'] .pill-command{color:#0c4a6e}html[data-theme='light'] .pill-mail,html[data-theme='light'] .pill-notification{color:#9d174d}html[data-theme='light'] .pill-auth,html[data-theme='light'] .pill-dump,html[data-theme='light'] .pill-view{color:#334155}html[data-theme='light'] .pill-event,html[data-theme='light'] .pill-model{color:#166534}html[data-theme='light'] .pill-redis{color:#991b1b}html[data-theme='light'] .pill-gate{color:#3730a3}html[data-theme='light'] .pill-middleware{color:#155e75}html[data-theme='light'] .pill-client-request{color:#1d4ed8}
+    .monitoring-wrap{padding:0 24px 24px}.tag-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.tag-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel-strong)}.tag-remove{border:none;background:rgba(239,68,68,.14);color:#fecaca;border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:1rem;line-height:1}.helper-text{color:var(--muted);line-height:1.6}
+    @media (max-width:1120px){.content-grid{grid-template-columns:1fr}}@media (max-width:720px){.page{padding:14px}.header,.detail-card{padding:18px}.hero h2{font-size:1.65rem}.section-head,.toolbar,.pagination,.activity-list,.monitoring-wrap{padding-left:18px;padding-right:18px}.table-wrap{padding:0 8px 10px}.brand{align-items:flex-start}.brand-mark{width:48px;height:48px}.brand-mark svg{width:30px;height:30px}}
   </style>
 </head>
 <body>
-  <header>
-    <h1>ZinTrust Debugger</h1>
-    <span class="badge">Dev</span>
-  </header>
-  <div id="app">
-    <nav id="nav">
-      <button onclick="showPage('overview')" class="active" data-page="overview">Overview</button>
-      <button onclick="showPage('entries')" data-page="entries">Entries</button>
-      <button onclick="showPage('monitoring')" data-page="monitoring">Monitoring</button>
-    </nav>
-    <main id="main"></main>
+  <div class="page">
+    <div class="shell">
+      <header class="panel header">
+        <div class="header-top">
+          <div class="brand">
+            <div class="brand-mark">__DEBUGGER_LOGO__</div>
+            <div class="brand-copy">
+              <p class="brand-kicker">ZinTrust</p>
+              <h1>ZinTrust Debugger</h1>
+              <p>Live request, query, exception, queue, and runtime diagnostics in one responsive dashboard.</p>
+              <div class="project-chip"><span class="project-chip-label">Project</span><span class="mono">__DEBUGGER_PROJECT_NAME__</span></div>
+            </div>
+          </div>
+          <div class="header-actions">
+            <span class="status-chip"><span class="status-dot"></span>Live diagnostics</span>
+            <button type="button" class="btn" id="theme-toggle">Light mode</button>
+          </div>
+        </div>
+        <div class="hero">
+          <div class="hero-head">
+            <div>
+              <h2 id="page-title">Runtime overview</h2>
+              <p id="page-subtitle">Recent debugger activity, current totals, and the fastest path into the entries stream.</p>
+            </div>
+            <div class="hero-meta">
+              <span class="hero-chip">Project: <span class="mono">__DEBUGGER_PROJECT_NAME__</span></span>
+              <span class="hero-chip">Base path: <span class="mono">__DEBUGGER_BASE_PATH_LABEL__</span></span>
+              <span class="hero-chip">Theme-aware</span>
+              <span class="hero-chip">Responsive</span>
+            </div>
+          </div>
+          <div class="nav-rows">
+            <div class="tab-row">
+              <button type="button" class="tab-button active" data-page="overview"><span class="button-copy"><span class="button-title">Overview</span><span class="button-meta">Summary and pulse</span></span></button>
+              <button type="button" class="tab-button" data-page="entries"><span class="button-copy"><span class="button-title">Entries</span><span class="button-meta">Inspect captured events</span></span></button>
+              <button type="button" class="tab-button" data-page="monitoring"><span class="button-copy"><span class="button-title">Monitoring</span><span class="button-meta">Pinned tags and watch lists</span></span></button>
+            </div>
+            <div class="shortcut-row">
+              <button type="button" class="shortcut-button" data-action="type-shortcut" data-type="request"><span class="button-copy"><span class="button-title">Requests</span><span class="button-meta">HTTP stream</span></span></button>
+              <button type="button" class="shortcut-button" data-action="type-shortcut" data-type="query"><span class="button-copy"><span class="button-title">Queries</span><span class="button-meta">Database calls</span></span></button>
+              <button type="button" class="shortcut-button" data-action="type-shortcut" data-type="job"><span class="button-copy"><span class="button-title">Jobs</span><span class="button-meta">Queue lifecycle</span></span></button>
+              <button type="button" class="shortcut-button" data-action="type-shortcut" data-type="exception"><span class="button-copy"><span class="button-title">Exceptions</span><span class="button-meta">Unhandled failures</span></span></button>
+              <button type="button" class="shortcut-button" data-action="type-shortcut" data-type="log"><span class="button-copy"><span class="button-title">Logs</span><span class="button-meta">Application events</span></span></button>
+              <button type="button" class="shortcut-button" data-action="type-shortcut" data-type="cache"><span class="button-copy"><span class="button-title">Cache</span><span class="button-meta">Read and write hits</span></span></button>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div id="main"></div>
+    </div>
   </div>
   <script>
   (function(){
-    const BASE = '__DEBUGGER_BASE_PATH__';
-    const API = BASE + '/api';
-    let _page = 'overview';
-    let _entriesPage = 1;
-    let _entriesFilter = { type: '', tag: '', batchId: '' };
-    let _detail = null;
-
-    async function api(path, opts) {
-      const r = await fetch(API + path, opts);
-      if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || r.statusText); }
-      return r.json();
-    }
-
-    function typeClass(t) { return 'pill pill-' + (t||'').replace('_','-'); }
-
-    function timeSince(ms) {
-      const s = Math.floor((Date.now() - ms) / 1000);
-      if (s < 60) return s + 's ago';
-      if (s < 3600) return Math.floor(s/60) + 'm ago';
-      return Math.floor(s/3600) + 'h ago';
-    }
-
-    function tagsHtml(tags) {
-      return (tags||[]).map(t => '<span class="tag' + (t==='failed'?' failed':t==='slow'?' slow':'') + '">' + t + '</span>').join('');
-    }
-
-    function showPage(p) {
-      _page = p;
-      _entriesPage = 1;
-      _detail = null;
-      document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.page === p));
-      render();
-    }
-
-    async function render() {
-      const m = document.getElementById('main');
-      if (_page === 'overview') await renderOverview(m);
-      else if (_page === 'entries') await renderEntries(m);
-      else if (_page === 'monitoring') await renderMonitoring(m);
-    }
-
-    async function renderOverview(m) {
-      m.innerHTML = '<div class="empty">Loading...</div>';
-      try {
-        const { stats } = await api('/stats');
-        const total = Object.values(stats).reduce((a,b)=>a+b, 0);
-        let cards = '<div class="stats-grid"><div class="stat-card"><div class="label">Total Entries</div><div class="value">' + total + '</div></div>';
-        for (const [k,v] of Object.entries(stats)) {
-          if (v > 0) cards += '<div class="stat-card"><div class="label">' + k + '</div><div class="value">' + v + '</div></div>';
-        }
-        cards += '</div>';
-        cards += '<button class="btn-danger btn-sm" onclick="clearAll()">Clear all entries</button>';
-        m.innerHTML = cards;
-      } catch(e) { m.innerHTML = '<div class="empty">Error: ' + e.message + '</div>'; }
-    }
-
-    window.clearAll = async function() {
-      if (!confirm('Delete all debugger entries?')) return;
-      try { await api('/entries', { method: 'DELETE' }); render(); } catch(e) { alert(e.message); }
-    };
-
-    async function renderEntries(m) {
-      if (_detail) { renderDetail(m); return; }
-      m.innerHTML = '<div class="empty">Loading...</div>';
-      try {
-        const qs = new URLSearchParams({ page: _entriesPage, perPage: 50 });
-        if (_entriesFilter.type) qs.set('type', _entriesFilter.type);
-        if (_entriesFilter.tag) qs.set('tag', _entriesFilter.tag);
-        if (_entriesFilter.batchId) qs.set('batchId', _entriesFilter.batchId);
-        const { data, total, perPage } = await api('/entries?' + qs);
-        const totalPages = Math.max(1, Math.ceil(total / perPage));
-        m.innerHTML = \`
-          <div class="toolbar">
-            <select id="f-type" onchange="applyFilter()">
-              <option value="">All types</option>
-              \${['request','query','exception','log','job','cache','schedule','mail','auth','event','model','notification','redis','gate','middleware','command','batch','dump','view','client_request'].map(t=>'<option value="'+t+'"'+((_entriesFilter.type===t)?' selected':'')+'>'+t+'</option>').join('')}
-            </select>
-            <input id="f-tag" placeholder="Tag filter" value="\${_entriesFilter.tag}" oninput="applyFilter()">
-            <input id="f-batch" placeholder="Batch ID" value="\${_entriesFilter.batchId}" oninput="applyFilter()">
-          </div>
-          \${data.length === 0 ? '<div class="empty">No entries match the current filter.</div>' : \`
-          <table>
-            <thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Batch</th><th>Time</th></tr></thead>
-            <tbody>
-            \${data.map(e => \`
-              <tr style="cursor:pointer" onclick="showDetail('\${e.uuid}')">
-                <td><span class="\${typeClass(e.type)}">\${e.type}</span></td>
-                <td>\${entrySummary(e)}</td>
-                <td>\${tagsHtml(e.tags)}</td>
-                <td style="font-size:11px;color:#64748b">\${(e.batchId||'').slice(0,8)}</td>
-                <td style="font-size:11px;color:#64748b">\${timeSince(e.createdAt)}</td>
-              </tr>\`).join('')}
-            </tbody>
-          </table>
-          <div class="pagination">
-            <button \${_entriesPage<=1?'disabled':''} onclick="changePage(-1)">Prev</button>
-            <span>Page \${_entriesPage} of \${totalPages} (\${total} total)</span>
-            <button \${_entriesPage>=totalPages?'disabled':''} onclick="changePage(1)">Next</button>
-          </div>\`}
-        \`;
-      } catch(e) { m.innerHTML = '<div class="empty">Error: ' + e.message + '</div>'; }
-    }
-
-    window.applyFilter = function() {
-      _entriesFilter.type = document.getElementById('f-type')?.value || '';
-      _entriesFilter.tag = document.getElementById('f-tag')?.value || '';
-      _entriesFilter.batchId = document.getElementById('f-batch')?.value || '';
-      _entriesPage = 1;
-      renderEntries(document.getElementById('main'));
-    };
-
-    window.changePage = function(delta) {
-      _entriesPage = Math.max(1, _entriesPage + delta);
-      renderEntries(document.getElementById('main'));
-    };
-
-    window.showDetail = async function(uuid) {
-      try {
-        const { entry } = await api('/entries/' + uuid);
-        _detail = entry;
-        renderEntries(document.getElementById('main'));
-      } catch(e) { alert(e.message); }
-    };
-
-    function renderDetail(m) {
-      const e = _detail;
-      m.innerHTML = \`
-        <span class="back" onclick="closeDetail()">← Back to entries</span>
-        <div class="detail">
-          <p style="margin-bottom:8px"><span class="\${typeClass(e.type)}">\${e.type}</span> &nbsp; \${tagsHtml(e.tags)}</p>
-          <p style="font-size:11px;color:#64748b;margin-bottom:12px">UUID: \${e.uuid} &nbsp;|&nbsp; Batch: \${e.batchId} &nbsp;|&nbsp; \${new Date(e.createdAt).toISOString()}</p>
-          <pre>\${JSON.stringify(e.content, null, 2)}</pre>
-        </div>
-      \`;
-    }
-
-    window.closeDetail = function() { _detail = null; renderEntries(document.getElementById('main')); };
-
-    function entrySummary(e) {
-      const c = e.content || {};
-      if (e.type === 'request') return (c.method||'')+ ' ' + (c.uri||'');
-      if (e.type === 'query') return (c.sql||'').slice(0,80);
-      if (e.type === 'exception') return (c.class||'') + ': ' + (c.message||'');
-      if (e.type === 'log') return '['+c.level+'] ' + (c.message||'').slice(0,80);
-      if (e.type === 'job') return (c.name||'') + ' — ' + (c.status||'');
-      if (e.type === 'cache') return (c.operation||'') + ' ' + (c.key||'');
-      if (e.type === 'schedule') return (c.name||'') + ' — ' + (c.status||'');
-      if (e.type === 'mail') return 'To: ' + (c.to||'') + ' — ' + (c.subject||'');
-      if (e.type === 'auth') return (c.event||'') + (c.userId ? ' #'+c.userId : '');
-      if (e.type === 'event') return (c.name||'');
-      if (e.type === 'model') return (c.action||'') + ' ' + (c.model||'');
-      if (e.type === 'notification') return (c.notification||'') + ' → ' + (c.channels||[]).join(',');
-      if (e.type === 'redis') return (c.command||'');
-      if (e.type === 'gate') return (c.ability||'') + ' — ' + (c.result||'');
-      if (e.type === 'middleware') return (c.name||'') + ' ' + (c.event||'');
-      if (e.type === 'command') return (c.name||'') + ' exit=' + c.exitCode;
-      if (e.type === 'batch') return (c.name||'') + ' processed ' + c.processed + '/' + c.total;
-      if (e.type === 'view') return (c.template||'');
-      if (e.type === 'client_request') return (c.method||'') + ' ' + (c.url||'');
-      return JSON.stringify(c).slice(0,80);
-    }
-
-    async function renderMonitoring(m) {
-      m.innerHTML = '<div class="empty">Loading...</div>';
-      try {
-        const { tags } = await api('/monitoring');
-        m.innerHTML = \`
-          <div id="monitoring">
-            <section>
-              <h3>Monitored tags</h3>
-              <div class="tag-list">
-                \${tags.length === 0 ? '<span style="color:#64748b;font-size:13px">No tags monitored yet.</span>' : tags.map(t => \`
-                  <div class="tag-item">\${t} <button onclick="removeTag('\${t}')">×</button></div>
-                \`).join('')}
-              </div>
-              <div class="add-form">
-                <input type="text" id="new-tag" placeholder="Add tag (e.g. Auth:42)">
-                <button class="btn-primary" onclick="addTag()">Add</button>
-              </div>
-            </section>
-          </div>
-        \`;
-      } catch(e) { m.innerHTML = '<div class="empty">Error: ' + e.message + '</div>'; }
-    }
-
-    window.addTag = async function() {
-      const tag = (document.getElementById('new-tag')?.value || '').trim();
-      if (!tag) return;
-      try { await api('/monitoring/' + encodeURIComponent(tag), { method: 'POST' }); renderMonitoring(document.getElementById('main')); }
-      catch(e) { alert(e.message); }
-    };
-
-    window.removeTag = async function(tag) {
-      try { await api('/monitoring/' + encodeURIComponent(tag), { method: 'DELETE' }); renderMonitoring(document.getElementById('main')); }
-      catch(e) { alert(e.message); }
-    };
-
+    const BASE=__DEBUGGER_BASE_PATH_JSON__;
+    const API=BASE+'/api';
+    const THEME_KEY='zintrust-debugger-theme';
+    const ENTRY_TYPES=['request','query','exception','log','job','cache','schedule','mail','auth','event','model','notification','redis','gate','middleware','command','batch','dump','view','client_request'];
+    const PAGE_COPY={overview:{title:'Runtime overview',subtitle:'Recent debugger activity, current totals, and the fastest path into the entries stream.'},entries:{title:'Entry explorer',subtitle:'Filter by type, tag, or batch and drill into one event at a time.'},monitoring:{title:'Monitoring tags',subtitle:'Track hot identifiers or workflows by keeping their tags pinned here.'}};
+    let state={page:'overview',entriesPage:1,entriesFilter:{type:'',tag:'',batchId:''},detail:null,detailBatch:null,detailTab:'summary'};
+    const updateThemeButton=()=>{const theme=document.documentElement.dataset.theme==='light'?'light':'dark';const toggle=document.getElementById('theme-toggle');if(toggle) toggle.textContent=theme==='dark'?'Light mode':'Dark mode';};
+    const setTheme=(theme)=>{document.documentElement.dataset.theme=theme;try{window.localStorage.setItem(THEME_KEY,theme);}catch{}updateThemeButton();};
+    const setPageCopy=(page)=>{const copy=PAGE_COPY[page]||PAGE_COPY.overview;const title=document.getElementById('page-title');const subtitle=document.getElementById('page-subtitle');if(title) title.textContent=copy.title;if(subtitle) subtitle.textContent=copy.subtitle;};
+    const activeEntryShortcut=()=>state.page==='entries'&&state.entriesFilter.type!==''?state.entriesFilter.type:'';
+    const escapeHtml=(value)=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    const api=async(path,opts)=>{const response=await fetch(API+path,opts);if(!response.ok){const errorBody=await response.json().catch(()=>({}));throw new Error(errorBody.error||response.statusText);}return response.json();};
+    const typeClass=(type)=>'type-pill pill-'+String(type||'').replace(/_/g,'-');
+    const timeSince=(value)=>{const createdAt=Number(value);if(!Number.isFinite(createdAt)) return 'Unknown';const seconds=Math.max(0,Math.floor((Date.now()-createdAt)/1000));if(seconds<60) return seconds+'s ago';if(seconds<3600) return Math.floor(seconds/60)+'m ago';if(seconds<86400) return Math.floor(seconds/3600)+'h ago';return Math.floor(seconds/86400)+'d ago';};
+    const tagsHtml=(tags)=>(tags||[]).map((tag)=>{const css=tag==='failed'?'tag failed':tag==='slow'?'tag slow':'tag';return '<button type="button" class="'+css+'" data-action="filter-tag" data-tag="'+escapeHtml(tag)+'">'+escapeHtml(tag)+'</button>';}).join('');
+    const batchSnippet=(batchId)=>{const raw=String(batchId||'');return raw===''?'—':escapeHtml(raw.slice(0,8));};
+    const batchEntries=()=>Array.isArray(state.detailBatch)?state.detailBatch:[];
+    const batchEntriesByType=(type)=>batchEntries().filter((entry)=>entry.type===type);
+    const hasRequestTrace=()=>Boolean(state.detail&&state.detail.type==='request'&&batchEntries().length>0);
+    const entrySummaryText=(entry)=>{const content=entry&&entry.content?entry.content:{};if(entry.type==='request') return [content.method||'',content.uri||''].filter(Boolean).join(' ');if(entry.type==='query') return String(content.sql||'').slice(0,160);if(entry.type==='exception') return [content.class||'',content.message||''].filter(Boolean).join(': ');if(entry.type==='log') return '['+String(content.level||'log')+'] '+String(content.message||'').slice(0,160);if(entry.type==='job') return [content.name||'',content.status||'queued'].filter(Boolean).join(' · ');if(entry.type==='cache') return [content.operation||'',content.key||''].filter(Boolean).join(' ');if(entry.type==='schedule') return [content.name||'',content.status||'ran'].filter(Boolean).join(' · ');if(entry.type==='mail') return ['To '+(content.to||'unknown'),content.subject||'No subject'].join(' · ');if(entry.type==='auth') return [content.event||'auth',content.userId?'#'+content.userId:''].filter(Boolean).join(' ');if(entry.type==='event') return String(content.name||'event');if(entry.type==='model') return [content.action||'',content.model||''].filter(Boolean).join(' ');if(entry.type==='notification') return [content.notification||'',(content.channels||[]).join(', ')].filter(Boolean).join(' → ');if(entry.type==='redis') return String(content.command||'redis');if(entry.type==='gate') return [content.ability||'',content.result||''].filter(Boolean).join(' · ');if(entry.type==='middleware') return [content.name||'',content.event||''].filter(Boolean).join(' · ');if(entry.type==='command') return [content.name||'',content.exitCode!==undefined?'exit='+content.exitCode:''].filter(Boolean).join(' ');if(entry.type==='batch') return [content.name||'','processed '+(content.processed||0)+'/'+(content.total||0)].join(' · ');if(entry.type==='view') return String(content.template||'view');if(entry.type==='client_request') return [content.method||'',content.url||''].filter(Boolean).join(' ');return JSON.stringify(content).slice(0,160);};
+    const entrySummaryHtml=(entry)=>{const summary=escapeHtml(entrySummaryText(entry)||'No summary available');const secondary=[entry.type==='request'?'Incoming request':'',entry.type==='query'?'Database query':'',entry.type==='exception'?'Unhandled error':'Captured event'].find(Boolean)||'Debugger record';return '<div class="summary">'+summary+'</div><div class="summary-sub">'+escapeHtml(secondary)+'</div>';};
+    const detailJson=(value)=>'<pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre>';
+    const renderTraceItems=(entries)=>entries.length===0?'<p class="trace-note">No related entries captured for this section.</p>':'<div class="trace-list">'+entries.map((entry)=>'<div class="trace-item"><div class="trace-item-head"><span class="'+typeClass(entry.type)+'">'+escapeHtml(entry.type)+'</span><span class="activity-time">'+escapeHtml(timeSince(entry.createdAt))+'</span></div><div class="trace-item-summary">'+entrySummaryHtml(entry)+tagsHtml(entry.tags)+'</div></div>').join('')+'</div>';
+    const renderRequestTrace=(main)=>{const entry=state.detail;const content=entry&&entry.content?entry.content:{};const traceTabs=[{id:'summary',label:'Summary'},{id:'payload',label:'Payload'},{id:'headers',label:'Headers'},{id:'response',label:'Response'},{id:'queries',label:'Queries',count:batchEntriesByType('query').length},{id:'logs',label:'Logs',count:batchEntriesByType('log').length},{id:'exceptions',label:'Exceptions',count:batchEntriesByType('exception').length},{id:'http',label:'HTTP',count:batchEntriesByType('client_request').length},{id:'other',label:'Other',count:batchEntries().filter((item)=>!['request','query','log','exception','client_request'].includes(item.type)).length}];const activeTab=traceTabs.some((tab)=>tab.id===state.detailTab)?state.detailTab:'summary';const currentTab=activeTab;const otherEntries=batchEntries().filter((item)=>!['request','query','log','exception','client_request'].includes(item.type));const tabPanels={summary:'<div class="detail-grid"><section class="detail-box"><h4>Request</h4><dl><dt>Method</dt><dd>'+escapeHtml(content.method||'')+'</dd><dt>Path</dt><dd class="mono">'+escapeHtml(content.uri||'')+'</dd><dt>Status</dt><dd>'+escapeHtml(content.responseStatus||'')+'</dd><dt>Duration</dt><dd>'+escapeHtml(content.duration||'')+' ms</dd></dl></section><section class="detail-box"><h4>Runtime</h4><dl><dt>Hostname</dt><dd>'+escapeHtml(content.hostname||'')+'</dd><dt>User</dt><dd>'+escapeHtml(content.userId||'Anonymous')+'</dd><dt>Memory</dt><dd>'+escapeHtml(content.memory===null||content.memory===undefined?'Unavailable':String(content.memory))+'</dd><dt>Batch</dt><dd class="mono">'+escapeHtml(entry.batchId||'')+'</dd></dl></section><section class="detail-box"><h4>Middleware and tags</h4><dl><dt>Middleware</dt><dd>'+escapeHtml((content.middleware||[]).join(', ')||'Not captured')+'</dd><dt>Tags</dt><dd>'+tagsHtml(entry.tags)+'</dd></dl></section></div>',payload:detailJson(content.payload||{}),headers:'<div class="detail-grid"><section class="detail-box"><h4>Request headers</h4>'+detailJson(content.headers||{})+'</section><section class="detail-box"><h4>Response headers</h4>'+detailJson(content.responseHeaders||{})+'</section></div>',response:'<div class="trace-panel"><p class="trace-note">Response status and headers are captured today. Response body capture is not wired yet.</p><div class="detail-grid"><section class="detail-box"><h4>Status</h4><dl><dt>Response status</dt><dd>'+escapeHtml(content.responseStatus||'')+'</dd><dt>Duration</dt><dd>'+escapeHtml(content.duration||'')+' ms</dd></dl></section><section class="detail-box"><h4>Headers</h4>'+detailJson(content.responseHeaders||{})+'</section></div></div>',queries:'<div class="trace-panel">'+renderTraceItems(batchEntriesByType('query'))+'</div>',logs:'<div class="trace-panel">'+renderTraceItems(batchEntriesByType('log'))+'</div>',exceptions:'<div class="trace-panel">'+renderTraceItems(batchEntriesByType('exception'))+'</div>',http:'<div class="trace-panel">'+renderTraceItems(batchEntriesByType('client_request'))+'</div>',other:'<div class="trace-panel">'+renderTraceItems(otherEntries)+'</div>'};main.innerHTML=['<span class="back-link" data-action="close-detail">← Back to entries</span>','<section class="panel detail-card">','<div><span class="'+typeClass(entry.type)+'">'+escapeHtml(entry.type)+'</span> '+tagsHtml(entry.tags)+'</div>','<div class="detail-meta">','<span>Request trace</span>','<span>UUID <span class="mono">'+escapeHtml(entry.uuid)+'</span></span>','<span>Batch <span class="mono">'+escapeHtml(entry.batchId||'—')+'</span></span>','<span>'+escapeHtml(new Date(Number(entry.createdAt)).toISOString())+'</span>','</div>','<div class="trace-tabs">',traceTabs.map((tab)=>'<button type="button" class="trace-tab'+(tab.id===currentTab?' active':'')+'" data-action="detail-tab" data-tab="'+escapeHtml(tab.id)+'">'+escapeHtml(tab.label)+(tab.count!==undefined?' ('+escapeHtml(tab.count)+')':'')+'</button>').join(''),'</div>',tabPanels[currentTab]||tabPanels.summary,'</section>'].join('');};
+    const statsCardsHtml=(stats)=>{const total=Object.values(stats).reduce((sum,value)=>sum+Number(value||0),0);const cards=[{label:'Total entries',value:total,meta:'Everything currently stored in the debugger stream.'},...Object.entries(stats).filter(([,value])=>Number(value)>0).map(([key,value])=>({label:key,value:Number(value),meta:key==='query'?'Queries captured by the runtime.':'Recent '+key+' activity.'}))];return '<div class="stats-grid">'+cards.map((card)=>'<section class="panel stat-card"><div class="stat-label">'+escapeHtml(card.label)+'</div><div class="stat-value">'+escapeHtml(card.value)+'</div><div class="stat-meta">'+escapeHtml(card.meta)+'</div></section>').join('')+'</div>';};
+    const renderOverview=async(main)=>{main.innerHTML='<div class="panel empty">Loading debugger overview…</div>';try{const[{stats},recent]=await Promise.all([api('/stats'),api('/entries?perPage=8&page=1')]);const recentRows=recent.data||[];const recentTable=recentRows.length===0?'<div class="empty">No debugger entries recorded yet.</div>':'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Happened</th></tr></thead><tbody>'+recentRows.map((entry)=>'<tr class="row-button" data-action="show-detail" data-uuid="'+escapeHtml(entry.uuid)+'"><td><span class="'+typeClass(entry.type)+'">'+escapeHtml(entry.type)+'</span></td><td>'+entrySummaryHtml(entry)+'</td><td>'+tagsHtml(entry.tags)+'</td><td class="activity-time">'+escapeHtml(timeSince(entry.createdAt))+'</td></tr>').join('')+'</tbody></table></div>';const activityList=recentRows.length===0?'<div class="empty">No recent activity to highlight.</div>':'<ul class="activity-list">'+recentRows.slice(0,5).map((entry)=>'<li class="activity-item"><div class="activity-head"><span class="'+typeClass(entry.type)+'">'+escapeHtml(entry.type)+'</span><span class="activity-time">'+escapeHtml(timeSince(entry.createdAt))+'</span></div><div class="activity-summary">'+escapeHtml(entrySummaryText(entry))+'</div></li>').join('')+'</ul>';main.innerHTML=[statsCardsHtml(stats),'<div class="content-grid">','<section class="panel">','<div class="section-head"><div><h3>Recent entries</h3><p>Latest captured records, ordered by time.</p></div><button type="button" class="btn btn-primary" data-action="go-page" data-page="entries">Open stream</button></div>',recentTable,'</section>','<div class="side-stack">','<section class="panel">','<div class="section-head"><div><h3>Quick actions</h3><p>Common maintenance tasks for live debugging.</p></div></div>','<div class="toolbar"><button type="button" class="btn btn-danger" data-action="clear-all">Clear all entries</button><button type="button" class="btn btn-ghost" data-action="go-page" data-page="monitoring">Manage tags</button></div>','</section>','<section class="panel">','<div class="section-head"><div><h3>Live pulse</h3><p>Fast recent activity across requests, queries, logs, and failures.</p></div></div>',activityList,'</section>','</div>','</div>'].join('');}catch(error){main.innerHTML='<div class="panel empty">Error loading overview: '+escapeHtml(error.message)+'</div>';}};
+    const renderEntries=async(main)=>{if(state.detail){renderDetail(main);return;}main.innerHTML='<div class="panel empty">Loading entries…</div>';try{const qs=new URLSearchParams({page:String(state.entriesPage),perPage:'50'});if(state.entriesFilter.type) qs.set('type',state.entriesFilter.type);if(state.entriesFilter.tag) qs.set('tag',state.entriesFilter.tag);if(state.entriesFilter.batchId) qs.set('batchId',state.entriesFilter.batchId);const{data,total,perPage}=await api('/entries?'+qs.toString());const rows=(data||[]).map((entry)=>'<tr class="row-button" data-action="show-detail" data-uuid="'+escapeHtml(entry.uuid)+'"><td><span class="'+typeClass(entry.type)+'">'+escapeHtml(entry.type)+'</span></td><td>'+entrySummaryHtml(entry)+'</td><td>'+tagsHtml(entry.tags)+'</td><td class="mono">'+batchSnippet(entry.batchId)+'</td><td class="activity-time">'+escapeHtml(timeSince(entry.createdAt))+'</td></tr>').join('');const totalPages=Math.max(1,Math.ceil(Number(total||0)/Number(perPage||50)));main.innerHTML=['<section class="panel">','<div class="section-head"><div><h3>Entries</h3><p>Filter across the debugger stream and inspect full payloads.</p></div></div>','<div class="toolbar">','<select id="f-type"><option value="">All types</option>'+ENTRY_TYPES.map((type)=>'<option value="'+escapeHtml(type)+'"'+(state.entriesFilter.type===type?' selected':'')+'>'+escapeHtml(type)+'</option>').join('')+'</select>','<input id="f-tag" type="text" placeholder="Filter by tag" value="'+escapeHtml(state.entriesFilter.tag)+'">','<input id="f-batch" type="text" placeholder="Filter by batch ID" value="'+escapeHtml(state.entriesFilter.batchId)+'">','<button type="button" class="btn btn-ghost" data-action="clear-filters">Reset</button>','</div>',data.length===0?'<div class="empty">No entries match the current filter.</div>':'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Batch</th><th>Happened</th></tr></thead><tbody>'+rows+'</tbody></table></div>','<div class="pagination"><span>Page '+escapeHtml(state.entriesPage)+' of '+escapeHtml(totalPages)+' · '+escapeHtml(total)+' total entries</span><div class="pagination-controls"><button type="button" data-action="page-prev"'+(state.entriesPage<=1?' disabled':'')+'>Previous</button><button type="button" data-action="page-next"'+(state.entriesPage>=totalPages?' disabled':'')+'>Next</button></div></div>','</section>'].join('');}catch(error){main.innerHTML='<div class="panel empty">Error loading entries: '+escapeHtml(error.message)+'</div>';}};
+    const renderDetail=(main)=>{if(hasRequestTrace()){renderRequestTrace(main);return;}const entry=state.detail;main.innerHTML=['<span class="back-link" data-action="close-detail">← Back to entries</span>','<section class="panel detail-card">','<div><span class="'+typeClass(entry.type)+'">'+escapeHtml(entry.type)+'</span> '+tagsHtml(entry.tags)+'</div>','<div class="detail-meta">','<span>UUID <span class="mono">'+escapeHtml(entry.uuid)+'</span></span>','<span>Batch <span class="mono">'+escapeHtml(entry.batchId||'—')+'</span></span>','<span>'+escapeHtml(new Date(Number(entry.createdAt)).toISOString())+'</span>','</div>','<pre>'+escapeHtml(JSON.stringify(entry.content,null,2))+'</pre>','</section>'].join('');};
+    const renderMonitoring=async(main)=>{main.innerHTML='<div class="panel empty">Loading monitoring tags…</div>';try{const{tags}=await api('/monitoring');main.innerHTML=['<section class="panel">','<div class="section-head"><div><h3>Monitoring tags</h3><p>Keep critical business identifiers pinned for quick filtering and watch lists.</p></div></div>','<div class="monitoring-wrap">','<p class="helper-text">Pin order IDs, user IDs, tenant keys, or queue batch markers here for quick trace pivots.</p>','<div class="tag-list">',tags.length===0?'<span class="helper-text">No tags monitored yet.</span>':tags.map((tag)=>'<span class="tag-item"><button type="button" class="tag mono" data-action="filter-tag" data-tag="'+escapeHtml(tag)+'">'+escapeHtml(tag)+'</button><button type="button" class="tag-remove" data-action="remove-tag" data-tag="'+escapeHtml(tag)+'">×</button></span>').join(''),'</div>','<div class="toolbar" style="padding:0;margin-top:8px">','<input id="new-tag" class="control" type="text" placeholder="Add a tag, for example Auth:user-42 or Order:paid">','<button type="button" class="btn btn-primary" data-action="add-tag">Add tag</button>','</div>','</div>','</section>'].join('');}catch(error){main.innerHTML='<div class="panel empty">Error loading monitoring tags: '+escapeHtml(error.message)+'</div>';}};
+    const render=async()=>{const main=document.getElementById('main');if(!main) return;setPageCopy(state.page);updateThemeButton();const activeShortcut=activeEntryShortcut();document.querySelectorAll('[data-page]').forEach((button)=>{button.classList.toggle('active',button.getAttribute('data-page')===state.page);});document.querySelectorAll('[data-action="type-shortcut"]').forEach((button)=>{button.classList.toggle('active',button.getAttribute('data-type')===activeShortcut);});if(state.page==='overview') await renderOverview(main);if(state.page==='entries') await renderEntries(main);if(state.page==='monitoring') await renderMonitoring(main);};
+    const setPage=(page)=>{state={...state,page,entriesPage:1,detail:null,detailBatch:null,detailTab:'summary'};render();};
+    const setTypeShortcut=(type)=>{state={...state,page:'entries',detail:null,detailBatch:null,detailTab:'summary',entriesPage:1,entriesFilter:{...state.entriesFilter,type}};render();};
+    const filterByTag=(tag)=>{state={...state,page:'entries',detail:null,detailBatch:null,detailTab:'summary',entriesPage:1,entriesFilter:{...state.entriesFilter,tag,batchId:''}};render();};
+    const syncFilters=()=>{const typeInput=document.getElementById('f-type');const tagInput=document.getElementById('f-tag');const batchInput=document.getElementById('f-batch');state={...state,entriesPage:1,entriesFilter:{type:typeInput&&'value' in typeInput?String(typeInput.value||''):'',tag:tagInput&&'value' in tagInput?String(tagInput.value||''):'',batchId:batchInput&&'value' in batchInput?String(batchInput.value||''):''}};render();};
+    const clearAll=async()=>{if(!window.confirm('Delete all debugger entries?')) return;try{await api('/entries',{method:'DELETE'});state={...state,detail:null,entriesPage:1};render();}catch(error){window.alert(error.message);}};
+    const showDetail=async(uuid)=>{try{const{entry}=await api('/entries/'+encodeURIComponent(uuid));let detailBatch=null;if(entry.type==='request'&&entry.batchId){const batch=await api('/batch/'+encodeURIComponent(entry.batchId));detailBatch=batch.entries||[];}state={...state,detail:entry,detailBatch,detailTab:'summary',page:'entries'};render();}catch(error){window.alert(error.message);}};
+    const addTag=async()=>{const input=document.getElementById('new-tag');const value=input&&'value' in input?String(input.value||'').trim():'';if(value==='') return;try{await api('/monitoring/'+encodeURIComponent(value),{method:'POST'});render();}catch(error){window.alert(error.message);}};
+    const removeTag=async(tag)=>{try{await api('/monitoring/'+encodeURIComponent(tag),{method:'DELETE'});render();}catch(error){window.alert(error.message);}};
+    document.addEventListener('click',(event)=>{const target=event.target instanceof Element?event.target.closest('[data-action],[data-page],#theme-toggle'):null;if(!target) return;if(target.id==='theme-toggle'){setTheme(document.documentElement.dataset.theme==='light'?'dark':'light');return;}if(target.hasAttribute('data-page')&&!target.hasAttribute('data-action')){setPage(String(target.getAttribute('data-page')||'overview'));return;}const action=target.getAttribute('data-action');if(action==='go-page'){setPage(String(target.getAttribute('data-page')||'overview'));return;}if(action==='type-shortcut'){setTypeShortcut(String(target.getAttribute('data-type')||''));return;}if(action==='filter-tag'){filterByTag(String(target.getAttribute('data-tag')||''));return;}if(action==='detail-tab'){state={...state,detailTab:String(target.getAttribute('data-tab')||'summary')};render();return;}if(action==='clear-all'){clearAll();return;}if(action==='show-detail'){showDetail(String(target.getAttribute('data-uuid')||''));return;}if(action==='close-detail'){state={...state,detail:null,detailBatch:null,detailTab:'summary'};render();return;}if(action==='page-prev'){state={...state,entriesPage:Math.max(1,state.entriesPage-1)};render();return;}if(action==='page-next'){state={...state,entriesPage:state.entriesPage+1};render();return;}if(action==='clear-filters'){state={...state,detail:null,detailBatch:null,detailTab:'summary',entriesPage:1,entriesFilter:{type:'',tag:'',batchId:''}};render();return;}if(action==='add-tag'){addTag();return;}if(action==='remove-tag'){removeTag(String(target.getAttribute('data-tag')||''));}});
+    document.addEventListener('input',(event)=>{const target=event.target;if(!(target instanceof HTMLElement)) return;if(target.id==='f-tag'||target.id==='f-batch'){syncFilters();}});
+    document.addEventListener('change',(event)=>{const target=event.target;if(!(target instanceof HTMLElement)) return;if(target.id==='f-type'){syncFilters();}});
     render();
   })();
   </script>
 </body>
 </html>`;
 
-const buildDashboardHtml = (basePath: string): string => {
-  return DASHBOARD_DOCUMENT.replace('__DEBUGGER_BASE_PATH__', basePath);
+const buildDashboardHtml = (basePath: string, projectName?: string): string => {
+  const resolvedProjectName = projectName && projectName.trim() !== '' ? projectName : 'ZinTrust';
+  const resolvedTitle = `ZinTrust Debugger - ${resolvedProjectName}`;
+  return DASHBOARD_DOCUMENT.replace('__DEBUGGER_FAVICON__', encodeSvgDataUri(BRAND_SVG))
+    .replace('__DEBUGGER_TITLE__', resolvedTitle)
+    .replace('__DEBUGGER_LOGO__', BRAND_SVG)
+    .replaceAll('__DEBUGGER_PROJECT_NAME__', resolvedProjectName)
+    .replace('__DEBUGGER_BASE_PATH_LABEL__', basePath)
+    .replace('__DEBUGGER_BASE_PATH_JSON__', JSON.stringify(basePath));
 };
 
 export { buildDashboardHtml };

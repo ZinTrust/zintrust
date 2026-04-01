@@ -1,6 +1,7 @@
 import { DebuggerContext } from '../context';
 import type { EventContent, IDebuggerWatcher, IDebuggerWatcherConfig } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
 
@@ -18,7 +19,7 @@ const emit = (name: string, listenerCount: number, payload?: unknown): void => {
       batchId: DebuggerContext.getBatchId(),
       type: EntryType.EVENT,
       content,
-      tags: [name],
+      tags: AuthTag.append([name]),
       isLatest: true,
       createdAt: DebuggerContext.now(),
     })

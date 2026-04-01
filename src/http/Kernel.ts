@@ -23,6 +23,11 @@ import { create as createScheduleRunner } from '@/scheduler/ScheduleRunner';
 import type { ISchedule, IScheduleKernel } from '@/scheduler/types';
 import { Env } from '@config/env';
 
+type GlobalMiddlewareRegistrarState = {
+  __zintrust_register_global_middleware__?: (...middleware: Middleware[]) => void;
+  __zintrust_pending_global_middlewares__?: Middleware[];
+};
+
 export interface IKernel {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
   handleRequest(req: IRequest, res: IResponse): Promise<void>;
@@ -333,6 +338,7 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
   const globalMiddleware: Middleware[] = <Middleware[]>[];
   const routeMiddleware: Record<string, Middleware> = {};
   const middlewareStack = MiddlewareStack.create();
+  const globalMiddlewareRegistrarState = globalThis as unknown as GlobalMiddlewareRegistrarState;
 
   // Scheduling runner (for long-running runtimes)
   const scheduleRunner = createScheduleRunner();
@@ -344,6 +350,18 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
 
   // Register default middleware config
   globalMiddleware.push(...middlewareConfig.global);
+  if (Array.isArray(globalMiddlewareRegistrarState.__zintrust_pending_global_middlewares__)) {
+    globalMiddleware.push(
+      ...globalMiddlewareRegistrarState.__zintrust_pending_global_middlewares__
+    );
+    globalMiddlewareRegistrarState.__zintrust_pending_global_middlewares__ = [];
+  }
+  globalMiddlewareRegistrarState.__zintrust_register_global_middleware__ = (
+    ...middleware: Middleware[]
+  ): void => {
+    globalMiddleware.push(...middleware);
+  };
+
   for (const [name, mw] of Object.entries(middlewareConfig.route)) {
     routeMiddleware[name] = mw;
   }

@@ -10,21 +10,13 @@ import type {
   IDebuggerStorage,
   QueryEntriesOptions,
 } from '../types';
+import { familyHash } from '../utils/familyHash';
 
 const TABLE_ENTRIES = 'zin_debugger_entries';
 const TABLE_TAGS = 'zin_debugger_entries_tags';
 const TABLE_MONITORING = 'zin_debugger_monitoring';
 
 const generateUuid = (): string => crypto.randomUUID();
-
-const familyHash = (input: string): string => {
-  let hash = 2166136261;
-  for (let index = 0; index < input.length; index++) {
-    hash ^= input.codePointAt(index) ?? 0;
-    hash = (hash * 16777619) >>> 0;
-  }
-  return hash.toString(16).padStart(8, '0');
-};
 
 type EntryRow = {
   id: number;

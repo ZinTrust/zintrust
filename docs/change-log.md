@@ -2,8 +2,16 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-01
+
+- Refreshed the inline `@zintrust/system-debugger` dashboard shell to match the rest of the ZinTrust admin UI more closely: it now uses the shared Inter-based dashboard font stack, swaps the old sidebar-heavy Telescope note for a responsive header-plus-tabs layout, embeds the `docs-website/brand/prism-shield-pulse-core.svg` mark as the visible logo and favicon, and adds built-in light/dark mode support for the debugger experience.
+- Fixed the plugin-driven `@zintrust/system-debugger` boot path so it no longer recurses back through `getKernel()` while the application is already booting. ZinTrust now queues debugger global middleware registrations through the kernel itself, which prevents repeated `Database connection 'default' is not registered` noise during Worker reloads and keeps the optional debugger package buildable again after the logger/watcher import cleanup.
+- Fixed the debugger connection fallback so both the core auto-mount path and `@zintrust/system-debugger/register` now inherit the app's active `DB_CONNECTION` when `DEBUGGER_DB_CONNECTION` is omitted, instead of forcing the literal registry key `default`. This restores the documented `DEBUGGER_ENABLED=true` local setup for D1-backed Worker apps and avoids the old `Requesting connection: default` failure path.
+- Updated `@zintrust/system-debugger` setup guidance so the supported activation path now goes through `src/zintrust.plugins.ts` and `src/zintrust.plugins.wg.ts` via `@zintrust/system-debugger/plugin`, instead of telling developers to wire debugger bootstrap imports into ad hoc start files. The core runtime now only lazy-mounts the debugger dashboard after that explicit plugin opt-in is present, and the inline dashboard shell was refreshed toward a lighter request-trace layout while removing the broken `showPage` inline-handler bug.
+
 ## 2026-03-31
 
+- Added first-class optional CLI registration for `@zintrust/system-debugger`, including `zin migrate:debugger`, `zin debugger:status`, `zin debugger:prune`, and `zin debugger:clear`, and wired the stock runtime boot path to auto-mount the debugger dashboard when `DEBUGGER_ENABLED=true` so the package can be enabled and inspected live without hand-editing the example app routes.
 - Added a packed Cloudflare secret compatibility mode to the core env surface. When `USE_PACK=true`, ZinTrust now expands JSON secret bindings listed in `PACK_KEYS` into the resolved `Env.get(...)` view, keeps direct env values above packed values, tracks the winning source for diagnostics, and auto-loads local `.env.pack` files for Node-side development without overriding the direct control keys.
 - Extended the Cloudflare shared-env manifest workflow so deploy commands now reuse the same target-aware secret selection as `zin put cloudflare`, letting `zin deploy`, `zin deploy d1-proxy`, `zin deploy kv-proxy`, and `zin deploy:ccp` sync selected Worker secrets automatically before `wrangler deploy` unless `--no-sync-secrets` is passed.
 - Updated microservice scaffolding so new services automatically register their canonical `domain/name` ID under `.zintrust.json -> cloudflare.targets`, keeping service-specific Cloudflare secret selection aligned with the generated runtime manifest and service-local Worker config.

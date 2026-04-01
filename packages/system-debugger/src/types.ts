@@ -5,7 +5,7 @@
 import type { IDatabase } from '@zintrust/core';
 
 // ---------------------------------------------------------------------------
-// Entry types (18, mirrors Laravel Telescope)
+// Entry types used by the debugger event stream.
 // ---------------------------------------------------------------------------
 
 export const EntryType = Object.freeze({

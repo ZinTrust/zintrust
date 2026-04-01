@@ -1,6 +1,7 @@
 import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, NotificationContent } from '../types';
 import { EntryType } from '../types';
+import { AuthTag } from '../utils/authTag';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
 
@@ -18,7 +19,7 @@ const emit = (notification: string, channels: string[], notifiable?: string): vo
       batchId: DebuggerContext.getBatchId(),
       type: EntryType.NOTIFICATION,
       content,
-      tags: [notification, ...channels],
+      tags: AuthTag.append([notification, ...channels]),
       isLatest: true,
       createdAt: DebuggerContext.now(),
     })
