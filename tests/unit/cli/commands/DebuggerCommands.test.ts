@@ -65,11 +65,8 @@ vi.mock('@cli/utils/DatabaseCliUtils', () => ({
 
 vi.mock('@config/database', () => ({
   databaseConfig: {
+    default: 'analytics',
     connections: {
-      default: {
-        driver: 'sqlite',
-        database: 'db.sqlite',
-      },
       analytics: {
         driver: 'sqlite',
         database: 'analytics.sqlite',
@@ -82,7 +79,7 @@ vi.mock('@config/database', () => ({
     migrations: { extension: 'ts' },
     getConnection: vi.fn(() => ({
       driver: 'sqlite',
-      database: 'db.sqlite',
+      database: 'analytics.sqlite',
     })),
   },
 }));
@@ -129,6 +126,7 @@ vi.mock('@zintrust/system-debugger', () => ({
 
 describe('DebuggerCommands', () => {
   afterEach(() => {
+    envStrings.DEBUGGER_DB_CONNECTION = 'default';
     resolvedStorage.prune.mockReset();
     resolvedStorage.clear.mockReset();
     resolvedStorage.stats.mockReset();
@@ -144,26 +142,43 @@ describe('DebuggerCommands', () => {
 
     await cmd.execute({});
 
-    expect(ErrorHandler.info).toHaveBeenCalledWith('Connection: default');
+    expect(ErrorHandler.info).toHaveBeenCalledWith('Connection: analytics');
     expect(ErrorHandler.info).toHaveBeenCalledWith('Dashboard: http://127.0.0.1:7777/debugger');
     expect(ErrorHandler.info).toHaveBeenCalledWith('query: 2');
     expect(ErrorHandler.info).toHaveBeenCalledWith('request: 5');
   });
 
+  it('uses DEBUGGER_DB_CONNECTION for debugger migrations when no explicit connection is provided', async () => {
+    envStrings.DEBUGGER_DB_CONNECTION = 'd1debug';
+
+    const { WranglerD1 } = await import('@cli/d1/WranglerD1');
+    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+
+    await DebuggerCommands.createDebuggerMigrateCommand().execute({
+      local: true,
+      database: 'debugger',
+    });
+
+    expect(WranglerD1.applyMigrations).toHaveBeenCalledWith({
+      cmd: expect.any(Object),
+      dbName: 'debugger',
+      isLocal: true,
+    });
+    expect(ErrorHandler.success).toHaveBeenCalledWith('Debugger D1 migrations applied.');
+  });
+
   it('runs debugger migration status against an explicit connection', async () => {
     const { Migrator } = await import('@migrations/Migrator');
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      status: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            name: '001_debugger_init',
-            status: 'applied',
-            applied: true,
-            batch: 1,
-            appliedAt: 'now',
-          },
-        ]),
+      status: vi.fn().mockResolvedValue([
+        {
+          name: '001_debugger_init',
+          status: 'applied',
+          applied: true,
+          batch: 1,
+          appliedAt: 'now',
+        },
+      ]),
       migrate: vi.fn(),
       fresh: vi.fn(),
       resetAll: vi.fn(),
@@ -185,7 +200,9 @@ describe('DebuggerCommands', () => {
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
     const { DebuggerConfig } = await import('@zintrust/system-debugger');
     vi.mocked(DebuggerConfig.merge).mockReturnValue({ pruneAfterHours: 24, connection: 'd1debug' });
-    vi.mocked(WranglerD1.executeSql).mockReturnValue(`\u001b[32m[\n  {\n    "results": [\n      { "type": "query", "cnt": 4 },\n      { "type": "request", "cnt": 2 }\n    ]\n  }\n]\u001b[0m`);
+    vi.mocked(WranglerD1.executeSql).mockReturnValue(
+      `\u001b[32m[\n  {\n    "results": [\n      { "type": "query", "cnt": 4 },\n      { "type": "request", "cnt": 2 }\n    ]\n  }\n]\u001b[0m`
+    );
 
     const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
     const cmd = DebuggerCommands.createDebuggerStatusCommand();
@@ -205,12 +222,9 @@ describe('DebuggerCommands', () => {
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
     const { DebuggerConfig } = await import('@zintrust/system-debugger');
     vi.mocked(DebuggerConfig.merge).mockReturnValue({ pruneAfterHours: 24, connection: 'd1debug' });
-    vi.mocked(WranglerD1.executeSql)
-      .mockReturnValueOnce([
-        '│ type │ cnt │',
-        '│ query │ 3 │',
-        '│ request │ 1 │',
-      ].join('\n'))
+    vi
+      .mocked(WranglerD1.executeSql)
+      .mockReturnValueOnce(['│ type │ cnt │', '│ query │ 3 │', '│ request │ 1 │'].join('\n'))
       .mockReturnValueOnce(`[
   {
     "results": [
@@ -231,7 +245,7 @@ describe('DebuggerCommands', () => {
     expect(WranglerD1.executeSql).toHaveBeenLastCalledWith({
       dbName: 'zintrust_db',
       isLocal: false,
-      sql: "DELETE FROM zin_debugger_entries; SELECT changes() as cnt",
+      sql: 'DELETE FROM zin_debugger_entries; SELECT changes() as cnt',
     });
     expect((await import('@config/logger')).Logger.info).toHaveBeenCalledWith(
       'Done - all entries cleared.'

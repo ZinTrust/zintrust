@@ -14,7 +14,6 @@ import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { MySQLProxyAdapter } from '@orm/adapters/MySQLProxyAdapter';
-import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { PostgreSQLProxyAdapter } from '@orm/adapters/PostgreSQLProxyAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
@@ -22,6 +21,7 @@ import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import { createSqlServerProxyAdapter } from '@orm/adapters/SqlServerProxyAdapter';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
+import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import type { IQueryBuilder } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
@@ -607,8 +607,19 @@ export function useDatabase(config?: DatabaseConfig, connection = 'default'): ID
   return instance;
 }
 
+export function aliasDatabaseConnection(alias: string, targetConnection: string): IDatabase {
+  if (alias === targetConnection) {
+    return useDatabase(undefined, targetConnection);
+  }
+
+  const target = useDatabase(undefined, targetConnection);
+  databaseInstances.set(alias, target);
+  return target;
+}
+
 export async function resetDatabase(): Promise<void> {
-  const promises = Array.from(databaseInstances.values()).map(async (instance) => {
+  const uniqueInstances = Array.from(new Set(databaseInstances.values()));
+  const promises = uniqueInstances.map(async (instance) => {
     try {
       await instance.disconnect();
       instance.dispose();

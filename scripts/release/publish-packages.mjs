@@ -736,9 +736,12 @@ export type DbQueryBuilder = {
   delete(...args: any[]): Promise<any>;
 };
 export type IDatabase = {
-  query: (...args: any[]) => {
-    get<T = unknown>(): Promise<T[]>;
-  };
+  connect: (...args: any[]) => Promise<void>;
+  disconnect: (...args: any[]) => Promise<void>;
+  isConnected: (...args: any[]) => boolean;
+  query: (...args: any[]) => Promise<any[]>;
+  queryOne: (...args: any[]) => Promise<any>;
+  execute: (...args: any[]) => Promise<any>;
   table: (...args: any[]) => DbQueryBuilder;
 };
 export type Blueprint = any;

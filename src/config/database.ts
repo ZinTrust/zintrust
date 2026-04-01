@@ -182,17 +182,25 @@ const normalizeReadHosts = (
   return filtered.length > 0 ? filtered : undefined;
 };
 
+const resolveImplicitDefaultConnection = (connections: DatabaseConnections): string => {
+  return hasOwn(connections, 'sqlite') ? 'sqlite' : (Object.keys(connections)[0] ?? 'sqlite');
+};
+
 const getDefaultConnection = (connections: DatabaseConnections): string => {
   const envSelectedRaw = Env.get('DB_CONNECTION', '');
   const value = String(envSelectedRaw ?? '').trim();
 
   if (value.length > 0 && hasOwn(connections, value)) return value;
 
+  if (value === 'default') {
+    return resolveImplicitDefaultConnection(connections);
+  }
+
   if (envSelectedRaw.trim().length > 0) {
     throw ErrorFactory.createConfigError(`Database connection not configured: ${value}`);
   }
 
-  return hasOwn(connections, 'sqlite') ? 'sqlite' : (Object.keys(connections)[0] ?? 'sqlite');
+  return resolveImplicitDefaultConnection(connections);
 };
 
 const getDatabaseConnection = (config: DatabaseConfigShape): DatabaseConnectionConfig => {

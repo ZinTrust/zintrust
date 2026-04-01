@@ -120,12 +120,50 @@ const getD1DatabaseName = (options: CommandOptions): string => {
 
 const getInteractive = (options: CommandOptions): boolean => options['interactive'] !== false;
 
-const resolveDebuggerConnectionName = (options: CommandOptions): string => {
-  if (isNonEmptyString(options['connection'])) {
-    return String(options['connection']).trim();
+const resolveRuntimeDefaultConnectionName = (): string => {
+  const configuredDefault = String(databaseConfig.default ?? '').trim();
+  return configuredDefault === '' ? 'default' : configuredDefault;
+};
+
+const normalizeConnectionName = (value: string): string => {
+  const normalized = value.trim();
+  if (normalized === '' || normalized === 'default') {
+    return resolveRuntimeDefaultConnectionName();
   }
 
-  return readEnvString('DEBUGGER_DB_CONNECTION').trim() || 'default';
+  return normalized;
+};
+
+const resolveDebuggerConnectionName = (options: CommandOptions): string => {
+  if (isNonEmptyString(options['connection'])) {
+    return normalizeConnectionName(String(options['connection']));
+  }
+
+  return normalizeConnectionName(readEnvString('DEBUGGER_DB_CONNECTION').trim());
+};
+
+const withConfiguredDebuggerConnection = (
+  options: CommandOptions,
+  configuredConnection?: string
+): CommandOptions => {
+  if (isNonEmptyString(options['connection'])) {
+    return {
+      ...options,
+      connection: resolveDebuggerConnectionName(options),
+    };
+  }
+
+  if (isNonEmptyString(configuredConnection)) {
+    return {
+      ...options,
+      connection: normalizeConnectionName(configuredConnection),
+    };
+  }
+
+  return {
+    ...options,
+    connection: resolveDebuggerConnectionName(options),
+  };
 };
 
 const resolveDebuggerConnectionConfig = (
@@ -300,6 +338,7 @@ const executePrune = async (options: CommandOptions): Promise<void> => {
   const { DebuggerConfig } = await loadDebuggerModule();
 
   const config = DebuggerConfig.merge();
+  const resolvedOptions = withConfiguredDebuggerConnection(options, config.connection);
   const hours =
     typeof options['hours'] === 'string' && options['hours'] !== ''
       ? Number.parseInt(options['hours'], 10)
@@ -307,10 +346,7 @@ const executePrune = async (options: CommandOptions): Promise<void> => {
 
   const olderThanMs = hours * 60 * 60 * 1000;
   const keepExceptions = options['keepExceptions'] === true;
-  const conn = resolveDebuggerConnectionConfig({
-    ...options,
-    connection: config.connection ?? 'default',
-  });
+  const conn = resolveDebuggerConnectionConfig(resolvedOptions);
   const threshold = Date.now() - olderThanMs;
   const pruneSql = keepExceptions
     ? `DELETE FROM zin_debugger_entries WHERE created_at < ${String(threshold)} AND type != 'exception'`
@@ -319,9 +355,8 @@ const executePrune = async (options: CommandOptions): Promise<void> => {
   Logger.info(`Pruning debugger entries older than ${hours}h...`);
   const deleted = isD1ConnectionDriver(conn.driver)
     ? executeD1Delete(options, pruneSql)
-    : await withSqlDebuggerStorage(
-        { ...options, connection: config.connection ?? 'default' },
-        async (storage) => storage.prune(olderThanMs, keepExceptions)
+    : await withSqlDebuggerStorage(resolvedOptions, async (storage) =>
+        storage.prune(olderThanMs, keepExceptions)
       );
   Logger.info(`Done - removed ${deleted} entries.`);
 };
@@ -330,19 +365,14 @@ const executeClear = async (options: CommandOptions): Promise<void> => {
   const { DebuggerConfig } = await loadDebuggerModule();
 
   const config = DebuggerConfig.merge();
-  const conn = resolveDebuggerConnectionConfig({
-    ...options,
-    connection: config.connection ?? 'default',
-  });
+  const resolvedOptions = withConfiguredDebuggerConnection(options, config.connection);
+  const conn = resolveDebuggerConnectionConfig(resolvedOptions);
 
   Logger.info('Clearing all debugger entries...');
   if (isD1ConnectionDriver(conn.driver)) {
     executeD1Delete(options, 'DELETE FROM zin_debugger_entries');
   } else {
-    await withSqlDebuggerStorage(
-      { ...options, connection: config.connection ?? 'default' },
-      async (storage) => storage.clear()
-    );
+    await withSqlDebuggerStorage(resolvedOptions, async (storage) => storage.clear());
   }
   Logger.info('Done - all entries cleared.');
 };
@@ -351,11 +381,12 @@ const executeStatus = async (options: CommandOptions, cmd: IBaseCommand): Promis
   const { DebuggerConfig } = await loadDebuggerModule();
 
   const config = DebuggerConfig.merge();
-  const connection = config.connection ?? 'default';
-  const conn = resolveDebuggerConnectionConfig({ ...options, connection });
+  const resolvedOptions = withConfiguredDebuggerConnection(options, config.connection);
+  const connection = resolveDebuggerConnectionName(resolvedOptions);
+  const conn = resolveDebuggerConnectionConfig(resolvedOptions);
   const stats = isD1ConnectionDriver(conn.driver)
     ? executeD1Stats(options)
-    : await withSqlDebuggerStorage({ ...options, connection }, async (storage) => storage.stats());
+    : await withSqlDebuggerStorage(resolvedOptions, async (storage) => storage.stats());
 
   cmd.info(`Debugger enabled via env: ${readEnvString('DEBUGGER_ENABLED').trim() || 'false'}`);
   cmd.info(`Connection: ${connection}`);

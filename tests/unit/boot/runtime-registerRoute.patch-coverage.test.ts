@@ -621,7 +621,7 @@ describe('runtime/registerRoute patch coverage', () => {
 
     expect(tryImportOptionalSpy).toHaveBeenCalledWith('@zintrust/system-debugger');
     expect(tryImportOptionalSpy).toHaveBeenCalledWith('@zintrust/system-debugger/register');
-    expect(useDatabaseSpy).toHaveBeenCalledWith(undefined, 'default');
+    expect(useDatabaseSpy).toHaveBeenCalledWith(undefined, 'sqlite');
     expect(routerWithPlugin.routes).toContainEqual({ path: '/debugger' });
   });
 });

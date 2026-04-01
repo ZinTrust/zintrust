@@ -11,9 +11,9 @@ import type {
   DatabaseConnections,
 } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
-import { useDatabase } from '@orm/Database';
+import { aliasDatabaseConnection, useDatabase } from '@orm/Database';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
+import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 
 const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
   switch (cfg.driver) {
@@ -87,7 +87,16 @@ export function registerDatabasesFromRuntimeConfig(config: DatabaseConfigShape):
     );
   }
 
+  const defaultOrmConfig = toOrmConfig(defaultCfg);
+  DatabaseConnectionRegistry.set('default', defaultOrmConfig);
+
   Logger.info(`✓ Registering default database connection: ${config.default}`);
-  useDatabase(toOrmConfig(defaultCfg), config.default);
-  useDatabase(toOrmConfig(defaultCfg), 'default');
+  useDatabase(defaultOrmConfig, config.default);
+
+  if (config.default !== 'default') {
+    aliasDatabaseConnection('default', config.default);
+    return;
+  }
+
+  useDatabase(defaultOrmConfig, 'default');
 }

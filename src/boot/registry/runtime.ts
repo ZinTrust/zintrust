@@ -488,10 +488,14 @@ const resolveDebuggerMiddleware = (): string[] => {
 
 const resolveDebuggerConnectionName = (configuredConnection?: string): string => {
   const explicitConnection = configuredConnection?.trim();
-  if (explicitConnection !== undefined && explicitConnection !== '') return explicitConnection;
+  const runtimeDefault = String(databaseConfig.default ?? '').trim() || 'default';
+
+  if (explicitConnection !== undefined && explicitConnection !== '') {
+    return explicitConnection === 'default' ? runtimeDefault : explicitConnection;
+  }
 
   const defaultConnection = readEnvString('DB_CONNECTION').trim();
-  if (defaultConnection === '') return 'default';
+  if (defaultConnection === '' || defaultConnection === 'default') return runtimeDefault;
   return defaultConnection;
 };
 

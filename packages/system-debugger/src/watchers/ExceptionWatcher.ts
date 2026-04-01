@@ -10,19 +10,10 @@ import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 import { familyHash } from '../utils/familyHash';
 import { RequestFilter } from '../utils/requestFilter';
+import { parseStackFrameLine } from '../utils/stackFrame';
 
 const getLinePreview = (_file: string, _line: number): Record<string, string> => {
   return {};
-};
-
-const parseStackFrame = (line: string): { file: string; line: number } | null => {
-  const trimmed = line.trim();
-  const wrappedFramePattern = /at .+ \((.+):(\d+):\d+\)/;
-  const directFramePattern = /at (.+):(\d+):\d+/;
-  const match = wrappedFramePattern.exec(trimmed) ?? directFramePattern.exec(trimmed);
-  if (!match) return null;
-
-  return { file: match[1], line: Number.parseInt(match[2], 10) };
 };
 
 const buildContent = (err: Error): ExceptionContent => {
@@ -30,7 +21,7 @@ const buildContent = (err: Error): ExceptionContent => {
   const trace: ExceptionContent['trace'] = stack
     .split('\n')
     .slice(1)
-    .map(parseStackFrame)
+    .map(parseStackFrameLine)
     .filter((x): x is { file: string; line: number } => x !== null)
     .slice(0, 20);
 

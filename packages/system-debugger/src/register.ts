@@ -87,12 +87,18 @@ const resolveDebuggerConnectionName = (
   env: Pick<NonNullable<CoreApi['Env']>, 'get'> | undefined,
   configuredConnection?: string
 ): string => {
-  const explicitConnection = configuredConnection?.trim();
-  if (explicitConnection !== undefined && explicitConnection !== '') return explicitConnection;
+  const resolveDefaultConnection = (): string => {
+    const defaultConnection = env?.get('DB_CONNECTION', '').trim() ?? '';
+    if (defaultConnection === '' || defaultConnection === 'default') return 'default';
+    return defaultConnection;
+  };
 
-  const defaultConnection = env?.get('DB_CONNECTION', '').trim() ?? '';
-  if (defaultConnection === '') return 'default';
-  return defaultConnection;
+  const explicitConnection = configuredConnection?.trim();
+  if (explicitConnection !== undefined && explicitConnection !== '') {
+    return explicitConnection === 'default' ? resolveDefaultConnection() : explicitConnection;
+  }
+
+  return resolveDefaultConnection();
 };
 
 const core = (await importCore()) as CoreApi;

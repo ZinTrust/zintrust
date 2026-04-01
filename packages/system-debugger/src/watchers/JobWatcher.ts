@@ -7,6 +7,7 @@ import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, JobContent } from '../types';
 import { EntryType } from '../types';
 import { RequestFilter } from '../utils/requestFilter';
+import { parseStackFrameLine } from '../utils/stackFrame';
 
 // Module-level storage ref so emit helpers can be called from outside.
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
@@ -89,12 +90,7 @@ const emitFailed = (name: string, error: Error): void => {
       trace: (error.stack ?? '')
         .split('\n')
         .slice(1)
-        .map((line) => {
-          const match =
-            new RegExp(/at .+ \((.+):(\d+):\d+\)/).exec(line.trim()) ??
-            new RegExp(/at (.+):(\d+):\d+/).exec(line.trim());
-          return match ? { file: match[1], line: Number.parseInt(match[2], 10) } : null;
-        })
+        .map(parseStackFrameLine)
         .filter((trace): trace is { file: string; line: number } => trace !== null)
         .slice(0, 10),
     },
