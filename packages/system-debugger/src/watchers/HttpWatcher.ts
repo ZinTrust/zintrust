@@ -15,15 +15,25 @@ import { AuthTag } from '../utils/authTag';
 import { redactHeaders, redactObject } from '../utils/redact';
 import { RequestFilter } from '../utils/requestFilter';
 
+const normalizeHeaders = (headers: IRequest['headers']): Record<string, string> => {
+  if (!headers) return {};
+
+  return Object.fromEntries(
+    Object.entries(headers).flatMap(([key, value]) => {
+      if (typeof value === 'string') return [[key, value]];
+      if (Array.isArray(value)) return [[key, value.join(', ')]];
+      return [];
+    })
+  );
+};
+
 const buildEntry = (
   req: IRequest,
   res: IResponse,
   start: number,
   config: IDebuggerConfig
 ): RequestContent => {
-  const headers = req.headers
-    ? redactHeaders(req.headers as Record<string, string>, config.redaction.headers)
-    : {};
+  const headers = redactHeaders(normalizeHeaders(req.headers), config.redaction.headers);
 
   const payload = req.body ? redactObject(req.body, config.redaction.body) : {};
 
@@ -53,11 +63,9 @@ export const HttpWatcher: IDebuggerWatcher = Object.freeze({
     if (!isWatcherEnabled(config)) return () => undefined;
     if (!registerMiddleware) return () => undefined;
 
-    const middleware = async (
-      req: IRequest,
-      res: IResponse,
-      next: () => Promise<void>
-    ): Promise<void> => {
+    const middleware: Parameters<
+      NonNullable<IDebuggerWatcherConfig['registerMiddleware']>
+    >[0] = async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
       if (shouldIgnore(req, config)) return next();
 
       const start = DebuggerContext.now();
@@ -82,7 +90,7 @@ export const HttpWatcher: IDebuggerWatcher = Object.freeze({
         .catch(() => undefined); // fire-and-forget
     };
 
-    registerMiddleware(middleware as Parameters<typeof registerMiddleware>[0]);
+    registerMiddleware(middleware);
     return () => undefined;
   },
 });

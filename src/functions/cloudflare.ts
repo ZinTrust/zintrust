@@ -1,9 +1,5 @@
-import { appConfig } from '@/config';
-import { Application } from '@boot/Application';
 import { Logger } from '@config/logger';
 import { clearMiddlewareConfigCache } from '@config/middleware';
-import type { IKernel } from '@http/Kernel';
-import { Kernel } from '@http/Kernel';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
 import mergeOverrideValues from '@runtime/OverrideValueMerge';
@@ -225,23 +221,6 @@ const ensureStartupConfigOverridesLoaded = async (): Promise<void> => {
   await startupConfigOverridesPromise;
 };
 
-const resolveRequestKernel = async (): Promise<{
-  kernel: IKernel;
-  shutdown?: () => Promise<void>;
-}> => {
-  if (!appConfig.isDevelopment()) {
-    return { kernel: await getKernel() };
-  }
-
-  const app = Application.create();
-  await app.boot();
-
-  return {
-    kernel: Kernel.create(app.getRouter(), app.getContainer()),
-    shutdown: app.shutdown,
-  };
-};
-
 export default {
   async fetch(request: Request, _env: unknown, _ctx: unknown): Promise<Response> {
     try {
@@ -259,20 +238,15 @@ export default {
       await WorkerAdapterImports.ready; // NOSONAR - Ensure adapter imports are ready before handling requests.
       await injectIoredisModule();
 
-      const runtimeKernel = await resolveRequestKernel();
+      const kernel = await getKernel();
+      const adapter = CloudflareAdapter.create({
+        handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+          await kernel.handle(req, res);
+        },
+      });
 
-      try {
-        const adapter = CloudflareAdapter.create({
-          handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-            await runtimeKernel.kernel.handle(req, res);
-          },
-        });
-
-        const platformResponse = await adapter.handle(request);
-        return adapter.formatResponse(platformResponse) as Response;
-      } finally {
-        await runtimeKernel.shutdown?.();
-      }
+      const platformResponse = await adapter.handle(request);
+      return adapter.formatResponse(platformResponse) as Response;
     } catch (error) {
       const err = error as Error;
       Logger.error('Cloudflare handler error:', err);

@@ -145,10 +145,29 @@ const resolveD1ExecutionMode = (options: CommandOptions): boolean => {
   return options['local'] === true || options['remote'] !== true;
 };
 
-const ANSI_ESCAPE_PATTERN = new RegExp(String.raw`\u001b\[[0-9;]*m`, 'g');
+const ANSI_ESCAPE = String.fromCodePoint(27);
 
 const stripAnsi = (value: string): string => {
-  return value.replaceAll(ANSI_ESCAPE_PATTERN, '');
+  let output = '';
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char !== ANSI_ESCAPE) {
+      output += char;
+      continue;
+    }
+
+    if (value[index + 1] !== '[') {
+      continue;
+    }
+
+    index += 2;
+    while (index < value.length && value[index] !== 'm') {
+      index += 1;
+    }
+  }
+
+  return output;
 };
 
 const extractWranglerJson = (output: string): unknown[] | null => {
@@ -184,6 +203,36 @@ const parseWranglerTable = (output: string): Array<Record<string, string>> => {
   });
 };
 
+const buildStatsFromJsonPayload = (
+  payload: Array<{
+    results?: Array<{ type?: string; cnt?: number }>;
+  }>
+): Record<string, number> => {
+  const stats: Record<string, number> = {};
+
+  for (const row of payload[0]?.results ?? []) {
+    if (typeof row.type === 'string') {
+      stats[row.type] = typeof row.cnt === 'number' ? row.cnt : 0;
+    }
+  }
+
+  return stats;
+};
+
+const buildStatsFromTableRows = (rows: Array<Record<string, string>>): Record<string, number> => {
+  const stats: Record<string, number> = {};
+
+  for (const row of rows) {
+    const key = row['type'] ?? '';
+    const count = Number.parseInt(row['cnt'] ?? '0', 10);
+    if (key !== '') {
+      stats[key] = Number.isNaN(count) ? 0 : count;
+    }
+  }
+
+  return stats;
+};
+
 const withSqlDebuggerStorage = async <T>(
   options: CommandOptions,
   callback: (storage: DebuggerStorageApi) => Promise<T>
@@ -211,25 +260,10 @@ const executeD1Stats = (options: CommandOptions): Record<string, number> => {
     results?: Array<{ type?: string; cnt?: number }>;
   }> | null;
   if (payload !== null) {
-    const stats: Record<string, number> = {};
-    for (const row of payload[0]?.results ?? []) {
-      if (typeof row.type === 'string') {
-        stats[row.type] = typeof row.cnt === 'number' ? row.cnt : 0;
-      }
-    }
-    return stats;
+    return buildStatsFromJsonPayload(payload);
   }
 
-  const rows = parseWranglerTable(output);
-  const stats: Record<string, number> = {};
-  for (const row of rows) {
-    const key = row['type'] ?? '';
-    const count = Number.parseInt(row['cnt'] ?? '0', 10);
-    if (key !== '') {
-      stats[key] = Number.isNaN(count) ? 0 : count;
-    }
-  }
-  return stats;
+  return buildStatsFromTableRows(parseWranglerTable(output));
 };
 
 const executeD1Delete = (options: CommandOptions, sql: string): number => {
@@ -284,7 +318,7 @@ const executePrune = async (options: CommandOptions): Promise<void> => {
 
   Logger.info(`Pruning debugger entries older than ${hours}h...`);
   const deleted = isD1ConnectionDriver(conn.driver)
-    ? await executeD1Delete(options, pruneSql)
+    ? executeD1Delete(options, pruneSql)
     : await withSqlDebuggerStorage(
         { ...options, connection: config.connection ?? 'default' },
         async (storage) => storage.prune(olderThanMs, keepExceptions)
@@ -303,7 +337,7 @@ const executeClear = async (options: CommandOptions): Promise<void> => {
 
   Logger.info('Clearing all debugger entries...');
   if (isD1ConnectionDriver(conn.driver)) {
-    await executeD1Delete(options, 'DELETE FROM zin_debugger_entries');
+    executeD1Delete(options, 'DELETE FROM zin_debugger_entries');
   } else {
     await withSqlDebuggerStorage(
       { ...options, connection: config.connection ?? 'default' },
@@ -320,7 +354,7 @@ const executeStatus = async (options: CommandOptions, cmd: IBaseCommand): Promis
   const connection = config.connection ?? 'default';
   const conn = resolveDebuggerConnectionConfig({ ...options, connection });
   const stats = isD1ConnectionDriver(conn.driver)
-    ? await executeD1Stats(options)
+    ? executeD1Stats(options)
     : await withSqlDebuggerStorage({ ...options, connection }, async (storage) => storage.stats());
 
   cmd.info(`Debugger enabled via env: ${readEnvString('DEBUGGER_ENABLED').trim() || 'false'}`);
