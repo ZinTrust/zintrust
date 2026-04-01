@@ -5,6 +5,7 @@ import { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration
 import { readEnvString } from '@common/ExternalServiceUtils';
 import broadcastConfig from '@config/broadcast';
 import { Cloudflare } from '@config/cloudflare';
+import { databaseConfig as liveDatabaseConfig } from '@config/database';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
@@ -145,16 +146,16 @@ const appConfig = readRuntimeConfig('appConfig', {
 // exported solely for tests to exercise the default detectRuntime handler
 
 const cacheConfig = readRuntimeConfig('cacheConfig', RuntimeConfig.cacheConfig);
-const databaseConfig = readRuntimeConfig('databaseConfig', {
-  default: 'sqlite',
-  connections: {},
-});
 const queueConfig = readRuntimeConfig('queueConfig', RuntimeConfig.queueConfig);
 const storageConfig = readRuntimeConfig('storageConfig', RuntimeConfig.storageConfig);
 
+const getDatabaseConfig = (): typeof liveDatabaseConfig => {
+  return readRuntimeConfig('databaseConfig', liveDatabaseConfig);
+};
+
 // eslint-disable-next-line @typescript-eslint/require-await
 const dbLoader = async (): Promise<void> => {
-  registerDatabasesFromRuntimeConfig(databaseConfig);
+  registerDatabasesFromRuntimeConfig(getDatabaseConfig());
 };
 
 const queuesLoader = async (): Promise<void> => {
@@ -488,7 +489,7 @@ const resolveDebuggerMiddleware = (): string[] => {
 
 const resolveDebuggerConnectionName = (configuredConnection?: string): string => {
   const explicitConnection = configuredConnection?.trim();
-  const runtimeDefault = String(databaseConfig.default ?? '').trim() || 'default';
+  const runtimeDefault = String(getDatabaseConfig().default ?? '').trim() || 'default';
 
   if (explicitConnection !== undefined && explicitConnection !== '') {
     return explicitConnection === 'default' ? runtimeDefault : explicitConnection;

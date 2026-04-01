@@ -16,10 +16,10 @@ const importCore = async (): Promise<unknown> => {
   }
 };
 
-const core = (await importCore()) as unknown as {
+const core = (await importCore()) as {
   CacheDriverRegistry?: Registry;
 };
 
-if (core.CacheDriverRegistry !== undefined) {
+if (typeof core.CacheDriverRegistry?.register === 'function') {
   registerMongoCacheDriver(core.CacheDriverRegistry);
 }

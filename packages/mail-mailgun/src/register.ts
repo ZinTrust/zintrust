@@ -6,7 +6,7 @@ type Registry = {
 };
 
 export async function registerMailgunMailDriver(registry: Registry): Promise<void> {
-  const core = (await importCore()) as unknown as {
+  const core = (await importCore()) as {
     MailgunDriver?: { send: (config: unknown, message: unknown) => Promise<unknown> };
   };
 
@@ -28,10 +28,10 @@ const importCore = async (): Promise<unknown> => {
   }
 };
 
-const core = (await importCore()) as unknown as {
+const core = (await importCore()) as {
   MailDriverRegistry?: Registry;
 };
 
-if (core.MailDriverRegistry !== undefined) {
+if (typeof core.MailDriverRegistry?.register === 'function') {
   await registerMailgunMailDriver(core.MailDriverRegistry);
 }

@@ -13,10 +13,18 @@ export function registerNodemailerDriver(registry: Registry): void {
   });
 }
 
-const core = (await import('@zintrust/core')) as unknown as {
+const importCore = async (): Promise<unknown> => {
+  try {
+    return await import('@zintrust/core');
+  } catch {
+    return {};
+  }
+};
+
+const core = (await importCore()) as unknown as {
   MailDriverRegistry?: Registry;
 };
 
-if (core.MailDriverRegistry !== undefined) {
+if (typeof core.MailDriverRegistry?.register === 'function') {
   registerNodemailerDriver(core.MailDriverRegistry);
 }
