@@ -2,11 +2,14 @@ import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, NotificationContent } from '../types';
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
+let _ignoreRoutes: string[] = [];
 
 const emit = (notification: string, channels: string[], notifiable?: string): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const content: NotificationContent = {
     notification,
     channels,
@@ -31,8 +34,10 @@ export const NotificationWatcher: IDebuggerWatcher & { emit: typeof emit } = Obj
   register({ storage, config }: IDebuggerWatcherConfig): () => void {
     if (config.watchers.notification === false) return () => undefined;
     _storage = storage;
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

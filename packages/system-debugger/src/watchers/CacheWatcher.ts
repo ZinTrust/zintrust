@@ -7,9 +7,11 @@ import type { CacheContent, IDebuggerWatcher, IDebuggerWatcherConfig } from '../
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 import { redactString } from '../utils/redact';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
 let _redactionFields: string[] = [];
+let _ignoreRoutes: string[] = [];
 
 const emit = (
   operation: CacheContent['operation'],
@@ -18,6 +20,7 @@ const emit = (
   hit?: boolean
 ): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const safeKey = redactString(key, _redactionFields);
   const content: CacheContent = {
     operation,
@@ -46,8 +49,10 @@ export const CacheWatcher: IDebuggerWatcher & { emit: typeof emit } = Object.fre
     if (config.watchers.cache === false) return () => undefined;
     _storage = storage;
     _redactionFields = config.redaction.query;
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

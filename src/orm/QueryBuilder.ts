@@ -936,7 +936,11 @@ async function loadCounts(models: IModel[], relation: string, db?: IDatabase): P
     const tempQuery = relatedModel.query();
     const relatedTable = tempQuery.getTable();
 
-    const countMap = await queryCountMap(db, buildCountSql(relatedTable, foreignKey, ids, dialect), ids);
+    const countMap = await queryCountMap(
+      db,
+      buildCountSql(relatedTable, foreignKey, ids, dialect),
+      ids
+    );
     setRelationCounts(models, relation, localKey, countMap);
     return;
   }
@@ -946,7 +950,11 @@ async function loadCounts(models: IModel[], relation: string, db?: IDatabase): P
   const relatedKey = rel.relatedKey;
   if (!isNonEmptyString(throughTable) || !isNonEmptyString(relatedKey)) return;
 
-  const countMap = await queryCountMap(db, buildCountSql(throughTable, foreignKey, ids, dialect), ids);
+  const countMap = await queryCountMap(
+    db,
+    buildCountSql(throughTable, foreignKey, ids, dialect),
+    ids
+  );
   setRelationCounts(models, relation, localKey, countMap);
 }
 
@@ -1022,6 +1030,23 @@ const setRelationsFromBuckets = (
     } else {
       model.setRelation(relation, bucket[0] ?? null);
     }
+  }
+};
+
+const setBelongsToRelations = (
+  models: IModel[],
+  relation: string,
+  foreignKey: string,
+  relatedMap: Map<string | number, IModel>
+): void => {
+  for (const model of models) {
+    const relatedId = model.getAttribute(foreignKey);
+    if (!isKeyValue(relatedId)) {
+      model.setRelation(relation, null);
+      continue;
+    }
+
+    model.setRelation(relation, relatedMap.get(relatedId) ?? null);
   }
 };
 
@@ -1312,6 +1337,100 @@ const loadThroughRelation = async (
   return true;
 };
 
+const loadBelongsToRelation = async (
+  models: IModel[],
+  relation: string,
+  rel: IRelationship,
+  constraint?: EagerLoadConstraint
+): Promise<boolean> => {
+  if (rel.type !== 'belongsTo') return false;
+
+  const foreignKey = rel.foreignKey;
+  const ownerKey = rel.localKey;
+  if (!isNonEmptyString(foreignKey) || !isNonEmptyString(ownerKey)) return true;
+
+  const relatedModel = rel.related as unknown as { query(): IQueryBuilder };
+  if (typeof relatedModel.query !== 'function') return true;
+
+  const ids = getModelIds(models, foreignKey);
+  if (ids.length === 0) {
+    setBelongsToRelations(models, relation, foreignKey, new Map());
+    return true;
+  }
+
+  const relatedQuery = applyConstraint(relatedModel.query(), constraint);
+  const relatedResults = await relatedQuery.whereIn(ownerKey, ids).get<IModel>();
+  const relatedMap = buildSingleMap(relatedResults, ownerKey);
+  setBelongsToRelations(models, relation, foreignKey, relatedMap);
+
+  return true;
+};
+
+const BELONGS_TO_MANY_PARENT_KEY_ALIAS = '__zin_belongs_to_many_parent_key';
+
+const resolveRelatedTableName = (relatedModel: {
+  query?: () => IQueryBuilder;
+  getTable?: () => string;
+}): string | null => {
+  if (typeof relatedModel.getTable === 'function') {
+    const tableName = relatedModel.getTable();
+    return isNonEmptyString(tableName) ? tableName : null;
+  }
+
+  if (typeof relatedModel.query !== 'function') return null;
+  const query = relatedModel.query();
+  const tableName = query.getTable();
+  return isNonEmptyString(tableName) ? tableName : null;
+};
+
+const loadBelongsToManyRelation = async (
+  models: IModel[],
+  relation: string,
+  rel: IRelationship,
+  constraint?: EagerLoadConstraint
+): Promise<boolean> => {
+  if (rel.type !== 'belongsToMany') return false;
+
+  const throughTable = rel.throughTable;
+  const foreignKey = rel.foreignKey;
+  const relatedKey = rel.relatedKey;
+  const localKey = rel.localKey;
+  if (
+    !isNonEmptyString(throughTable) ||
+    !isNonEmptyString(foreignKey) ||
+    !isNonEmptyString(relatedKey) ||
+    !isNonEmptyString(localKey)
+  ) {
+    return true;
+  }
+
+  const relatedModel = rel.related as unknown as {
+    query(): IQueryBuilder;
+    getTable?: () => string;
+  };
+  if (typeof relatedModel.query !== 'function') return true;
+
+  const ids = getModelIds(models, localKey);
+  if (ids.length === 0) {
+    setRelationsFromBuckets(models, relation, localKey, new Map(), true);
+    return true;
+  }
+
+  const relatedTable = resolveRelatedTableName(relatedModel);
+  if (!isNonEmptyString(relatedTable)) return true;
+
+  const relatedQuery = applyConstraint(relatedModel.query(), constraint)
+    .join(throughTable, `${relatedTable}.id = ${throughTable}.${relatedKey}`)
+    .selectAs(`${throughTable}.${foreignKey}`, BELONGS_TO_MANY_PARENT_KEY_ALIAS)
+    .whereIn(`${throughTable}.${foreignKey}`, ids);
+
+  const relatedResults = await relatedQuery.get<IModel>();
+  const relatedBuckets = buildBucketMap(relatedResults, BELONGS_TO_MANY_PARENT_KEY_ALIAS);
+  setRelationsFromBuckets(models, relation, localKey, relatedBuckets, true);
+
+  return true;
+};
+
 const loadStandardRelation = async (
   models: IModel[],
   relation: string,
@@ -1360,6 +1479,14 @@ const loadRelation = async (
   }
   if (type === 'hasOneThrough' || type === 'hasManyThrough') {
     await loadThroughRelation(models, relation, rel, constraint);
+    return;
+  }
+  if (type === 'belongsTo') {
+    await loadBelongsToRelation(models, relation, rel, constraint);
+    return;
+  }
+  if (type === 'belongsToMany') {
+    await loadBelongsToManyRelation(models, relation, rel, constraint);
     return;
   }
   await loadStandardRelation(models, relation, rel, constraint);
@@ -1423,7 +1550,7 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
     return {
       id:
         (result.lastInsertId as string | number | bigint) ??
-        (items.length === 1 ? (items[0]?.['id'] as string | number | null) ?? null : null),
+        (items.length === 1 ? ((items[0]?.['id'] as string | number | null) ?? null) : null),
       affectedRows: result.rowCount,
       insertedRecords: items,
     };

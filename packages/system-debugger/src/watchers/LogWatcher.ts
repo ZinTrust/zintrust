@@ -6,6 +6,7 @@ import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, LogContent } from '../types';
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
+import { RequestFilter } from '../utils/requestFilter';
 
 type LoggerSink = (level: string, message: string, context?: Record<string, unknown>) => void;
 
@@ -33,6 +34,7 @@ export const LogWatcher: IDebuggerWatcher = Object.freeze({
 
     const unsubscribe = loggerWithSink.addSink((level, message, context) => {
       if ((LEVEL_PRIORITY[level] ?? 0) < minPriority) return;
+      if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes)) return;
 
       const content: LogContent = {
         level,

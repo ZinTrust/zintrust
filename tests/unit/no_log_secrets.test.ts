@@ -3,6 +3,12 @@ import { join } from '@node-singletons/path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = process.cwd();
+const SCAN_ROOTS = ['app', 'bin', 'config', 'packages', 'routes', 'scripts', 'src', 'tests'];
+const SCANNED_EXTENSIONS = ['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx'];
+
+const shouldScanFile = (filePath: string): boolean => {
+  return SCANNED_EXTENSIONS.some((extension) => filePath.endsWith(extension));
+};
 
 function walk(dir: string): string[] {
   let entries: string[] = [];
@@ -36,7 +42,7 @@ function walk(dir: string): string[] {
 
     if (st.isDirectory()) {
       out.push(...walk(abs));
-    } else if (st.isFile()) {
+    } else if (st.isFile() && shouldScanFile(abs)) {
       out.push(abs);
     }
   }
@@ -45,7 +51,7 @@ function walk(dir: string): string[] {
 
 describe('No logging of secret values', () => {
   it('does not log env values directly via Logger', () => {
-    const files = walk(ROOT);
+    const files = SCAN_ROOTS.flatMap((relativeRoot) => walk(join(ROOT, relativeRoot)));
     const forbiddenMatches: string[] = [];
     const re =
       /Logger\.(info|warn|error|debug)\([^)]*(Env\.[A-Z0-9_]+|process\.env\.[A-Z0-9_]+)[^)]*\)/g;

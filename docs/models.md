@@ -342,6 +342,8 @@ users.forEach((user) => {
 });
 ```
 
+Eager-loaded relations now follow the same null-or-empty semantics as the lazy `relation.get(instance)` path across supported relation types, including `belongsTo`, `belongsToMany`, polymorphic relations, and through relations. Single-row model reads such as `first()` and `firstOrFail()` also preserve the same hydrated model behavior as `get()` and `paginate()`.
+
 ##### Constrained Eager Loading
 
 Apply filters when eager loading:

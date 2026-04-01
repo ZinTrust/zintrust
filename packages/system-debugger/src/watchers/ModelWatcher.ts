@@ -1,8 +1,10 @@
 import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, ModelContent } from '../types';
 import { EntryType } from '../types';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
+let _ignoreRoutes: string[] = [];
 
 const emit = (
   action: ModelContent['action'],
@@ -11,6 +13,7 @@ const emit = (
   changes?: Record<string, unknown>
 ): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const content: ModelContent = {
     action,
     model,
@@ -36,8 +39,10 @@ export const ModelWatcher: IDebuggerWatcher & { emit: typeof emit } = Object.fre
   register({ storage, config }: IDebuggerWatcherConfig): () => void {
     if (config.watchers.model === false) return () => undefined;
     _storage = storage;
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

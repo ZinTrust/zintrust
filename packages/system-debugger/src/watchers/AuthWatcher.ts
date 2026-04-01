@@ -5,11 +5,14 @@
 import { DebuggerContext } from '../context';
 import type { AuthContent, IDebuggerWatcher, IDebuggerWatcherConfig } from '../types';
 import { EntryType } from '../types';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
+let _ignoreRoutes: string[] = [];
 
 const emit = (event: AuthContent['event'], userId?: string): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const content: AuthContent = {
     event,
     userId,
@@ -38,8 +41,10 @@ export const AuthWatcher: IDebuggerWatcher & { emit: typeof emit } = Object.free
   register({ storage, config }: IDebuggerWatcherConfig): () => void {
     if (config.watchers.auth === false) return () => undefined;
     _storage = storage;
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

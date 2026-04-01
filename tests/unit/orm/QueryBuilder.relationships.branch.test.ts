@@ -31,6 +31,7 @@ const createModel = (attrs: Record<string, unknown>, table?: string): ModelStub 
 
 const createQuery = (results: unknown[]) => {
   const q: any = {
+    selectAs: vi.fn(() => q),
     whereIn: vi.fn(() => q),
     where: vi.fn(() => q),
     join: vi.fn(() => q),
@@ -129,6 +130,76 @@ describe('QueryBuilder relationship loaders (branch coverage)', () => {
     expect(Array.isArray(parentA._rels['comments'])).toBe(true);
     expect((parentA._rels['comments'] as any[]).length).toBe(2);
     expect(parentB._rels['comments']).toEqual([]);
+  });
+
+  it('load() covers belongsTo eager loading via parent foreign keys', async () => {
+    const postA = createModel({ id: 1, author_id: 7 });
+    const postB = createModel({ id: 2, author_id: 7 });
+    const postC = createModel({ id: 3, author_id: null });
+    const author = createModel({ id: 7, name: 'Alice' });
+
+    let relatedQuery: ReturnType<typeof createQuery> | undefined;
+    (postA as any).author = () => ({
+      type: 'belongsTo',
+      foreignKey: 'author_id',
+      localKey: 'id',
+      related: {
+        query: () => {
+          relatedQuery = createQuery([author]);
+          return relatedQuery;
+        },
+      },
+    });
+    (postB as any).author = (postA as any).author;
+    (postC as any).author = (postA as any).author;
+
+    const qb = QueryBuilder.create('posts');
+    await qb.load([postA, postB, postC] as any, 'author');
+
+    expect(relatedQuery?.whereIn).toHaveBeenCalledWith('id', [7, 7]);
+    expect(postA._rels['author']).toBe(author);
+    expect(postB._rels['author']).toBe(author);
+    expect(postC._rels['author']).toBeNull();
+  });
+
+  it('load() covers belongsToMany eager loading through the pivot join path', async () => {
+    const userA = createModel({ id: 1 });
+    const userB = createModel({ id: 2 });
+    const roleA = createModel({ id: 11, __zin_belongs_to_many_parent_key: 1 });
+    const roleB = createModel({ id: 12, __zin_belongs_to_many_parent_key: 1 });
+    const roleC = createModel({ id: 13, __zin_belongs_to_many_parent_key: 2 });
+
+    let relatedQuery: ReturnType<typeof createQuery> | undefined;
+    (userA as any).roles = () => ({
+      type: 'belongsToMany',
+      throughTable: 'user_roles',
+      foreignKey: 'user_id',
+      relatedKey: 'role_id',
+      localKey: 'id',
+      related: {
+        getTable: () => 'roles',
+        query: () => {
+          relatedQuery = createQuery([roleA, roleB, roleC]);
+          relatedQuery.getTable = vi.fn(() => 'roles');
+          return relatedQuery;
+        },
+      },
+    });
+    (userB as any).roles = (userA as any).roles;
+
+    const qb = QueryBuilder.create('users');
+    await qb.load([userA, userB] as any, 'roles');
+
+    expect(relatedQuery?.join).toHaveBeenCalledWith('user_roles', 'roles.id = user_roles.role_id');
+    expect(relatedQuery?.selectAs).toHaveBeenCalledWith(
+      'user_roles.user_id',
+      '__zin_belongs_to_many_parent_key'
+    );
+    expect(relatedQuery?.whereIn).toHaveBeenCalledWith('user_roles.user_id', [1, 2]);
+    expect((userA._rels['roles'] as any[]).map((entry) => entry.getAttribute('id'))).toEqual([
+      11, 12,
+    ]);
+    expect((userB._rels['roles'] as any[]).map((entry) => entry.getAttribute('id'))).toEqual([13]);
   });
 
   it('load() covers morphTo groups and ignores unknown morphMap entries', async () => {

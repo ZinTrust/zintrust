@@ -5,11 +5,14 @@
 import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, MailContent } from '../types';
 import { EntryType } from '../types';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
+let _ignoreRoutes: string[] = [];
 
 const emit = (to: string, subject: string, template?: string): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const content: MailContent = {
     to,
     subject,
@@ -35,8 +38,10 @@ export const MailWatcher: IDebuggerWatcher & { emit: typeof emit } = Object.free
   register({ storage, config }: IDebuggerWatcherConfig): () => void {
     if (config.watchers.mail === false) return () => undefined;
     _storage = storage;
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

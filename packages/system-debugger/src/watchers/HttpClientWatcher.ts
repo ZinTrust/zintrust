@@ -3,9 +3,11 @@ import type { ClientRequestContent, IDebuggerWatcher, IDebuggerWatcherConfig } f
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 import { redactHeaders } from '../utils/redact';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
 let _redactHeaderNames: string[] = [];
+let _ignoreRoutes: string[] = [];
 
 const emit = (
   method: string,
@@ -15,6 +17,7 @@ const emit = (
   duration: number
 ): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const tags = AuthTag.append([method.toUpperCase()]);
   if (responseStatus >= 400) tags.push('failed');
   const content: ClientRequestContent = {
@@ -44,8 +47,10 @@ export const HttpClientWatcher: IDebuggerWatcher & { emit: typeof emit } = Objec
     if (config.watchers.clientRequest === false) return () => undefined;
     _storage = storage;
     _redactHeaderNames = config.redaction?.headers ?? [];
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

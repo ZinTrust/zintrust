@@ -2,9 +2,11 @@ import { DebuggerContext } from '../context';
 import type { CommandContent, IDebuggerWatcher, IDebuggerWatcherConfig } from '../types';
 import { EntryType } from '../types';
 import { redactObject } from '../utils/redact';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
 let _redactKeys: string[] = [];
+let _ignoreRoutes: string[] = [];
 
 const emit = (
   name: string,
@@ -14,6 +16,7 @@ const emit = (
   output?: string
 ): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const tags = [name];
   if (exitCode !== 0) tags.push('failed');
   const content: CommandContent = {
@@ -43,8 +46,10 @@ export const CommandWatcher: IDebuggerWatcher & { emit: typeof emit } = Object.f
     if (config.watchers.command === false) return () => undefined;
     _storage = storage;
     _redactKeys = config.redaction?.body ?? [];
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

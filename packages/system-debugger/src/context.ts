@@ -2,39 +2,63 @@
  * DebuggerContext — sealed namespace for batch_id, userId, hostname, and memory.
  * Piggybacks on RequestContext (already available in core) — no new ALS store.
  */
-// Lazy reference to ZinTrust RequestContext — typed as unknown to stay runtime-agnostic.
-let _reqCtx: { current(): unknown } | undefined;
+type RequestContextProvider = {
+  current?: () => unknown;
+  peek?: () => unknown;
+};
 
-const getRequestContext = (): { current(): unknown } | undefined => {
+// Lazy reference to ZinTrust RequestContext — typed as unknown to stay runtime-agnostic.
+let _reqCtx: RequestContextProvider | undefined;
+
+const getRequestContext = (): RequestContextProvider | undefined => {
   return _reqCtx;
 };
 
-const setRequestContextImpl = (impl: { current(): unknown }): void => {
+const setRequestContextImpl = (impl: RequestContextProvider): void => {
   _reqCtx = impl;
 };
 
-const getBatchId = (): string => {
-  try {
-    const ctx = getRequestContext()?.current();
-    if (ctx && typeof (ctx as Record<string, unknown>)['traceId'] === 'string') {
-      return (ctx as Record<string, unknown>)['traceId'] as string;
-    }
-  } catch {
-    // fall through
+const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
+  return typeof value === 'object' && value !== null && 'then' in value;
+};
+
+const getCurrentContext = (): Record<string, unknown> | undefined => {
+  const provider = getRequestContext();
+  if (!provider) return undefined;
+
+  let currentValue: unknown;
+
+  if (typeof provider.peek === 'function') {
+    currentValue = provider.peek();
+  } else if (typeof provider.current === 'function') {
+    currentValue = provider.current();
+  } else {
+    currentValue = undefined;
   }
-  return crypto.randomUUID();
+
+  if (isPromiseLike(currentValue)) return undefined;
+  if (typeof currentValue !== 'object' || currentValue === null) return undefined;
+
+  return currentValue as Record<string, unknown>;
+};
+
+const getContextString = (key: 'traceId' | 'userId' | 'path'): string | undefined => {
+  const value = getCurrentContext()?.[key];
+  if (typeof value === 'string' && value.trim() !== '') return value;
+  if (typeof value === 'number') return String(value);
+  return undefined;
+};
+
+const getBatchId = (): string => {
+  return getContextString('traceId') ?? crypto.randomUUID();
 };
 
 const getUserId = (): string | undefined => {
-  try {
-    const ctx = getRequestContext()?.current();
-    if (ctx && typeof (ctx as Record<string, unknown>)['userId'] === 'string') {
-      return (ctx as Record<string, unknown>)['userId'] as string;
-    }
-  } catch {
-    // fall through
-  }
-  return undefined;
+  return getContextString('userId');
+};
+
+const getRequestPath = (): string | undefined => {
+  return getContextString('path');
 };
 
 const getHostname = (): string => {
@@ -69,6 +93,7 @@ const now = (): number => Date.now();
 export const DebuggerContext = Object.freeze({
   getBatchId,
   getUserId,
+  getRequestPath,
   getHostname,
   getMemory,
   now,

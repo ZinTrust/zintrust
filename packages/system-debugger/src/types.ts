@@ -55,6 +55,7 @@ export interface QueryContent {
   connection: string;
   sql: string;
   time: number;
+  duration: number;
   slow: boolean;
   hash: string;
   hostname: string;

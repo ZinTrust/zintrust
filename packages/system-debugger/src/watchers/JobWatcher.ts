@@ -6,9 +6,11 @@
 import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, JobContent } from '../types';
 import { EntryType } from '../types';
+import { RequestFilter } from '../utils/requestFilter';
 
 // Module-level storage ref so emit helpers can be called from outside.
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
+let _ignoreRoutes: string[] = [];
 const MAX_TRACKED_JOBS = 1000;
 
 type PendingJob = { uuid: string; content: JobContent };
@@ -40,6 +42,7 @@ const takePendingJob = (name: string): PendingJob | null => {
 
 const emitDispatch = (name: string, queue: string, connection: string, data?: unknown): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const uuid = crypto.randomUUID();
   const content: JobContent = {
     status: 'pending',
@@ -112,8 +115,10 @@ export const JobWatcher: IDebuggerWatcher & {
   register({ storage, config }: IDebuggerWatcherConfig): () => void {
     if (config.watchers.job === false) return () => undefined;
     _storage = storage;
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
       pendingJobs.clear();
     };
   },

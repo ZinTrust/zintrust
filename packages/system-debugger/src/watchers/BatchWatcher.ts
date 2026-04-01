@@ -1,8 +1,10 @@
 import { DebuggerContext } from '../context';
 import type { BatchContent, IDebuggerWatcher, IDebuggerWatcherConfig } from '../types';
 import { EntryType } from '../types';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
+let _ignoreRoutes: string[] = [];
 
 const emit = (
   name: string,
@@ -12,6 +14,7 @@ const emit = (
   status: BatchContent['status']
 ): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const tags = [name];
   if (failed > 0) tags.push('failed');
   const content: BatchContent = {
@@ -40,8 +43,10 @@ export const BatchWatcher: IDebuggerWatcher & { emit: typeof emit } = Object.fre
   register({ storage, config }: IDebuggerWatcherConfig): () => void {
     if (config.watchers.batch === false) return () => undefined;
     _storage = storage;
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

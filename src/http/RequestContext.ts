@@ -39,6 +39,8 @@ const createFallbackStorage = (): StoreApi => {
   };
 };
 
+let syncStorage: StoreApi = createFallbackStorage();
+
 const resolveStorage = async (): Promise<StoreApi> => {
   try {
     const mod = (await import('@node-singletons/async_hooks')) as unknown as {
@@ -106,7 +108,11 @@ const setContextField = (
   }
 };
 
-const STORAGE_PROMISE: Promise<StoreApi> = resolveStorage();
+const STORAGE_PROMISE: Promise<StoreApi> = (async (): Promise<StoreApi> => {
+  const storage = await resolveStorage();
+  syncStorage = storage;
+  return storage;
+})();
 
 export const RequestContext = Object.freeze({
   async run<T>(context: IRequestContext, callback: () => T): Promise<T> {
@@ -117,6 +123,10 @@ export const RequestContext = Object.freeze({
   async current(): Promise<IRequestContext | undefined> {
     const storage = await STORAGE_PROMISE;
     return storage.getStore();
+  },
+
+  peek(): IRequestContext | undefined {
+    return syncStorage.getStore();
   },
 
   create(req: IRequest): IRequestContext {

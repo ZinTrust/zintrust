@@ -11,6 +11,8 @@ vi.mock('@orm/QueryBuilder', () => {
       limit: vi.fn(() => builder),
       first: vi.fn(async () => ({ id: 1 })),
       get: vi.fn(async () => [{ id: 1 }]),
+      insert: vi.fn(async () => ({ id: 1, affectedRows: 1 })),
+      update: vi.fn(async () => undefined),
     };
     return builder;
   };

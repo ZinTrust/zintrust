@@ -13,6 +13,7 @@ import type {
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 import { redactHeaders, redactObject } from '../utils/redact';
+import { RequestFilter } from '../utils/requestFilter';
 
 const buildEntry = (
   req: IRequest,
@@ -24,9 +25,7 @@ const buildEntry = (
     ? redactHeaders(req.headers as Record<string, string>, config.redaction.headers)
     : {};
 
-  const payload = req.body
-    ? redactObject(req.body as Record<string, unknown>, config.redaction.body)
-    : {};
+  const payload = req.body ? redactObject(req.body, config.redaction.body) : {};
 
   return {
     method: req.getMethod(),
@@ -44,8 +43,7 @@ const buildEntry = (
 };
 
 const shouldIgnore = (req: IRequest, config: IDebuggerConfig): boolean => {
-  const path = req.getPath().split('?')[0];
-  return config.ignoreRoutes.some((r) => path.startsWith(r));
+  return RequestFilter.matchesIgnoredPath(req.getPath(), config.ignoreRoutes);
 };
 
 const isWatcherEnabled = (config: IDebuggerConfig): boolean => config.watchers.request !== false;

@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 describe('SystemDebuggerBridge', () => {
   it('returns false from preload when the optional package is unavailable', async () => {
     vi.resetModules();
+    vi.doMock('@zintrust/system-debugger', () => {
+      throw new Error('module unavailable');
+    });
 
     const { SystemDebuggerBridge } = await import('@/debugger/SystemDebuggerBridge');
 

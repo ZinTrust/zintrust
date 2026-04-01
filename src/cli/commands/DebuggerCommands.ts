@@ -10,13 +10,13 @@ import {
 } from '@cli/utils/DatabaseCliUtils';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import { databaseConfig } from '@config/database';
-import type { DatabaseConnectionConfig } from '@config/type';
 import { Logger } from '@config/logger';
+import type { DatabaseConnectionConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
+import { Migrator } from '@migrations/Migrator';
 import { createRequire } from '@node-singletons/module';
 import * as path from '@node-singletons/path';
-import { Migrator } from '@migrations/Migrator';
 import { Database } from '@orm/Database';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import type { Command } from 'commander';

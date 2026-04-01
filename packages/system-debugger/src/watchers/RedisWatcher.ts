@@ -2,12 +2,15 @@ import { DebuggerContext } from '../context';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, RedisContent } from '../types';
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
+import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
+let _ignoreRoutes: string[] = [];
 
 /** Emit a redis command trace. Key/value payload is intentionally omitted for security. */
 const emit = (command: string, duration: number): void => {
   if (!_storage) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const content: RedisContent = { command, duration, hostname: DebuggerContext.getHostname() };
   _storage
     .writeEntry({
@@ -27,8 +30,10 @@ export const RedisWatcher: IDebuggerWatcher & { emit: typeof emit } = Object.fre
   register({ storage, config }: IDebuggerWatcherConfig): () => void {
     if (config.watchers.redis === false) return () => undefined;
     _storage = storage;
+    _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _ignoreRoutes = [];
     };
   },
 });

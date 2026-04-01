@@ -18,10 +18,13 @@ type MockBuilder = {
   limit: ReturnType<typeof vi.fn>;
   join: ReturnType<typeof vi.fn>;
   first: ReturnType<typeof vi.fn>;
+  firstOrFail: ReturnType<typeof vi.fn>;
   get: ReturnType<typeof vi.fn>;
   paginate: ReturnType<typeof vi.fn>;
   with: ReturnType<typeof vi.fn>;
   withCount: ReturnType<typeof vi.fn>;
+  insert: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
   table: string;
 };
 
@@ -36,6 +39,9 @@ vi.mock('@orm/QueryBuilder', () => {
         limit: vi.fn().mockReturnThis(),
         join: vi.fn().mockReturnThis(),
         first: vi.fn(async () => null),
+        firstOrFail: vi.fn(async () => {
+          throw new Error('not found');
+        }),
         get: vi.fn(async () => []),
         paginate: vi.fn(async () => ({
           items: [],
@@ -49,6 +55,8 @@ vi.mock('@orm/QueryBuilder', () => {
         })),
         with: vi.fn().mockReturnThis(),
         withCount: vi.fn().mockReturnThis(),
+        insert: vi.fn(async () => ({ id: 1, affectedRows: 1 })),
+        update: vi.fn(async () => undefined),
       };
       lastBuilder = builder;
       return builder;
@@ -152,7 +160,7 @@ describe('Model', () => {
     expect(m.exists()).toBe(true);
   });
 
-  it('save throws when DB not initialized; save sets timestamps when enabled', async (): Promise<void> => {
+  it('save throws when DB not initialized; save persists inserts and sets timestamps when enabled', async (): Promise<void> => {
     const dbMod = (await import('@orm/Database')) as unknown as {
       __setDb: (next: unknown) => void;
     };
@@ -169,6 +177,12 @@ describe('Model', () => {
     vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
     await expect(m.save()).resolves.toBe(true);
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'A', created_at: '2025-01-01T00:00:00.000Z' })
+    );
     expect(m.getAttribute('created_at')).toBe('2025-01-01T00:00:00.000Z');
     expect(m.getAttribute('updated_at')).toBe('2025-01-01T00:00:00.000Z');
 
@@ -302,6 +316,144 @@ describe('Model', () => {
 
     m.setAttribute('name', '  trust ');
     expect(m.getAttribute('name')).toBe('hello TRUST');
+  });
+
+  it('hydrate assigns raw stored attributes without re-running mutators', async (): Promise<void> => {
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'secret'],
+      hidden: [],
+      casts: {},
+      timestamps: false,
+      mutators: {
+        secret: (value) => `enc:${String(value)}`,
+      },
+      accessors: {
+        secret: (value) => String(value).replace(/^enc:/, ''),
+      },
+    });
+
+    const created = Test.create({ id: 1, secret: 'plain' });
+    expect(created.getAttributes()['secret']).toBe('enc:plain');
+
+    const hydrated = Test.hydrate({ id: 1, secret: 'enc:plain' });
+    expect(hydrated.getAttributes()['secret']).toBe('enc:plain');
+    expect(hydrated.getAttribute('secret')).toBe('plain');
+  });
+
+  it('hydrates first() and firstOrFail() results like get()', async (): Promise<void> => {
+    const config = {
+      ...baseConfig,
+      fillable: ['id', 'secret'],
+      hidden: [],
+      casts: {},
+      timestamps: false,
+    };
+    const builderMod = await import('@orm/QueryBuilder');
+
+    const Test = Model.define(
+      {
+        ...config,
+        mutators: {
+          secret: (value) => `enc:${String(value)}`,
+        },
+        accessors: {
+          secret: (value) => String(value).replace(/^enc:/, ''),
+        },
+      },
+      {
+        greet: (m: IModel): string => `hi ${String(m.getAttribute('secret'))}`,
+      }
+    );
+
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => ({ id: 2, secret: 'enc:alpha' })),
+      firstOrFail: vi.fn(async () => ({ id: 3, secret: 'enc:beta' })),
+      get: vi.fn(async () => []),
+      paginate: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 0,
+        to: 0,
+        links: {},
+      })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
+      insert: vi.fn(async () => ({ id: 1, affectedRows: 1 })),
+      update: vi.fn(async () => undefined),
+    } satisfies MockBuilder);
+
+    const first = await Test.where('id', '=', 2).first<IModel & { greet: () => string }>();
+    expect(first).not.toBeNull();
+    expect(first?.exists()).toBe(true);
+    expect(first?.getAttribute('secret')).toBe('alpha');
+    expect(first?.greet()).toBe('hi alpha');
+
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => null),
+      firstOrFail: vi.fn(async () => ({ id: 3, secret: 'enc:beta' })),
+      get: vi.fn(async () => []),
+      paginate: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 0,
+        to: 0,
+        links: {},
+      })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
+      insert: vi.fn(async () => ({ id: 1, affectedRows: 1 })),
+      update: vi.fn(async () => undefined),
+    } satisfies MockBuilder);
+
+    const firstOrFail = await Test.where('id', '=', 3).firstOrFail<
+      IModel & { greet: () => string }
+    >();
+    expect(firstOrFail.exists()).toBe(true);
+    expect(firstOrFail.getAttribute('secret')).toBe('beta');
+    expect(firstOrFail.greet()).toBe('hi beta');
+  });
+
+  it('persists mutated dirty fields on update', async (): Promise<void> => {
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'secret'],
+      hidden: [],
+      casts: {},
+      timestamps: false,
+      mutators: {
+        secret: (value) => `enc:${String(value)}`,
+      },
+    });
+
+    const model = Test.hydrate({ id: 9, secret: 'enc:old' });
+    model.setAttribute('secret', 'next');
+
+    await expect(model.save()).resolves.toBe(true);
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.where).toHaveBeenCalledWith('id', '=', 9);
+    expect(qb.__getLastBuilder()?.update).toHaveBeenCalledWith({ secret: 'enc:next' });
   });
 
   it('runs observer hooks on save and delete', async (): Promise<void> => {

@@ -31,3 +31,4 @@ export { RoutesCommand } from '@cli/commands/RoutesCommand';
 export { SecretsCommand } from '@cli/commands/SecretsCommand';
 export { StartCommand } from '@cli/commands/StartCommand';
 export { TemplatesCommand } from '@cli/commands/TemplatesCommand';
+export { WranglerDevVarsCommand } from '@cli/commands/WranglerDevVarsCommand';

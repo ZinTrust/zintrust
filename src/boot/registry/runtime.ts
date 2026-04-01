@@ -65,6 +65,7 @@ type RuntimeQueueConfig = {
 };
 
 type ILocalSystemDebuggerModule = ISystemDebuggerModule & {
+  isAvailable?: () => boolean;
   ensureSystemDebuggerRegistered: () => Promise<void>;
 };
 
@@ -107,6 +108,9 @@ const loadLocalSystemDebuggerModule = async (): Promise<ILocalSystemDebuggerModu
       await importFromExistingCandidates<ILocalSystemDebuggerModule>(moduleCandidates);
 
     if (localModule !== undefined) {
+      if (typeof localModule.isAvailable === 'function' && localModule.isAvailable() === false) {
+        return undefined;
+      }
       return localModule;
     }
   }

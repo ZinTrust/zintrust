@@ -169,6 +169,29 @@ const castAttribute = (config: ModelConfig, key: string, value: unknown): unknow
   }
 };
 
+type AttributeAssignmentOptions = {
+  applyMutators: boolean;
+  respectFillable: boolean;
+};
+
+const assignAttributes = (
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  newAttrs: Record<string, unknown>,
+  options: AttributeAssignmentOptions
+): void => {
+  for (const [key, value] of Object.entries(newAttrs)) {
+    if (options.respectFillable && config.fillable.length > 0 && !config.fillable.includes(key)) {
+      continue;
+    }
+
+    const nextValue = options.applyMutators
+      ? (config.mutators?.[key]?.(value, attrs) ?? value)
+      : value;
+    attrs[key] = castAttribute(config, key, nextValue);
+  }
+};
+
 /**
  * Fill attributes based on fillable config
  */
@@ -177,13 +200,15 @@ const fillAttributes = (
   attrs: Record<string, unknown>,
   newAttrs: Record<string, unknown>
 ): void => {
-  for (const [key, value] of Object.entries(newAttrs)) {
-    if (config.fillable.length === 0 || config.fillable.includes(key)) {
-      const mutator = config.mutators?.[key];
-      const nextValue = mutator ? mutator(value, attrs) : value;
-      attrs[key] = castAttribute(config, key, nextValue);
-    }
-  }
+  assignAttributes(config, attrs, newAttrs, { applyMutators: true, respectFillable: true });
+};
+
+const hydrateAttributes = (
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  storedAttrs: Record<string, unknown>
+): void => {
+  assignAttributes(config, attrs, storedAttrs, { applyMutators: false, respectFillable: false });
 };
 
 const applyAccessor = (
@@ -392,6 +417,81 @@ const createModelRelationships = (
   };
 };
 
+const applySaveTimestamps = (
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  isCreate: boolean
+): void => {
+  if ((config.timestamps ?? false) === false) return;
+
+  const now = new Date().toISOString();
+  attrs['updated_at'] = now;
+  if (isCreate) {
+    attrs['created_at'] = attrs['created_at'] ?? now;
+  }
+};
+
+const persistNewModel = async (
+  config: ModelConfig,
+  db: IDatabase,
+  attrs: Record<string, unknown>
+): Promise<void> => {
+  const builder = QueryBuilder.create(config.table, db, buildSoftDeleteOptions(config));
+  const result = await builder.insert({ ...attrs });
+
+  if (attrs['id'] === undefined && result.id !== null) {
+    attrs['id'] = result.id;
+  }
+};
+
+const collectDirtyValues = (
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  dirtyFields: string[]
+): Record<string, unknown> => {
+  const keys = new Set(dirtyFields);
+  if (config.timestamps ?? false) {
+    keys.add('updated_at');
+  }
+
+  return Object.fromEntries(
+    [...keys].filter((key) => key in attrs).map((key) => [key, attrs[key]])
+  );
+};
+
+const persistExistingModel = async (
+  config: ModelConfig,
+  db: IDatabase,
+  attrs: Record<string, unknown>,
+  dirtyFields: string[]
+): Promise<void> => {
+  const values = collectDirtyValues(config, attrs, dirtyFields);
+  if (Object.keys(values).length === 0) return;
+
+  const primaryKey = attrs['id'];
+  if (primaryKey === undefined || primaryKey === null || primaryKey === '') {
+    throw ErrorFactory.createDatabaseError('Cannot update a persisted model without an id');
+  }
+
+  const builder = QueryBuilder.create(config.table, db, buildSoftDeleteOptions(config));
+  await builder.where('id', '=', primaryKey).update(values);
+};
+
+const persistModelState = async (
+  config: ModelConfig,
+  db: IDatabase,
+  attrs: Record<string, unknown>,
+  isCreate: boolean,
+  dirtyFields: string[]
+): Promise<void> => {
+  if (isCreate) {
+    await persistNewModel(config, db, attrs);
+    return;
+  }
+
+  await persistExistingModel(config, db, attrs, dirtyFields);
+};
+
 const performModelSave = async (
   model: IModel,
   config: ModelConfig,
@@ -402,6 +502,7 @@ const performModelSave = async (
     setExists: (v: boolean) => void;
     updateOriginal: (v: Record<string, unknown>) => void;
     clearDirty: () => void;
+    getDirtyFields: () => string[];
   }
 ): Promise<boolean> => {
   const db = getDb();
@@ -411,10 +512,9 @@ const performModelSave = async (
   await runObservers(config, 'saving', model);
   await runObservers(config, isCreate ? 'creating' : 'updating', model);
 
-  if (config.timestamps ?? false) {
-    attrs['created_at'] = attrs['created_at'] ?? new Date().toISOString();
-    attrs['updated_at'] = new Date().toISOString();
-  }
+  applySaveTimestamps(config, attrs, isCreate);
+  await persistModelState(config, db, attrs, isCreate, context.getDirtyFields());
+
   context.setExists(true);
   context.updateOriginal({ ...attrs });
   context.clearDirty();
@@ -438,13 +538,133 @@ const performModelDelete = async (
   return true;
 };
 
+type AttributeApiContext = {
+  dirtyFields: Set<string>;
+  getModel: () => IModel;
+  getOriginal: () => Record<string, unknown>;
+  exists: () => boolean;
+  setExists: (exists: boolean) => void;
+};
+
+type LifecycleApiContext = {
+  dirtyFields: Set<string>;
+  getModel: () => IModel;
+  exists: () => boolean;
+  setExists: (value: boolean) => void;
+  setOriginal: (value: Record<string, unknown>) => void;
+};
+
+const createAttributeApi = (
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  relations: Record<string, unknown>,
+  context: AttributeApiContext
+): Pick<
+  IModel,
+  | 'fill'
+  | 'setAttribute'
+  | 'getAttribute'
+  | 'getAttributes'
+  | 'setRelation'
+  | 'getRelation'
+  | 'toJSON'
+  | 'isDirty'
+  | 'getTable'
+  | 'exists'
+  | 'setExists'
+> => ({
+  fill: (newAttrs: Record<string, unknown>): IModel => {
+    fillAttributes(config, attrs, newAttrs);
+    const original = context.getOriginal();
+    for (const key of Object.keys(newAttrs)) {
+      if (attrs[key] !== original[key]) {
+        context.dirtyFields.add(key);
+      }
+    }
+    return context.getModel();
+  },
+  setAttribute: (key: string, value: unknown): IModel => {
+    const mutator = config.mutators?.[key];
+    const nextValue = mutator ? mutator(value, attrs) : value;
+    const castedValue = castAttribute(config, key, nextValue);
+    attrs[key] = castedValue;
+
+    const original = context.getOriginal();
+    if (original[key] === castedValue) {
+      context.dirtyFields.delete(key);
+    } else {
+      context.dirtyFields.add(key);
+    }
+
+    return context.getModel();
+  },
+  getAttribute: (key: string): unknown => {
+    if (relations[key] !== undefined) return relations[key];
+    return applyAccessor(config, key, attrs);
+  },
+  getAttributes: (): Record<string, unknown> => ({ ...attrs }),
+  setRelation: (name: string, value: unknown): void => {
+    relations[name] = value;
+  },
+  getRelation: <T>(name: string): T | undefined => relations[name] as T,
+  toJSON: (): Record<string, unknown> => createModelJSON(config, attrs),
+  isDirty: (key?: string): boolean => {
+    if (key !== undefined) return context.dirtyFields.has(key);
+    return context.dirtyFields.size > 0;
+  },
+  getTable: (): string => config.table,
+  exists: (): boolean => context.exists(),
+  setExists: (nextExists: boolean): void => {
+    context.setExists(nextExists);
+  },
+});
+
+const createLifecycleApi = (
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  getDb: () => IDatabase,
+  context: LifecycleApiContext
+): Pick<IModel, 'save' | 'delete' | 'restore' | 'forceDelete' | 'isDeleted'> => ({
+  save: async (): Promise<boolean> =>
+    performModelSave(context.getModel(), config, attrs, getDb, {
+      isExists: context.exists(),
+      setExists: context.setExists,
+      updateOriginal: context.setOriginal,
+      clearDirty: () => context.dirtyFields.clear(),
+      getDirtyFields: () => [...context.dirtyFields],
+    }),
+  delete: async (): Promise<boolean> =>
+    performModelDelete(context.getModel(), config, getDb, context.exists()),
+  restore: async (): Promise<boolean> => {
+    if (config.softDeletes !== true || !context.exists()) return false;
+    await Promise.resolve();
+    const deleteAtColumn = config.deleteAtColumn ?? 'deleted_at';
+    attrs[deleteAtColumn] = null;
+    context.dirtyFields.add(deleteAtColumn);
+    return true;
+  },
+  forceDelete: async (): Promise<boolean> => {
+    if (!context.exists()) return false;
+    const model = context.getModel();
+    await runObservers(config, 'deleting', model);
+    await runObservers(config, 'deleted', model);
+    return true;
+  },
+  isDeleted: (): boolean => {
+    if (config.softDeletes !== true) return false;
+    const deleteAtColumn = config.deleteAtColumn ?? 'deleted_at';
+    const deletedValue = attrs[deleteAtColumn];
+    return deletedValue !== null && deletedValue !== undefined;
+  },
+});
+
 /**
  * Create a new model instance
  */
-// eslint-disable-next-line max-lines-per-function
 export const createModel = (
   config: ModelConfig,
-  attributes: Record<string, unknown> = {}
+  attributes: Record<string, unknown> = {},
+  options?: { hydrate?: boolean; exists?: boolean }
 ): IModel => {
   const connection = config.connection ?? DEFAULTS.CONNECTION;
   const getDb = (): IDatabase => useDatabase(undefined, connection);
@@ -452,107 +672,44 @@ export const createModel = (
   const attrs: Record<string, unknown> = {};
   const relations: Record<string, unknown> = {}; // Store eager loaded relations
   let original: Record<string, unknown> = {};
-  let isExists = false;
+  let isExists = options?.exists === true;
   const dirtyFields = new Set<string>();
 
-  fillAttributes(config, attrs, attributes);
+  if (options?.hydrate === true) {
+    hydrateAttributes(config, attrs, attributes);
+  } else {
+    fillAttributes(config, attrs, attributes);
+  }
   original = { ...attrs };
 
-  const model = {
-    fill: (newAttrs: Record<string, unknown>): IModel => {
-      fillAttributes(config, attrs, newAttrs);
-      // Mark all filled fields as dirty
-      for (const key of Object.keys(newAttrs)) {
-        if (attrs[key] !== original[key]) {
-          dirtyFields.add(key);
-        }
-      }
-      return model;
-    },
-    setAttribute: (key: string, value: unknown): IModel => {
-      const mutator = config.mutators?.[key];
-      const nextValue = mutator ? mutator(value, attrs) : value;
-      const castedValue = castAttribute(config, key, nextValue);
-      attrs[key] = castedValue;
+  let modelApi = {} as IModel;
 
-      // Track dirty field
-      if (original[key] === castedValue) {
-        dirtyFields.delete(key);
-      } else {
-        dirtyFields.add(key);
-      }
-
-      return model;
-    },
-    getAttribute: (key: string): unknown => {
-      // Check relations first if it's a relation name
-      if (relations[key] !== undefined) return relations[key];
-      return applyAccessor(config, key, attrs);
-    },
-    getAttributes: (): Record<string, unknown> => ({ ...attrs }),
-
-    // Relationship helpers
-    setRelation: (name: string, value: unknown): void => {
-      relations[name] = value;
-    },
-    getRelation: <T>(name: string): T | undefined => relations[name] as T,
-
-    // remove in production - use saveChanges pattern
-    save: async (): Promise<boolean> =>
-      performModelSave(model, config, attrs, getDb, {
-        isExists,
-        setExists: (v) => {
-          isExists = v;
-        },
-        updateOriginal: (v) => {
-          original = v;
-        },
-        clearDirty: () => dirtyFields.clear(),
-      }),
-
-    // remove in production - use delete pattern
-    delete: async (): Promise<boolean> => performModelDelete(model, config, getDb, isExists),
-
-    // eslint-disable-next-line @typescript-eslint/require-await
-    restore: async (): Promise<boolean> => {
-      if (config.softDeletes !== true || !isExists) return false;
-      const deleteAtColumn = config.deleteAtColumn ?? 'deleted_at';
-      attrs[deleteAtColumn] = null;
-      dirtyFields.add(deleteAtColumn);
-      return true;
-    },
-
-    forceDelete: async (): Promise<boolean> => {
-      if (!isExists) return false;
-      await runObservers(config, 'deleting', model);
-      await runObservers(config, 'deleted', model);
-      return true;
-    },
-
-    isDeleted: (): boolean => {
-      if (config.softDeletes !== true) return false;
-      const deleteAtColumn = config.deleteAtColumn ?? 'deleted_at';
-      const deletedValue = attrs[deleteAtColumn];
-      return deletedValue !== null && deletedValue !== undefined;
-    },
-
-    toJSON: (): Record<string, unknown> => createModelJSON(config, attrs),
-    isDirty: (key?: string): boolean => {
-      if (key !== undefined) {
-        return dirtyFields.has(key);
-      }
-      return dirtyFields.size > 0;
-    },
-    getTable: (): string => config.table,
-    exists: (): boolean => isExists,
-    setExists: (exists: boolean): void => {
-      isExists = exists;
-    },
+  modelApi = {
+    ...createAttributeApi(config, attrs, relations, {
+      dirtyFields,
+      getModel: () => modelApi,
+      getOriginal: () => original,
+      exists: () => isExists,
+      setExists: (exists) => {
+        isExists = exists;
+      },
+    }),
+    ...createLifecycleApi(config, attrs, getDb, {
+      dirtyFields,
+      getModel: () => modelApi,
+      exists: () => isExists,
+      setExists: (exists) => {
+        isExists = exists;
+      },
+      setOriginal: (value) => {
+        original = value;
+      },
+    }),
   } as IModel;
 
-  Object.assign(model, createModelRelationships(config));
+  Object.assign(modelApi, createModelRelationships(config));
 
-  return model;
+  return modelApi;
 };
 
 /**
@@ -578,9 +735,7 @@ export const find = async (config: ModelConfig, id: unknown): Promise<IModel | n
   const result = await builder.first();
   if (result === null) return null;
 
-  const model = createModel(config, result as Record<string, unknown>);
-  model.setExists(true);
-  return model;
+  return createModel(config, result as Record<string, unknown>, { hydrate: true, exists: true });
 };
 
 /**
@@ -590,11 +745,9 @@ export const all = async (config: ModelConfig): Promise<IModel[]> => {
   const db = useDatabase(undefined, config.connection ?? DEFAULTS.CONNECTION);
   const builder = QueryBuilder.create(config.table, db, buildSoftDeleteOptions(config));
   const results = await builder.get();
-  return results.map((result) => {
-    const model = createModel(config, result as Record<string, unknown>);
-    model.setExists(true);
-    return model;
-  });
+  return results.map((result) =>
+    createModel(config, result as Record<string, unknown>, { hydrate: true, exists: true })
+  );
 };
 
 type UnboundModelMethods = Record<string, (m: IModel, ...args: unknown[]) => unknown>;
@@ -689,8 +842,7 @@ const createHydrator = (
   attach: (model: IModel) => IModel & BoundModelMethods
 ) => {
   return (attributes: Record<string, unknown>): IModel & BoundModelMethods => {
-    const model = createModel(cfg, attributes);
-    model.setExists(true);
+    const model = createModel(cfg, attributes, { hydrate: true, exists: true });
     return attach(model);
   };
 };
@@ -812,11 +964,36 @@ const hydrateAndLoadRelations = async (
   return models;
 };
 
+const hydrateOneAndLoadRelations = async (
+  raw: unknown,
+  eagerBuilder: {
+    getEagerLoads?: () => string[];
+    getEagerLoadConstraints?: () => Record<string, (builder: IQueryBuilder) => IQueryBuilder>;
+    getEagerLoadCounts?: () => string[];
+    load?: (
+      models: Array<IModel & BoundModelMethods>,
+      relation: string,
+      constraint?: (builder: IQueryBuilder) => IQueryBuilder
+    ) => Promise<void>;
+    loadCount?: (models: Array<IModel & BoundModelMethods>, relation: string) => Promise<void>;
+  },
+  hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
+): Promise<unknown> => {
+  if (!isRecord(raw)) return raw;
+
+  const model = hydrateModel(raw);
+  await loadEagerRelations(eagerBuilder, [model]);
+  await loadEagerCounts(eagerBuilder, [model]);
+  return model;
+};
+
 const wrapBuilderGetForEagerLoading = (
   builder: IQueryBuilder,
   hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
 ): void => {
   const eagerBuilder = builder as unknown as {
+    first: () => Promise<unknown>;
+    firstOrFail: (message?: string) => Promise<unknown>;
     get: () => Promise<unknown>;
     paginate?: (
       page: number,
@@ -833,6 +1010,22 @@ const wrapBuilderGetForEagerLoading = (
     ) => Promise<void>;
     loadCount?: (models: Array<IModel & BoundModelMethods>, relation: string) => Promise<void>;
   };
+
+  if (typeof eagerBuilder.first === 'function') {
+    const originalFirst = eagerBuilder.first.bind(builder);
+    eagerBuilder.first = async (): Promise<unknown> => {
+      const raw = await originalFirst();
+      return hydrateOneAndLoadRelations(raw, eagerBuilder, hydrateModel);
+    };
+  }
+
+  if (typeof eagerBuilder.firstOrFail === 'function') {
+    const originalFirstOrFail = eagerBuilder.firstOrFail.bind(builder);
+    eagerBuilder.firstOrFail = async (message?: string): Promise<unknown> => {
+      const raw = await originalFirstOrFail(message);
+      return hydrateOneAndLoadRelations(raw, eagerBuilder, hydrateModel);
+    };
+  }
 
   const originalGet = eagerBuilder.get.bind(builder);
   eagerBuilder.get = async (): Promise<unknown> => {

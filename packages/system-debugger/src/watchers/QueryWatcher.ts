@@ -6,6 +6,7 @@ import { DebuggerStorage } from '../storage';
 import type { IDebuggerWatcher, IDebuggerWatcherConfig, QueryContent } from '../types';
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
+import { RequestFilter } from '../utils/requestFilter';
 
 const bindingsInterpolated = (sql: string, params: unknown[]): string => {
   // Inline params for display only — safe, not for re-execution.
@@ -26,15 +27,19 @@ export const QueryWatcher: IDebuggerWatcher = Object.freeze({
     const db = injectedDb;
 
     const handler = (query: string, params: unknown[], duration: number): void => {
+      if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes)) return;
+
       const batchId = DebuggerContext.getBatchId();
       const sql = bindingsInterpolated(query, params);
+      const roundedDuration = Math.round(duration * 100) / 100;
       const hash = DebuggerStorage.familyHash(query);
-      const slow = duration >= config.slowQueryThreshold;
+      const slow = roundedDuration >= config.slowQueryThreshold;
 
       const content: QueryContent = {
         connection: 'default',
         sql,
-        time: Math.round(duration * 100) / 100,
+        time: roundedDuration,
+        duration: roundedDuration,
         slow,
         hash,
         hostname: DebuggerContext.getHostname(),

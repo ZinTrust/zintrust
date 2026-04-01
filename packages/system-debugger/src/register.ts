@@ -126,7 +126,12 @@ if (!debuggerAlreadyInitialized && Env) {
       const storage = DebuggerStorage.resolveStorage(db);
 
       if (core.RequestContext) {
-        DebuggerContext.setRequestContextImpl(core.RequestContext as { current(): unknown });
+        DebuggerContext.setRequestContextImpl(
+          core.RequestContext as {
+            current?: () => unknown;
+            peek?: () => unknown;
+          }
+        );
       }
 
       const [

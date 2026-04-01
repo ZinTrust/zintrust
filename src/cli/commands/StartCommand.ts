@@ -1,8 +1,5 @@
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
-import {
-  readZintrustConfig,
-  resolveCloudflareEnvKeys,
-} from '@cli/cloudflare/CloudflareEnvTargetConfig';
+import { withWranglerDevVarsSnapshot } from '@cli/cloudflare/CloudflareWranglerDevEnv';
 import { createDenoRunnerSource, createLambdaRunnerSource } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
@@ -11,14 +8,7 @@ import * as Common from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
 import type { ServiceManifestEntry } from '@microservices/ServiceManifest';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from '@node-singletons/fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
 import type { Command } from 'commander';
@@ -442,99 +432,6 @@ const buildStartEnv = (projectRoot: string): NodeJS.ProcessEnv => ({
   ZINTRUST_PROJECT_ROOT: projectRoot,
 });
 
-const WRANGLER_RUNTIME_ENV_KEYS = Object.freeze([
-  'APP_PORT',
-  'CLOUDFLARE_WORKER',
-  'DOCKER_WORKER',
-  'ENVIRONMENT',
-  'HOST',
-  'NODE_ENV',
-  'PORT',
-  'RUNTIME',
-  'SERVICE_DOMAIN',
-  'SERVICE_NAME',
-  'SERVICE_PORT',
-  'WORKER_ENABLED',
-  'ZINTRUST_PROJECT_ROOT',
-]);
-
-const buildWorkerDevVarsContent = (selectedKeys?: ReadonlyArray<string>): string => {
-  const allowedKeys =
-    selectedKeys === undefined || selectedKeys.length === 0
-      ? undefined
-      : new Set([...WRANGLER_RUNTIME_ENV_KEYS, ...selectedKeys]);
-
-  return (
-    Object.entries(process.env)
-      .filter((entry): entry is [string, string] => {
-        const [key, value] = entry;
-        return (
-          isWranglerVarName(key) &&
-          typeof value === 'string' &&
-          (allowedKeys === undefined || allowedKeys.has(key))
-        );
-      })
-      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-      .join('\n') + '\n'
-  );
-};
-
-const getWranglerEnvBackupPath = (targetPath: string): string => `${targetPath}.disabled-by-zin`;
-
-const reconcileWranglerEnvBackup = (targetPath: string, backupPath: string): void => {
-  const hasTarget = existsSync(targetPath);
-  const hasBackup = existsSync(backupPath);
-
-  if (!hasBackup) return;
-
-  if (!hasTarget) {
-    renameSync(backupPath, targetPath);
-    return;
-  }
-
-  unlinkSync(backupPath);
-};
-
-async function withWranglerEnvSnapshot<T>(
-  cwd: string,
-  envName: string | undefined,
-  selectedKeys: ReadonlyArray<string> | undefined,
-  fn: () => Promise<T>
-): Promise<T> {
-  const normalizedEnv = typeof envName === 'string' ? envName.trim() : '';
-  const targetName = normalizedEnv === '' ? '.dev.vars' : `.dev.vars.${normalizedEnv}`;
-  const targetPath = path.join(cwd, targetName);
-  const backupPath = getWranglerEnvBackupPath(targetPath);
-
-  try {
-    reconcileWranglerEnvBackup(targetPath, backupPath);
-  } catch {
-    // noop
-  }
-
-  if (existsSync(targetPath)) {
-    renameSync(targetPath, backupPath);
-  }
-
-  try {
-    writeFileSync(targetPath, buildWorkerDevVarsContent(selectedKeys), 'utf-8');
-
-    return await fn();
-  } finally {
-    try {
-      if (existsSync(targetPath)) unlinkSync(targetPath);
-    } catch {
-      // noop
-    }
-
-    try {
-      if (existsSync(backupPath)) renameSync(backupPath, targetPath);
-    } catch {
-      // noop
-    }
-  }
-}
-
 const resolveManifestServiceEnvDir = (projectRoot: string, entry: ServiceManifestEntry): string => {
   const configRoot = (entry as { configRoot?: unknown }).configRoot;
   if (isNonEmptyString(configRoot)) {
@@ -742,30 +639,14 @@ const buildWranglerDevArgs = (args: {
   return wranglerArgs;
 };
 
-const resolveWranglerSelectedEnvKeys = (
-  context: StartContext,
-  configPath: string | undefined,
-  envName: string | undefined
-): string[] | undefined => {
-  const zintrustConfigPath = path.join(context.projectRoot, '.zintrust.json');
-  if (!existsSync(zintrustConfigPath)) return undefined;
-
-  return resolveCloudflareEnvKeys({
-    config: readZintrustConfig(context.projectRoot),
-    projectRoot: context.projectRoot,
-    cwd: context.cwd,
-    ...(configPath === undefined ? {} : { configPath }),
-    ...(envName === undefined ? {} : { wranglerEnv: envName }),
-  });
-};
-
 const executeWranglerStart = async (
   cmd: IBaseCommand,
   context: StartContext,
   port: number | undefined,
   runtime: string | undefined,
   envName: string | undefined,
-  wranglerConfig: string | undefined
+  wranglerConfig: string | undefined,
+  envPath: string | undefined
 ): Promise<void> => {
   if (runtime !== undefined) {
     throw ErrorFactory.createCliError(
@@ -786,12 +667,15 @@ const executeWranglerStart = async (
 
   logMySqlProxyHint(cmd);
   cmd.info('Starting in Wrangler dev mode...');
-  const selectedEnvKeys = resolveWranglerSelectedEnvKeys(context, configPath, envName);
 
-  const exitCode = await withWranglerEnvSnapshot(
-    context.cwd,
-    envName,
-    selectedEnvKeys,
+  const exitCode = await withWranglerDevVarsSnapshot(
+    {
+      cwd: context.cwd,
+      projectRoot: context.projectRoot,
+      envName,
+      ...(envPath === undefined ? {} : { envPath }),
+      ...(configPath === undefined ? {} : { configPath }),
+    },
     async () => {
       const startEnv = {
         ...buildStartEnv(context.projectRoot),
@@ -1085,6 +969,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
       typeof options.wranglerConfig === 'string' && options.wranglerConfig.trim() !== ''
         ? options.wranglerConfig.trim()
         : undefined;
+    const envPath = resolveEnvPath(options, context.projectRoot);
 
     await executeWranglerStart(
       cmd,
@@ -1092,7 +977,8 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
       port,
       runtime,
       envName === '' ? undefined : envName,
-      wranglerConfig
+      wranglerConfig,
+      envPath
     );
     return;
   }

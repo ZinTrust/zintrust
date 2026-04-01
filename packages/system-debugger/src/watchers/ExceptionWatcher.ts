@@ -9,6 +9,7 @@ import type { ExceptionContent, IDebuggerWatcher, IDebuggerWatcherConfig } from 
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 import { familyHash } from '../utils/familyHash';
+import { RequestFilter } from '../utils/requestFilter';
 
 const getLinePreview = (_file: string, _line: number): Record<string, string> => {
   return {};
@@ -50,6 +51,7 @@ const buildContent = (err: Error): ExceptionContent => {
 
 let _storage: IDebuggerWatcherConfig['storage'] | null = null;
 let _listenerRefCount = 0;
+let _ignoreRoutes: string[] = [];
 
 const handleUncaughtException = (error: unknown): void => {
   captureException(error);
@@ -75,6 +77,7 @@ const captureException = (err: unknown): void => {
   const storage = _storage;
   if (!storage) return;
   if (!(err instanceof Error)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
 
   const content = buildContent(err);
   const hash = familyHash(`${content.class}:${content.file}:${content.line}`);
@@ -102,6 +105,7 @@ export const ExceptionWatcher: IDebuggerWatcher & { capture: (err: unknown) => v
     register({ storage, config }: IDebuggerWatcherConfig): () => void {
       if (config.watchers.exception === false) return () => undefined;
       _storage = storage;
+      _ignoreRoutes = config.ignoreRoutes;
 
       if (_listenerRefCount === 0) {
         registerProcessListeners();
@@ -114,6 +118,7 @@ export const ExceptionWatcher: IDebuggerWatcher & { capture: (err: unknown) => v
           unregisterProcessListeners();
         }
         _storage = null;
+        _ignoreRoutes = [];
       };
     },
   });

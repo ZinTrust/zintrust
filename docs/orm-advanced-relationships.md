@@ -15,6 +15,8 @@ This guide covers ZinTrust's advanced relationship features for complex data mod
 
 Use `withCount()` to efficiently count related records without loading them into memory. This is especially useful for displaying statistics (e.g., "10 comments").
 
+Current eager-count support is validated for `hasMany` and `belongsToMany`, which are the relation types that currently expose `withCount(...)` semantics in core.
+
 ### Basic Usage
 
 ```typescript
@@ -68,6 +70,8 @@ const activeUsers = await User.query()
 ## Constrained Eager Loading
 
 Apply filters to relationships during eager loading to reduce data transfer and memory usage.
+
+Eager loading in ZinTrust now follows the same attachment rules as lazy relation resolution for supported relation types, including `belongsTo`, `belongsToMany`, `morphTo`, `morphMany`, `hasOneThrough`, and `hasManyThrough`. That means shared related rows, `null` belongs-to keys, pivot joins, and through mappings behave consistently whether the relation is loaded inline with `with(...)` or later via `relation.get(instance)`.
 
 ### Basic Syntax
 
