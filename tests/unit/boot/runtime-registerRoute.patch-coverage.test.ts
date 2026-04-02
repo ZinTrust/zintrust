@@ -497,24 +497,14 @@ describe('runtime/registerRoute patch coverage', () => {
     );
   });
 
-  it('createLifecycle only mounts the debugger when the plugin file opted in', async () => {
+  it('createLifecycle only initializes the debugger runtime when the plugin file opted in', async () => {
+    const ensureSystemDebuggerRegisteredSpy = vi.fn(async () => undefined);
     const tryImportOptionalSpy = vi.fn(async (specifier: string) => {
-      if (specifier === '@zintrust/system-debugger') {
+      if (specifier === '@runtime/plugins/system-debugger-runtime') {
         return {
-          DebuggerConfig: {
-            merge: () => ({ enabled: true, connection: 'default' }),
-          },
-          DebuggerStorage: {
-            resolveStorage: vi.fn(() => ({ stats: vi.fn() })),
-          },
-          registerDebuggerRoutes: vi.fn((router: { routes: Array<{ path: string }> }) => {
-            router.routes.push({ path: '/debugger' });
-          }),
+          isAvailable: () => true,
+          ensureSystemDebuggerRegistered: ensureSystemDebuggerRegisteredSpy,
         };
-      }
-
-      if (specifier === '@zintrust/system-debugger/register') {
-        return {};
       }
 
       return undefined;
@@ -614,9 +604,12 @@ describe('runtime/registerRoute patch coverage', () => {
 
     await lifecycleWithoutPlugin.boot();
 
-    expect(tryImportOptionalSpy).not.toHaveBeenCalledWith('@zintrust/system-debugger');
+    expect(tryImportOptionalSpy).not.toHaveBeenCalledWith(
+      '@runtime/plugins/system-debugger-runtime'
+    );
     expect(routerWithoutPlugin.routes).toHaveLength(0);
     expect(useDatabaseSpy).not.toHaveBeenCalled();
+    expect(ensureSystemDebuggerRegisteredSpy).not.toHaveBeenCalled();
 
     (
       globalThis as { __zintrust_system_debugger_plugin_requested__?: boolean }
@@ -634,10 +627,10 @@ describe('runtime/registerRoute patch coverage', () => {
 
     await lifecycleWithPlugin.boot();
 
-    expect(tryImportOptionalSpy).toHaveBeenCalledWith('@zintrust/system-debugger');
-    expect(tryImportOptionalSpy).toHaveBeenCalledWith('@zintrust/system-debugger/register');
-    expect(useDatabaseSpy).toHaveBeenCalledWith(undefined, 'sqlite');
-    expect(routerWithPlugin.routes).toContainEqual({ path: '/debugger' });
+    expect(tryImportOptionalSpy).toHaveBeenCalledWith('@runtime/plugins/system-debugger-runtime');
+    expect(useDatabaseSpy).not.toHaveBeenCalled();
+    expect(ensureSystemDebuggerRegisteredSpy).toHaveBeenCalledTimes(1);
+    expect(routerWithPlugin.routes).toHaveLength(0);
   });
 
   it('createLifecycle reads the latest runtime database config when booting', async () => {

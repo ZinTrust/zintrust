@@ -13,7 +13,6 @@ import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
-import { useDatabase } from '@orm/Database';
 import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 import { registerMasterRoutes, tryImportOptional } from '@registry/registerRoute';
 import type { IShutdownManager } from '@registry/type';
@@ -39,20 +38,6 @@ interface IQueueHttpGatewayModule {
   };
 }
 
-interface ISystemDebuggerModule {
-  DebuggerConfig: {
-    merge(overrides?: unknown): { enabled?: boolean; connection?: string };
-  };
-  DebuggerStorage: {
-    resolveStorage(db: unknown): unknown;
-  };
-  registerDebuggerRoutes: (
-    router: IRouter,
-    storage: unknown,
-    options?: { basePath?: string; middleware?: ReadonlyArray<string> }
-  ) => void;
-}
-
 type GlobalDebuggerPluginState = {
   __zintrust_system_debugger_plugin_requested__?: boolean;
   __zintrust_system_debugger_runtime__?: ILocalSystemDebuggerModule;
@@ -65,7 +50,7 @@ type RuntimeQueueConfig = {
   } & Record<string, unknown>;
 };
 
-type ILocalSystemDebuggerModule = ISystemDebuggerModule & {
+type ILocalSystemDebuggerModule = {
   isAvailable?: () => boolean;
   ensureSystemDebuggerRegistered: () => Promise<void>;
 };
@@ -471,95 +456,28 @@ const isSystemDebuggerPluginRequested = (): boolean => {
   return globalDebuggerPluginState.__zintrust_system_debugger_plugin_requested__ === true;
 };
 
-const resolveDebuggerBasePath = (): string => {
-  const raw = readEnvString('DEBUGGER_BASE_PATH').trim();
-  if (raw === '') return '/debugger';
-  return raw.startsWith('/') ? raw : `/${raw}`;
-};
-
-const resolveDebuggerMiddleware = (): string[] => {
-  const raw = readEnvString('DEBUGGER_MIDDLEWARE').trim();
-  if (raw === '') return [];
-
-  return raw
-    .split(',')
-    .map((segment) => segment.trim())
-    .filter((segment) => segment !== '');
-};
-
-const resolveDebuggerConnectionName = (configuredConnection?: string): string => {
-  const explicitConnection = configuredConnection?.trim();
-  const runtimeDefault = String(getDatabaseConfig().default ?? '').trim() || 'default';
-
-  if (explicitConnection !== undefined && explicitConnection !== '') {
-    return explicitConnection === 'default' ? runtimeDefault : explicitConnection;
-  }
-
-  const defaultConnection = readEnvString('DB_CONNECTION').trim();
-  if (defaultConnection === '' || defaultConnection === 'default') return runtimeDefault;
-  return defaultConnection;
-};
-
-const hasDebuggerRouteRegistered = (router: IRouter, basePath: string): boolean => {
-  return router.routes.some((route) => {
-    return (
-      route.path === basePath ||
-      route.path === `${basePath}/*` ||
-      route.path.startsWith(`${basePath}/api`)
-    );
-  });
-};
-
-const initializeSystemDebugger = async (router: IRouter): Promise<void> => {
+const initializeSystemDebugger = async (): Promise<void> => {
   if (!isSystemDebuggerPluginRequested()) {
-    Logger.debug('System Debugger plugin is not enabled in zintrust.plugins.*. Skipping mount.');
+    Logger.debug('System Debugger plugin is not enabled in zintrust.plugins.*. Skipping init.');
     return;
   }
 
   if (!isDebuggerEnabled()) return;
 
   const debuggerModule =
-    (await tryImportOptional<ISystemDebuggerModule>('@zintrust/system-debugger')) ??
-    (await loadLocalSystemDebuggerModule());
-  if (debuggerModule === undefined) {
+    (await tryImportOptional<ILocalSystemDebuggerModule>(
+      '@runtime/plugins/system-debugger-runtime'
+    )) ?? (await loadLocalSystemDebuggerModule());
+  if (debuggerModule === undefined || debuggerModule.isAvailable?.() === false) {
     Logger.debug('System Debugger is enabled but the optional package is unavailable.');
     return;
   }
 
-  const debuggerRegisterModule = await tryImportOptional('@zintrust/system-debugger/register');
-  if (debuggerRegisterModule === undefined) {
-    const localDebuggerModule = await loadLocalSystemDebuggerModule();
-    if (localDebuggerModule === undefined) {
-      Logger.warn(
-        'System Debugger plugin was requested but the register module could not be loaded.'
-      );
-      return;
-    }
-
-    Logger.debug(
-      'System Debugger register module is unavailable in source mode. Mounting dashboard routes without source fallback auto-registration.'
-    );
-  }
-
-  const config = debuggerModule.DebuggerConfig.merge();
-  const basePath = resolveDebuggerBasePath();
-  if (hasDebuggerRouteRegistered(router, basePath)) return;
-
   try {
-    const db = useDatabase(undefined, resolveDebuggerConnectionName(config.connection));
-    const storage = debuggerModule.DebuggerStorage.resolveStorage(db);
-    const middleware = resolveDebuggerMiddleware();
-
-    debuggerModule.registerDebuggerRoutes(router, storage, {
-      basePath,
-      middleware: middleware.length > 0 ? middleware : undefined,
-    });
-
-    Logger.info(
-      `System Debugger routes registered at http://127.0.0.1:${appConfig.port}${basePath}`
-    );
+    await debuggerModule.ensureSystemDebuggerRegistered();
+    Logger.info('System Debugger runtime activated. Register dashboard routes manually if needed.');
   } catch (error) {
-    Logger.warn('Failed to register System Debugger routes', error as Error);
+    Logger.warn('Failed to initialize System Debugger runtime', error as Error);
   }
 };
 
@@ -603,7 +521,7 @@ export const createLifecycle = (params: {
 
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerMasterRoutes(params.resolvedBasePath, params.router);
-    await initializeSystemDebugger(params.router);
+    await initializeSystemDebugger();
 
     if (
       Cloudflare.getWorkersEnv() === null &&

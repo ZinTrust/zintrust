@@ -15,6 +15,7 @@ import type { DatabaseConnectionConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
 import { Migrator } from '@migrations/Migrator';
+import { existsSync } from '@node-singletons/fs';
 import { createRequire } from '@node-singletons/module';
 import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
@@ -36,6 +37,11 @@ type DebuggerStorageModule = {
     resolveStorage(db: unknown): DebuggerStorageApi;
   };
   DebuggerConfig: DebuggerConfigApi;
+};
+
+type DebuggerMigrationTarget = {
+  dir: string;
+  extension: string;
 };
 
 const loadDebuggerModule = async (): Promise<DebuggerStorageModule> => {
@@ -86,14 +92,57 @@ const resolveDashboardUrl = (): string => {
   return `http://${host}:${port}${resolveDashboardBasePath()}`;
 };
 
-const resolveDebuggerMigrationDir = (): string => {
+const resolveDebuggerMigrationTargetFromResolvedPath = (
+  resolvedPath: string
+): DebuggerMigrationTarget => {
+  const extension = path.extname(resolvedPath).toLowerCase();
+  const dir = path.dirname(resolvedPath);
+
+  if (extension === '.js' || extension === '.mjs' || extension === '.cjs') {
+    return {
+      dir,
+      extension: extension.slice(1),
+    };
+  }
+
+  if (extension === '.ts') {
+    const baseName = path.basename(resolvedPath, extension);
+    for (const candidateExt of ['.js', '.mjs', '.cjs']) {
+      const candidatePath = path.join(dir, `${baseName}${candidateExt}`);
+      if (!existsSync(candidatePath)) continue;
+
+      return {
+        dir,
+        extension: candidateExt.slice(1),
+      };
+    }
+
+    throw ErrorFactory.createCliError(
+      'Installed package "@zintrust/system-debugger" exposes TypeScript-only migrations. Upgrade to a version that publishes runnable JavaScript migrations.'
+    );
+  }
+
+  return {
+    dir,
+    extension: databaseConfig.migrations.extension,
+  };
+};
+
+const resolveDebuggerMigrationTarget = (): DebuggerMigrationTarget => {
   const requireFromProject = createRequire(path.join(process.cwd(), 'package.json'));
 
   try {
     const resolved = requireFromProject.resolve('@zintrust/system-debugger/migrations');
-    return path.dirname(resolved);
-  } catch {
-    return path.join(process.cwd(), 'packages', 'system-debugger', 'migrations');
+    return resolveDebuggerMigrationTargetFromResolvedPath(resolved);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('TypeScript-only migrations')) {
+      throw error;
+    }
+
+    return {
+      dir: path.join(process.cwd(), 'packages', 'system-debugger', 'migrations'),
+      extension: 'ts',
+    };
   }
 };
 
@@ -391,7 +440,7 @@ const executeStatus = async (options: CommandOptions, cmd: IBaseCommand): Promis
   cmd.info(`Debugger enabled via env: ${readEnvString('DEBUGGER_ENABLED').trim() || 'false'}`);
   cmd.info(`Connection: ${connection}`);
   cmd.info(`Prune after hours: ${String(config.pruneAfterHours)}`);
-  cmd.info(`Dashboard: ${resolveDashboardUrl()}`);
+  cmd.info(`Expected dashboard URL (if mounted): ${resolveDashboardUrl()}`);
 
   const keys = Object.keys(stats).sort((left, right) => left.localeCompare(right));
   if (keys.length === 0) {
@@ -508,6 +557,8 @@ const runMigrationsForConnection = async (
       );
     }
 
+    const migrationTarget = resolveDebuggerMigrationTarget();
+
     const projectRoot = process.cwd();
     const dbName = getD1DatabaseName(options);
     const isLocal = options['local'] === true || options['remote'] !== true;
@@ -518,8 +569,8 @@ const runMigrationsForConnection = async (
 
     await D1SqlMigrations.compileAndWrite({
       projectRoot,
-      globalDir: resolveDebuggerMigrationDir(),
-      extension: databaseConfig.migrations.extension,
+      globalDir: migrationTarget.dir,
+      extension: migrationTarget.extension,
       includeGlobal: true,
       outputDir,
     });
@@ -537,11 +588,13 @@ const runMigrationsForConnection = async (
   await db.connect();
 
   try {
+    const migrationTarget = resolveDebuggerMigrationTarget();
+
     const migrator = Migrator.create({
       db,
       projectRoot: process.cwd(),
-      globalDir: resolveDebuggerMigrationDir(),
-      extension: databaseConfig.migrations.extension,
+      globalDir: migrationTarget.dir,
+      extension: migrationTarget.extension,
       separateTracking: true,
     });
 

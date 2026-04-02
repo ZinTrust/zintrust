@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorHandler } from '@cli/ErrorHandler';
+import { existsSync } from '@node-singletons/fs';
+import { createRequire } from '@node-singletons/module';
 
 const envStrings: Record<string, string> = {
   DEBUGGER_ENABLED: 'true',
@@ -14,6 +16,17 @@ const resolvedStorage = {
   prune: vi.fn(),
   clear: vi.fn(),
   stats: vi.fn(),
+};
+
+const mockDebuggerModule = (connection = 'default'): void => {
+  vi.doMock('@zintrust/system-debugger', () => ({
+    DebuggerConfig: {
+      merge: vi.fn(() => ({ pruneAfterHours: 24, connection })),
+    },
+    DebuggerStorage: {
+      resolveStorage: vi.fn(() => resolvedStorage),
+    },
+  }));
 };
 
 vi.mock('@cli/d1/WranglerConfig', () => ({
@@ -111,6 +124,10 @@ vi.mock('@node-singletons/module', () => ({
   })),
 }));
 
+vi.mock('@node-singletons/fs', () => ({
+  existsSync: vi.fn(() => false),
+}));
+
 vi.mock('@zintrust/core', () => ({
   useDatabase: vi.fn(() => ({})),
 }));
@@ -127,9 +144,18 @@ vi.mock('@zintrust/system-debugger', () => ({
 describe('DebuggerCommands', () => {
   afterEach(() => {
     envStrings.DEBUGGER_DB_CONNECTION = 'default';
+    envStrings.DEBUGGER_BASE_PATH = '/debugger';
     resolvedStorage.prune.mockReset();
     resolvedStorage.clear.mockReset();
     resolvedStorage.stats.mockReset();
+    vi.mocked(ErrorHandler.info).mockReset();
+    vi.mocked(ErrorHandler.warn).mockReset();
+    vi.mocked(ErrorHandler.success).mockReset();
+    vi.mocked(ErrorHandler.debug).mockReset();
+    vi.mocked(createRequire).mockReturnValue({
+      resolve: vi.fn(() => '/tmp/node_modules/@zintrust/system-debugger/migrations/index.js'),
+    } as never);
+    vi.mocked(existsSync).mockReturnValue(false);
     vi.resetModules();
     vi.clearAllMocks();
   });
@@ -143,7 +169,9 @@ describe('DebuggerCommands', () => {
     await cmd.execute({});
 
     expect(ErrorHandler.info).toHaveBeenCalledWith('Connection: analytics');
-    expect(ErrorHandler.info).toHaveBeenCalledWith('Dashboard: http://127.0.0.1:7777/debugger');
+    expect(ErrorHandler.info).toHaveBeenCalledWith(
+      'Expected dashboard URL (if mounted): http://127.0.0.1:7777/debugger'
+    );
     expect(ErrorHandler.info).toHaveBeenCalledWith('query: 2');
     expect(ErrorHandler.info).toHaveBeenCalledWith('request: 5');
   });
@@ -289,7 +317,6 @@ describe('DebuggerCommands', () => {
   });
 
   it('runs debugger migrations through Wrangler D1 apply flow', async () => {
-    const { createRequire } = await import('@node-singletons/module');
     const { D1SqlMigrations } = await import('@cli/d1/D1SqlMigrations');
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
 
@@ -369,34 +396,40 @@ describe('DebuggerCommands', () => {
   it('prints stored entries as zero when debugger storage is empty', async () => {
     resolvedStorage.stats.mockResolvedValue({});
     envStrings.DEBUGGER_BASE_PATH = 'debugger';
-    vi.doMock('@zintrust/system-debugger', () => ({
-      DebuggerConfig: {
-        merge: vi.fn(() => ({ pruneAfterHours: 24, connection: 'default' })),
-      },
-      DebuggerStorage: {
-        resolveStorage: vi.fn(() => resolvedStorage),
-      },
-    }));
+    mockDebuggerModule();
 
     const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
 
     await DebuggerCommands.createDebuggerStatusCommand().execute({});
 
-    expect(ErrorHandler.info).toHaveBeenCalledWith('Dashboard: http://127.0.0.1:7777/debugger');
+    expect(ErrorHandler.info).toHaveBeenCalledWith(
+      'Expected dashboard URL (if mounted): http://127.0.0.1:7777/debugger'
+    );
     expect(ErrorHandler.info).toHaveBeenCalledWith('Stored entries: 0');
+  });
+
+  it('throws a packaging error when an installed debugger package exposes TS-only migrations', async () => {
+    vi.mocked(createRequire).mockReturnValue({
+      resolve: vi.fn(() => '/tmp/node_modules/@zintrust/system-debugger/migrations/index.ts'),
+    } as never);
+    vi.mocked(existsSync).mockReturnValue(false);
+
+    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+
+    await expect(
+      DebuggerCommands.createDebuggerMigrateCommand().execute({
+        connection: 'analytics',
+        status: true,
+      })
+    ).rejects.toThrow(
+      'Installed package "@zintrust/system-debugger" exposes TypeScript-only migrations.'
+    );
   });
 
   it('prunes and clears entries through SQL storage for non-D1 connections', async () => {
     resolvedStorage.prune.mockResolvedValue(4);
     resolvedStorage.clear.mockResolvedValue(undefined);
-    vi.doMock('@zintrust/system-debugger', () => ({
-      DebuggerConfig: {
-        merge: vi.fn(() => ({ pruneAfterHours: 24, connection: 'default' })),
-      },
-      DebuggerStorage: {
-        resolveStorage: vi.fn(() => resolvedStorage),
-      },
-    }));
+    mockDebuggerModule();
 
     const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
 
@@ -419,14 +452,7 @@ describe('DebuggerCommands', () => {
   it('uses resolved Wrangler D1 database names and rejects ambiguous targets', async () => {
     const { WranglerConfig } = await import('@cli/d1/WranglerConfig');
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    vi.doMock('@zintrust/system-debugger', () => ({
-      DebuggerConfig: {
-        merge: vi.fn(() => ({ pruneAfterHours: 24, connection: 'd1debug' })),
-      },
-      DebuggerStorage: {
-        resolveStorage: vi.fn(() => resolvedStorage),
-      },
-    }));
+    mockDebuggerModule('d1debug');
     vi.mocked(WranglerConfig.resolveD1Database).mockReturnValue({ status: 'resolved' } as never);
     vi.mocked(WranglerConfig.getDefaultD1DatabaseName).mockReturnValue('bound_db');
     vi.mocked(WranglerD1.executeSql).mockReturnValue('[]');

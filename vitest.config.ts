@@ -53,6 +53,10 @@ export default defineConfig({
         __dirname,
         './packages/system-debugger/src/index.ts'
       ),
+      '@zintrust/system-debugger/ui': path.resolve(
+        __dirname,
+        './packages/system-debugger/src/ui.ts'
+      ),
       '@zintrust/system-debugger/register': path.resolve(
         __dirname,
         './packages/system-debugger/src/register.ts'
