@@ -8,6 +8,7 @@ import type { Paginator } from '@database/Paginator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase, type IDatabase } from '@orm/Database';
 import type {
+  EagerLoadConstraints,
   IQueryBuilder,
   InsertResult,
   PaginationOptions,
@@ -816,6 +817,7 @@ export type DefinedModel<T extends BoundModelMethods> = {
   withoutTrashed: () => IQueryBuilder;
 
   scope: (name: string, ...args: unknown[]) => IQueryBuilder;
+  with: (relations: string | string[] | EagerLoadConstraints) => IQueryBuilder;
   getTable: () => string;
   db: (connection: string) => DefinedModel<T>;
 };
@@ -1098,6 +1100,14 @@ const createQueryBuilderMethods = (
       }
       const builder = createModelBuilder(cfg);
       return fn(builder, ...args);
+    },
+    with: (relations: string | string[] | EagerLoadConstraints): IQueryBuilder => {
+      const builder = wrappedBuilder();
+      if (Array.isArray(relations)) {
+        relations.forEach((r) => builder.with(r));
+        return builder;
+      }
+      return builder.with(relations);
     },
     getTable: (): string => cfg.table,
   };

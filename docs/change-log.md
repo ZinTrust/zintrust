@@ -2,6 +2,10 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-02
+
+- Added a `Model.with(relations)` static shorthand on defined models so developers have three equivalent eager-loading signatures: `Model.with(['rel1', 'rel2'])` (array shorthand that starts a fresh query), `Model.query().with('rel1').with('rel2')` (chained), and `Model.query().with({ rel1: constraint, rel2: constraint })` (constrained object). Updated the eager loading section in `docs/models.md` with examples of all three signatures.
+
 ## 2026-04-01
 
 - Replaced regex-based query redaction and stack-frame parsing in `@zintrust/system-debugger` with deterministic scanners so CodeQL no longer flags ReDoS-prone handling on debugger query strings, exception traces, or job failure traces. Also re-synced the debugger/default database connection fallback so literal `DB_CONNECTION=default` resolves to the active runtime default connection while `DEBUGGER_DB_CONNECTION` still overrides debugger migrations and runtime storage when explicitly set.

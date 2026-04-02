@@ -23,6 +23,20 @@ Bulletproof mode validates **semantic correctness** after character whitelisting
 
 ---
 
+## Available Sanitizers
+
+| Category | Method                                                              | Description                                                   |
+| -------- | ------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Numeric  | [`digitsOnly`](#digitsonly)                                         | Sanitize positive integer IDs for database queries            |
+| Numeric  | [`parseAmount`](#parseamount)                                       | Parse currency and financial amounts with overflow protection |
+| Numeric  | [`nonNegativeNumericStringOrNull`](#nonnegativenumericstringornull) | Validate non-negative numeric strings (integers or decimals)  |
+| Numeric  | [`decimalString`](#decimalstring)                                   | Sanitize decimal numbers (prices, measurements)               |
+| Text     | [`email`](#email)                                                   | Sanitize email addresses with format validation               |
+| Text     | [`nameText`](#nametext)                                             | Sanitize user names with letter requirement                   |
+| Text     | [`safePasswordChars`](#safepasswordchars)                           | Sanitize passwords by stripping disallowed characters         |
+
+---
+
 ## Bulletproof Methods
 
 ### Numeric Sanitizers
@@ -41,7 +55,7 @@ Bulletproof mode validates **semantic correctness** after character whitelisting
 **Usage:**
 
 ```typescript
-import { Sanitizer } from '@security/Sanitizer';
+import { Sanitizer } from '@zintrust/core';
 
 // ✅ Valid IDs
 const id1 = Sanitizer.digitsOnly('82'); // '82'
@@ -251,8 +265,7 @@ Sanitizer.safePasswordChars('$$$'); // Empty after sanitization
 Use try-catch to handle `SanitizerError` and convert to 422 validation responses:
 
 ```typescript
-import { Sanitizer } from '@security/Sanitizer';
-import { SanitizerError } from '@exceptions/ZintrustError';
+import { Sanitizer, SanitizerError } from '@zintrust/core';
 
 async show(req: IRequest, res: IResponse): Promise\<void> {
   try {
@@ -292,8 +305,7 @@ const isSanitizerError = (error: unknown): error is SanitizerError => {
 Automatically handles `SanitizerError` and converts to 422 validation responses:
 
 ```typescript
-import { ValidationMiddleware } from '@middleware/ValidationMiddleware';
-import { Schema } from '@validation/Validator';
+import { ValidationMiddleware, Schema } from '@zintrust/core';
 
 const userUpdateSchema = Schema.create().required('name').required('email');
 
