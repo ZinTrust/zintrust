@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.4.44",
+  "version": "0.4.45",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -237,7 +237,7 @@
   },
   "dependencies": {
     "@cloudflare/containers": "^0.2.0",
-    "@zintrust/workers": "^0.4.44",
+    "@zintrust/workers": "^0.4.45",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.71.1",
     "chalk": "^5.6.2",
