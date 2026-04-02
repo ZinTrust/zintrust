@@ -134,6 +134,49 @@ describe('Bootstrap additional branches', () => {
     expect(warnSpy).toHaveBeenCalledWith('Official plugin auto-imports failed:', expect.anything());
   });
 
+  it('skips project plugin auto-imports in cloudflare worker mode', async () => {
+    vi.resetModules();
+
+    const projectImportsSpy = vi.fn(async () => ({
+      ok: true as const,
+      loadedPath: 'src/zintrust.plugins.ts',
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: {
+        cloudflareWorker: true,
+        dockerWorker: false,
+        worker: false,
+        detectRuntime: () => 'nodejs',
+      },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: {
+        tryImportRuntimeAutoImports: vi.fn(async () => ({ ok: true as const, loadedPath: 'base' })),
+        tryImportProjectAutoImports: projectImportsSpy,
+      },
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {},
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+
+    await import('@boot/bootstrap');
+
+    expect(projectImportsSpy).not.toHaveBeenCalled();
+  });
+
   it('with SHUTDOWN_TIMEOUT=0 uses immediate shutdown (no timeout) and exits 0', async () => {
     // Use real timers so shutdown resolves naturally
     vi.useRealTimers();
