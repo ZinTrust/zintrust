@@ -168,6 +168,26 @@ function syncMirroredField(target, key, value) {
   return true;
 }
 
+function syncDistLockEntry(distEntry, rootPkg) {
+  let didChange = false;
+
+  if (!distEntry || typeof distEntry !== 'object') {
+    return didChange;
+  }
+
+  for (const key of ['name', 'version', 'engines']) {
+    if (syncMirroredField(distEntry, key, rootPkg[key])) {
+      didChange = true;
+    }
+  }
+
+  if (replaceOrDeleteSection(distEntry, 'dependencies', rootPkg)) {
+    didChange = true;
+  }
+
+  return didChange;
+}
+
 function syncRootLockEntry(rootLock, rootPkg) {
   let didChange = false;
 
@@ -202,7 +222,31 @@ function syncRootLockEntry(rootLock, rootPkg) {
     }
   }
 
+  if (syncDistLockEntry(rootLock.packages.dist, rootPkg)) {
+    didChange = true;
+  }
+
   return didChange;
+}
+
+function collectDistLockIssues({ issues, relRootLockPath, rootPkg, distEntry }) {
+  if (distEntry?.version !== rootPkg.version) {
+    pushIssue(
+      issues,
+      relRootLockPath,
+      `lockfile packages["dist"] version is ${JSON.stringify(distEntry?.version)} but package.json has ${JSON.stringify(rootPkg.version)}`
+    );
+  }
+
+  if (
+    JSON.stringify(distEntry?.dependencies ?? {}) !== JSON.stringify(rootPkg.dependencies ?? {})
+  ) {
+    pushIssue(
+      issues,
+      relRootLockPath,
+      'lockfile packages["dist"].dependencies do not match package.json dependencies'
+    );
+  }
 }
 
 function syncWorkspaceLockEntry(lockEntry, pkg, coreName) {
@@ -229,17 +273,36 @@ function syncWorkspaceLockEntry(lockEntry, pkg, coreName) {
   return didChange;
 }
 
+function syncRootPackageLink(rootLock, rootPkg) {
+  rootLock.packages = rootLock.packages ?? {};
+
+  const lockKey = `node_modules/${rootPkg.name}`;
+  const currentEntry = rootLock.packages[lockKey];
+  const expectedEntry = {
+    resolved: '.',
+    link: true,
+  };
+
+  if (JSON.stringify(currentEntry) === JSON.stringify(expectedEntry)) {
+    return false;
+  }
+
+  rootLock.packages[lockKey] = expectedEntry;
+  return true;
+}
+
 function syncPackageLock(rootLock, rootPkg, packageInfos, coreName) {
   let didChange = syncRootLockEntry(rootLock, rootPkg);
 
   rootLock.packages = rootLock.packages ?? {};
 
+  if (syncRootPackageLink(rootLock, rootPkg)) {
+    didChange = true;
+  }
+
   // Force npm to treat all workspace packages as local links in node_modules
   // This prevents ETARGET errors during npm ci when unpublished versions are referenced.
-  const allWorkspacePackageNames = [
-    rootPkg.name,
-    ...packageInfos.map((p) => p.name).filter(Boolean),
-  ];
+  const allWorkspacePackageNames = packageInfos.map((p) => p.name).filter(Boolean);
   for (const pkgName of allWorkspacePackageNames) {
     if (pkgName) {
       const nmKey = 'node_modules/' + pkgName;
@@ -255,6 +318,15 @@ function syncPackageLock(rootLock, rootPkg, packageInfos, coreName) {
     const lockEntry = rootLock.packages[lockKey] ?? (rootLock.packages[lockKey] = {});
     if (syncWorkspaceLockEntry(lockEntry, pkgInfo, coreName)) {
       didChange = true;
+    }
+
+    if (pkgInfo.peerDependencies?.[coreName]) {
+      const peerLinkKey = `${lockKey}/node_modules/${coreName}`;
+      const expectedPeerLink = { resolved: '.', link: true };
+      if (JSON.stringify(rootLock.packages[peerLinkKey]) !== JSON.stringify(expectedPeerLink)) {
+        rootLock.packages[peerLinkKey] = expectedPeerLink;
+        didChange = true;
+      }
     }
   }
 
@@ -359,6 +431,22 @@ function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock }) {
       issues,
       relRootLockPath,
       `lockfile packages[""] version is ${JSON.stringify(rootLockEntry?.version)} but package.json has ${JSON.stringify(rootPkg.version)}`
+    );
+  }
+
+  collectDistLockIssues({
+    issues,
+    relRootLockPath,
+    rootPkg,
+    distEntry: rootLock.packages?.dist,
+  });
+
+  const rootPackageLink = rootLock.packages?.[`node_modules/${rootPkg.name}`];
+  if (rootPackageLink?.resolved !== '.' || rootPackageLink?.link !== true) {
+    pushIssue(
+      issues,
+      relRootLockPath,
+      `lockfile node_modules entry for ${rootPkg.name} must be a link resolved to "."`
     );
   }
 }
