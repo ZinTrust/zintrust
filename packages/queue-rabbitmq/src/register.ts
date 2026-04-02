@@ -22,10 +22,10 @@ const importCore = async (): Promise<unknown> => {
   }
 };
 
-const core = (await importCore()) as unknown as {
+const core = (await importCore()) as {
   Queue?: QueueApi;
 };
 
-if (core.Queue !== undefined) {
+if (typeof core.Queue?.register === 'function') {
   await registerRabbitMqQueueDriver(core.Queue);
 }

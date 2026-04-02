@@ -139,6 +139,7 @@ const resolveGatewayTimeoutMs = (config?: RabbitMqQueueConfig): number => {
 const shouldUseGateway = (config?: RabbitMqQueueConfig): boolean => {
   const gatewayUrl = resolveGatewayUrl(config);
   if (gatewayUrl !== '') return true;
+  if (typeof Cloudflare.getWorkersEnv !== 'function') return false;
   return Cloudflare.getWorkersEnv() !== null;
 };
 

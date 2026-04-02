@@ -8,6 +8,7 @@
 - `zin cm <model>`: Shortcut: create-table migration (creates `create_\<models>_table`)
 - `zin am <column> <model>`: Shortcut: add-column migration (creates `add_\<column>_\<models>_table`)
 - `zin prepare`: Prepare local dist/ for file: installs (dev workflow)
+- `zin wrangler:dev-vars` (alias: `zin cloudflare:dev-vars`): Generate manifest-scoped Wrangler `.dev.vars` files for local Worker development
 - `zin migrate`: Run database migrations
 - `zin d1:migrate`: Run Cloudflare D1 migrations
 - `zin migrate-to-d1`: Migrate external databases (MySQL/PostgreSQL/SQLite/SQL Server) into D1

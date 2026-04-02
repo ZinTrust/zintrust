@@ -13,6 +13,7 @@ export {
 } from '@cli/commands/CreateCommand';
 export { D1ProxyCommand } from '@cli/commands/D1ProxyCommand';
 export { DebugCommand } from '@cli/commands/DebugCommand';
+export { DebuggerCommands } from '@cli/commands/DebuggerCommands';
 export { JwtDevCommand } from '@cli/commands/JwtDevCommand';
 export { KvProxyCommand } from '@cli/commands/KvProxyCommand';
 export { LogsCleanupCommand } from '@cli/commands/LogsCleanupCommand';
@@ -30,3 +31,4 @@ export { RoutesCommand } from '@cli/commands/RoutesCommand';
 export { SecretsCommand } from '@cli/commands/SecretsCommand';
 export { StartCommand } from '@cli/commands/StartCommand';
 export { TemplatesCommand } from '@cli/commands/TemplatesCommand';
+export { WranglerDevVarsCommand } from '@cli/commands/WranglerDevVarsCommand';

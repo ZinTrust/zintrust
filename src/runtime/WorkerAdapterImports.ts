@@ -23,11 +23,7 @@ const tryImportProjectRuntime = async (): Promise<void> => {
 const tryImportOptional = async (): Promise<void> => {
   await tryImportProjectRuntime();
 
-  try {
-    await import('@/zintrust.plugins.wg');
-  } catch {
-    // Log and swallow errors since these are optional imports that may not exist in all projects.
-  }
+  await import('@runtime/WorkerProjectPlugins');
 };
 
 const ready = await tryImportOptional();

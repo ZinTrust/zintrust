@@ -13,6 +13,7 @@ export { AddCommand } from '@cli/commands/AddCommand';
 export { ConfigCommand } from '@cli/commands/ConfigCommand';
 export { D1ProxyCommand } from '@cli/commands/D1ProxyCommand';
 export { DebugCommand } from '@cli/commands/DebugCommand';
+export { DebuggerCommands } from '@cli/commands/DebuggerCommands';
 export { KvProxyCommand } from '@cli/commands/KvProxyCommand';
 export { MigrateCommand } from '@cli/commands/MigrateCommand';
 export { MySqlProxyCommand } from '@cli/commands/MySqlProxyCommand';

@@ -65,6 +65,7 @@ import { SqlServerProxyCommand } from '@cli/commands/SqlServerProxyCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
+import { WranglerDevVarsCommand } from '@cli/commands/WranglerDevVarsCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { OptionalCliCommandRegistry } from '@cli/OptionalCliCommandRegistry';
 import { VersionChecker } from '@cli/services/VersionChecker';
@@ -100,6 +101,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     NewCommand.create(),
     UpgradeCommand.create(),
     PrepareCommand,
+    WranglerDevVarsCommand.create(),
     InitContainerCommand.create(),
     InitContainersProxyCommand.create(),
     InitProxyCommand.create(),

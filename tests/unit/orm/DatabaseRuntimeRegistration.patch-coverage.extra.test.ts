@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
-import { useDatabase } from '@orm/Database';
+import { aliasDatabaseConnection, useDatabase } from '@orm/Database';
 import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 
 vi.mock('@orm/Database');
@@ -22,8 +22,8 @@ describe('DatabaseRuntimeRegistration patch coverage (extra)', () => {
 
     expect((useDatabase as unknown as Mock).mock.calls).toEqual([
       [expect.objectContaining({ driver: 'weird' }), 'weird'],
-      [expect.objectContaining({ driver: 'weird' }), 'default'],
     ]);
+    expect(aliasDatabaseConnection).toHaveBeenCalledWith('default', 'weird');
   });
 
   it('throws when default connection is not configured', () => {

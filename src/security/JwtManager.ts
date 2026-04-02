@@ -4,6 +4,7 @@
  * Uses native Node.js crypto module (zero external dependencies)
  */
 
+import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { securityConfig } from '@config/security';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { createHmac, createSign, createVerify, randomBytes } from '@node-singletons/crypto';
@@ -68,12 +69,38 @@ const createJwt = (): IJwtManager => {
   return jwt;
 };
 
+const getAuthHeaderValue = (authHeader: AuthorizationHeader): string | undefined => {
+  if (typeof authHeader === 'string') return authHeader;
+  if (Array.isArray(authHeader)) return authHeader[0];
+  return undefined;
+};
+
+const getLogoutSubject = (authHeader: AuthorizationHeader): string | undefined => {
+  const rawHeader = getAuthHeaderValue(authHeader)?.trim() ?? '';
+  if (rawHeader === '') return undefined;
+
+  const bearerToken = rawHeader.toLowerCase().startsWith('bearer ')
+    ? rawHeader.slice(7).trim()
+    : rawHeader;
+  if (bearerToken === '') return undefined;
+
+  try {
+    const payload = JwtManager.create().decode(bearerToken);
+    return typeof payload.sub === 'string' && payload.sub.trim() !== '' ? payload.sub : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const logout = async (authHeader: AuthorizationHeader): Promise<void> => {
+  const subject = getLogoutSubject(authHeader);
   await JwtSessions.logout(authHeader);
+  SystemDebuggerBridge.emitAuth('logout', subject);
 };
 
 const logoutAll = async (sub: string): Promise<void> => {
   await JwtSessions.logoutAll(sub);
+  SystemDebuggerBridge.emitAuth('logout', sub);
 };
 
 const signAccessToken = async (payload: JwtPayload, expiresIn?: number): Promise<string> => {
@@ -103,6 +130,7 @@ const signAccessToken = async (payload: JwtPayload, expiresIn?: number): Promise
   }
 
   await JwtSessions.register(token);
+  SystemDebuggerBridge.emitAuth('login', typeof payload.sub === 'string' ? payload.sub : undefined);
   return token;
 };
 

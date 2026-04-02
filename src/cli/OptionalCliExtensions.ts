@@ -93,6 +93,18 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
       path.join(packageRoot, 'dist', 'packages', 'workers', 'src', 'register.js'),
     ],
   },
+  {
+    packageName: '@zintrust/system-debugger',
+    specifier: '@zintrust/system-debugger/cli-register',
+    commands: ['debugger:prune', 'debugger:clear', 'debugger:status', 'migrate:debugger'],
+    installCommand: 'npm install @zintrust/system-debugger',
+    localCandidates: [
+      path.join(packageRoot, 'packages', 'system-debugger', 'src', 'cli-register.ts'),
+      path.join(packageRoot, 'packages', 'system-debugger', 'src', 'cli-register.js'),
+      path.join(packageRoot, 'packages', 'system-debugger', 'dist', 'cli-register.js'),
+      path.join(packageRoot, 'dist', 'packages', 'system-debugger', 'src', 'cli-register.js'),
+    ],
+  },
 ]);
 
 const getProjectLocalCandidates = (entry: OptionalCliExtension): string[] => {

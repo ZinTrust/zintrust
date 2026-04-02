@@ -1,4 +1,5 @@
 import { generateUuid } from '@/common/utility';
+import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { ZintrustLang } from '@/lang/lang';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
@@ -214,6 +215,8 @@ export const Queue = Object.freeze({
         payload,
         requestedUniqueId,
       });
+
+      SystemDebuggerBridge.emitJobDispatch(queue, queue, resolvedDriver, payload);
 
       return jobId;
     } catch (error) {

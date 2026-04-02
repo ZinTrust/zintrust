@@ -239,7 +239,6 @@ export default {
       await injectIoredisModule();
 
       const kernel = await getKernel();
-
       const adapter = CloudflareAdapter.create({
         handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
           await kernel.handle(req, res);

@@ -23,6 +23,61 @@ Bulletproof mode validates **semantic correctness** after character whitelisting
 
 ---
 
+## Available Sanitizers
+
+The `Sanitizer` object exposes **24 methods** grouped by purpose. Methods marked **BP** support a `bulletproof` parameter (defaults to `true`); their in-depth documentation is in the [Bulletproof Methods](#bulletproof-methods) section below.
+
+### Numeric
+
+| Method                                                              | BP  | Description                                                    |
+| ------------------------------------------------------------------- | --- | -------------------------------------------------------------- |
+| [`digitsOnly`](#digitsonly)                                         | ✅  | Strip non-digits; validates positive integer IDs               |
+| [`parseAmount`](#parseamount)                                       | ✅  | Parse currency/financial amounts                               |
+| [`nonNegativeNumericStringOrNull`](#nonnegativenumericstringornull) | ✅  | Non-negative integer or decimal string, `null` for non-numeric |
+| [`decimalString`](#decimalstring)                                   | ✅  | Decimal numbers for prices or measurements                     |
+| `numericDotOnly`                                                    | —   | Digits and dots only; no semantic validation                   |
+| `alphanumeric`                                                      | —   | Letters and numbers; strips spaces                             |
+
+### Text
+
+| Method                                    | BP  | Description                                                     |
+| ----------------------------------------- | --- | --------------------------------------------------------------- |
+| [`email`](#email)                         | ✅  | Email addresses with `@` format validation                      |
+| [`nameText`](#nametext)                   | ✅  | User names; requires at least one letter                        |
+| [`safePasswordChars`](#safepasswordchars) | ✅  | Passwords; strips disallowed chars, enforces max length         |
+| `emailLike`                               | —   | Email-like characters (loose, no format check)                  |
+| `addressText`                             | —   | Addresses; allows letters, digits, `-`, `.`, `@`, `+`, `,`, `_` |
+| `messageText`                             | —   | General messages; allows letters, digits, and basic punctuation |
+| `wordCharsAndSpaces`                      | —   | Word characters (`\w`) and spaces                               |
+
+### Alpha / Case Variants
+
+| Method                  | BP  | Description                         |
+| ----------------------- | --- | ----------------------------------- |
+| `alphanumericDotDash`   | —   | Letters, digits, dots, and dashes   |
+| `alphanumericNoSpaces`  | —   | Letters and digits, no spaces       |
+| `alphaNumericColonDash` | —   | Letters, digits, colons, and dashes |
+| `lowercaseAlphanumeric` | —   | Lowercase letters and digits        |
+| `uppercaseAlphanumeric` | —   | Uppercase letters and digits        |
+
+### Date / Network
+
+| Method              | BP  | Description                      |
+| ------------------- | --- | -------------------------------- |
+| `dateSlash`         | —   | Digits and slashes (date format) |
+| `dateSlashNoSpaces` | —   | Digits and slashes, no spaces    |
+| `ipAddressText`     | —   | IP-address-safe characters       |
+
+### Tokens / Identifiers
+
+| Method          | BP  | Description                               |
+| --------------- | --- | ----------------------------------------- |
+| `uuidTokenSafe` | —   | UUID-safe character set                   |
+| `tokenSafe`     | —   | General token-safe characters             |
+| `keyLike`       | —   | Key-like strings (config/env identifiers) |
+
+---
+
 ## Bulletproof Methods
 
 ### Numeric Sanitizers
@@ -41,7 +96,7 @@ Bulletproof mode validates **semantic correctness** after character whitelisting
 **Usage:**
 
 ```typescript
-import { Sanitizer } from '@security/Sanitizer';
+import { Sanitizer } from '@zintrust/core';
 
 // ✅ Valid IDs
 const id1 = Sanitizer.digitsOnly('82'); // '82'
@@ -251,8 +306,7 @@ Sanitizer.safePasswordChars('$$$'); // Empty after sanitization
 Use try-catch to handle `SanitizerError` and convert to 422 validation responses:
 
 ```typescript
-import { Sanitizer } from '@security/Sanitizer';
-import { SanitizerError } from '@exceptions/ZintrustError';
+import { Sanitizer, SanitizerError } from '@zintrust/core';
 
 async show(req: IRequest, res: IResponse): Promise\<void> {
   try {
@@ -292,8 +346,7 @@ const isSanitizerError = (error: unknown): error is SanitizerError => {
 Automatically handles `SanitizerError` and converts to 422 validation responses:
 
 ```typescript
-import { ValidationMiddleware } from '@middleware/ValidationMiddleware';
-import { Schema } from '@validation/Validator';
+import { ValidationMiddleware, Schema } from '@zintrust/core';
 
 const userUpdateSchema = Schema.create().required('name').required('email');
 

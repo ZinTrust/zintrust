@@ -1,3 +1,4 @@
+import { materializeWranglerDevVars } from '@cli/cloudflare/CloudflareWranglerDevEnv';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { DistPackager } from '@cli/utils/DistPackager';
 import { SpawnUtil } from '@cli/utils/spawn';
@@ -26,6 +27,10 @@ vi.mock('@config/logger', () => ({
 
 vi.mock('@common/index', () => ({
   resolveNpmPath: vi.fn(),
+}));
+
+vi.mock('@cli/cloudflare/CloudflareWranglerDevEnv', () => ({
+  materializeWranglerDevVars: vi.fn(),
 }));
 
 describe('PrepareCommand', () => {
@@ -78,6 +83,30 @@ describe('PrepareCommand', () => {
       cwd: process.cwd(),
     });
     expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('Linked'));
+  });
+
+  it('should materialize Wrangler dev vars when --dev-vars is provided', async () => {
+    const command = PrepareCommand.getCommand();
+    command.exitOverride();
+    vi.mocked(materializeWranglerDevVars).mockResolvedValue({
+      filePath: '/workspace/.dev.vars.development',
+      selectedKeys: ['APP_KEY', 'JWT_SECRET'],
+      missingKeys: ['SESSION_SECRET'],
+      values: { APP_KEY: 'app-key', JWT_SECRET: 'jwt-secret' },
+    });
+
+    await command.parseAsync(['node', 'test', '--dev-vars', 'development']);
+
+    expect(materializeWranglerDevVars).toHaveBeenCalledWith({
+      cwd: process.cwd(),
+      projectRoot: process.cwd(),
+      envName: 'development',
+      envPath: '.env',
+      requireSelection: true,
+    });
+    expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('Wrangler dev vars prepared'));
+    expect(Logger.info).toHaveBeenCalledWith('Selected keys: 2');
+    expect(Logger.info).toHaveBeenCalledWith('Missing keys: SESSION_SECRET');
   });
 
   it('should throw error if npm link fails', async () => {

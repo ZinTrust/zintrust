@@ -25,6 +25,21 @@ const createMockDb = () => ({
   disconnect: vi.fn(),
 });
 
+const getRelationIds = (value: unknown): unknown[] => {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => (entry as IModel).getAttribute('id'));
+};
+
+const getRelationDescriptor = (value: unknown): Record<string, unknown> | null => {
+  if (value === null || value === undefined) return null;
+
+  const model = value as IModel;
+  return {
+    table: model.getTable(),
+    id: model.getAttribute('id'),
+  };
+};
+
 beforeEach(() => {
   mockDb = createMockDb();
   vi.mocked(useDatabase).mockReturnValue(mockDb as never);
@@ -264,6 +279,349 @@ describe('Constrained eager loading with callbacks', () => {
 
     expect(users).toHaveLength(1);
     expect(mockDb.query).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('Eager vs lazy parity across relations', () => {
+  it('matches hasMany eager loading with lazy loading', async () => {
+    const Post = Model.define({
+      table: 'posts',
+      fillable: ['id', 'user_id', 'title'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const User = Model.define(
+      {
+        table: 'users',
+        fillable: ['id', 'name'],
+        hidden: [],
+        timestamps: false,
+        casts: {},
+      },
+      (u) => ({
+        posts: () => u.hasMany(Post, 'user_id'),
+      })
+    );
+
+    mockDb.query.mockResolvedValueOnce([
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([
+      { id: 101, user_id: 1, title: 'A1' },
+      { id: 102, user_id: 1, title: 'A2' },
+      { id: 201, user_id: 2, title: 'B1' },
+    ]);
+
+    const eagerUsers = await User.query().with('posts').get<IModel>();
+    const eagerIds = eagerUsers.map((user) => getRelationIds(user.getRelation('posts')));
+
+    mockDb.query.mockResolvedValueOnce([
+      { id: 101, user_id: 1, title: 'A1' },
+      { id: 102, user_id: 1, title: 'A2' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([{ id: 201, user_id: 2, title: 'B1' }]);
+
+    const lazyUsers = [
+      User.hydrate({ id: 1, name: 'Alice' }),
+      User.hydrate({ id: 2, name: 'Bob' }),
+    ];
+    const lazyIds = await Promise.all(
+      lazyUsers.map(async (user) => getRelationIds(await user.posts().get(user)))
+    );
+
+    expect(eagerIds).toEqual(lazyIds);
+  });
+
+  it('matches belongsTo eager loading with lazy loading including null and shared parents', async () => {
+    const User = Model.define({
+      table: 'users',
+      fillable: ['id', 'name'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const Post = Model.define(
+      {
+        table: 'posts',
+        fillable: ['id', 'user_id', 'title'],
+        hidden: [],
+        timestamps: false,
+        casts: {},
+      },
+      (p) => ({
+        user: () => p.belongsTo(User, 'user_id'),
+      })
+    );
+
+    mockDb.query.mockResolvedValueOnce([
+      { id: 1, user_id: 7, title: 'One' },
+      { id: 2, user_id: null, title: 'Two' },
+      { id: 3, user_id: 7, title: 'Three' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([{ id: 7, name: 'Alice' }]);
+
+    const eagerPosts = await Post.query().with('user').get<IModel>();
+    const eagerUsers = eagerPosts.map((post) => getRelationDescriptor(post.getRelation('user')));
+
+    mockDb.query.mockResolvedValueOnce([{ id: 7, name: 'Alice' }]);
+    mockDb.query.mockResolvedValueOnce([{ id: 7, name: 'Alice' }]);
+
+    const lazyPosts = [
+      Post.hydrate({ id: 1, user_id: 7, title: 'One' }),
+      Post.hydrate({ id: 2, user_id: null, title: 'Two' }),
+      Post.hydrate({ id: 3, user_id: 7, title: 'Three' }),
+    ];
+    const lazyUsers = await Promise.all(
+      lazyPosts.map(async (post) => getRelationDescriptor(await post.user().get(post)))
+    );
+
+    expect(eagerUsers).toEqual(lazyUsers);
+  });
+
+  it('matches belongsToMany eager loading with the lazy pivot path', async () => {
+    const Role = Model.define({
+      table: 'roles',
+      fillable: ['id', 'name'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const User = Model.define(
+      {
+        table: 'users',
+        fillable: ['id', 'name'],
+        hidden: [],
+        timestamps: false,
+        casts: {},
+      },
+      (u) => ({
+        roles: () => u.belongsToMany(Role, 'user_roles', 'user_id', 'role_id'),
+      })
+    );
+
+    mockDb.query.mockResolvedValueOnce([
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([
+      { id: 11, name: 'Admin', __zin_belongs_to_many_parent_key: 1 },
+      { id: 12, name: 'Editor', __zin_belongs_to_many_parent_key: 1 },
+      { id: 12, name: 'Editor', __zin_belongs_to_many_parent_key: 2 },
+      { id: 13, name: 'Viewer', __zin_belongs_to_many_parent_key: 2 },
+    ]);
+
+    const eagerUsers = await User.query().with('roles').get<IModel>();
+    const eagerRoles = eagerUsers.map((user) => getRelationIds(user.getRelation('roles')));
+
+    mockDb.query.mockResolvedValueOnce([
+      { id: 11, name: 'Admin' },
+      { id: 12, name: 'Editor' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([
+      { id: 12, name: 'Editor' },
+      { id: 13, name: 'Viewer' },
+    ]);
+
+    const lazyUsers = [
+      User.hydrate({ id: 1, name: 'Alice' }),
+      User.hydrate({ id: 2, name: 'Bob' }),
+    ];
+    const lazyRoles = await Promise.all(
+      lazyUsers.map(async (user) => getRelationIds(await user.roles().get(user)))
+    );
+
+    expect(eagerRoles).toEqual(lazyRoles);
+  });
+
+  it('matches morphTo eager loading with lazy loading', async () => {
+    const Post = Model.define({
+      table: 'posts',
+      fillable: ['id', 'title'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const Video = Model.define({
+      table: 'videos',
+      fillable: ['id', 'url'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const morphMap = { posts: Post, videos: Video };
+
+    const Comment = Model.define(
+      {
+        table: 'comments',
+        fillable: ['id', 'body', 'commentable_type', 'commentable_id'],
+        hidden: [],
+        timestamps: false,
+        casts: {},
+      },
+      (c) => ({
+        commentable: () => c.morphTo('commentable', morphMap),
+      })
+    );
+
+    mockDb.query.mockResolvedValueOnce([
+      { id: 1, body: 'Comment 1', commentable_type: 'posts', commentable_id: 10 },
+      { id: 2, body: 'Comment 2', commentable_type: 'videos', commentable_id: 20 },
+    ]);
+    mockDb.query.mockResolvedValueOnce([{ id: 10, title: 'Post 10' }]);
+    mockDb.query.mockResolvedValueOnce([{ id: 20, url: 'video-20.mp4' }]);
+
+    const eagerComments = await Comment.query().with('commentable').get<IModel>();
+    const eagerParents = eagerComments.map((comment) =>
+      getRelationDescriptor(comment.getRelation('commentable'))
+    );
+
+    mockDb.query.mockResolvedValueOnce([{ id: 10, title: 'Post 10' }]);
+    mockDb.query.mockResolvedValueOnce([{ id: 20, url: 'video-20.mp4' }]);
+
+    const lazyComments = [
+      Comment.hydrate({ id: 1, body: 'Comment 1', commentable_type: 'posts', commentable_id: 10 }),
+      Comment.hydrate({ id: 2, body: 'Comment 2', commentable_type: 'videos', commentable_id: 20 }),
+    ];
+    const lazyParents = await Promise.all(
+      lazyComments.map(async (comment) =>
+        getRelationDescriptor(await comment.commentable().get(comment))
+      )
+    );
+
+    expect(eagerParents).toEqual(lazyParents);
+  });
+
+  it('matches hasManyThrough eager loading with lazy loading', async () => {
+    const User = Model.define({
+      table: 'users',
+      fillable: ['id', 'country_id', 'name'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const Post = Model.define({
+      table: 'posts',
+      fillable: ['id', 'user_id', 'title'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const Country = Model.define(
+      {
+        table: 'countries',
+        fillable: ['id', 'name'],
+        hidden: [],
+        timestamps: false,
+        casts: {},
+      },
+      (c) => ({
+        posts: () => c.hasManyThrough(Post, User),
+      })
+    );
+
+    mockDb.query.mockResolvedValueOnce([
+      { id: 1, name: 'USA' },
+      { id: 2, name: 'UK' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([
+      { id: 101, user_id: 1, title: 'Post 1' },
+      { id: 201, user_id: 2, title: 'Post 2' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([
+      { id: 1, country_id: 1, name: 'Alice' },
+      { id: 2, country_id: 2, name: 'Bob' },
+    ]);
+
+    const eagerCountries = await Country.query().with('posts').get<IModel>();
+    const eagerPosts = eagerCountries.map((country) =>
+      getRelationIds(country.getRelation('posts'))
+    );
+
+    mockDb.query.mockResolvedValueOnce([{ id: 101, user_id: 1, title: 'Post 1' }]);
+    mockDb.query.mockResolvedValueOnce([{ id: 201, user_id: 2, title: 'Post 2' }]);
+
+    const lazyCountries = [
+      Country.hydrate({ id: 1, name: 'USA' }),
+      Country.hydrate({ id: 2, name: 'UK' }),
+    ];
+    const lazyPosts = await Promise.all(
+      lazyCountries.map(async (country) => getRelationIds(await country.posts().get(country)))
+    );
+
+    expect(eagerPosts).toEqual(lazyPosts);
+  });
+
+  it('matches hasOneThrough eager loading with lazy loading', async () => {
+    const User = Model.define({
+      table: 'users',
+      fillable: ['id', 'country_id', 'name'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const Profile = Model.define({
+      table: 'profiles',
+      fillable: ['id', 'user_id', 'bio'],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+
+    const Country = Model.define(
+      {
+        table: 'countries',
+        fillable: ['id', 'name'],
+        hidden: [],
+        timestamps: false,
+        casts: {},
+      },
+      (c) => ({
+        profile: () => c.hasOneThrough(Profile, User),
+      })
+    );
+
+    mockDb.query.mockResolvedValueOnce([
+      { id: 1, name: 'USA' },
+      { id: 2, name: 'UK' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([
+      { id: 301, user_id: 1, bio: 'Alice profile' },
+      { id: 302, user_id: 2, bio: 'Bob profile' },
+    ]);
+    mockDb.query.mockResolvedValueOnce([
+      { id: 1, country_id: 1, name: 'Alice' },
+      { id: 2, country_id: 2, name: 'Bob' },
+    ]);
+
+    const eagerCountries = await Country.query().with('profile').get<IModel>();
+    const eagerProfiles = eagerCountries.map((country) =>
+      getRelationDescriptor(country.getRelation('profile'))
+    );
+
+    mockDb.query.mockResolvedValueOnce([{ id: 301, user_id: 1, bio: 'Alice profile' }]);
+    mockDb.query.mockResolvedValueOnce([{ id: 302, user_id: 2, bio: 'Bob profile' }]);
+
+    const lazyCountries = [
+      Country.hydrate({ id: 1, name: 'USA' }),
+      Country.hydrate({ id: 2, name: 'UK' }),
+    ];
+    const lazyProfiles = await Promise.all(
+      lazyCountries.map(async (country) =>
+        getRelationDescriptor(await country.profile().get(country))
+      )
+    );
+
+    expect(eagerProfiles).toEqual(lazyProfiles);
   });
 });
 

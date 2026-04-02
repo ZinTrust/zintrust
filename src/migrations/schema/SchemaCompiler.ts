@@ -229,12 +229,14 @@ function buildCreateIndexSql(driver: SupportedDriver, table: string, idx: IndexD
   assertIdentifier(SchOther.INDEX, idx.name);
   for (const c of idx.columns) assertIdentifier(SchOther.COLUMN, c);
 
-  const unique = idx.type === ColumnType.UNIQUE ? `${ColumnType.UNIQUE} ` : '';
+  const createPrefix =
+    idx.type === ColumnType.UNIQUE ? 'CREATE UNIQUE INDEX' : ColumnType.CREATE_INDEX_S;
   const cols = idx.columns.map((c) => quoteIdent(driver, c)).join(', ');
 
-  return `${ColumnType.CREATE_INDEX_S} ${unique}${quoteIdent(driver, idx.name)} ${
-    ColumnType.ON
-  } ${quoteIdent(driver, table)} (${cols})`;
+  return `${createPrefix} ${quoteIdent(driver, idx.name)} ${ColumnType.ON} ${quoteIdent(
+    driver,
+    table
+  )} (${cols})`;
 }
 
 function buildDropIndexSql(driver: SupportedDriver, table: string, indexName: string): string {

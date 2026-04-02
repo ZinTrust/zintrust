@@ -203,9 +203,9 @@ describe('patch coverage: RedisTransport', () => {
 
     await new Promise<void>((resolve) => {
       const stream = client.scanStream();
-      stream.on('error', (error: unknown) => {
-        expect(error).toBeInstanceOf(Error);
-        expect(String(error)).toContain('scan failed');
+      stream.on('error', (streamError: unknown) => {
+        expect(streamError).toBeInstanceOf(Error);
+        expect(String(streamError)).toContain('scan failed');
         resolve();
       });
     });

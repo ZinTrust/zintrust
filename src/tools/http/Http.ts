@@ -7,6 +7,7 @@
  */
 
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
+import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -105,6 +106,13 @@ async function performFetch(
     const startTime = Date.now();
     const response = await globalThis.fetch(state.url, init);
     const duration = Date.now() - startTime;
+    SystemDebuggerBridge.emitHttpClient(
+      state.method,
+      state.url,
+      { ...state.headers },
+      response.status,
+      duration
+    );
     return { response, durationMs: duration };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {

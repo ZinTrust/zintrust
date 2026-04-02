@@ -1,0 +1,56 @@
+{
+  "name": "@zintrust/system-debugger",
+  "version": "0.4.46",
+  "description": "Telescope-style debug assistant for ZinTrust: logs requests, queries, exceptions, jobs, and more.",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "migrations"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./cli-register": {
+      "types": "./dist/cli-register.d.ts",
+      "default": "./dist/cli-register.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "default": "./dist/plugin.js"
+    },
+    "./register": {
+      "types": "./dist/register.d.ts",
+      "default": "./dist/register.js"
+    },
+    "./migrations": {
+      "types": "./migrations/index.ts",
+      "default": "./migrations/index.ts"
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "peerDependencies": {
+    "@zintrust/core": "^0.4.46"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "zintrust",
+    "debugger",
+    "telescope",
+    "observability",
+    "tracing"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node ../../scripts/fix-dist-esm-imports.mjs dist",
+    "prepublishOnly": "npm run build"
+  }
+}

@@ -40,6 +40,14 @@ const getTimeoutManager = (): unknown => {
   }
 };
 
+const getSystemDebuggerBridge = (): unknown => {
+  try {
+    return (Core as Record<string, unknown>)['SystemDebuggerBridge'];
+  } catch {
+    return undefined;
+  }
+};
+
 const getEnvInt = (key: string, fallback: number): number => {
   const getter = (Env as { getInt?: (name: string, defaultValue: number) => number }).getInt;
   if (typeof getter === 'function') {
@@ -228,6 +236,22 @@ const getHeartbeatStoreApi = (): HeartbeatStoreApi => {
   return ((getJobHeartbeatStore() ?? {}) as HeartbeatStoreApi) ?? {};
 };
 
+const emitJobProcessed = (name: string): void => {
+  const bridge = (getSystemDebuggerBridge() ?? {}) as {
+    emitJobProcessed?: (jobName: string) => void;
+  };
+
+  bridge.emitJobProcessed?.(name);
+};
+
+const emitJobFailed = (name: string, error: Error): void => {
+  const bridge = (getSystemDebuggerBridge() ?? {}) as {
+    emitJobFailed?: (jobName: string, failure: Error) => void;
+  };
+
+  bridge.emitJobFailed?.(name, error);
+};
+
 const removeHeartbeatIfSupported = async (queueName: string, jobId: string): Promise<void> => {
   const heartbeatStore = getHeartbeatStoreApi();
   if (typeof heartbeatStore.remove === 'function') {
@@ -306,6 +330,7 @@ const onProcessSuccess = async <TPayload>(input: {
 
   await removeHeartbeatIfSupported(input.queueName, input.message.id);
   Logger.info(`${input.options.kindLabel} processed successfully`, input.baseLogFields);
+  emitJobProcessed(input.queueName);
   return true;
 };
 
@@ -328,6 +353,9 @@ const onProcessFailure = async <TPayload>(input: {
     error: input.error,
     attempts: nextAttempts,
   });
+
+  const failure = input.error instanceof Error ? input.error : new Error(String(input.error));
+  emitJobFailed(input.queueName, failure);
 
   if (isTimeoutError(input.error) && typeof input.trackerApi.timedOut === 'function') {
     await input.trackerApi.timedOut({

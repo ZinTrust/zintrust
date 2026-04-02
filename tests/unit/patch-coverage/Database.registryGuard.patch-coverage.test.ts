@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 describe('patch coverage: orm/Database registry guard', () => {
-  it('throws a config error when no adapters are registered', async () => {
+  it('falls back to the built-in adapter when no adapters are registered', async () => {
     vi.resetModules();
 
     // Ensure the global registry is empty for this test.
@@ -46,6 +46,8 @@ describe('patch coverage: orm/Database registry guard', () => {
 
     const db = Database.create({ driver: 'sqlite', database: ':memory:' } as any);
 
-    await expect(db.query('select 1', [])).rejects.toThrow(/No database adapters are registered/i);
+    await expect(db.query('select 1', [])).resolves.toEqual([]);
+    expect(fakeAdapter.connect).toHaveBeenCalledTimes(1);
+    expect(fakeAdapter.query).toHaveBeenCalledWith('select 1', []);
   });
 });

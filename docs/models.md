@@ -4,21 +4,38 @@ ZinTrust features a powerful, zero-dependency ORM that provides a clean, ActiveR
 
 ## Table of Contents
 
-- [Interface Reference](#interface-reference)
-- [Model Definition](#model-definition)
-- [Multi-Database Support](#multi-database-support)
-- [Querying](#querying)
-- [Relationships](#relationships)
-  - [Basic Relationships](#basic-relationships)
-  - [Loading Relationships](#loading-relationships)
-  - [Advanced Relationships](#advanced-relationships)
-- [Persistence](#persistence)
-- [Soft Deletes](#soft-deletes)
-- [Attribute Casting](#attribute-casting)
-- [Accessors & Mutators](#accessors--mutators)
-- [Model Observers](#model-observers)
-- [Query Scopes](#query-scopes)
-- [Best Practices](#best-practices)
+- [Models \& ORM](#models--orm)
+  - [Table of Contents](#table-of-contents)
+  - [Interface Reference](#interface-reference)
+  - [Defining Models](#defining-models)
+    - [Safe Mass Assignment (fillable)](#safe-mass-assignment-fillable)
+    - [Custom Methods](#custom-methods)
+    - [Using Models in Controllers \& Services](#using-models-in-controllers--services)
+  - [Multi-Database Support](#multi-database-support)
+    - [Relationships](#relationships)
+      - [Basic Relationships](#basic-relationships)
+        - [HasOne](#hasone)
+        - [HasMany](#hasmany)
+        - [BelongsTo](#belongsto)
+        - [BelongsToMany (Pivot Tables)](#belongstomany-pivot-tables)
+      - [Loading Relationships](#loading-relationships)
+        - [Lazy Loading](#lazy-loading)
+        - [Eager Loading](#eager-loading)
+        - [Constrained Eager Loading](#constrained-eager-loading)
+        - [Relationship Counts](#relationship-counts)
+      - [Advanced Relationships](#advanced-relationships)
+  - [Persistence](#persistence)
+  - [Multi-Database Support](#multi-database-support-1)
+    - [Quick Example](#quick-example)
+  - [Best Practices](#best-practices)
+    - [1. Use Type-Safe Model Methods](#1-use-type-safe-model-methods)
+    - [2. Leverage Relationships](#2-leverage-relationships)
+    - [3. Use Scopes for Common Queries](#3-use-scopes-for-common-queries)
+    - [4. Validate Before Saving](#4-validate-before-saving)
+    - [5. Handle Timestamps Automatically](#5-handle-timestamps-automatically)
+    - [6. Use Soft Deletes for Data Preservation](#6-use-soft-deletes-for-data-preservation)
+    - [7. Document Your Models](#7-document-your-models)
+    - [8. Test Model Methods](#8-test-model-methods)
 
 ## Interface Reference
 
@@ -341,6 +358,23 @@ users.forEach((user) => {
   Logger.info(`${user.getAttribute('name')} has ${posts.length} posts`);
 });
 ```
+
+Three equivalent signatures are available for eager loading multiple relations:
+
+```typescript
+// Array shorthand — starts a fresh query with all relations eager-loaded
+const users = await User.with(['posts', 'comments']).get<IModel>();
+
+// Chained — useful when mixing with other query builder methods
+const users = await User.query().with('posts').with('comments').get<IModel>();
+
+// Constraints object — apply per-relation query constraints inline
+const users = await User.query()
+  .with({ posts: (q) => q.where('status', 'published'), comments: (q) => q.limit(5) })
+  .get<IModel>();
+```
+
+Eager-loaded relations now follow the same null-or-empty semantics as the lazy `relation.get(instance)` path across supported relation types, including `belongsTo`, `belongsToMany`, polymorphic relations, and through relations. Single-row model reads such as `first()` and `firstOrFail()` also preserve the same hydrated model behavior as `get()` and `paginate()`.
 
 ##### Constrained Eager Loading
 

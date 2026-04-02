@@ -14,7 +14,6 @@ import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { MySQLProxyAdapter } from '@orm/adapters/MySQLProxyAdapter';
-import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { PostgreSQLProxyAdapter } from '@orm/adapters/PostgreSQLProxyAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
@@ -22,6 +21,7 @@ import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import { createSqlServerProxyAdapter } from '@orm/adapters/SqlServerProxyAdapter';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
+import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import type { IQueryBuilder } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
@@ -385,45 +385,27 @@ const createQueryHandlers = (
   execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
 } => {
-  let registryChecked = false;
-
-  const assertRegistryReady = (): void => {
-    if (registryChecked) return;
-    registryChecked = true;
-
-    const registry = DatabaseAdapterRegistry.list();
-    if (registry.length === 0) {
-      throw ErrorFactory.createConfigError(
-        'No database adapters are registered. Call DatabaseAdapterRegistry.register() during startup to register database adapters.'
-      );
-    }
-  };
-
   return {
     async query(sql: string, parameters: unknown[] = [], isRead = false) {
       if (connected.value === false) await db.connect();
       const adapter = getAdapter(isRead);
-      assertRegistryReady();
 
       return executeQuery(adapter, eventEmitter, sql, parameters, 'query');
     },
     async queryOne(sql: string, parameters: unknown[] = [], isRead = false) {
       if (connected.value === false) await db.connect();
       const adapter = getAdapter(isRead);
-      assertRegistryReady();
 
       return executeQueryOne(adapter, eventEmitter, sql, parameters);
     },
     async execute(sql: string, parameters: unknown[] = [], isRead = false) {
       if (connected.value === false) await db.connect();
       const adapter = getAdapter(isRead);
-      assertRegistryReady();
 
       return executeFullQuery(adapter, eventEmitter, sql, parameters);
     },
     async transaction<T>(callback: (db: IDatabase) => Promise<T>) {
       if (connected.value === false) await db.connect();
-      assertRegistryReady();
 
       return writeAdapter.transaction(async () => callback(db));
     },
@@ -625,8 +607,19 @@ export function useDatabase(config?: DatabaseConfig, connection = 'default'): ID
   return instance;
 }
 
+export function aliasDatabaseConnection(alias: string, targetConnection: string): IDatabase {
+  if (alias === targetConnection) {
+    return useDatabase(undefined, targetConnection);
+  }
+
+  const target = useDatabase(undefined, targetConnection);
+  databaseInstances.set(alias, target);
+  return target;
+}
+
 export async function resetDatabase(): Promise<void> {
-  const promises = Array.from(databaseInstances.values()).map(async (instance) => {
+  const uniqueInstances = Array.from(new Set(databaseInstances.values()));
+  const promises = uniqueInstances.map(async (instance) => {
     try {
       await instance.disconnect();
       instance.dispose();

@@ -20,6 +20,14 @@ const createProjectRuntimeMock = (manifest: unknown[]) => ({
   },
 });
 
+const { mockFsPromises } = vi.hoisted(() => ({
+  mockFsPromises: {
+    mkdir: vi.fn(),
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+  },
+}));
+
 vi.mock('@cli/utils/EnvFileLoader', () => ({
   EnvFileLoader: {
     ensureLoaded: vi.fn(),
@@ -51,6 +59,7 @@ vi.mock('@common/utility', () => ({
 
 vi.mock('@node-singletons/fs', () => ({
   existsSync: vi.fn(),
+  fsPromises: mockFsPromises,
   mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
   renameSync: vi.fn(),
@@ -58,6 +67,7 @@ vi.mock('@node-singletons/fs', () => ({
   writeFileSync: vi.fn(),
   default: {
     existsSync: vi.fn(),
+    fsPromises: mockFsPromises,
     mkdirSync: vi.fn(),
     readFileSync: vi.fn(),
     renameSync: vi.fn(),
@@ -74,6 +84,9 @@ describe('StartCommand', () => {
     vi.resetAllMocks();
     process.env = { ...originalEnv };
     process.argv = [...originalArgv];
+    vi.mocked(fs.fsPromises.mkdir).mockResolvedValue(undefined);
+    vi.mocked(fs.fsPromises.readFile).mockRejectedValue(new Error('missing env file'));
+    vi.mocked(fs.fsPromises.writeFile).mockResolvedValue(undefined);
     vi.spyOn(process, 'exit').mockImplementation((code: any) => {
       throw new Error(`process.exit: ${code}`);
     });
@@ -375,18 +388,19 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
       })
     );
 
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
+    expect(fs.fsPromises.mkdir).toHaveBeenCalledWith(serviceCwd, { recursive: true });
+    expect(fs.fsPromises.writeFile).toHaveBeenCalledWith(
       `${serviceCwd}/.dev.vars`,
       expect.stringContaining('ZINTRUST_PROJECT_ROOT='),
       'utf-8'
     );
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
+    expect(fs.fsPromises.writeFile).toHaveBeenCalledWith(
       `${serviceCwd}/.dev.vars`,
       expect.stringContaining('APP_KEY="shared-secret"'),
       'utf-8'
     );
     const devVarsOutput = vi
-      .mocked(fs.writeFileSync)
+      .mocked(fs.fsPromises.writeFile)
       .mock.calls.find((call) => call[0] === `${serviceCwd}/.dev.vars`)?.[1];
     expect(String(devVarsOutput ?? '')).not.toContain('UNRELATED_SECRET');
   });
