@@ -49,7 +49,7 @@ describe('Cron (extra coverage)', () => {
     // Force Intl path to throw so the search loop uses cheap UTC fallback.
     (Intl as any).DateTimeFormat = class {
       constructor() {
-        throw new Error('no intl');
+        throw 'no intl';
       }
     };
 
