@@ -4,6 +4,7 @@
  * Sealed namespace for immutability
  */
 
+import * as ZintrustCoreModule from '@zintrust/core';
 import {
   Cloudflare,
   createRedisConnection,
@@ -55,6 +56,10 @@ import {
 
 const path = NodeSingletons.path;
 
+type ProcessorPackageBridgeGlobal = typeof globalThis & {
+  __zintrustProcessorPackageBridges__?: Map<string, Record<string, unknown>>;
+};
+
 const isNodeRuntime = (): boolean =>
   typeof process !== 'undefined' && Boolean(process.versions?.node);
 
@@ -69,6 +74,59 @@ const canUseProjectFileImports = (): boolean =>
   typeof NodeSingletons?.fs?.existsSync === 'function' &&
   typeof NodeSingletons?.url?.pathToFileURL === 'function' &&
   typeof NodeSingletons?.path?.join === 'function';
+
+const getProcessorPackageBridgeGlobal = (): ProcessorPackageBridgeGlobal => {
+  return globalThis as ProcessorPackageBridgeGlobal;
+};
+
+const isValidBridgeExportName = (value: string): boolean => {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(value);
+};
+
+const resolveRuntimeBridgeModule = (specifier: string): Record<string, unknown> | null => {
+  if (specifier === '@zintrust/core') {
+    return ZintrustCoreModule as Record<string, unknown>;
+  }
+
+  return null;
+};
+
+const resolveRuntimeBridgeUrl = (specifier: string): string | null => {
+  if (!isNodeRuntime() || !canUseProjectFileImports()) return null;
+
+  const bridgeModule = resolveRuntimeBridgeModule(specifier);
+  if (bridgeModule === null) return null;
+
+  const dir = ensureProcessorSpecDir();
+  if (dir === null) return null;
+
+  const bridgeGlobal = getProcessorPackageBridgeGlobal();
+  bridgeGlobal.__zintrustProcessorPackageBridges__ ??= new Map<string, Record<string, unknown>>();
+  bridgeGlobal.__zintrustProcessorPackageBridges__.set(specifier, bridgeModule);
+
+  const safeName = specifier.replaceAll('@', '').replaceAll('/', '-');
+  const filePath = path.join(dir, `${safeName}.bridge.mjs`);
+  const exportLines = Object.keys(bridgeModule)
+    .filter((key) => key !== 'default' && isValidBridgeExportName(key))
+    .sort()
+    .map((key) => `export const ${key} = bridge[${JSON.stringify(key)}];`);
+
+  const code = [
+    'const bridgeMap = globalThis.__zintrustProcessorPackageBridges__;',
+    `const bridge = bridgeMap?.get(${JSON.stringify(specifier)}) ?? {};`,
+    'export default bridge;',
+    ...exportLines,
+    '',
+  ].join('\n');
+
+  try {
+    NodeSingletons.fs.writeFileSync(filePath, code, 'utf8');
+    return NodeSingletons.url.pathToFileURL(filePath).href;
+  } catch (error) {
+    Logger.debug(`Failed to write processor bridge for ${specifier}`, error);
+    return null;
+  }
+};
 
 const buildCandidatesForSpecifier = (specifier: string, root: string): string[] => {
   if (specifier === '@zintrust/core') {
@@ -117,6 +175,10 @@ const resolveLocalPackageFallback = (specifier: string): string | null => {
 
 const resolvePackageSpecifierUrl = (specifier: string): string | null => {
   if (!isNodeRuntime() || !canUseProjectFileImports()) return null;
+
+  const bridgeUrl = resolveRuntimeBridgeUrl(specifier);
+  if (bridgeUrl) return bridgeUrl;
+
   if (typeof NodeSingletons?.module?.createRequire !== 'function') {
     return resolveLocalPackageFallback(specifier);
   }
