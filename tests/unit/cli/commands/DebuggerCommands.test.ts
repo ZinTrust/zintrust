@@ -10,6 +10,7 @@ const envStrings: Record<string, string> = {
   DEBUGGER_BASE_PATH: '/debugger',
   HOST: '127.0.0.1',
   PORT: '7777',
+  APP_PORT: '',
 };
 
 const resolvedStorage = {
@@ -145,6 +146,8 @@ describe('DebuggerCommands', () => {
   afterEach(() => {
     envStrings.DEBUGGER_DB_CONNECTION = 'default';
     envStrings.DEBUGGER_BASE_PATH = '/debugger';
+    envStrings.APP_PORT = '';
+    envStrings.PORT = '7777';
     resolvedStorage.prune.mockReset();
     resolvedStorage.clear.mockReset();
     resolvedStorage.stats.mockReset();
@@ -406,6 +409,46 @@ describe('DebuggerCommands', () => {
       'Expected dashboard URL (if mounted): http://127.0.0.1:7777/debugger'
     );
     expect(ErrorHandler.info).toHaveBeenCalledWith('Stored entries: 0');
+  });
+
+  it('falls back to APP_PORT and exposes provider command wiring', async () => {
+    resolvedStorage.stats.mockResolvedValue({});
+    envStrings.DEBUGGER_BASE_PATH = 'internal-tools';
+    envStrings.PORT = '';
+    envStrings.APP_PORT = '8787';
+
+    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+
+    await DebuggerCommands.createDebuggerStatusCommand().execute({});
+
+    expect(ErrorHandler.info).toHaveBeenCalledWith(
+      'Expected dashboard URL (if mounted): http://127.0.0.1:8787/internal-tools'
+    );
+
+    const statusCommand = DebuggerCommands.createDebuggerStatusCommand().getCommand();
+    expect(statusCommand.options.map((option) => option.long)).toEqual(
+      expect.arrayContaining(['--local', '--remote', '--database'])
+    );
+
+    const providers = [
+      DebuggerCommands.createDebuggerPruneProvider(),
+      DebuggerCommands.createDebuggerClearProvider(),
+      DebuggerCommands.createDebuggerStatusProvider(),
+      DebuggerCommands.createDebuggerMigrateProvider(),
+    ];
+
+    expect(providers.map((provider) => provider.name)).toEqual([
+      'debugger:prune',
+      'debugger:clear',
+      'debugger:status',
+      'migrate:debugger',
+    ]);
+    expect(providers.map((provider) => provider.getCommand().name())).toEqual([
+      'debugger:prune',
+      'debugger:clear',
+      'debugger:status',
+      'migrate:debugger',
+    ]);
   });
 
   it('throws a packaging error when an installed debugger package exposes TS-only migrations', async () => {
