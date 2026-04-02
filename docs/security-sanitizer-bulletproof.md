@@ -25,15 +25,56 @@ Bulletproof mode validates **semantic correctness** after character whitelisting
 
 ## Available Sanitizers
 
-| Category | Method                                                              | Description                                                   |
-| -------- | ------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Numeric  | [`digitsOnly`](#digitsonly)                                         | Sanitize positive integer IDs for database queries            |
-| Numeric  | [`parseAmount`](#parseamount)                                       | Parse currency and financial amounts with overflow protection |
-| Numeric  | [`nonNegativeNumericStringOrNull`](#nonnegativenumericstringornull) | Validate non-negative numeric strings (integers or decimals)  |
-| Numeric  | [`decimalString`](#decimalstring)                                   | Sanitize decimal numbers (prices, measurements)               |
-| Text     | [`email`](#email)                                                   | Sanitize email addresses with format validation               |
-| Text     | [`nameText`](#nametext)                                             | Sanitize user names with letter requirement                   |
-| Text     | [`safePasswordChars`](#safepasswordchars)                           | Sanitize passwords by stripping disallowed characters         |
+The `Sanitizer` object exposes **24 methods** grouped by purpose. Methods marked **BP** support a `bulletproof` parameter (defaults to `true`); their in-depth documentation is in the [Bulletproof Methods](#bulletproof-methods) section below.
+
+### Numeric
+
+| Method                                                              | BP  | Description                                                    |
+| ------------------------------------------------------------------- | --- | -------------------------------------------------------------- |
+| [`digitsOnly`](#digitsonly)                                         | ✅  | Strip non-digits; validates positive integer IDs               |
+| [`parseAmount`](#parseamount)                                       | ✅  | Parse currency/financial amounts                               |
+| [`nonNegativeNumericStringOrNull`](#nonnegativenumericstringornull) | ✅  | Non-negative integer or decimal string, `null` for non-numeric |
+| [`decimalString`](#decimalstring)                                   | ✅  | Decimal numbers for prices or measurements                     |
+| `numericDotOnly`                                                    | —   | Digits and dots only; no semantic validation                   |
+| `alphanumeric`                                                      | —   | Letters and numbers; strips spaces                             |
+
+### Text
+
+| Method                                    | BP  | Description                                                     |
+| ----------------------------------------- | --- | --------------------------------------------------------------- |
+| [`email`](#email)                         | ✅  | Email addresses with `@` format validation                      |
+| [`nameText`](#nametext)                   | ✅  | User names; requires at least one letter                        |
+| [`safePasswordChars`](#safepasswordchars) | ✅  | Passwords; strips disallowed chars, enforces max length         |
+| `emailLike`                               | —   | Email-like characters (loose, no format check)                  |
+| `addressText`                             | —   | Addresses; allows letters, digits, `-`, `.`, `@`, `+`, `,`, `_` |
+| `messageText`                             | —   | General messages; allows letters, digits, and basic punctuation |
+| `wordCharsAndSpaces`                      | —   | Word characters (`\w`) and spaces                               |
+
+### Alpha / Case Variants
+
+| Method                  | BP  | Description                         |
+| ----------------------- | --- | ----------------------------------- |
+| `alphanumericDotDash`   | —   | Letters, digits, dots, and dashes   |
+| `alphanumericNoSpaces`  | —   | Letters and digits, no spaces       |
+| `alphaNumericColonDash` | —   | Letters, digits, colons, and dashes |
+| `lowercaseAlphanumeric` | —   | Lowercase letters and digits        |
+| `uppercaseAlphanumeric` | —   | Uppercase letters and digits        |
+
+### Date / Network
+
+| Method              | BP  | Description                      |
+| ------------------- | --- | -------------------------------- |
+| `dateSlash`         | —   | Digits and slashes (date format) |
+| `dateSlashNoSpaces` | —   | Digits and slashes, no spaces    |
+| `ipAddressText`     | —   | IP-address-safe characters       |
+
+### Tokens / Identifiers
+
+| Method          | BP  | Description                               |
+| --------------- | --- | ----------------------------------------- |
+| `uuidTokenSafe` | —   | UUID-safe character set                   |
+| `tokenSafe`     | —   | General token-safe characters             |
+| `keyLike`       | —   | Key-like strings (config/env identifiers) |
 
 ---
 

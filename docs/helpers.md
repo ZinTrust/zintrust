@@ -2,6 +2,97 @@
 
 The `@zintrust/core` module provides lightweight, runtime-agnostic validation and type-checking utilities designed for use in both Node.js and serverless request runtimes such as Cloudflare Workers.
 
+## Quick Reference
+
+All **45 helpers** verified against `src/helper/index.ts`.
+
+### Type Checkers
+
+| Helper       | Signature                                   | Description                   |
+| ------------ | ------------------------------------------- | ----------------------------- |
+| `isString`   | `(value) → value is string`                 | String primitive              |
+| `isArray`    | `(value) → value is unknown[]`              | Array                         |
+| `isObject`   | `(value) → value is Record<string,unknown>` | Plain object (not null/array) |
+| `isFunction` | `(value) → value is (...args) => unknown`   | Function                      |
+| `isDate`     | `(value) → value is Date`                   | Valid `Date` instance         |
+
+### Empty / Null / Undefined
+
+| Helper              | Signature           | Description                                    |
+| ------------------- | ------------------- | ---------------------------------------------- |
+| `isEmpty`           | `(value) → boolean` | `null \| undefined \| false \| 0 \| '' \| '0'` |
+| `isNull`            | `(value) → boolean` | `null`, string `'null'`, or `''`               |
+| `isUndefined`       | `(value) → boolean` | Strict `undefined`                             |
+| `isUndefinedOrNull` | `(value) → boolean` | `undefined` or satisfies `isNull`              |
+
+### Boolean
+
+| Helper            | Signature                         | Description                                                    |
+| ----------------- | --------------------------------- | -------------------------------------------------------------- |
+| `isBoolean`       | `(value, allowString?) → boolean` | Boolean primitive; optionally accepts `'true'/'false'/'1'/'0'` |
+| `isBooleanString` | `(value) → boolean`               | String `'true'/'false'/'1'/'0'` (case-insensitive)             |
+
+### Numeric Checks
+
+| Helper          | Signature                                      | Description                            |
+| --------------- | ---------------------------------------------- | -------------------------------------- |
+| `isNumeric`     | `(value) → boolean`                            | Finite number or numeric string        |
+| `isInt`         | `(value, allowString?, conditions?) → boolean` | Integer, optional string + bounds      |
+| `isFloat`       | `(value, allowString?, conditions?) → boolean` | Finite float, optional string + bounds |
+| `isIntString`   | `(value, conditions?) → boolean`               | Integer string shorthand               |
+| `isFloatString` | `(value, conditions?) → boolean`               | Float string shorthand                 |
+
+### Numeric Predicates
+
+| Helper          | Signature                     | Description           |
+| --------------- | ----------------------------- | --------------------- |
+| `isPositive`    | `(value) → boolean`           | `> 0`                 |
+| `isNegative`    | `(value) → boolean`           | `< 0`                 |
+| `isZero`        | `(value) → boolean`           | `=== 0`               |
+| `isEven`        | `(value) → boolean`           | Divisible by 2        |
+| `isOdd`         | `(value) → boolean`           | Not divisible by 2    |
+| `isDecimal`     | `(value) → boolean`           | Has decimal places    |
+| `isBetween`     | `(value, min, max) → boolean` | Inclusive range check |
+| `isDivisibleBy` | `(value, divisor) → boolean`  | No remainder          |
+
+### String / Format Checks
+
+| Helper             | Signature                            | Description                          |
+| ------------------ | ------------------------------------ | ------------------------------------ |
+| `isEmail`          | `(value) → boolean`                  | Valid email                          |
+| `isUrl`            | `(value) → boolean`                  | `http`/`https` URL                   |
+| `isAlpha`          | `(value) → boolean`                  | Letters only (A-Z, a-z)              |
+| `isAlphanumeric`   | `(value) → boolean`                  | Letters and numbers                  |
+| `isMatch`          | `(value, regex, options?) → boolean` | Regex match with ReDoS cap           |
+| `isWhitespaceOnly` | `(value) → boolean`                  | Non-empty but all whitespace         |
+| `isUUID`           | `(value) → boolean`                  | Valid UUID (any version)             |
+| `isJSON`           | `(value) → boolean`                  | Parseable JSON string                |
+| `isBase64`         | `(value) → boolean`                  | Valid Base64 string                  |
+| `isHexColor`       | `(value) → boolean`                  | `#RGB / #RGBA / #RRGGBB / #RRGGBBAA` |
+| `isSlug`           | `(value) → boolean`                  | Lowercase alphanumeric with hyphens  |
+| `isUpperCase`      | `(value) → boolean`                  | All uppercase                        |
+| `isLowerCase`      | `(value) → boolean`                  | All lowercase                        |
+
+### Collection / Length
+
+| Helper        | Signature                   | Description                 |
+| ------------- | --------------------------- | --------------------------- |
+| `isIn`        | `(value, array) → boolean`  | Value exists in array       |
+| `isNotIn`     | `(value, array) → boolean`  | Value absent from array     |
+| `isLength`    | `(value, length) → boolean` | Exact string/array length   |
+| `isMinLength` | `(value, min) → boolean`    | Minimum string/array length |
+| `isMaxLength` | `(value, max) → boolean`    | Maximum string/array length |
+
+### Non-Empty Checks
+
+| Helper             | Signature                                   | Description                       |
+| ------------------ | ------------------------------------------- | --------------------------------- |
+| `isNonEmptyString` | `(value) → value is string`                 | String with length > 0 after trim |
+| `isNonEmptyArray`  | `(value) → value is unknown[]`              | Array with at least one item      |
+| `isNonEmptyObject` | `(value) → value is Record<string,unknown>` | Object with at least one key      |
+
+---
+
 ## Table of Contents
 
 1. [Type Checkers](#type-checkers)
