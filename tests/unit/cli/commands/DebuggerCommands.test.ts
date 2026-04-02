@@ -144,10 +144,10 @@ vi.mock('@zintrust/system-debugger', () => ({
 
 describe('DebuggerCommands', () => {
   afterEach(() => {
-    envStrings.DEBUGGER_DB_CONNECTION = 'default';
-    envStrings.DEBUGGER_BASE_PATH = '/debugger';
-    envStrings.APP_PORT = '';
-    envStrings.PORT = '7777';
+    envStrings['DEBUGGER_DB_CONNECTION'] = 'default';
+    envStrings['DEBUGGER_BASE_PATH'] = '/debugger';
+    envStrings['APP_PORT'] = '';
+    envStrings['PORT'] = '7777';
     resolvedStorage.prune.mockReset();
     resolvedStorage.clear.mockReset();
     resolvedStorage.stats.mockReset();
@@ -180,7 +180,7 @@ describe('DebuggerCommands', () => {
   });
 
   it('uses DEBUGGER_DB_CONNECTION for debugger migrations when no explicit connection is provided', async () => {
-    envStrings.DEBUGGER_DB_CONNECTION = 'd1debug';
+    envStrings['DEBUGGER_DB_CONNECTION'] = 'd1debug';
 
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
     const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
@@ -230,7 +230,41 @@ describe('DebuggerCommands', () => {
   it('reads debugger status from Wrangler D1 JSON output', async () => {
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
     const { DebuggerConfig } = await import('@zintrust/system-debugger');
-    vi.mocked(DebuggerConfig.merge).mockReturnValue({ pruneAfterHours: 24, connection: 'd1debug' });
+    vi.mocked(DebuggerConfig.merge).mockReturnValue({
+      pruneAfterHours: 24,
+      connection: 'd1debug',
+      enabled: false,
+      ignoreRoutes: [],
+      slowQueryThreshold: 0,
+      logMinLevel: 'info',
+      watchers: {
+        request: undefined,
+        query: undefined,
+        exception: undefined,
+        log: undefined,
+        job: undefined,
+        cache: undefined,
+        schedule: undefined,
+        mail: undefined,
+        auth: undefined,
+        event: undefined,
+        model: undefined,
+        notification: undefined,
+        redis: undefined,
+        gate: undefined,
+        middleware: undefined,
+        command: undefined,
+        batch: undefined,
+        dump: undefined,
+        view: undefined,
+        clientRequest: undefined,
+      },
+      redaction: {
+        headers: [],
+        body: [],
+        query: [],
+      },
+    });
     vi.mocked(WranglerD1.executeSql).mockReturnValue(
       `\u001b[32m[\n  {\n    "results": [\n      { "type": "query", "cnt": 4 },\n      { "type": "request", "cnt": 2 }\n    ]\n  }\n]\u001b[0m`
     );
@@ -252,7 +286,41 @@ describe('DebuggerCommands', () => {
   it('falls back to Wrangler table parsing and clears entries through D1', async () => {
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
     const { DebuggerConfig } = await import('@zintrust/system-debugger');
-    vi.mocked(DebuggerConfig.merge).mockReturnValue({ pruneAfterHours: 24, connection: 'd1debug' });
+    vi.mocked(DebuggerConfig.merge).mockReturnValue({
+      pruneAfterHours: 24,
+      connection: 'd1debug',
+      enabled: false,
+      ignoreRoutes: [],
+      slowQueryThreshold: 0,
+      logMinLevel: 'info',
+      watchers: {
+        request: undefined,
+        query: undefined,
+        exception: undefined,
+        log: undefined,
+        job: undefined,
+        cache: undefined,
+        schedule: undefined,
+        mail: undefined,
+        auth: undefined,
+        event: undefined,
+        model: undefined,
+        notification: undefined,
+        redis: undefined,
+        gate: undefined,
+        middleware: undefined,
+        command: undefined,
+        batch: undefined,
+        dump: undefined,
+        view: undefined,
+        clientRequest: undefined,
+      },
+      redaction: {
+        headers: [],
+        body: [],
+        query: [],
+      },
+    });
     vi
       .mocked(WranglerD1.executeSql)
       .mockReturnValueOnce(['│ type │ cnt │', '│ query │ 3 │', '│ request │ 1 │'].join('\n'))
@@ -287,7 +355,41 @@ describe('DebuggerCommands', () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_800_000);
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
     const { DebuggerConfig } = await import('@zintrust/system-debugger');
-    vi.mocked(DebuggerConfig.merge).mockReturnValue({ pruneAfterHours: 24, connection: 'd1debug' });
+    vi.mocked(DebuggerConfig.merge).mockReturnValue({
+      pruneAfterHours: 24,
+      connection: 'd1debug',
+      enabled: false,
+      ignoreRoutes: [],
+      slowQueryThreshold: 0,
+      logMinLevel: 'info',
+      watchers: {
+        request: undefined,
+        query: undefined,
+        exception: undefined,
+        log: undefined,
+        job: undefined,
+        cache: undefined,
+        schedule: undefined,
+        mail: undefined,
+        auth: undefined,
+        event: undefined,
+        model: undefined,
+        notification: undefined,
+        redis: undefined,
+        gate: undefined,
+        middleware: undefined,
+        command: undefined,
+        batch: undefined,
+        dump: undefined,
+        view: undefined,
+        clientRequest: undefined,
+      },
+      redaction: {
+        headers: [],
+        body: [],
+        query: [],
+      },
+    });
     vi.mocked(WranglerD1.executeSql).mockReturnValue(`[
   {
     "results": [
@@ -398,7 +500,7 @@ describe('DebuggerCommands', () => {
 
   it('prints stored entries as zero when debugger storage is empty', async () => {
     resolvedStorage.stats.mockResolvedValue({});
-    envStrings.DEBUGGER_BASE_PATH = 'debugger';
+    envStrings['DEBUGGER_BASE_PATH'] = 'debugger';
     mockDebuggerModule();
 
     const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
@@ -413,9 +515,9 @@ describe('DebuggerCommands', () => {
 
   it('falls back to APP_PORT and exposes provider command wiring', async () => {
     resolvedStorage.stats.mockResolvedValue({});
-    envStrings.DEBUGGER_BASE_PATH = 'internal-tools';
-    envStrings.PORT = '';
-    envStrings.APP_PORT = '8787';
+    envStrings['DEBUGGER_BASE_PATH'] = 'internal-tools';
+    envStrings['PORT'] = '';
+    envStrings['APP_PORT'] = '8787';
 
     const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
 

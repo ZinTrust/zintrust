@@ -8,6 +8,7 @@ import type { ISchedule } from '@/scheduler/types';
 import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
 import { appConfig } from '@config/app';
+import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -19,6 +20,10 @@ let appInstance: ReturnType<typeof Application.create> | undefined;
 let serverInstance: ReturnType<typeof Server.create> | undefined;
 let isShuttingDown = false;
 let shutdownHandlersRegistered = false;
+
+const shouldSkipProjectPluginAutoImports = (): boolean => {
+  return appConfig.cloudflareWorker === true || Cloudflare.getWorkersEnv() !== null;
+};
 
 const logBootstrapErrorDetails = (error: unknown): void => {
   // Best-effort: surface startup config validation details (already redacted)
@@ -259,12 +264,14 @@ const BootstrapFunctions = Object.freeze({
           }
         }
 
-        const projectImports = await PluginAutoImports.tryImportProjectAutoImports();
-        if (!projectImports.ok && projectImports.reason !== 'not-found') {
-          Logger.warn(
-            'Project plugin auto-imports failed:',
-            ErrorFactory.createGeneralError('projectImports', projectImports.errorMessage)
-          );
+        if (!shouldSkipProjectPluginAutoImports()) {
+          const projectImports = await PluginAutoImports.tryImportProjectAutoImports();
+          if (!projectImports.ok && projectImports.reason !== 'not-found') {
+            Logger.warn(
+              'Project plugin auto-imports failed:',
+              ErrorFactory.createGeneralError('projectImports', projectImports.errorMessage)
+            );
+          }
         }
       } catch (error) {
         // best-effort; run without plugins if loader fails (e.g. non-Node runtime)
