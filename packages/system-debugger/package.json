@@ -8,13 +8,16 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "src",
-    "migrations"
+    "src"
   ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "default": "./dist/ui.js"
     },
     "./cli-register": {
       "types": "./dist/cli-register.d.ts",
@@ -29,8 +32,8 @@
       "default": "./dist/register.js"
     },
     "./migrations": {
-      "types": "./migrations/index.ts",
-      "default": "./migrations/index.ts"
+      "types": "./dist/migrations/index.d.ts",
+      "default": "./dist/migrations/index.js"
     }
   },
   "engines": {
@@ -50,7 +53,7 @@
     "tracing"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && node ../../scripts/fix-dist-esm-imports.mjs dist",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.migrations.json && node ../../scripts/fix-dist-esm-imports.mjs dist",
     "prepublishOnly": "npm run build"
   }
 }

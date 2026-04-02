@@ -3,7 +3,9 @@
  * Mounts the SPA + all REST API endpoints under the configured basePath.
  * Auth is NOT applied here — callers add middleware via routeOptions.
  */
-import { appConfig, Router, type IRouter, type RouteOptions } from '@zintrust/core';
+import { appConfig, Router, useDatabase, type IRouter, type RouteOptions } from '@zintrust/core';
+import { DebuggerConfig } from '../config';
+import { DebuggerStorage } from '../storage';
 import type { IDebuggerStorage } from '../types';
 import {
   addMonitoring,
@@ -23,6 +25,23 @@ export type DebuggerDashboardOptions = {
   basePath?: string;
   /** Optional ZinTrust middleware names to apply to all routes. */
   middleware?: ReadonlyArray<string>;
+};
+
+export type DebuggerDashboardRegistrationOptions = DebuggerDashboardOptions & {
+  /** Optional debugger storage connection override. Defaults to DebuggerConfig / runtime default. */
+  connectionName?: string;
+};
+
+const resolveDashboardConnectionName = (connectionName?: string): string | undefined => {
+  const explicitConnection = connectionName?.trim();
+  if (explicitConnection !== undefined && explicitConnection !== '') {
+    return explicitConnection;
+  }
+
+  const configuredConnection = DebuggerConfig.merge().connection?.trim();
+  return configuredConnection === undefined || configuredConnection === ''
+    ? undefined
+    : configuredConnection;
 };
 
 export const registerDebuggerRoutes = (
@@ -68,4 +87,15 @@ export const registerDebuggerRoutes = (
     Router.post(r, '/monitoring/:tag', addMonitoring, routeOptions);
     Router.del(r, '/monitoring/:tag', removeMonitoring, routeOptions);
   });
+};
+
+export const registerDebuggerDashboard = (
+  router: IRouter,
+  options: DebuggerDashboardRegistrationOptions = {}
+): void => {
+  const storage = DebuggerStorage.resolveStorage(
+    useDatabase(undefined, resolveDashboardConnectionName(options.connectionName))
+  );
+
+  registerDebuggerRoutes(router, storage, options);
 };

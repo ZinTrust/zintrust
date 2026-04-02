@@ -61,34 +61,40 @@ Why this is the preferred path:
 
 - The plugin files are the framework-owned opt-in point that ZinTrust already auto-loads during boot.
 - The core runtime can then lazy-load the debugger only after databases and the kernel are ready.
-- The dashboard route stays inactive unless the developer explicitly enables the plugin in `zintrust.plugins.*`.
+- The plugin activates debugger runtime logic only; the dashboard route stays inactive until you register it yourself.
 
-With the stock ZinTrust bootstrap, `DEBUGGER_ENABLED=true` plus the plugin import above will auto-mount the dashboard at `/debugger` by default. Override the path with `DEBUGGER_BASE_PATH=/your-path` and protect it with `DEBUGGER_MIDDLEWARE=auth,admin` when needed.
+With the stock ZinTrust bootstrap, `DEBUGGER_ENABLED=true` plus the plugin import above activates the watchers and storage integration. Dashboard UI/routes are a separate route-level opt-in.
 
 ### 3. Mount the dashboard
 
-If you use the stock ZinTrust runtime, you usually do **not** need to mount routes manually. The framework boot layer mounts the dashboard for you once all of these are true:
-
-- `@zintrust/system-debugger` is installed
-- `import '@zintrust/system-debugger/plugin';` exists in `src/zintrust.plugins.ts` or `src/zintrust.plugins.wg.ts`
-- `DEBUGGER_ENABLED=true`
-
-Manual route wiring is only for custom boot flows where you intentionally bypass the stock runtime bootstrap. Restrict access with middleware — the debugger does **not** apply auth automatically.
+Register the dashboard explicitly in your route file when you want the UI. Restrict access with middleware — the debugger does **not** apply auth automatically.
 
 ```ts
 // routes/api.ts
-import { Router, useDatabase } from '@zintrust/core';
-import { registerDebuggerRoutes, DebuggerStorage } from '@zintrust/system-debugger';
+import { registerDebuggerDashboard } from '@zintrust/system-debugger/ui';
 
-const db = useDatabase(); // your existing DB instance
-
-registerDebuggerRoutes(router, DebuggerStorage.resolveStorage(db), {
+registerDebuggerDashboard(router, {
   basePath: '/debugger', // default
   middleware: ['admin'], // apply your auth middleware here
 });
 ```
 
 The dashboard SPA will be available at `GET /debugger` (or your chosen `basePath`).
+
+If you need custom storage wiring, keep using the low-level route registrar:
+
+```ts
+import { useDatabase } from '@zintrust/core';
+import { registerDebuggerRoutes } from '@zintrust/system-debugger/ui';
+import { DebuggerStorage } from '@zintrust/system-debugger';
+
+const db = useDatabase();
+
+registerDebuggerRoutes(router, DebuggerStorage.resolveStorage(db), {
+  basePath: '/debugger',
+  middleware: ['admin'],
+});
+```
 
 If you need a manual late bootstrap instead of plugin-driven activation, you can still import `@zintrust/system-debugger/register` yourself, but that is the advanced path rather than the default project setup.
 
@@ -103,7 +109,7 @@ zin debugger:prune --hours 24
 zin debugger:clear
 ```
 
-`zin debugger:status` reports the active connection, retention window, current entry counts, and the dashboard URL derived from your current env.
+`zin debugger:status` reports the active connection, retention window, current entry counts, and the expected dashboard URL derived from your current env and route choices.
 
 ---
 
@@ -228,15 +234,17 @@ EntryType.CLIENT_REQUEST; // 'client_request'
 // Preferred plugin opt-in for stock ZinTrust boot
 import '@zintrust/system-debugger/plugin';
 
-// Advanced late bootstrap import
+// Advanced late bootstrap import for runtime hooks only
 import '@zintrust/system-debugger/register';
+
+// Lightweight dashboard/UI-only entrypoint
+import { registerDebuggerDashboard, registerDebuggerRoutes } from '@zintrust/system-debugger/ui';
 
 // Named exports
 import {
   DebuggerConfig, // configuration factory + merge helper
   DebuggerStorage, // storage facade (read/write entries)
   DebuggerContext, // per-request context (userId, batchId)
-  registerDebuggerRoutes, // dashboard route registrar
   EntryType, // sealed enum of entry types
   // individual watchers...
   HttpWatcher,
@@ -266,7 +274,7 @@ import {
 
 ## Security considerations
 
-- **Always** protect the dashboard with middleware (e.g. `middleware: ['admin']`). The `registerDebuggerRoutes` function does not apply any authentication by default.
+- **Always** protect the dashboard with middleware (e.g. `middleware: ['admin']`). `@zintrust/system-debugger/ui` exports `registerDebuggerDashboard(...)` and `registerDebuggerRoutes(...)`, and neither applies any authentication by default.
 - Sensitive fields in request headers and body are redacted using the `redaction` config before being stored. Review and extend the default redaction lists to match your application's data model.
 - Use a **dedicated database connection** (`DEBUGGER_DB_CONNECTION`) in production so debugger writes cannot impact your primary DB connection pool.
 - Keep `DEBUGGER_ENABLED=false` (or unset) in production unless actively investigating an issue.

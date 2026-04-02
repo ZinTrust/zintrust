@@ -14,8 +14,8 @@
  * calling `initDebugger(overrides)` instead.
  *
  * Routes are NOT auto-mounted here. Wire the dashboard into your router:
- *   import { registerDebuggerRoutes } from '@zintrust/system-debugger';
- *   registerDebuggerRoutes(router, DebuggerStorage.resolveStorage(db), {
+ *   import { registerDebuggerDashboard } from '@zintrust/system-debugger/ui';
+ *   registerDebuggerDashboard(router, {
  *     middleware: ['admin'],
  *   });
  */

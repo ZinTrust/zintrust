@@ -25,8 +25,12 @@ export { DebuggerContext } from './context';
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
+export { registerDebuggerDashboard } from './dashboard/routes';
 export { registerDebuggerRoutes } from './dashboard/routes';
-export type { DebuggerDashboardOptions } from './dashboard/routes';
+export type {
+  DebuggerDashboardOptions,
+  DebuggerDashboardRegistrationOptions,
+} from './dashboard/routes';
 
 // ---------------------------------------------------------------------------
 // Watchers (named re-exports for use with custom wiring)

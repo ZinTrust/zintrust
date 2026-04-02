@@ -17,6 +17,8 @@ describe('LockProvider.closeLockProvider', () => {
       scan: vi.fn().mockResolvedValue(['0', []]),
     };
 
+    const createRedisConnection = vi.fn(() => fakeRedis);
+
     vi.doMock('@config/queue', () => ({
       createBaseDrivers: () => ({
         redis: { host: '127.0.0.1', port: 6379, password: '', database: 0 },
@@ -24,7 +26,7 @@ describe('LockProvider.closeLockProvider', () => {
     }));
 
     vi.doMock('@config/workers', () => ({
-      createRedisConnection: () => fakeRedis,
+      createRedisConnection,
     }));
 
     // import after mocking so module picks up the mocks
@@ -38,6 +40,16 @@ describe('LockProvider.closeLockProvider', () => {
     // call acquire to force getRedisClient() to run and set the module-scoped client
     const lock = await provider.acquire('key1');
     expect(lock.acquired).toBe(true);
+    expect(createRedisConnection).toHaveBeenCalledWith(
+      {
+        host: '127.0.0.1',
+        port: 6379,
+        password: '',
+        db: 0,
+      },
+      3,
+      { subsystem: 'lock-provider' }
+    );
 
     // now call closeLockProvider and ensure quit was called
     await LockProvider.closeLockProvider();
