@@ -1,13 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let kvSpy: ReturnType<typeof vi.fn>;
 let slackSpy: ReturnType<typeof vi.fn>;
 let httpSpy: ReturnType<typeof vi.fn>;
+let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+let consoleDebugSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   vi.resetModules();
   delete process.env.NODE_ENV;
   delete process.env['LOG_FORMAT'];
+
+  consoleLogSpy = vi.spyOn(globalThis.console, 'log').mockImplementation(() => undefined);
+  consoleWarnSpy = vi.spyOn(globalThis.console, 'warn').mockImplementation(() => undefined);
+  consoleErrorSpy = vi.spyOn(globalThis.console, 'error').mockImplementation(() => undefined);
+  consoleDebugSpy = vi.spyOn(globalThis.console, 'debug').mockImplementation(() => undefined);
 
   // Recreate spies for each test so the mocked modules can reference them
   kvSpy = vi.fn();
@@ -18,6 +27,13 @@ beforeEach(() => {
   (globalThis as any).__kvSpy = kvSpy;
   (globalThis as any).__slackSpy = slackSpy;
   (globalThis as any).__httpSpy = httpSpy;
+});
+
+afterEach(() => {
+  consoleLogSpy.mockRestore();
+  consoleWarnSpy.mockRestore();
+  consoleErrorSpy.mockRestore();
+  consoleDebugSpy.mockRestore();
 });
 
 describe('Logger additional branches', () => {
@@ -238,5 +254,36 @@ describe('Logger additional branches', () => {
     expect(kvSpy).not.toHaveBeenCalled();
     expect(slackSpy).toHaveBeenCalled();
     expect(httpSpy).toHaveBeenCalled();
+  });
+
+  it('dispatches sink contexts and unregisters safely', async () => {
+    const logSpy = vi.spyOn(globalThis.console, 'log').mockImplementation(() => undefined);
+    const sink = vi.fn();
+    const throwingSink = vi.fn(() => {
+      throw new Error('sink failed');
+    });
+
+    const { Logger } = await import('@config/logger');
+
+    const removeSink = Logger.addSink(sink);
+    Logger.addSink(throwingSink);
+
+    expect(() => Logger.info('object-context', { ok: true })).not.toThrow();
+    expect(() => Logger.info('undefined-context')).not.toThrow();
+    expect(() => Logger.info('primitive-context', 42)).not.toThrow();
+
+    expect(sink).toHaveBeenNthCalledWith(1, 'info', 'object-context', { ok: true });
+    expect(sink).toHaveBeenNthCalledWith(2, 'info', 'undefined-context', undefined);
+    expect(sink).toHaveBeenNthCalledWith(3, 'info', 'primitive-context', { value: 42 });
+
+    removeSink();
+    removeSink();
+
+    Logger.info('after-remove', { skipped: true });
+
+    expect(sink).toHaveBeenCalledTimes(3);
+    expect(throwingSink).toHaveBeenCalledTimes(4);
+
+    logSpy.mockRestore();
   });
 });

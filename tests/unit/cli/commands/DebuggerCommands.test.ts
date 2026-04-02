@@ -365,4 +365,112 @@ describe('DebuggerCommands', () => {
       'Package "@zintrust/system-debugger" is not installed. Add it to your project first.'
     );
   });
+
+  it('prints stored entries as zero when debugger storage is empty', async () => {
+    resolvedStorage.stats.mockResolvedValue({});
+    envStrings.DEBUGGER_BASE_PATH = 'debugger';
+    vi.doMock('@zintrust/system-debugger', () => ({
+      DebuggerConfig: {
+        merge: vi.fn(() => ({ pruneAfterHours: 24, connection: 'default' })),
+      },
+      DebuggerStorage: {
+        resolveStorage: vi.fn(() => resolvedStorage),
+      },
+    }));
+
+    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+
+    await DebuggerCommands.createDebuggerStatusCommand().execute({});
+
+    expect(ErrorHandler.info).toHaveBeenCalledWith('Dashboard: http://127.0.0.1:7777/debugger');
+    expect(ErrorHandler.info).toHaveBeenCalledWith('Stored entries: 0');
+  });
+
+  it('prunes and clears entries through SQL storage for non-D1 connections', async () => {
+    resolvedStorage.prune.mockResolvedValue(4);
+    resolvedStorage.clear.mockResolvedValue(undefined);
+    vi.doMock('@zintrust/system-debugger', () => ({
+      DebuggerConfig: {
+        merge: vi.fn(() => ({ pruneAfterHours: 24, connection: 'default' })),
+      },
+      DebuggerStorage: {
+        resolveStorage: vi.fn(() => resolvedStorage),
+      },
+    }));
+
+    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+
+    await DebuggerCommands.createDebuggerPruneCommand().execute({
+      connection: 'analytics',
+      hours: '2',
+    });
+    await DebuggerCommands.createDebuggerClearCommand().execute({ connection: 'analytics' });
+
+    expect(resolvedStorage.prune).toHaveBeenCalledWith(7_200_000, false);
+    expect(resolvedStorage.clear).toHaveBeenCalled();
+    expect((await import('@config/logger')).Logger.info).toHaveBeenCalledWith(
+      'Done - removed 4 entries.'
+    );
+    expect((await import('@config/logger')).Logger.info).toHaveBeenCalledWith(
+      'Done - all entries cleared.'
+    );
+  });
+
+  it('uses resolved Wrangler D1 database names and rejects ambiguous targets', async () => {
+    const { WranglerConfig } = await import('@cli/d1/WranglerConfig');
+    const { WranglerD1 } = await import('@cli/d1/WranglerD1');
+    vi.doMock('@zintrust/system-debugger', () => ({
+      DebuggerConfig: {
+        merge: vi.fn(() => ({ pruneAfterHours: 24, connection: 'd1debug' })),
+      },
+      DebuggerStorage: {
+        resolveStorage: vi.fn(() => resolvedStorage),
+      },
+    }));
+    vi.mocked(WranglerConfig.resolveD1Database).mockReturnValue({ status: 'resolved' } as never);
+    vi.mocked(WranglerConfig.getDefaultD1DatabaseName).mockReturnValue('bound_db');
+    vi.mocked(WranglerD1.executeSql).mockReturnValue('[]');
+
+    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+
+    await DebuggerCommands.createDebuggerStatusCommand().execute({
+      connection: 'd1debug',
+      local: true,
+    });
+
+    expect(WranglerD1.executeSql).toHaveBeenCalledWith({
+      dbName: 'bound_db',
+      isLocal: true,
+      sql: 'SELECT type, COUNT(*) as cnt FROM zin_debugger_entries GROUP BY type ORDER BY type',
+    });
+
+    vi.mocked(WranglerConfig.resolveD1Database).mockReturnValue({ status: 'ambiguous' } as never);
+
+    await expect(
+      DebuggerCommands.createDebuggerStatusCommand().execute({
+        connection: 'd1debug',
+        local: true,
+      })
+    ).rejects.toThrow('Multiple D1 targets are configured.');
+  });
+
+  it('prints no debugger migrations found when migration status is empty', async () => {
+    const { Migrator } = await import('@migrations/Migrator');
+    (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      status: vi.fn().mockResolvedValue([]),
+      migrate: vi.fn(),
+      fresh: vi.fn(),
+      resetAll: vi.fn(),
+      rollbackLastBatch: vi.fn(),
+    });
+
+    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+
+    await DebuggerCommands.createDebuggerMigrateCommand().execute({
+      status: true,
+      connection: 'analytics',
+    });
+
+    expect(ErrorHandler.info).toHaveBeenCalledWith('No debugger migrations found.');
+  });
 });
