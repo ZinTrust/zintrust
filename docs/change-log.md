@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-02
 
+- Added a dedicated `npm run lint:strict` script and switched CI/publish verification to it so the repository no longer relies on the deprecated `npm run lint --max-warnings=0` form that newer npm versions warn about. Use `npm run lint:strict` or `npm run lint -- --max-warnings=0` for zero-warning ESLint runs.
 - Fixed the pre-build npm workspace install topology for unpublished core versions. The root `package-lock.json` now keeps the local `@zintrust/core` links pointed at the repository root package instead of `dist`, the `dist` lock entry stays version-synced with the root package metadata, and `scripts/release/sync-package-versions.mjs --check` now fails if either lockfile edge drifts. This prevents `npm ci --ignore-scripts` from fetching an unpublished `@zintrust/core@^...` and failing release/CI installs with `ETARGET`.
 - Added a `Model.with(relations)` static shorthand on defined models so developers have three equivalent eager-loading signatures: `Model.with(['rel1', 'rel2'])` (array shorthand that starts a fresh query), `Model.query().with('rel1').with('rel2')` (chained), and `Model.query().with({ rel1: constraint, rel2: constraint })` (constrained object). Updated the eager loading section in `docs/models.md` with examples of all three signatures.
 

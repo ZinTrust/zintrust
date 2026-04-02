@@ -54,7 +54,7 @@ jobs:
         run: npm ci
 
       - name: Run tests, lint and type-check
-        run: npm run test:coverage && npm run lint --max-warnings=0 && npm run type-check
+        run: npm run test:coverage && npm run lint:strict && npm run type-check
 
       - name: Build distribution (core only)
         run: npm run core:build:dist
