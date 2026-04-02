@@ -199,4 +199,4 @@ Use `@zintrust/system-debugger` when you want:
 - A lightweight built-in dashboard without requiring a separate observability stack
 - Optional UI exposure so each application decides whether the dashboard is mounted
 
-For package-level implementation details and the full API surface, also see the package README in `packages/system-debugger/README.md`.
+For package-level implementation details and the full API surface, also see the package README in `@zintrust/system-debugger/README.md`.
