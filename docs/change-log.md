@@ -2,6 +2,10 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-03
+
+- Fixed published package compatibility between `@zintrust/core` and `@zintrust/workers`. The generated `dist/package.json` for core now pins workspace package dependencies like `@zintrust/workers` to the exact released version instead of a floating caret range, preventing older published core releases from resolving a newer workers patch with a stricter peer requirement. The workers package release sync now also keeps its `@zintrust/core` peer compatible across the active `0.4.x` line so `npm install -g @zintrust/core` and similar fresh installs do not fail with `ETARGET` when workers is published ahead of core.
+
 ## 2026-04-02
 
 - Fixed `@zintrust/system-debugger` migration packaging so the published package now exports runnable JavaScript migrations from `./migrations` instead of relying on TypeScript files in `node_modules`. The core debugger migration command now resolves debugger migrations as a package target with an explicit extension, prefers built JS when available, and fails with a packaging-specific error if an installed debugger package still exposes TS-only migrations.
