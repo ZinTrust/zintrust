@@ -1,8 +1,10 @@
 import type { IRequest, IResponse } from '@zintrust/core';
-import { Logger, NodeSingletons } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
 import type { QueueDriver } from './driver';
 import type { LockAnalytics, QueueMonitorSnapshot } from './index';
 import type { JobSummary, Metrics } from './metrics';
+
+export const ALL_QUEUES = '__all__';
 
 type QueueSnapshotData = {
   type: string;
@@ -28,91 +30,128 @@ type QueueMonitoringConfig = {
   intervalMs: number;
 };
 
-// Internal state
-const emitter = new NodeSingletons.EventEmitter();
-emitter.setMaxListeners(Infinity);
-let interval: NodeJS.Timeout | null = null;
-let subscribers = 0;
-let currentConfig: QueueMonitoringConfig | null = null;
+type QueueMonitoringCallback = (data: QueueSnapshotData) => void;
 
-const broadcastSnapshot = async (): Promise<void> => {
+type QueueMonitoringSubscription = {
+  callback: QueueMonitoringCallback;
+  config: QueueMonitoringConfig;
+  interval: ReturnType<typeof setInterval> | null;
+};
+
+const subscriptions = new Map<QueueMonitoringCallback, QueueMonitoringSubscription>();
+
+const isAllQueuesSelection = (queue: string | null | undefined): boolean => queue === ALL_QUEUES;
+
+const sortJobsByTimestamp = (jobs: JobSummary[]): JobSummary[] =>
+  jobs.sort((left, right) => right.timestamp - left.timestamp);
+
+export async function getRecentJobsForSelection(
+  queueName: string,
+  metrics: Metrics,
+  driver: QueueDriver,
+  queueNames?: ReadonlyArray<string>
+): Promise<JobSummary[]> {
+  if (!isAllQueuesSelection(queueName)) {
+    return getRecentJobsForQueue(queueName, metrics, driver);
+  }
+
+  const names = Array.from(new Set((queueNames ?? (await driver.getQueues())).filter(Boolean)));
+  const jobsByQueue = await Promise.all(
+    names.map(async (name) => getRecentJobsForQueue(name, metrics, driver))
+  );
+
+  return sortJobsByTimestamp(jobsByQueue.flat()).slice(0, 100);
+}
+
+const buildSnapshotPayload = async (config: QueueMonitoringConfig): Promise<QueueSnapshotData> => {
+  const { getSnapshot, getLocks, metrics, driver, queue: configuredQueue, pattern } = config;
+  const snapshot = await getSnapshot();
+  let queue: string | null;
+  if (isAllQueuesSelection(configuredQueue)) {
+    queue = ALL_QUEUES;
+  } else if (
+    configuredQueue &&
+    snapshot.queues.some((candidate) => candidate.name === configuredQueue)
+  ) {
+    queue = configuredQueue;
+  } else {
+    queue = snapshot.queues[0]?.name ?? null;
+  }
+
+  return {
+    type: 'snapshot',
+    ts: new Date().toISOString(),
+    queue,
+    snapshot,
+    jobs: queue
+      ? await getRecentJobsForSelection(
+          queue,
+          metrics,
+          driver,
+          snapshot.queues.map((candidate) => candidate.name)
+        )
+      : [],
+    locks: await getLocks(pattern),
+  };
+};
+
+const pushSnapshot = async (subscription: QueueMonitoringSubscription): Promise<void> => {
   try {
-    if (subscribers <= 0 || !currentConfig) return;
-
-    const { getSnapshot, getLocks, metrics, driver, queue: initialQueue, pattern } = currentConfig;
-    const snapshot = await getSnapshot();
-    let queue = initialQueue;
-    if (!queue && snapshot.queues.length > 0) {
-      queue = snapshot.queues[0].name;
-    }
-    const jobs = queue ? await getRecentJobsForQueue(queue, metrics, driver) : [];
-    const locks = await getLocks(pattern);
-
-    const payload: QueueSnapshotData = {
-      type: 'snapshot',
-      ts: new Date().toISOString(),
-      queue: queue || null,
-      snapshot,
-      jobs,
-      locks,
-    };
-
-    emitter.emit('snapshot', payload);
+    subscription.callback(await buildSnapshotPayload(subscription.config));
   } catch (err) {
-    Logger.error('QueueMonitoringService.broadcastSnapshot failed', err);
-    if (emitter.listenerCount('error') > 0) {
-      emitter.emit('error', err);
-    }
+    Logger.error('QueueMonitoringService.pushSnapshot failed', err);
   }
 };
 
-const startPolling = (): void => {
-  if (interval || !currentConfig) return;
+const startPolling = (subscription: QueueMonitoringSubscription): void => {
+  if (subscription.interval) return;
 
-  Logger.debug('Starting QueueMonitoringService polling');
-  // Initial fetch
-  void broadcastSnapshot();
+  Logger.debug('Starting QueueMonitoringService polling', {
+    queue: subscription.config.queue || null,
+    pattern: subscription.config.pattern,
+  });
 
-  interval = setInterval(() => {
-    void broadcastSnapshot();
-  }, currentConfig.intervalMs);
+  void pushSnapshot(subscription);
+  subscription.interval = setInterval(() => {
+    void pushSnapshot(subscription);
+  }, subscription.config.intervalMs);
 };
 
-const stopPolling = (): void => {
-  if (interval) {
-    Logger.debug('Stopping QueueMonitoringService polling');
-    clearInterval(interval);
-    interval = null;
-  }
+const stopPolling = (subscription: QueueMonitoringSubscription): void => {
+  if (!subscription.interval) return;
+
+  Logger.debug('Stopping QueueMonitoringService polling', {
+    queue: subscription.config.queue || null,
+    pattern: subscription.config.pattern,
+  });
+  clearInterval(subscription.interval);
+  subscription.interval = null;
 };
 
 export const QueueMonitoringService = Object.freeze({
-  subscribe(callback: (data: QueueSnapshotData) => void): void {
-    emitter.on('snapshot', callback);
-    subscribers++;
+  subscribe(callback: QueueMonitoringCallback, config: QueueMonitoringConfig): void {
+    const existing = subscriptions.get(callback);
+    if (existing) {
+      stopPolling(existing);
+      subscriptions.delete(callback);
+    }
+
+    const subscription: QueueMonitoringSubscription = {
+      callback,
+      config,
+      interval: null,
+    };
+
+    subscriptions.set(callback, subscription);
+    startPolling(subscription);
   },
 
-  unsubscribe(callback: (data: QueueSnapshotData) => void): void {
-    emitter.off('snapshot', callback);
-    subscribers--;
-    if (subscribers <= 0) {
-      stopPolling();
-      currentConfig = null;
-    }
-  },
+  unsubscribe(callback: QueueMonitoringCallback): void {
+    const subscription = subscriptions.get(callback);
+    if (!subscription) return;
 
-  startPollingForClient(config: QueueMonitoringConfig): void {
-    if (subscribers === 1) {
-      currentConfig = config;
-      startPolling();
-    }
-  },
-
-  stopPollingForClient(): void {
-    if (subscribers <= 0) {
-      stopPolling();
-      currentConfig = null;
-    }
+    stopPolling(subscription);
+    subscriptions.delete(callback);
   },
 });
 //  settings: {
@@ -172,11 +211,7 @@ export const QueueMonitoringStream = (
     send(data);
   };
 
-  // Subscribe to centralized service
-  QueueMonitoringService.subscribe(onSnapshot);
-
-  // Start polling for this client
-  QueueMonitoringService.startPollingForClient({
+  QueueMonitoringService.subscribe(onSnapshot, {
     getSnapshot,
     getLocks,
     getRecentJobsForQueue,
@@ -196,7 +231,6 @@ export const QueueMonitoringStream = (
     closed = true;
     clearInterval(hb);
     QueueMonitoringService.unsubscribe(onSnapshot);
-    QueueMonitoringService.stopPollingForClient();
   });
 };
 
@@ -207,10 +241,15 @@ export async function getRecentJobsForQueue(
 ): Promise<JobSummary[]> {
   const recent = await metrics.getRecentJobs(queueName);
   const failed = await metrics.getFailedJobs(queueName);
-  const all = [...recent, ...failed].sort((a, b) => b.timestamp - a.timestamp).slice(0, 100);
+  const all = sortJobsByTimestamp(
+    [...recent, ...failed].map((job) => ({
+      ...job,
+      queue: job.queue ?? queueName,
+    }))
+  ).slice(0, 100);
 
   if (all.length > 0) {
-    return all as JobSummary[];
+    return all;
   }
 
   const jobs = await driver.getRecentJobs(queueName, 100);
@@ -246,6 +285,7 @@ export async function getRecentJobsForQueue(
     return {
       id: job.id,
       name: job.name,
+      queue: queueName,
       data: job.data,
       attempts: job.attemptsMade,
       status,

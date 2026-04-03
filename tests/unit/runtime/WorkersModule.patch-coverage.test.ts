@@ -77,4 +77,14 @@ describe('WorkersModule patch coverage', () => {
     expect(monitor).toBeDefined();
     expect(monitor).toHaveProperty('QueueMonitor');
   }, 30000);
+
+  it('can load the workers module for route registration even when worker execution is disabled', async () => {
+    process.env['WORKER_ENABLED'] = 'false';
+
+    const mod = await import('@runtime/WorkersModule');
+    const workers = await mod.loadWorkersModule({ allowWhenDisabled: true });
+
+    expect(workers).toBeDefined();
+    expect(workers).toHaveProperty('WorkerFactory');
+  });
 });

@@ -10,6 +10,7 @@ import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
+import { isNonEmptyString } from '@helper/index';
 import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
@@ -48,6 +49,12 @@ type RuntimeQueueConfig = {
     enabled?: boolean;
     basePath?: string;
   } & Record<string, unknown>;
+};
+
+type QueueMonitorWorkerFactoryModule = {
+  WorkerFactory?: {
+    listPersistedRecords?: () => Promise<Array<{ queueName?: unknown }>>;
+  };
 };
 
 type ILocalSystemDebuggerModule = {
@@ -368,8 +375,29 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
   const redisConfig = extractRedisConfigFromQueueConfig();
   const { QueueMonitor } = queueMonitorModule;
 
+  const resolveKnownQueues = async (): Promise<string[]> => {
+    try {
+      const workersModule = (await loadWorkersModule()) as QueueMonitorWorkerFactoryModule | null;
+      const records = await workersModule?.WorkerFactory?.listPersistedRecords?.();
+      if (!Array.isArray(records)) {
+        return [];
+      }
+
+      return Array.from(
+        new Set(
+          records
+            .map((record) => record.queueName)
+            .filter((queueName): queueName is string => isNonEmptyString(queueName))
+        )
+      ).sort((left, right) => left.localeCompare(right));
+    } catch {
+      return [];
+    }
+  };
+
   const monitor = QueueMonitor.create({
     ...monitorConfig,
+    knownQueues: resolveKnownQueues,
     redis: redisConfig,
   });
 
@@ -387,7 +415,7 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
 };
 
 const initializeWorkers = async (router: IRouter): Promise<void> => {
-  const workers = await loadWorkersModule();
+  const workers = await loadWorkersModule({ allowWhenDisabled: true });
   if (workers?.WorkerInit !== undefined && typeof workers.registerWorkerRoutes === 'function') {
     workers.registerWorkerRoutes(router, undefined, { middleware: undefined });
   }
@@ -523,17 +551,18 @@ export const createLifecycle = (params: {
     await registerMasterRoutes(params.resolvedBasePath, params.router);
     await initializeSystemDebugger();
 
-    if (
-      Cloudflare.getWorkersEnv() === null &&
-      appConfig.dockerWorker === false &&
-      appConfig.worker === true
-    ) {
+    if (Cloudflare.getWorkersEnv() === null && appConfig.dockerWorker === false) {
       await initializeWorkers(params.router);
       await initializeQueueMonitor(params.router);
-      await initializeQueueHttpGateway(params.router);
-      await initializeScheduleHttpGateway(params.router);
+
+      if (appConfig.worker === true) {
+        await initializeQueueHttpGateway(params.router);
+        await initializeScheduleHttpGateway(params.router);
+      } else {
+        Logger.info('Skipping worker execution/gateway initialization (WORKER_ENABLED=false).');
+      }
     } else if (!appConfig.dockerWorker) {
-      Logger.info('Skipping worker module initialization (WORKER_ENABLED=false).');
+      Logger.info('Skipping local worker dashboards in Cloudflare Workers runtime.');
     }
     // Register service providers
     // Bootstrap services

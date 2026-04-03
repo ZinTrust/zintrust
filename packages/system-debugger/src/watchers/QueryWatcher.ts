@@ -19,6 +19,13 @@ const bindingsInterpolated = (sql: string, params: unknown[]): string => {
   });
 };
 
+const isDebuggerStorageQuery = (sql: string): boolean => {
+  const normalized = sql.toLowerCase();
+  return (
+    normalized.includes('zin_debugger_entries') || normalized.includes('zin_debugger_monitoring')
+  );
+};
+
 export const QueryWatcher: IDebuggerWatcher = Object.freeze({
   register({ storage, config, db: injectedDb }: IDebuggerWatcherConfig): () => void {
     if (config.watchers.query === false) return () => undefined;
@@ -28,6 +35,7 @@ export const QueryWatcher: IDebuggerWatcher = Object.freeze({
 
     const handler = (query: string, params: unknown[], duration: number): void => {
       if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes)) return;
+      if (isDebuggerStorageQuery(query)) return;
 
       const batchId = DebuggerContext.getBatchId();
       const sql = bindingsInterpolated(query, params);
