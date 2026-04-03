@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-03
 
+- Improved ORM relation-bootstrap diagnostics so model methods that touch the database during `Model.define(...)` now emit one structured warning with the model table, relation name, and first probable user-code source frame instead of repeated generic `Database connection 'default' is not registered` noise. Added opt-in `ZINTRUST_DEBUG_RELATIONS=1` tracing for per-relation bootstrap probes.
 - Fixed published package compatibility between `@zintrust/core` and `@zintrust/workers`. The generated `dist/package.json` for core now pins workspace package dependencies like `@zintrust/workers` to the exact released version instead of a floating caret range, preventing older published core releases from resolving a newer workers patch with a stricter peer requirement. The workers package release sync now also keeps its `@zintrust/core` peer compatible across the active `0.4.x` line so `npm install -g @zintrust/core` and similar fresh installs do not fail with `ETARGET` when workers is published ahead of core.
 
 ## 2026-04-02

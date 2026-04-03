@@ -8,8 +8,8 @@ import * as ZintrustCoreModule from '@zintrust/core';
 import {
   Cloudflare,
   createRedisConnection,
-  DatabaseConnectionRegistry,
   databaseConfig,
+  DatabaseConnectionRegistry,
   Env,
   ErrorFactory,
   generateUuid,
@@ -109,7 +109,7 @@ const resolveRuntimeBridgeUrl = (specifier: string): string | null => {
   const filePath = path.join(dir, `${safeName}.bridge.mjs`);
   const exportLines = Object.keys(bridgeModule)
     .filter((key) => key !== 'default' && isValidBridgeExportName(key))
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .map((key) => `export const ${key} = bridge[${JSON.stringify(key)}];`);
 
   const code = [

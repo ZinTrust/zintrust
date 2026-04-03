@@ -24,6 +24,7 @@ import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import type { IQueryBuilder } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
+import { RelationBootstrapDiagnostics } from '@orm/RelationBootstrapDiagnostics';
 
 export type RawValue = { __raw: string };
 
@@ -588,6 +589,19 @@ export function useDatabase(config?: DatabaseConfig, connection = 'default'): ID
     const resolvedConfig = config ?? DatabaseConnectionRegistry.get(connection);
 
     if (resolvedConfig === undefined) {
+      const relationBootstrapContext = RelationBootstrapDiagnostics.getContext();
+      if (relationBootstrapContext !== undefined) {
+        throw ErrorFactory.createConfigError(
+          RelationBootstrapDiagnostics.createAccessMessage(connection, relationBootstrapContext),
+          {
+            phase: 'relation-bootstrap',
+            modelTable: relationBootstrapContext.modelTable,
+            relationName: relationBootstrapContext.relationName,
+            connection,
+          }
+        );
+      }
+
       // Diagnostic logging
       Logger.error('[DEBUG] Database instances keys:', Array.from(databaseInstances.keys()));
       Logger.error('[DEBUG] Requesting connection:', connection);

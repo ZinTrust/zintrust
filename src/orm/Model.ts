@@ -4,6 +4,7 @@
  */
 
 import { DEFAULTS } from '@config/constants';
+import { Logger } from '@config/logger';
 import type { Paginator } from '@database/Paginator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase, type IDatabase } from '@orm/Database';
@@ -15,6 +16,10 @@ import type {
   QueryBuilderOptions,
 } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
+import {
+  RelationBootstrapDiagnostics,
+  type RelationBootstrapFailure,
+} from '@orm/RelationBootstrapDiagnostics';
 import type { IRelationship } from '@orm/Relationships';
 import {
   BelongsTo,
@@ -849,23 +854,119 @@ const createHydrator = (
   };
 };
 
+type RelationProbeOutcome =
+  | { kind: 'relationship'; relation: IRelationship }
+  | { kind: 'failure'; failure: RelationBootstrapFailure }
+  | { kind: 'ignored' };
+
+const createRelationBootstrapContext = (
+  cfg: ModelConfig,
+  relationName: string
+): RelationBootstrapFailure['modelTable'] extends string
+  ? { modelTable: string; relationName: string }
+  : never => ({
+  modelTable: cfg.table,
+  relationName,
+});
+
+const logRelationBootstrapProbe = (
+  debugRelationBootstrap: boolean,
+  table: string,
+  relationName: string
+): void => {
+  if (debugRelationBootstrap) {
+    Logger.info(`[ORM] Relation bootstrap probing ${table}.${relationName}`);
+  }
+};
+
+const logRelationBootstrapResolved = (
+  debugRelationBootstrap: boolean,
+  table: string,
+  relationName: string
+): void => {
+  if (debugRelationBootstrap) {
+    Logger.info(`[ORM] Relation bootstrap resolved relationship ${table}.${relationName}`);
+  }
+};
+
+const logRelationBootstrapIgnored = (
+  debugRelationBootstrap: boolean,
+  table: string,
+  relationName: string
+): void => {
+  if (debugRelationBootstrap) {
+    Logger.info(`[ORM] Relation bootstrap ignored non-relationship ${table}.${relationName}`);
+  }
+};
+
+const logRelationBootstrapThrown = (
+  debugRelationBootstrap: boolean,
+  table: string,
+  relationName: string,
+  error: unknown
+): void => {
+  if (debugRelationBootstrap) {
+    Logger.warn(`[ORM] Relation bootstrap probe threw for ${table}.${relationName}`, error);
+  }
+};
+
+const processRelationProbe = (
+  cfg: ModelConfig,
+  relationName: string,
+  fn: AnyFunction,
+  debugRelationBootstrap: boolean
+): RelationProbeOutcome => {
+  const relationContext = createRelationBootstrapContext(cfg, relationName);
+
+  try {
+    logRelationBootstrapProbe(debugRelationBootstrap, cfg.table, relationName);
+
+    const result = RelationBootstrapDiagnostics.withContext(relationContext, () => fn());
+
+    if (!isRelationship(result)) {
+      logRelationBootstrapIgnored(debugRelationBootstrap, cfg.table, relationName);
+      return { kind: 'ignored' };
+    }
+
+    logRelationBootstrapResolved(debugRelationBootstrap, cfg.table, relationName);
+    return { kind: 'relationship', relation: result };
+  } catch (error) {
+    if (RelationBootstrapDiagnostics.isDatabaseRegistrationFailure(error)) {
+      return {
+        kind: 'failure',
+        failure: RelationBootstrapDiagnostics.createFailure(relationContext, error),
+      };
+    }
+
+    logRelationBootstrapThrown(debugRelationBootstrap, cfg.table, relationName, error);
+    return { kind: 'ignored' };
+  }
+};
+
 const createRelationMapping = (
   cfg: ModelConfig,
   resolveMethods: (model: IModel) => BoundModelMethods
 ): Record<string, IRelationship> => {
   const dummyModel = createModel(cfg);
   const methods = resolveMethods(dummyModel);
+  const debugRelationBootstrap = RelationBootstrapDiagnostics.isDebugEnabled();
 
   const relationMapping: Record<string, IRelationship> = {};
+  const relationBootstrapFailures: RelationBootstrapFailure[] = [];
   for (const [name, fn] of Object.entries(methods) as Array<[string, AnyFunction]>) {
-    try {
-      const result = fn();
-      if (isRelationship(result)) {
-        relationMapping[name] = result;
-      }
-    } catch {
-      // Not a relationship call or requires params
+    const outcome = processRelationProbe(cfg, name, fn, debugRelationBootstrap);
+    if (outcome.kind === 'relationship') {
+      relationMapping[name] = outcome.relation;
+      continue;
     }
+
+    if (outcome.kind === 'failure') {
+      relationBootstrapFailures.push(outcome.failure);
+    }
+  }
+
+  if (relationBootstrapFailures.length > 0) {
+    Logger.warn(RelationBootstrapDiagnostics.formatFailureSummary(relationBootstrapFailures));
   }
 
   return relationMapping;
