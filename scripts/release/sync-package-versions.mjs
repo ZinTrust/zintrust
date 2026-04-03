@@ -48,9 +48,25 @@ function cloneValue(value) {
   return structuredClone(value);
 }
 
-function normalizePeerRange(version) {
-  // Keep peers compatible with the current core major/minor.
-  // If you prefer strict lockstep, change to just `${version}`.
+function createSameMinorRange(version) {
+  const [majorRaw, minorRaw] = String(version).split('.');
+  const major = Number(majorRaw);
+  const minor = Number(minorRaw);
+
+  if (Number.isNaN(major) || Number.isNaN(minor)) {
+    return `^${version}`;
+  }
+
+  return `>=${major}.${minor}.0 <${major}.${minor + 1}.0`;
+}
+
+function normalizePeerRange(version, packageName) {
+  // Workers is a transitive runtime dependency of @zintrust/core, so its core peer
+  // must stay installable across the published patch line while core depends on it.
+  if (packageName === '@zintrust/workers') {
+    return createSameMinorRange(version);
+  }
+
   return `^${version}`;
 }
 
@@ -114,7 +130,7 @@ async function syncPackageJson(pkgPath, coreName, coreVersion) {
     }
 
     // Keep adapter packages tracking the core version.
-    pkg.peerDependencies[coreName] = normalizePeerRange(coreVersion);
+    pkg.peerDependencies[coreName] = normalizePeerRange(coreVersion, pkg.name);
 
     // Keep workspace packages in exact lockstep with the core version.
     if (typeof pkg.version === 'string' && pkg.version !== coreVersion) {
@@ -168,7 +184,24 @@ function syncMirroredField(target, key, value) {
   return true;
 }
 
-function syncDistLockEntry(distEntry, rootPkg) {
+function pinWorkspaceDependencyVersions(dependencies, packageInfos) {
+  if (typeof dependencies !== 'object' || dependencies === null) {
+    return dependencies;
+  }
+
+  const pinnedDependencies = { ...dependencies };
+
+  for (const pkgInfo of packageInfos) {
+    if (typeof pkgInfo.name !== 'string' || typeof pkgInfo.version !== 'string') continue;
+    if (!(pkgInfo.name in pinnedDependencies)) continue;
+
+    pinnedDependencies[pkgInfo.name] = pkgInfo.version;
+  }
+
+  return pinnedDependencies;
+}
+
+function syncDistLockEntry(distEntry, rootPkg, packageInfos) {
   let didChange = false;
 
   if (!distEntry || typeof distEntry !== 'object') {
@@ -181,14 +214,19 @@ function syncDistLockEntry(distEntry, rootPkg) {
     }
   }
 
-  if (replaceOrDeleteSection(distEntry, 'dependencies', rootPkg)) {
+  const expectedDistDependencies = pinWorkspaceDependencyVersions(
+    rootPkg.dependencies,
+    packageInfos
+  );
+
+  if (syncMirroredField(distEntry, 'dependencies', expectedDistDependencies)) {
     didChange = true;
   }
 
   return didChange;
 }
 
-function syncRootLockEntry(rootLock, rootPkg) {
+function syncRootLockEntry(rootLock, rootPkg, packageInfos) {
   let didChange = false;
 
   if (rootLock.name !== rootPkg.name) {
@@ -222,14 +260,19 @@ function syncRootLockEntry(rootLock, rootPkg) {
     }
   }
 
-  if (syncDistLockEntry(rootLock.packages.dist, rootPkg)) {
+  if (syncDistLockEntry(rootLock.packages.dist, rootPkg, packageInfos)) {
     didChange = true;
   }
 
   return didChange;
 }
 
-function collectDistLockIssues({ issues, relRootLockPath, rootPkg, distEntry }) {
+function collectDistLockIssues({ issues, relRootLockPath, rootPkg, distEntry, packageInfos }) {
+  const expectedDistDependencies = pinWorkspaceDependencyVersions(
+    rootPkg.dependencies,
+    packageInfos
+  );
+
   if (distEntry?.version !== rootPkg.version) {
     pushIssue(
       issues,
@@ -239,7 +282,7 @@ function collectDistLockIssues({ issues, relRootLockPath, rootPkg, distEntry }) 
   }
 
   if (
-    JSON.stringify(distEntry?.dependencies ?? {}) !== JSON.stringify(rootPkg.dependencies ?? {})
+    JSON.stringify(distEntry?.dependencies ?? {}) !== JSON.stringify(expectedDistDependencies ?? {})
   ) {
     pushIssue(
       issues,
@@ -260,7 +303,7 @@ function syncWorkspaceLockEntry(lockEntry, pkg, coreName) {
     }
   }
 
-  const expectedPeerRange = normalizePeerRange(pkg.version ?? '');
+  const expectedPeerRange = normalizePeerRange(pkg.version ?? '', pkg.name);
   if (
     typeof pkg.version === 'string' &&
     lockEntry.peerDependencies?.[coreName] !== expectedPeerRange
@@ -292,7 +335,7 @@ function syncRootPackageLink(rootLock, rootPkg) {
 }
 
 function syncPackageLock(rootLock, rootPkg, packageInfos, coreName) {
-  let didChange = syncRootLockEntry(rootLock, rootPkg);
+  let didChange = syncRootLockEntry(rootLock, rootPkg, packageInfos);
 
   rootLock.packages = rootLock.packages ?? {};
 
@@ -400,7 +443,7 @@ function pushIssue(issues, file, message) {
   issues.push({ file, message });
 }
 
-function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock }) {
+function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, packageInfos }) {
   const rootLockPath = path.join(repoRootPath, 'package-lock.json');
   const relRootLockPath = path.relative(repoRootPath, rootLockPath);
 
@@ -439,6 +482,7 @@ function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock }) {
     relRootLockPath,
     rootPkg,
     distEntry: rootLock.packages?.dist,
+    packageInfos,
   });
 
   const rootPackageLink = rootLock.packages?.[`node_modules/${rootPkg.name}`];
@@ -549,13 +593,10 @@ function collectRootWorkspaceDependencyIssues({ issues, rootPkg, packageInfos })
 
 async function collectDriftIssues(packageDirs, coreName, coreVersion) {
   const issues = [];
-  const expectedPeerRange = normalizePeerRange(coreVersion);
   const rootPkgPath = path.join(repoRoot, 'package.json');
   const rootLockPath = path.join(repoRoot, 'package-lock.json');
   const rootPkg = await readJson(rootPkgPath);
   const rootLock = await readJsonIfExists(rootLockPath);
-
-  collectRootLockIssues({ issues, repoRootPath: repoRoot, rootPkg, rootLock });
 
   const packageInfos = [];
 
@@ -567,6 +608,7 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
     packageInfos.push({ dirName, name: pkg.name, version: pkg.version });
 
     const relPkgPath = path.relative(repoRoot, pkgPath);
+    const expectedPeerRange = normalizePeerRange(coreVersion, pkg.name);
     collectPackageManifestIssues({
       issues,
       relPkgPath,
@@ -585,6 +627,8 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
       expectedPeerRange,
     });
   }
+
+  collectRootLockIssues({ issues, repoRootPath: repoRoot, rootPkg, rootLock, packageInfos });
 
   collectRootWorkspaceDependencyIssues({ issues, rootPkg, packageInfos });
 

@@ -7,6 +7,41 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootPackagePath = path.join(__dirname, '../package.json');
 const rootPackage = JSON.parse(fs.readFileSync(rootPackagePath, 'utf-8'));
 
+function getWorkspacePackageVersions() {
+  const workspaceVersions = new Map();
+  const packagesDir = path.join(__dirname, '../packages');
+
+  for (const entry of fs.readdirSync(packagesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+
+    const packageJsonPath = path.join(packagesDir, entry.name, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) continue;
+
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    if (typeof packageJson.name !== 'string' || typeof packageJson.version !== 'string') continue;
+
+    workspaceVersions.set(packageJson.name, packageJson.version);
+  }
+
+  return workspaceVersions;
+}
+
+function pinWorkspaceDependencyVersions(dependencies, workspaceVersions) {
+  if (typeof dependencies !== 'object' || dependencies === null) {
+    return dependencies;
+  }
+
+  const pinnedDependencies = { ...dependencies };
+
+  for (const [packageName, version] of workspaceVersions.entries()) {
+    if (packageName in pinnedDependencies) {
+      pinnedDependencies[packageName] = version;
+    }
+  }
+
+  return pinnedDependencies;
+}
+
 /**
  * Simple semver patch incrementer
  */
@@ -44,6 +79,7 @@ function getLatestNpmVersion(packageName) {
 // 1. Determine next version
 const isCi = process.env.CI === 'true' || process.env.CI === '1';
 const skipNpmVersionCheck = process.env.DIST_SKIP_NPM_VERSION_CHECK === 'true';
+const workspacePackageVersions = getWorkspacePackageVersions();
 
 const latestPublished = skipNpmVersionCheck ? null : getLatestNpmVersion(rootPackage.name);
 let finalVersion = rootPackage.version;
@@ -121,7 +157,7 @@ const distPackage = {
     },
     './package.json': './package.json',
   },
-  dependencies: rootPackage.dependencies,
+  dependencies: pinWorkspaceDependencyVersions(rootPackage.dependencies, workspacePackageVersions),
   overrides: rootPackage.overrides,
   bin: {
     zintrust: 'bin/zintrust.js',

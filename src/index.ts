@@ -67,6 +67,7 @@ export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 export { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 export { Database, resetDatabase, useDatabase, useEnsureDbConnected } from '@orm/Database';
 export type { IDatabase } from '@orm/Database';
+export { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
@@ -207,9 +208,9 @@ export {
 } from '@runtime/RuntimeServices';
 
 // Events
+export { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 export { EventDispatcher } from '@events/EventDispatcher';
 export type { EventListener, EventMap, IEventDispatcher } from '@events/EventDispatcher';
-export { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 
 // Sessions
 export { SessionManager } from '@session/SessionManager';

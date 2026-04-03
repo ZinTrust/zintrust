@@ -9,6 +9,7 @@ import {
   Cloudflare,
   createRedisConnection,
   databaseConfig,
+  DatabaseConnectionRegistry,
   Env,
   ErrorFactory,
   generateUuid,
@@ -108,7 +109,7 @@ const resolveRuntimeBridgeUrl = (specifier: string): string | null => {
   const filePath = path.join(dir, `${safeName}.bridge.mjs`);
   const exportLines = Object.keys(bridgeModule)
     .filter((key) => key !== 'default' && isValidBridgeExportName(key))
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .map((key) => `export const ${key} = bridge[${JSON.stringify(key)}];`);
 
   const code = [
@@ -2226,20 +2227,27 @@ const resolvePersistenceConfig = (
 };
 
 const resolveDbClientFromEnv = async (connectionName = 'default'): Promise<IDatabase> => {
-  const connect = async (): Promise<IDatabase> =>
-    await useEnsureDbConnected(undefined, connectionName);
-
-  try {
-    return await connect();
-  } catch (error) {
-    Logger.error('Worker persistence failed to resolve database connection', error);
+  // Eagerly populate the registry when the requested connection is not yet
+  // registered.  On both the Cloudflare Workers runtime and Node, the registry
+  // may be empty when called from the workers-persistence path because
+  // registerDatabasesFromRuntimeConfig has not yet run for this connection. The
+  // old pattern of connecting first (which always fails) then registering as a
+  // fallback produced spurious [DEBUG] noise on every fresh start.
+  if (DatabaseConnectionRegistry.get(connectionName) === undefined) {
+    try {
+      registerDatabasesFromRuntimeConfig(databaseConfig);
+    } catch (registrationError) {
+      Logger.warn(
+        `[WorkerPersistence] Runtime database registration failed for connection '${connectionName}'`,
+        registrationError
+      );
+    }
   }
 
   try {
-    registerDatabasesFromRuntimeConfig(databaseConfig);
-    return await connect();
+    return await useEnsureDbConnected(undefined, connectionName);
   } catch (error) {
-    Logger.error('Worker persistence failed after registering runtime databases', error);
+    Logger.error('Worker persistence failed to resolve database connection', error);
     throw ErrorFactory.createConfigError(
       `Worker persistence requires a database client. Register connection '${connectionName}' or pass infrastructure.persistence.client.`
     );

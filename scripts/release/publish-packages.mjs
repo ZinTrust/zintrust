@@ -183,6 +183,7 @@ function removeDevRoutesForCiReleaseBuilds() {
 async function assertCoreShimHasRequiredExports() {
   const requiredTokensByFile = {
     'index.d.ts': [
+      'export declare function useDatabase(...args: any[]): IDatabase;',
       'export declare const NodeSingletons: {',
       'EventEmitter: any;',
       'randomBytes: (size: number) => any;',
@@ -661,6 +662,7 @@ export declare function createBaseDrivers(...args: any[]): any;
 export declare function createLockProvider(...args: any[]): any;
 export declare function getLockProvider(...args: any[]): any;
 export declare function registerLockProvider(...args: any[]): any;
+export declare function useDatabase(...args: any[]): IDatabase;
 export declare function createRedisConnection(...args: any[]): {
   hgetall: (...args: any[]) => Promise<Record<string, string>>;
   hget: (...args: any[]) => Promise<string | null>;
@@ -904,6 +906,56 @@ export function getLockProvider() {
 
 export function registerLockProvider() {
   return {};
+}
+
+export function useDatabase() {
+  return {
+    async connect() {},
+    async disconnect() {},
+    isConnected() {
+      return true;
+    },
+    async query() {
+      return [];
+    },
+    async queryOne() {
+      return undefined;
+    },
+    async execute() {
+      return undefined;
+    },
+    table() {
+      return {
+        limit() {
+          return this;
+        },
+        offset() {
+          return this;
+        },
+        where() {
+          return this;
+        },
+        whereIn() {
+          return this;
+        },
+        async get() {
+          return [];
+        },
+        async first() {
+          return undefined;
+        },
+        async insert() {
+          return undefined;
+        },
+        async update() {
+          return undefined;
+        },
+        async delete() {
+          return undefined;
+        },
+      };
+    },
+  };
 }
 
 export function createRedisConnection() {
