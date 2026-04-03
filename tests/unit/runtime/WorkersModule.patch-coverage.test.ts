@@ -11,7 +11,7 @@ vi.mock('@/common', () => ({
 }));
 
 vi.mock('@config/logger', () => ({
-  Logger: { warn: vi.fn() },
+  Logger: { info: vi.fn(), warn: vi.fn() },
 }));
 
 const fileContent = new Map<string, string>();
@@ -86,5 +86,21 @@ describe('WorkersModule patch coverage', () => {
 
     expect(workers).toBeDefined();
     expect(workers).toHaveProperty('WorkerFactory');
+  });
+
+  it('logs the disabled-workers import message only once', async () => {
+    process.env['WORKER_ENABLED'] = 'false';
+
+    const { Logger } = await import('@config/logger');
+    const mod = await import('@runtime/WorkersModule');
+
+    await mod.loadWorkersModule();
+    await mod.loadWorkersModule();
+    await mod.loadWorkersModule();
+
+    expect(Logger.info).toHaveBeenCalledTimes(1);
+    expect(Logger.info).toHaveBeenCalledWith(
+      'Skipping @zintrust/workers module import (workers disabled by env).'
+    );
   });
 });
