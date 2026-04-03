@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Block pushes when workspace package versions or lockfile are out of sync with core.
+node scripts/release/sync-package-versions.mjs --check
+
 # Block pushes when dist/package.json includes non-publish folders.
 node scripts/ci/check-dist-package-files.mjs
 
