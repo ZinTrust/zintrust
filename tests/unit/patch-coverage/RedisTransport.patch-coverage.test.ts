@@ -71,6 +71,30 @@ describe('patch coverage: RedisTransport', () => {
     ).toThrow(/requires a direct Redis connection/);
   });
 
+  it('treats missing direct Env proxy properties as direct mode when Env.get fallback is empty', async () => {
+    vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn() } }));
+    vi.doMock('@config/env', () => ({
+      Env: {
+        get: vi.fn((_key: string, defaultValue = '') => defaultValue),
+        getBool: vi.fn((_key: string, defaultValue = false) => defaultValue),
+        REDIS_PROXY_HOST: 'proxy.local',
+        REDIS_PROXY_PORT: 8791,
+        REDIS_PROXY_KEY_ID: '',
+        REDIS_PROXY_SECRET: '',
+        REDIS_PROXY_TIMEOUT_MS: 1500,
+      },
+    }));
+    vi.doMock('@security/SignedRequest', () => ({
+      SignedRequest: {
+        createHeaders: vi.fn(),
+      },
+    }));
+
+    const { resolveRedisTransportMode } = await import('@/tools/redis/RedisTransport');
+
+    expect(resolveRedisTransportMode()).toBe('direct');
+  });
+
   it('proxies signed commands and supports scan streams with fallback base urls', async () => {
     const info = vi.fn();
     const error = vi.fn();
