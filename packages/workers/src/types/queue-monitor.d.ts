@@ -24,6 +24,9 @@ declare module '@zintrust/queue-monitor' {
     autoRefresh?: boolean;
     refreshIntervalMs?: number;
     redis?: Record<string, unknown>;
+    knownQueues?:
+      | ReadonlyArray<string>
+      | (() => Promise<ReadonlyArray<string>> | ReadonlyArray<string>);
   };
 
   export type QueueMonitorApi = {

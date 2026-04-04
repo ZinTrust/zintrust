@@ -258,7 +258,9 @@ const getDashboardBody = (): string => `
 const getDashboardScriptState = (options: DashboardUiOptions): string => String.raw`
         const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
         const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs || 0))};
+    const STREAM_RESET_MS = Math.max(15000, REFRESH_INTERVAL * 4);
     const API_BASE = ${JSON.stringify(options.basePath)};
+    const ALL_QUEUES = '__all__';
         const THEME_KEY = 'zintrust-queue-monitor-theme';
         const AUTO_REFRESH_KEY = 'zintrust-queue-monitor-auto-refresh';
         const QUEUE_KEY = 'zintrust-queue-monitor-selected-queue';
@@ -269,6 +271,10 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => String.
         let sseActive = false;
         let lastSseQueue = null;
         let lastSsePattern = null;
+        let reconnectTimer = null;
+        let streamWatchdogTimer = null;
+        let dashboardResetTimer = null;
+        let reconnectAttempts = 0;
         let currentTheme = null;
 `;
 
@@ -329,6 +335,8 @@ const getDashboardScriptAutoRefresh = (): string => `
                     eventSource = null;
                 }
                 sseActive = false;
+                clearSseTimers();
+                clearError();
             }
 
             if (autoRefreshEnabled && !sseActive) {
@@ -412,18 +420,40 @@ const getRenderStatsFunction = (): string => `
 const getUpdateQueueSelectFunction = (): string => `
         function updateQueueSelect(queues) {
             const select = document.getElementById('queue-select');
-            const currentSelection = select.value || currentQueue;
+            const storedQueue = localStorage.getItem(QUEUE_KEY);
+            const preferredQueue = currentQueue || select.value || storedQueue || '';
             select.innerHTML = '';
 
-            if (queues.length === 0) return
+            if (queues.length === 0) {
+                select.disabled = true;
+                select.innerHTML = '<option value="">No queues</option>';
+                return '';
+            }
+
+            const queueNames = queues.map(q => q.name);
+            const totalWaiting = queues.reduce((acc, queue) => acc + queue.counts.waiting, 0);
+            const totalFailed = queues.reduce((acc, queue) => acc + queue.counts.failed, 0);
+            const allOption = document.createElement('option');
+            allOption.value = ALL_QUEUES;
+            allOption.textContent = 'All queues (' + totalWaiting + ' waiting, ' + totalFailed + ' failed)';
+
+            const nextQueue = preferredQueue === ALL_QUEUES || queueNames.includes(preferredQueue)
+                ? preferredQueue
+                : queueNames[0];
+            select.disabled = false;
+            allOption.selected = nextQueue === ALL_QUEUES;
+            select.appendChild(allOption);
 
             queues.forEach(q => {
                 const opt = document.createElement('option');
                 opt.value = q.name;
                 opt.textContent = q.name + ' (' + q.counts.waiting + ' waiting, ' + q.counts.failed + ' failed)';
-                opt.selected = q.name === currentSelection;
+                opt.selected = q.name === nextQueue;
                 select.appendChild(opt);
             });
+
+            select.value = nextQueue;
+            return nextQueue;
         }`;
 
 const getRenderJobsFunction = (): string => `
@@ -660,6 +690,12 @@ const getErrorAndTooltipFunctions = (): string => `
             el.style.display = 'block';
         }
 
+        function clearError() {
+            const el = document.getElementById('error-container');
+            el.textContent = '';
+            el.style.display = 'none';
+        }
+
         let tooltipEl = null;
         function showTooltip(e) {
             const info = e.target.getAttribute('data-info');
@@ -708,7 +744,7 @@ const getToggleDetailsFunctions = (): string => `
             const jobData = {
                 id: job.id,
                 name: job.name,
-                queue: currentQueue,
+                queue: job.queue || currentQueue,
                 status: job.status || (job.failedReason ? 'failed' : 'completed'),
                 attempts: job.attempts,
                 timestamp: new Date(job.timestamp).toISOString(),
@@ -805,6 +841,77 @@ const getDashboardScriptHelpers = (): string => `
             return patternInput && patternInput.value ? patternInput.value : '*';
         }
 
+        function clearSseTimers() {
+            if (reconnectTimer !== null) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+
+            if (streamWatchdogTimer !== null) {
+                clearTimeout(streamWatchdogTimer);
+                streamWatchdogTimer = null;
+            }
+
+            if (dashboardResetTimer !== null) {
+                clearTimeout(dashboardResetTimer);
+                dashboardResetTimer = null;
+            }
+        }
+
+        function scheduleDashboardReset(message) {
+            if (dashboardResetTimer !== null) return;
+
+            showError(message || 'Live updates stalled. Resetting dashboard...');
+            dashboardResetTimer = window.setTimeout(() => {
+                window.location.reload();
+            }, STREAM_RESET_MS);
+        }
+
+        function armStreamWatchdog() {
+            if (!autoRefreshEnabled) return;
+
+            if (streamWatchdogTimer !== null) {
+                clearTimeout(streamWatchdogTimer);
+            }
+
+            streamWatchdogTimer = window.setTimeout(() => {
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+                sseActive = false;
+                streamWatchdogTimer = null;
+                scheduleDashboardReset('Live updates stalled. Resetting dashboard...');
+            }, STREAM_RESET_MS);
+        }
+
+        function markStreamHealthy() {
+            reconnectAttempts = 0;
+            if (reconnectTimer !== null) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            clearError();
+            armStreamWatchdog();
+        }
+
+        function scheduleReconnect() {
+            if (!autoRefreshEnabled || reconnectTimer !== null) return;
+
+            reconnectAttempts += 1;
+            const delay = Math.min(1000 * reconnectAttempts, 5000);
+            showError('Live updates disconnected. Reconnecting...');
+
+            reconnectTimer = window.setTimeout(() => {
+                reconnectTimer = null;
+                setupEventStream(currentQueue);
+            }, delay);
+
+            if (reconnectAttempts >= 4) {
+                scheduleDashboardReset('Live updates could not reconnect. Resetting dashboard...');
+            }
+        }
+
         function buildEventsUrl(queue, pattern) {
             const q = queue || '';
             const p = pattern || '*';
@@ -815,11 +922,12 @@ const getDashboardScriptHelpers = (): string => `
 const getDashboardScriptEventStream = (): string => `
         function setupEventStream(queueOverride) {
             if (!window.EventSource) return;
+            if (!autoRefreshEnabled) return;
 
-            const queue = queueOverride || currentQueue;
+            const queue = queueOverride === undefined ? currentQueue : queueOverride;
             const pattern = getLockPattern();
 
-            if (eventSource && queue === lastSseQueue && pattern === lastSsePattern) return;
+            if (eventSource && sseActive && queue === lastSseQueue && pattern === lastSsePattern) return;
 
             if (eventSource) {
                 eventSource.close();
@@ -829,10 +937,12 @@ const getDashboardScriptEventStream = (): string => `
             lastSseQueue = queue;
             lastSsePattern = pattern;
             eventSource = new EventSource(buildEventsUrl(queue, pattern));
+            armStreamWatchdog();
 
             eventSource.onopen = () => {
                 sseActive = true;
                 stopAutoRefresh();
+                markStreamHealthy();
             };
 
             eventSource.onmessage = (evt) => {
@@ -843,20 +953,31 @@ const getDashboardScriptEventStream = (): string => `
                     if (payload.type === 'snapshot') {
                         if (payload.snapshot) {
                             renderStats(payload.snapshot);
-                            updateQueueSelect(payload.snapshot.queues || []);
+                            const nextQueue = updateQueueSelect(payload.snapshot.queues || []);
+                            if (nextQueue !== currentQueue) {
+                                currentQueue = nextQueue;
+                                if (currentQueue) {
+                                    localStorage.setItem(QUEUE_KEY, currentQueue);
+                                } else {
+                                    localStorage.removeItem(QUEUE_KEY);
+                                }
+                            }
                         }
 
-                        if (payload.queue && payload.queue !== currentQueue) {
-                            currentQueue = payload.queue;
-                            localStorage.setItem(QUEUE_KEY, currentQueue);
-                            const select = document.getElementById('queue-select');
-                            if (select) select.value = currentQueue;
+                        if (!currentQueue) {
+                            renderJobs([]);
                         }
 
-                        if (payload.jobs) renderJobs(payload.jobs);
+                        if (payload.jobs && (!payload.queue || payload.queue === currentQueue)) {
+                            renderJobs(payload.jobs);
+                        }
                         if (payload.locks) renderLocks(payload.locks);
 
-                        document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+                        const lastUpdated = document.getElementById('last-updated');
+                        if (lastUpdated) {
+                            lastUpdated.textContent = new Date().toLocaleTimeString();
+                        }
+                        markStreamHealthy();
                     }
                 } catch (err) {
                     console.error('Failed to parse SSE payload', err);
@@ -869,7 +990,7 @@ const getDashboardScriptEventStream = (): string => `
                     eventSource = null;
                 }
                 sseActive = false;
-                if (autoRefreshEnabled) startAutoRefresh();
+                scheduleReconnect();
             };
         }
 `;
@@ -967,8 +1088,13 @@ const getDashboardScriptBootstrap = (): string => `
         if (queueSelect) {
             queueSelect.addEventListener('change', (e) => {
                 currentQueue = e.target.value;
-                localStorage.setItem(QUEUE_KEY, currentQueue);
+                if (currentQueue) {
+                    localStorage.setItem(QUEUE_KEY, currentQueue);
+                } else {
+                    localStorage.removeItem(QUEUE_KEY);
+                }
                 console.log('Queue changed - SSE will update automatically');
+                clearError();
 
                 setupEventStream(currentQueue);
             });
@@ -996,6 +1122,7 @@ const getDashboardScriptBootstrap = (): string => `
         setupEventStream(currentQueue);
 
         window.addEventListener('beforeunload', () => {
+            clearSseTimers();
             if (eventSource) {
                 eventSource.close();
             }

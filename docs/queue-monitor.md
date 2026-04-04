@@ -84,6 +84,7 @@ const monitor = QueueMonitor.create({
   enabled: true, // defaults to true
   basePath: '/queue-monitor', // defaults to /queue-monitor
   middleware: ['auth'], // Protect your dashboard!
+  knownQueues: async () => ['emails', 'notifications'], // Optional stable queue inventory
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379'),
@@ -99,6 +100,8 @@ export const registerRoutes = (router: any) => {
 // Access the driver or metrics if needed
 export const queueDriver = monitor.driver;
 ```
+
+`knownQueues` is optional but recommended when your worker topology is persisted outside live BullMQ keys. It keeps the queue selector stable even when a queue is temporarily idle, and the SSE dashboard now auto-recovers with a clean page reset if the live stream stays stale long enough to leave the UI out of sync.
 
 ## Workers
 

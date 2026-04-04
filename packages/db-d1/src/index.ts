@@ -121,7 +121,7 @@ async function rawQueryD1<T>(
     Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
     const stmt = db.prepare(sql);
     const result = await stmt.bind(...(parameters ?? [])).all<T>();
-    return (result.results as T[]) ?? [];
+    return result.results ?? [];
   } catch (error) {
     throw ErrorFactory.createTryCatchError(`Raw SQL query failed: ${sql}`, error);
   }
@@ -133,11 +133,11 @@ function createD1Adapter(config: DatabaseConfig): IDatabaseAdapter {
   const adapter: IDatabaseAdapter = {
     connect: async () => {
       state.connected = true;
-      Logger.info('✓ D1 connected');
+      Logger.debug('✓ D1 connected');
     },
     disconnect: async () => {
       state.connected = false;
-      Logger.info('✓ D1 disconnected');
+      Logger.debug('✓ D1 disconnected');
     },
     query: async (sql, parameters) => {
       ensureConnected(state);

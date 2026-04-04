@@ -19,6 +19,7 @@ type ProxySettings = Readonly<{
 }>;
 
 type RedisProxyConnection = {
+  [x: string]: unknown;
   status: 'ready';
   connect: () => Promise<void>;
   quit: () => Promise<'OK'>;
@@ -40,6 +41,24 @@ type RedisProxyConnection = {
 };
 
 const loggedSelections = new Set<string>();
+
+const readEnvString = (key: string, fallback = ''): string => {
+  if (typeof Env.get === 'function') {
+    return Env.get(key, fallback);
+  }
+
+  const value = (Env as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : fallback;
+};
+
+const readEnvBool = (key: string, fallback = false): boolean => {
+  if (typeof Env.getBool === 'function') {
+    return Env.getBool(key, fallback);
+  }
+
+  const value = (Env as Record<string, unknown>)[key];
+  return typeof value === 'boolean' ? value : fallback;
+};
 
 const resolveSigningPrefix = (baseUrl: string): string | undefined => {
   try {
@@ -75,7 +94,7 @@ const buildSigningUrl = (requestUrl: URL, baseUrl: string): URL => {
 };
 
 const resolveProxyBaseUrl = (): string => {
-  const explicit = Env.REDIS_PROXY_URL.trim();
+  const explicit = readEnvString('REDIS_PROXY_URL', '').trim();
   if (explicit !== '') return explicit;
   return `http://${Env.REDIS_PROXY_HOST}:${Env.REDIS_PROXY_PORT}`;
 };
@@ -288,7 +307,9 @@ const createPipeline = (
 };
 
 export const resolveRedisTransportMode = (): RedisTransportMode => {
-  return Env.USE_REDIS_PROXY || Env.REDIS_PROXY_URL.trim() !== '' ? 'proxy' : 'direct';
+  return readEnvBool('USE_REDIS_PROXY', false) || readEnvString('REDIS_PROXY_URL', '').trim() !== ''
+    ? 'proxy'
+    : 'direct';
 };
 
 export const createRedisProxyConnection = (

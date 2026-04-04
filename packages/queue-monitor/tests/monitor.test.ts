@@ -7,7 +7,16 @@ vi.mock('bullmq', () => {
     Queue: class {
       add = vi.fn().mockResolvedValue({ id: '1' });
       getJob = vi.fn();
-      getJobCounts = vi.fn().mockResolvedValue({ active: 0, waiting: 0, completed: 0, failed: 0 });
+      getJobCounts = vi
+        .fn()
+        .mockResolvedValue({
+          active: 0,
+          waiting: 0,
+          completed: 0,
+          failed: 0,
+          delayed: 0,
+          paused: 0,
+        });
       close = vi.fn();
     },
     Worker: class {
@@ -24,6 +33,7 @@ vi.mock('ioredis', () => {
       expire = vi.fn();
       lpush = vi.fn();
       ltrim = vi.fn();
+      scan = vi.fn().mockResolvedValue(['0', []]);
       pipeline = vi.fn(() => ({
         hgetall: vi.fn(),
         exec: vi.fn().mockResolvedValue([]),
@@ -68,5 +78,16 @@ describe('QueueMonitor', () => {
 
     expect(snapshot.status).toBe('ok');
     expect(snapshot.queues).toBeInstanceOf(Array);
+  });
+
+  it('merges known queues into the snapshot when Redis has no discoverable queue keys', async () => {
+    const monitor = QueueMonitor.create({
+      redis: redisConfig,
+      knownQueues: async () => ['emails', 'notifications', 'emails'],
+    });
+
+    const snapshot = await monitor.getSnapshot();
+
+    expect(snapshot.queues.map((queue) => queue.name)).toEqual(['emails', 'notifications']);
   });
 });

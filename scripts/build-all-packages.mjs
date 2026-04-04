@@ -91,6 +91,7 @@ console.log();
 const failed = [];
 
 const isCi = process.env.CI === 'true' || process.env.CI === '1';
+const forcePackageInstall = process.env.FORCE_PACKAGE_INSTALL === 'true';
 
 const getErrorText = (error) => {
   const asString = (value) => {
@@ -128,9 +129,9 @@ for (const pkg of selectedPackages) {
   console.log(`\n🔨 Building ${pkgJson.name}...`);
 
   try {
-    if (hasDeps && !skipInstall) {
+    if (hasDeps && !skipInstall && forcePackageInstall) {
       try {
-        execSync('npm install --ignore-scripts --no-package-lock', {
+        execSync('npm install --ignore-scripts --no-package-lock --workspaces=false', {
           cwd: pkgPath,
           stdio: 'inherit',
         });
@@ -146,6 +147,10 @@ for (const pkg of selectedPackages) {
           `⚠️  npm install blocked by registry/security policy for ${pkgJson.name}; continuing build without package-local install (CI fallback)`
         );
       }
+    } else if (hasDeps && !skipInstall) {
+      console.log(
+        `ℹ️  Using root workspace dependencies for ${pkgJson.name}; skipping package-local npm install`
+      );
     }
     // Check if package has build script
     if (pkgJson.scripts?.build) {

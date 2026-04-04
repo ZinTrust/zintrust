@@ -250,6 +250,7 @@ let patchAfterFailureAttempted = false;
 let queueMonitorModulePromise: Promise<QueueMonitorModule> | undefined;
 let queueMonitorPatchAfterFailureAttempted = false;
 let workersResolverDiagnosticLogged = false;
+let workersDisabledByEnvLogged = false;
 
 const resolvePackageEntryForDebug = (packageName: string): string | null => {
   if (!isNodeRuntime()) return null;
@@ -372,9 +373,14 @@ const tryLocalFallback = async (): Promise<WorkersModule | null> => {
   return null;
 };
 
-export const loadWorkersModule = async (): Promise<WorkersModule> => {
-  if (shouldDisableWorkerModules()) {
-    Logger.info('Skipping @zintrust/workers module import (workers disabled by env).');
+export const loadWorkersModule = async (
+  options: { allowWhenDisabled?: boolean } = {}
+): Promise<WorkersModule> => {
+  if (shouldDisableWorkerModules() && options.allowWhenDisabled !== true) {
+    if (!workersDisabledByEnvLogged) {
+      workersDisabledByEnvLogged = true;
+      Logger.info('Skipping @zintrust/workers module import (workers disabled by env).');
+    }
     workersModulePromise ??= Promise.resolve(createDisabledWorkersModule());
     return workersModulePromise;
   }

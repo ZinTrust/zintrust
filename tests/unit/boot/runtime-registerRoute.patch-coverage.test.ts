@@ -69,6 +69,7 @@ describe('runtime/registerRoute patch coverage', () => {
     const registerWorkerRoutes = vi.fn();
     const registerQueueMonitorRoutes = vi.fn();
     const registerQueueGatewayRoutes = vi.fn();
+    const createQueueMonitor = vi.fn(() => ({ registerRoutes: registerQueueMonitorRoutes }));
 
     vi.doMock('@node-singletons/fs', () => ({ existsSync, mkdirSync }));
     vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
@@ -97,10 +98,20 @@ describe('runtime/registerRoute patch coverage', () => {
     vi.doMock('@registry/worker', () => ({ registerWorkerShutdownHook: vi.fn() }));
 
     vi.doMock('@runtime/WorkersModule', () => ({
-      loadWorkersModule: vi.fn(async () => ({ WorkerInit: {}, registerWorkerRoutes })),
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerInit: {},
+        registerWorkerRoutes,
+        WorkerFactory: {
+          listPersistedRecords: vi.fn(async () => [
+            { queueName: 'emails' },
+            { queueName: 'notifications' },
+            { queueName: 'emails' },
+          ]),
+        },
+      })),
       loadQueueMonitorModule: vi.fn(async () => ({
         QueueMonitor: {
-          create: () => ({ registerRoutes: registerQueueMonitorRoutes }),
+          create: createQueueMonitor,
         },
       })),
     }));
@@ -178,6 +189,122 @@ describe('runtime/registerRoute patch coverage', () => {
     expect(registerWorkerRoutes).toHaveBeenCalled();
     expect(registerQueueMonitorRoutes).toHaveBeenCalled();
     expect(registerQueueGatewayRoutes).toHaveBeenCalled();
+    expect(createQueueMonitor).toHaveBeenCalled();
+    const monitorConfig = createQueueMonitor.mock.calls[0]?.[0] as {
+      knownQueues?: () => Promise<string[]>;
+    };
+    await expect(monitorConfig.knownQueues?.()).resolves.toEqual(['emails', 'notifications']);
+  });
+
+  it('createLifecycle still registers worker dashboards and queue monitor when worker execution is disabled', async () => {
+    const registerWorkerRoutes = vi.fn();
+    const registerQueueMonitorRoutes = vi.fn();
+    const registerQueueGatewayRoutes = vi.fn();
+
+    vi.doMock('@node-singletons/fs', () => ({ existsSync: vi.fn(() => true), mkdirSync: vi.fn() }));
+    vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+    vi.doMock('@cache/CacheRuntimeRegistration', () => ({
+      registerCachesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@orm/DatabaseRuntimeRegistration', () => ({
+      registerDatabasesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/queue/QueueRuntimeRegistration', () => ({
+      registerQueuesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/broadcast/BroadcastRuntimeRegistration', () => ({
+      registerBroadcastersFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/storage/StorageRuntimeRegistration', () => ({
+      registerDisksFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/notification/NotificationRuntimeRegistration', () => ({
+      registerNotificationChannelsFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@registry/registerRoute', () => ({
+      registerMasterRoutes: vi.fn(async () => undefined),
+      tryImportOptional: vi.fn(async () => undefined),
+    }));
+    vi.doMock('@registry/worker', () => ({ registerWorkerShutdownHook: vi.fn() }));
+
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({ WorkerInit: {}, registerWorkerRoutes })),
+      loadQueueMonitorModule: vi.fn(async () => ({
+        QueueMonitor: {
+          create: () => ({ registerRoutes: registerQueueMonitorRoutes }),
+        },
+      })),
+    }));
+
+    vi.doMock('@runtime-config/queue', () => ({
+      default: { monitor: { enabled: true, basePath: '/queue-monitor' } },
+    }));
+
+    vi.doMock('@zintrust/queue-redis', () => ({
+      QueueHttpGateway: {
+        create: () => ({ registerRoutes: registerQueueGatewayRoutes }),
+      },
+    }));
+
+    vi.doMock('@/config', () => ({
+      appConfig: { port: 7777, dockerWorker: false, worker: false },
+      cacheConfig: {},
+      databaseConfig: { default: 'sqlite', connections: {} },
+      queueConfig: { drivers: { redis: { host: '127.0.0.1', port: 6379, database: 0 } } },
+      storageConfig: {},
+    }));
+    vi.doMock('@config/database', () => ({
+      databaseConfig: { default: 'sqlite', connections: {} },
+    }));
+    vi.doMock('@config/env', () => ({ Env: { getBool: vi.fn(() => false) } }));
+    vi.doMock('@config/cloudflare', () => ({ Cloudflare: { getWorkersEnv: () => null } }));
+    vi.doMock('@config/features', () => ({ FeatureFlags: { initialize: vi.fn() } }));
+    vi.doMock('@/health/StartupHealthChecks', () => ({
+      StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@config/StartupConfigValidator', () => ({
+      StartupConfigValidator: { assertValid: vi.fn() },
+    }));
+    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
+      StartupConfigFileRegistry: {
+        clear: vi.fn(),
+        preload: vi.fn(async () => undefined),
+      },
+      StartupConfigFile: {
+        Middleware: 'config/middleware.ts',
+        Cache: 'config/cache.ts',
+        Database: 'config/database.ts',
+        Queue: 'config/queue.ts',
+        Storage: 'config/storage.ts',
+        Mail: 'config/mail.ts',
+        Broadcast: 'config/broadcast.ts',
+        Notification: 'config/notification.ts',
+      },
+    }));
+    vi.doMock('@config/broadcast', () => ({ default: { default: 'default', drivers: {} } }));
+    vi.doMock('@config/notification', () => ({ default: { default: 'default', drivers: {} } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    mockRuntimeDatabaseModule();
+
+    const { createLifecycle } = await import('@/boot/registry/runtime');
+
+    const lifecycle = createLifecycle({
+      environment: 'development',
+      resolvedBasePath: '/workspace',
+      router: { routes: [], getRoutes: vi.fn(), getNamedRoutes: vi.fn() } as any,
+      shutdownManager: { add: vi.fn(), run: vi.fn(async () => undefined) } as any,
+      getBooted: () => false,
+      setBooted: vi.fn(),
+    });
+
+    await lifecycle.boot();
+
+    expect(registerWorkerRoutes).toHaveBeenCalled();
+    expect(registerQueueMonitorRoutes).toHaveBeenCalled();
+    expect(registerQueueGatewayRoutes).not.toHaveBeenCalled();
   });
 
   it('createLifecycle handles queue monitor module load failure gracefully', async () => {
@@ -490,10 +617,10 @@ describe('runtime/registerRoute patch coverage', () => {
 
     await lifecycle.boot();
 
-    expect(loadWorkersModuleSpy).not.toHaveBeenCalled();
-    expect(loadQueueMonitorModuleSpy).not.toHaveBeenCalled();
+    expect(loadWorkersModuleSpy).toHaveBeenCalled();
+    expect(loadQueueMonitorModuleSpy).toHaveBeenCalled();
     expect(infoSpy).toHaveBeenCalledWith(
-      'Skipping worker module initialization (WORKER_ENABLED=false).'
+      'Skipping worker execution/gateway initialization (WORKER_ENABLED=false).'
     );
   });
 

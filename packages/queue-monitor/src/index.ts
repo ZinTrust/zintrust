@@ -1,4 +1,6 @@
 import {
+  isArray,
+  isNonEmptyString,
   Logger,
   queueConfig,
   resolveLockPrefix,
@@ -12,7 +14,7 @@ import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
 import { createMetrics, type Metrics } from './metrics';
-import { getRecentJobsForQueue, QueueMonitoringStream } from './QueueMonitoringService';
+import { getRecentJobsForSelection, QueueMonitoringStream } from './QueueMonitoringService';
 
 export type { JobPayload } from './driver';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker';
@@ -24,6 +26,9 @@ export type QueueMonitorConfig = {
   autoRefresh?: boolean;
   refreshIntervalMs?: number;
   redis?: RedisConfig;
+  knownQueues?:
+    | ReadonlyArray<string>
+    | (() => Promise<ReadonlyArray<string>> | ReadonlyArray<string>);
 };
 
 export type QueueCounts = {
@@ -117,6 +122,36 @@ const HISTOGRAM_BUCKETS: Array<{ label: string; min?: number; max?: number }> = 
 ];
 
 const MAX_LOCK_KEYS = 10_000;
+
+function normalizeQueueNames(queueNames: ReadonlyArray<unknown>): string[] {
+  return Array.from(
+    new Set(
+      queueNames
+        .map((queueName) => queueName)
+        .filter(isNonEmptyString)
+        .map((name) => name.trim())
+    )
+  )
+    .filter((name) => name.length > 0)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+async function resolveKnownQueues(
+  knownQueues:
+    | ReadonlyArray<string>
+    | (() => Promise<ReadonlyArray<string>> | ReadonlyArray<string>)
+    | undefined
+): Promise<string[]> {
+  if (typeof knownQueues === 'function') {
+    return normalizeQueueNames(await knownQueues());
+  }
+
+  if (isArray(knownQueues)) {
+    return normalizeQueueNames(knownQueues);
+  }
+
+  return [];
+}
 
 // Helper function to scan lock keys with pagination
 const scanLockKeys = async (
@@ -271,7 +306,7 @@ async function handleJobsEndpoint(
     return;
   }
 
-  const jobs = await getRecentJobsForQueue(queueName, metrics, driver);
+  const jobs = await getRecentJobsForSelection(queueName, metrics, driver);
   res.json(jobs);
 }
 
@@ -319,9 +354,22 @@ function buildSettings(config: QueueMonitorConfig): {
   };
 }
 
-function createGetSnapshot(driver: QueueDriver, startedAt: string) {
+function createGetSnapshot(
+  driver: QueueDriver,
+  startedAt: string,
+  knownQueues:
+    | ReadonlyArray<string>
+    | (() => Promise<ReadonlyArray<string>> | ReadonlyArray<string>)
+    | undefined
+) {
   return async (): Promise<QueueMonitorSnapshot> => {
-    const queues = await driver.getQueues();
+    const [discoveredQueues, persistedQueues] = await Promise.all([
+      driver.getQueues(),
+      resolveKnownQueues(knownQueues),
+    ]);
+    const queues = Array.from(new Set([...persistedQueues, ...discoveredQueues])).sort(
+      (left, right) => left.localeCompare(right)
+    );
     const stats = await Promise.all(
       queues.map(async (name) => {
         const counts = await driver.getJobCounts(name);
@@ -524,7 +572,7 @@ export const QueueMonitor = Object.freeze({
     const metrics = createMetrics(redisConfig);
     const startedAt = new Date().toISOString();
 
-    const getSnapshot = createGetSnapshot(driver, startedAt);
+    const getSnapshot = createGetSnapshot(driver, startedAt, config.knownQueues);
     const getLocks = createGetLocks(redisConfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 

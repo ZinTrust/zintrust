@@ -7,6 +7,7 @@ export type JobStatus = 'completed' | 'failed';
 export type JobSummary = {
   id: string | undefined;
   name: string;
+  queue?: string;
   data: unknown;
   attempts: number;
   status?: string;

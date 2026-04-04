@@ -591,6 +591,16 @@ async function getRedisQueueData(): Promise<QueueData> {
     }
 
     const monitor = QueueMonitor.create({
+      knownQueues: async () => {
+        const records = await WorkerFactory.listPersistedRecords();
+        return Array.from(
+          new Set(
+            records
+              .map((record) => record.queueName)
+              .filter((queueName) => typeof queueName === 'string')
+          )
+        ).sort((left, right) => left.localeCompare(right));
+      },
       redis: {
         host: redisConfig.host || 'localhost',
         port: redisConfig.port || 6379,

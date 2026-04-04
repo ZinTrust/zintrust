@@ -85,13 +85,13 @@ export const D1Adapter = Object.freeze({
       // eslint-disable-next-line @typescript-eslint/require-await
       async connect(): Promise<void> {
         connected = true;
-        Logger.info('✓ D1 connected');
+        Logger.debug('✓ D1 connected');
       },
 
       // eslint-disable-next-line @typescript-eslint/require-await
       async disconnect(): Promise<void> {
         connected = false;
-        Logger.info('✓ D1 disconnected');
+        Logger.debug('✓ D1 disconnected');
       },
 
       async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
