@@ -7,6 +7,50 @@ const redisConfig = {
   db: 0,
 };
 
+const createJsonResponse = (result: unknown, status = 200): Response =>
+  new Response(JSON.stringify({ result }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+
+const mockLogger = (info = vi.fn(), error = vi.fn()): void => {
+  vi.doMock('@config/logger', () => ({ Logger: { info, error } }));
+};
+
+const mockSignedRequest = (createHeaders = vi.fn()): void => {
+  vi.doMock('@security/SignedRequest', () => ({
+    SignedRequest: {
+      createHeaders,
+    },
+  }));
+};
+
+const mockEnv = (env: Record<string, unknown>): void => {
+  vi.doMock('@config/env', () => ({ Env: env }));
+};
+
+const waitForStreamEnd = (stream: {
+  on: (event: string, handler: (...args: unknown[]) => void) => unknown;
+  off: (event: string, handler: (...args: unknown[]) => void) => unknown;
+  once: (event: string, handler: (...args: unknown[]) => void) => unknown;
+}): Promise<void> => {
+  return new Promise<void>((resolve, reject) => {
+    const removed = vi.fn();
+    stream.on('data', removed);
+    stream.off('data', removed);
+    stream.once('end', () => resolve());
+    stream.on('error', reject);
+  });
+};
+
+const waitForStreamError = (stream: {
+  on: (event: string, handler: (...args: unknown[]) => void) => unknown;
+}): Promise<unknown> => {
+  return new Promise((resolve) => {
+    stream.on('error', (streamError: unknown) => resolve(streamError));
+  });
+};
+
 describe('patch coverage: RedisTransport', () => {
   afterEach(() => {
     vi.resetModules();
@@ -17,23 +61,17 @@ describe('patch coverage: RedisTransport', () => {
   it('logs direct transport selection once and enforces requireDirect in proxy mode', async () => {
     const info = vi.fn();
 
-    vi.doMock('@config/logger', () => ({ Logger: { info } }));
-    vi.doMock('@config/env', () => ({
-      Env: {
-        USE_REDIS_PROXY: false,
-        REDIS_PROXY_URL: '',
-        REDIS_PROXY_HOST: 'proxy.local',
-        REDIS_PROXY_PORT: 8791,
-        REDIS_PROXY_KEY_ID: '',
-        REDIS_PROXY_SECRET: '',
-        REDIS_PROXY_TIMEOUT_MS: 1500,
-      },
-    }));
-    vi.doMock('@security/SignedRequest', () => ({
-      SignedRequest: {
-        createHeaders: vi.fn(),
-      },
-    }));
+    mockLogger(info);
+    mockEnv({
+      USE_REDIS_PROXY: false,
+      REDIS_PROXY_URL: '',
+      REDIS_PROXY_HOST: 'proxy.local',
+      REDIS_PROXY_PORT: 8791,
+      REDIS_PROXY_KEY_ID: '',
+      REDIS_PROXY_SECRET: '',
+      REDIS_PROXY_TIMEOUT_MS: 1500,
+    });
+    mockSignedRequest();
 
     const { ensureRedisTransportMode, resolveRedisTransportMode } =
       await import('@/tools/redis/RedisTransport');
@@ -44,23 +82,17 @@ describe('patch coverage: RedisTransport', () => {
     expect(info).toHaveBeenCalledTimes(1);
 
     vi.resetModules();
-    vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn() } }));
-    vi.doMock('@config/env', () => ({
-      Env: {
-        USE_REDIS_PROXY: true,
-        REDIS_PROXY_URL: 'http://proxy.local/redis',
-        REDIS_PROXY_HOST: 'proxy.local',
-        REDIS_PROXY_PORT: 8791,
-        REDIS_PROXY_KEY_ID: '',
-        REDIS_PROXY_SECRET: '',
-        REDIS_PROXY_TIMEOUT_MS: 1500,
-      },
-    }));
-    vi.doMock('@security/SignedRequest', () => ({
-      SignedRequest: {
-        createHeaders: vi.fn(),
-      },
-    }));
+    mockLogger(vi.fn());
+    mockEnv({
+      USE_REDIS_PROXY: true,
+      REDIS_PROXY_URL: 'http://proxy.local/redis',
+      REDIS_PROXY_HOST: 'proxy.local',
+      REDIS_PROXY_PORT: 8791,
+      REDIS_PROXY_KEY_ID: '',
+      REDIS_PROXY_SECRET: '',
+      REDIS_PROXY_TIMEOUT_MS: 1500,
+    });
+    mockSignedRequest();
 
     const proxyModule = await import('@/tools/redis/RedisTransport');
     expect(() =>
@@ -72,23 +104,17 @@ describe('patch coverage: RedisTransport', () => {
   });
 
   it('treats missing direct Env proxy properties as direct mode when Env.get fallback is empty', async () => {
-    vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn() } }));
-    vi.doMock('@config/env', () => ({
-      Env: {
-        get: vi.fn((_key: string, defaultValue = '') => defaultValue),
-        getBool: vi.fn((_key: string, defaultValue = false) => defaultValue),
-        REDIS_PROXY_HOST: 'proxy.local',
-        REDIS_PROXY_PORT: 8791,
-        REDIS_PROXY_KEY_ID: '',
-        REDIS_PROXY_SECRET: '',
-        REDIS_PROXY_TIMEOUT_MS: 1500,
-      },
-    }));
-    vi.doMock('@security/SignedRequest', () => ({
-      SignedRequest: {
-        createHeaders: vi.fn(),
-      },
-    }));
+    mockLogger(vi.fn());
+    mockEnv({
+      get: vi.fn((_key: string, defaultValue = '') => defaultValue),
+      getBool: vi.fn((_key: string, defaultValue = false) => defaultValue),
+      REDIS_PROXY_HOST: 'proxy.local',
+      REDIS_PROXY_PORT: 8791,
+      REDIS_PROXY_KEY_ID: '',
+      REDIS_PROXY_SECRET: '',
+      REDIS_PROXY_TIMEOUT_MS: 1500,
+    });
+    mockSignedRequest();
 
     const { resolveRedisTransportMode } = await import('@/tools/redis/RedisTransport');
 
@@ -103,43 +129,22 @@ describe('patch coverage: RedisTransport', () => {
     }));
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ result: 'value-1' }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ result: 'value-2' }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ result: [] }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      );
+      .mockResolvedValueOnce(createJsonResponse('value-1'))
+      .mockResolvedValueOnce(createJsonResponse('value-2'))
+      .mockResolvedValueOnce(createJsonResponse([]));
 
     vi.stubGlobal('fetch', fetchMock);
-    vi.doMock('@config/logger', () => ({ Logger: { info, error } }));
-    vi.doMock('@config/env', () => ({
-      Env: {
-        USE_REDIS_PROXY: true,
-        REDIS_PROXY_URL: '',
-        REDIS_PROXY_HOST: 'proxy.local',
-        REDIS_PROXY_PORT: 8787,
-        REDIS_PROXY_KEY_ID: 'kid-1',
-        REDIS_PROXY_SECRET: 'secret-1',
-        REDIS_PROXY_TIMEOUT_MS: 1500,
-      },
-    }));
-    vi.doMock('@security/SignedRequest', () => ({
-      SignedRequest: {
-        createHeaders,
-      },
-    }));
+    mockLogger(info, error);
+    mockEnv({
+      USE_REDIS_PROXY: true,
+      REDIS_PROXY_URL: '',
+      REDIS_PROXY_HOST: 'proxy.local',
+      REDIS_PROXY_PORT: 8787,
+      REDIS_PROXY_KEY_ID: 'kid-1',
+      REDIS_PROXY_SECRET: 'secret-1',
+      REDIS_PROXY_TIMEOUT_MS: 1500,
+    });
+    mockSignedRequest(createHeaders);
 
     const { createRedisProxyConnection, resolveRedisTransportMode } =
       await import('@/tools/redis/RedisTransport');
@@ -157,14 +162,7 @@ describe('patch coverage: RedisTransport', () => {
     expect(client.off('ready', () => undefined)).toBe(client);
     expect(client.removeListener('ready', () => undefined)).toBe(client);
 
-    await new Promise<void>((resolve, reject) => {
-      const stream = client.scanStream({ match: 'queue:*', count: 5 });
-      const removed = vi.fn();
-      stream.on('data', removed);
-      stream.off('data', removed);
-      stream.once('end', () => resolve());
-      stream.on('error', reject);
-    });
+    await waitForStreamEnd(client.scanStream({ match: 'queue:*', count: 5 }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://proxy.local:8787/zin/redis/command',
@@ -186,33 +184,22 @@ describe('patch coverage: RedisTransport', () => {
     const error = vi.fn();
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ result: 'OK' }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      )
+      .mockResolvedValueOnce(createJsonResponse('OK'))
       .mockResolvedValueOnce(new Response('bad gateway', { status: 502 }))
       .mockRejectedValueOnce(new Error('scan failed'));
 
     vi.stubGlobal('fetch', fetchMock);
-    vi.doMock('@config/logger', () => ({ Logger: { info, error } }));
-    vi.doMock('@config/env', () => ({
-      Env: {
-        USE_REDIS_PROXY: true,
-        REDIS_PROXY_URL: 'http://proxy.local/base',
-        REDIS_PROXY_HOST: 'proxy.local',
-        REDIS_PROXY_PORT: 8787,
-        REDIS_PROXY_KEY_ID: '',
-        REDIS_PROXY_SECRET: '',
-        REDIS_PROXY_TIMEOUT_MS: 1500,
-      },
-    }));
-    vi.doMock('@security/SignedRequest', () => ({
-      SignedRequest: {
-        createHeaders: vi.fn(),
-      },
-    }));
+    mockLogger(info, error);
+    mockEnv({
+      USE_REDIS_PROXY: true,
+      REDIS_PROXY_URL: 'http://proxy.local/base',
+      REDIS_PROXY_HOST: 'proxy.local',
+      REDIS_PROXY_PORT: 8787,
+      REDIS_PROXY_KEY_ID: '',
+      REDIS_PROXY_SECRET: '',
+      REDIS_PROXY_TIMEOUT_MS: 1500,
+    });
+    mockSignedRequest();
 
     const { createRedisProxyConnection } = await import('@/tools/redis/RedisTransport');
     const client = createRedisProxyConnection(redisConfig, { subsystem: 'queue' });
@@ -225,13 +212,9 @@ describe('patch coverage: RedisTransport', () => {
     expect(results[1]?.[0]).toBeInstanceOf(Error);
     expect(String(results[1]?.[0])).toContain('Redis proxy request failed (502)');
 
-    await new Promise<void>((resolve) => {
-      const stream = client.scanStream();
-      stream.on('error', (streamError: unknown) => {
-        expect(streamError).toBeInstanceOf(Error);
-        expect(String(streamError)).toContain('scan failed');
-        resolve();
-      });
-    });
+    const streamError = await waitForStreamError(client.scanStream());
+
+    expect(streamError).toBeInstanceOf(Error);
+    expect(String(streamError)).toContain('scan failed');
   });
 });
