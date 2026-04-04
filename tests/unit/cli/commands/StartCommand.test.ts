@@ -118,7 +118,10 @@ describe('StartCommand', () => {
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'tsx',
-        args: ['watch', 'src/boot/bootstrap.ts'],
+        args: ['watch', expect.stringContaining('zin-start-node.ts')],
+        env: expect.objectContaining({
+          ZINTRUST_BOOTSTRAP_PREFERENCE: 'source',
+        }),
       })
     );
   });
@@ -136,7 +139,10 @@ describe('StartCommand', () => {
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'node',
-        args: ['dist/src/boot/bootstrap.js'],
+        args: [expect.stringContaining('zin-start-node.mjs')],
+        env: expect.objectContaining({
+          ZINTRUST_BOOTSTRAP_PREFERENCE: 'compiled',
+        }),
       })
     );
   });
@@ -335,7 +341,7 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'tsx',
-        args: ['watch', 'src/index.ts'],
+        args: ['watch', expect.stringContaining('zin-start-node.ts')],
         env: expect.objectContaining({ ZINTRUST_PROJECT_ROOT: projectRoot }),
       })
     );
@@ -800,7 +806,7 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
 
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: ['src/index.ts'],
+        args: [expect.stringContaining('zin-start-node.ts')],
       })
     );
   });
@@ -838,7 +844,7 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     await expect(command.execute({})).rejects.toThrow(/process.exit/);
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: ['watch', 'src/index.ts'],
+        args: ['watch', expect.stringContaining('zin-start-node.ts')],
       })
     );
   });

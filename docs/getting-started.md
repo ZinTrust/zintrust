@@ -43,6 +43,8 @@ import '@zintrust/core/boot';
 export {};
 ```
 
+In Node mode, `@zintrust/core/boot` now loads the project env files before it hands off to the stock bootstrap lifecycle, using the same env-file parsing semantics as the CLI startup path.
+
 Use a full custom bootstrap only when you intentionally need behavior different from the stock ZinTrust bootstrap. If you replace it completely, you are also responsible for running any worker startup lifecycle that your app depends on.
 
 ## Install adapters (database/cache/etc.)

@@ -44,12 +44,7 @@ type GlobalDebuggerPluginState = {
   __zintrust_system_debugger_runtime__?: ILocalSystemDebuggerModule;
 };
 
-type RuntimeQueueConfig = {
-  monitor?: {
-    enabled?: boolean;
-    basePath?: string;
-  } & Record<string, unknown>;
-};
+type RuntimeQueueConfig = typeof RuntimeConfig.queueConfig;
 
 type QueueMonitorWorkerFactoryModule = {
   WorkerFactory?: {
@@ -112,12 +107,17 @@ const loadLocalSystemDebuggerModule = async (): Promise<ILocalSystemDebuggerModu
 };
 
 const loadRuntimeQueueConfig = async (): Promise<RuntimeQueueConfig | undefined> => {
+  const startupQueueConfig = getStartupQueueConfig();
+  if (startupQueueConfig !== undefined) {
+    return startupQueueConfig;
+  }
+
   try {
     const modulePath = '@runtime-config/queue';
     const loaded = (await import(modulePath)) as { default?: RuntimeQueueConfig };
-    return loaded.default ?? (queueConfig as RuntimeQueueConfig | undefined) ?? undefined;
+    return loaded.default ?? getQueueConfig();
   } catch {
-    return (queueConfig as RuntimeQueueConfig | undefined) ?? undefined;
+    return getQueueConfig();
   }
 };
 const readRuntimeConfig = <T>(key: string, fallback: T): T => {
@@ -129,6 +129,23 @@ const readRuntimeConfig = <T>(key: string, fallback: T): T => {
   }
 };
 
+const getStartupQueueConfig = (): RuntimeQueueConfig | undefined => {
+  const startupQueueConfig = (
+    StartupConfigFileRegistry as {
+      get?: (file: typeof StartupConfigFile.Queue) => unknown;
+    }
+  ).get?.(StartupConfigFile.Queue);
+
+  return (startupQueueConfig as RuntimeQueueConfig | undefined) ?? undefined;
+};
+
+const getQueueConfig = (): RuntimeQueueConfig => {
+  return (
+    getStartupQueueConfig() ??
+    (readRuntimeConfig('queueConfig', RuntimeConfig.queueConfig) as RuntimeQueueConfig)
+  );
+};
+
 const appConfig = readRuntimeConfig('appConfig', {
   port: 7777,
   dockerWorker: false,
@@ -138,7 +155,6 @@ const appConfig = readRuntimeConfig('appConfig', {
 // exported solely for tests to exercise the default detectRuntime handler
 
 const cacheConfig = readRuntimeConfig('cacheConfig', RuntimeConfig.cacheConfig);
-const queueConfig = readRuntimeConfig('queueConfig', RuntimeConfig.queueConfig);
 const storageConfig = readRuntimeConfig('storageConfig', RuntimeConfig.storageConfig);
 
 const getDatabaseConfig = (): typeof liveDatabaseConfig => {
@@ -151,7 +167,7 @@ const dbLoader = async (): Promise<void> => {
 };
 
 const queuesLoader = async (): Promise<void> => {
-  await registerQueuesFromRuntimeConfig(queueConfig);
+  await registerQueuesFromRuntimeConfig(getQueueConfig());
 };
 
 // eslint-disable-next-line @typescript-eslint/require-await
@@ -303,14 +319,17 @@ const initializeArtifactDirectories = async (resolvedBasePath: string): Promise<
   }
 };
 
-const extractRedisConfigFromQueueConfig = (): {
+const extractRedisConfigFromQueueConfig = (
+  runtimeQueueConfig?: RuntimeQueueConfig
+): {
   host: string;
   port: number;
   password: string;
   db: number;
 } => {
   const redisConfig =
-    (queueConfig as { drivers?: { redis?: Record<string, unknown> } }).drivers?.redis ?? {};
+    ((runtimeQueueConfig ?? getQueueConfig()) as { drivers?: { redis?: Record<string, unknown> } })
+      .drivers?.redis ?? {};
   const redisHost = typeof redisConfig['host'] === 'string' ? redisConfig['host'] : '127.0.0.1';
   const redisPort =
     typeof redisConfig['port'] === 'number' && Number.isFinite(redisConfig['port'])
@@ -372,7 +391,7 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
     return;
   }
 
-  const redisConfig = extractRedisConfigFromQueueConfig();
+  const redisConfig = extractRedisConfigFromQueueConfig(runQueueConfig);
   const { QueueMonitor } = queueMonitorModule;
 
   const resolveKnownQueues = async (): Promise<string[]> => {

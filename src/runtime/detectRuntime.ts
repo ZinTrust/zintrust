@@ -1,20 +1,6 @@
-import { appConfig } from '@/config';
 import { ZintrustLang } from '@lang/lang';
 
 export type RuntimeMode = 'cloudflare-workers' | 'containers' | 'node-server';
-
-export const isNodeRuntime = (): boolean => {
-  // Avoid importing any `node:*` modules so this file remains Worker-safe.
-  // In Workers/Deno, `process` is typically undefined.
-  const detectRuntime = appConfig.detectRuntime() !== 'cloudflare';
-  return (
-    detectRuntime &&
-    typeof process !== ZintrustLang.UNDEFINED &&
-    typeof process === ZintrustLang.OBJECT &&
-    process !== null &&
-    typeof (process as unknown as { versions?: unknown }).versions === ZintrustLang.OBJECT
-  );
-};
 
 const getGlobalThis = (): typeof globalThis | undefined => {
   if (typeof globalThis === ZintrustLang.UNDEFINED) {
@@ -24,6 +10,36 @@ const getGlobalThis = (): typeof globalThis | undefined => {
   return globalThis;
 };
 
+const isCloudflareRuntime = (): boolean => {
+  const globalRef = getGlobalThis();
+
+  // @ts-ignore - navigator is available in workers
+  if (typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers') {
+    return true;
+  }
+
+  return (
+    typeof globalRef !== ZintrustLang.UNDEFINED &&
+    globalRef !== null &&
+    (((globalRef as { caches?: unknown }).caches !== undefined &&
+      typeof (globalRef as { caches?: unknown }).caches !== ZintrustLang.UNDEFINED) ||
+      typeof (globalRef as { WebSocketPair?: unknown }).WebSocketPair === 'function' ||
+      typeof (globalRef as { CF?: unknown }).CF !== ZintrustLang.UNDEFINED)
+  );
+};
+
+export const isNodeRuntime = (): boolean => {
+  // Avoid importing any `node:*` modules so this file remains Worker-safe.
+  // In Workers/Deno, `process` is typically undefined.
+  return (
+    !isCloudflareRuntime() &&
+    typeof process !== ZintrustLang.UNDEFINED &&
+    typeof process === ZintrustLang.OBJECT &&
+    process !== null &&
+    typeof (process as unknown as { versions?: unknown }).versions === ZintrustLang.OBJECT
+  );
+};
+
 export const getRuntimeMode = (): RuntimeMode => {
   // 1. Explicit override via env var (if available)
   if (typeof process !== 'undefined' && process.env?.['RUNTIME_MODE'] !== undefined) {
@@ -31,8 +47,7 @@ export const getRuntimeMode = (): RuntimeMode => {
   }
 
   // 2. Detect Cloudflare Workers
-  // @ts-ignore - navigator is available in workers
-  if (typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers') {
+  if (isCloudflareRuntime()) {
     return 'cloudflare-workers';
   }
 
@@ -64,13 +79,7 @@ export const detectRuntime = (): {
   const globalRef = getGlobalThis();
   const isNode = isNodeRuntime();
 
-  const isCloudflare =
-    typeof globalRef !== ZintrustLang.UNDEFINED &&
-    globalRef !== null &&
-    (((globalRef as { caches?: unknown }).caches !== undefined &&
-      typeof (globalRef as { caches?: unknown }).caches !== ZintrustLang.UNDEFINED) ||
-      typeof (globalRef as { WebSocketPair?: unknown }).WebSocketPair === 'function' ||
-      typeof (globalRef as { CF?: unknown }).CF !== ZintrustLang.UNDEFINED);
+  const isCloudflare = isCloudflareRuntime();
 
   const isDeno =
     typeof globalRef !== ZintrustLang.UNDEFINED &&

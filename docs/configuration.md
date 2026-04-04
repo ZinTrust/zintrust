@@ -25,7 +25,7 @@ Notes:
 
 - If `APP_PORT` is set but `PORT` is not, the loader sets `PORT=APP_PORT`.
 
-If you run the framework via the CLI, this is handled for you. If you run your own Node entrypoint, you can call `EnvFileLoader.ensureLoaded()` early.
+If you run the framework via the CLI, or through the standard `@zintrust/core/boot` Node entrypoint, this is handled for you. If you run a fully custom Node entrypoint, call `EnvFileLoader.ensureLoaded()` early.
 
 ## Service Directory Env Loading
 

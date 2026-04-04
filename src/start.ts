@@ -5,7 +5,9 @@ import {
   normalizeActiveServiceRuntime,
   type ActiveServiceRuntime,
 } from '@microservices/ServiceManifest';
+import { ensureNodeStartupEnvLoaded } from '@runtime/NodeStartup';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
+import { resolveNodeProjectRoot } from '@runtime/resolveNodeProjectRoot';
 
 import { isNodeRuntime } from '@runtime/detectRuntime';
 
@@ -65,23 +67,6 @@ const normalizeStandaloneEnvPaths = (value: unknown): string[] => {
     .filter((item) => item !== '');
 };
 
-const resolveStandaloneProjectRoot = async (): Promise<string> => {
-  const configuredRoot = process.env?.['ZINTRUST_PROJECT_ROOT'] ?? '';
-  if (isNonEmptyString(configuredRoot)) return configuredRoot;
-
-  const { existsSync } = await import('@node-singletons/fs');
-  const path = await import('@node-singletons/path');
-
-  let current = process.cwd();
-  while (true) {
-    if (existsSync(path.join(current, 'package.json'))) return current;
-
-    const parent = path.dirname(current);
-    if (parent === current) return process.cwd();
-    current = parent;
-  }
-};
-
 const resolveServiceEnvPath = async (
   importMetaUrl: string,
   activeService: unknown,
@@ -124,7 +109,7 @@ const ensureStandaloneServiceEnv = async (
   if (!isNodeRuntime()) return;
 
   const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
-  const projectRoot = await resolveStandaloneProjectRoot();
+  const projectRoot = await resolveNodeProjectRoot();
   const envPaths = await resolveConfiguredEnvPaths(projectRoot, activeService, importMetaUrl);
   const rootEnv = !isObject(activeService) || activeService['rootEnv'] !== false;
 
@@ -156,6 +141,10 @@ export const bootStandaloneService = async (
  */
 export const start = async (): Promise<void> => {
   if (!isNodeRuntime()) return;
+
+  await ensureNodeStartupEnvLoaded({
+    entry: '@zintrust/core/start',
+  });
 
   const projectBootstrapModule = (await import('@runtime/ProjectBootstrap')) as {
     loadProjectBootstrap: () => Promise<void>;

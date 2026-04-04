@@ -1,6 +1,10 @@
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
 import { withWranglerDevVarsSnapshot } from '@cli/cloudflare/CloudflareWranglerDevEnv';
-import { createDenoRunnerSource, createLambdaRunnerSource } from '@cli/commands/runner';
+import {
+  createDenoRunnerSource,
+  createLambdaRunnerSource,
+  createNodeRunnerSource,
+} from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
@@ -527,22 +531,41 @@ const resolveRuntimeStartModuleSpecifier = (cwd: string): string => {
   return '@zintrust/core/start';
 };
 
+const resolveRuntimeCompiledStartModuleSpecifier = (cwd: string): string => {
+  const localCompiledStart = path.join(cwd, 'dist', 'src', 'start.js');
+  if (existsSync(localCompiledStart)) {
+    return '../dist/src/start.js';
+  }
+
+  return '@zintrust/core/start';
+};
+
+const hasNodeSourceEntrypoint = (cwd: string): boolean => {
+  return resolveBootstrapEntryTs(cwd) !== undefined || existsSync(path.join(cwd, 'src/index.ts'));
+};
+
+const ensureNodeSourceRunner = (cwd: string): string => {
+  return ensureTmpRunnerFile(
+    cwd,
+    'zin-start-node.ts',
+    createNodeRunnerSource(resolveRuntimeStartModuleSpecifier(cwd))
+  );
+};
+
+const ensureNodeCompiledRunner = (cwd: string): string => {
+  return ensureTmpRunnerFile(
+    cwd,
+    'zin-start-node.mjs',
+    createNodeRunnerSource(resolveRuntimeCompiledStartModuleSpecifier(cwd))
+  );
+};
+
 const resolveNodeDevCommand = (
   cwd: string,
   packageJson: { name?: unknown; scripts?: Record<string, unknown> }
 ): { command: string; args: string[] } => {
-  if (isFrameworkRepo(packageJson)) {
-    const bootstrap = resolveBootstrapEntryTs(cwd);
-    return { command: 'tsx', args: ['watch', bootstrap ?? 'src/index.ts'] };
-  }
-
-  const bootstrap = resolveBootstrapEntryTs(cwd);
-  if (bootstrap !== undefined) {
-    return { command: 'tsx', args: ['watch', bootstrap] };
-  }
-
-  if (existsSync(path.join(cwd, 'src/index.ts'))) {
-    return { command: 'tsx', args: ['watch', 'src/index.ts'] };
+  if (isFrameworkRepo(packageJson) || hasNodeSourceEntrypoint(cwd)) {
+    return { command: 'tsx', args: ['watch', ensureNodeSourceRunner(cwd)] };
   }
 
   // Fallback: if the app provides a dev script, run it.
@@ -565,30 +588,20 @@ const resolveNodeDevCommand = (
 const resolveNodeProdCommand = (cwd: string): { command: string; args: string[] } => {
   const compiledBoot = path.join(cwd, 'dist/src/boot/bootstrap.js');
 
-  let compiled: string | undefined;
   if (existsSync(compiledBoot) && !runFromSource()) {
-    compiled = 'dist/src/boot/bootstrap.js';
+    return { command: 'node', args: [ensureNodeCompiledRunner(cwd)] };
   }
 
   // If compiled app isn't available (or the env forces running from source),
   // fall back to running the source entry with `tsx` so developers can test
   // core files with production semantics without building.
-  if (compiled === undefined) {
-    const bootstrap = resolveBootstrapEntryTs(cwd);
-    if (bootstrap !== undefined) {
-      return { command: 'tsx', args: [bootstrap] };
-    }
-
-    if (existsSync(path.join(cwd, 'src/index.ts'))) {
-      return { command: 'tsx', args: ['src/index.ts'] };
-    }
-
-    throw ErrorFactory.createCliError(
-      "Error: Compiled app not found at dist/src/boot/bootstrap.js. Run 'npm run build' first or set ZINTRUST_RUN_FROM_SOURCE=1 to run source in production."
-    );
+  if (hasNodeSourceEntrypoint(cwd)) {
+    return { command: 'tsx', args: [ensureNodeSourceRunner(cwd)] };
   }
 
-  return { command: 'node', args: [compiled] };
+  throw ErrorFactory.createCliError(
+    "Error: Compiled app not found at dist/src/boot/bootstrap.js. Run 'npm run build' first or set ZINTRUST_RUN_FROM_SOURCE=1 to run source in production."
+  );
 };
 
 const resolveWranglerDevConfig = (
@@ -838,14 +851,16 @@ const executeNodeStart = async (
   if (mode === 'development') {
     if (!watchEnabled) {
       cmd.warn('Watch mode disabled; starting once.');
-      const bootstrap = resolveBootstrapEntryTs(context.cwd);
-      const args = bootstrap === undefined ? ['src/index.ts'] : [bootstrap];
+      const args = [ensureNodeSourceRunner(context.cwd)];
 
       const exitCode = await SpawnUtil.spawnAndWait({
         command: 'tsx',
         args,
         forwardSignals: false,
-        env: buildStartEnv(context.projectRoot),
+        env: {
+          ...buildStartEnv(context.projectRoot),
+          ZINTRUST_BOOTSTRAP_PREFERENCE: 'source',
+        },
       });
       process.exit(exitCode);
     }
@@ -856,7 +871,10 @@ const executeNodeStart = async (
       command: dev.command,
       args: dev.args,
       forwardSignals: false,
-      env: buildStartEnv(context.projectRoot),
+      env: {
+        ...buildStartEnv(context.projectRoot),
+        ZINTRUST_BOOTSTRAP_PREFERENCE: 'source',
+      },
     });
     process.exit(exitCode);
   }
@@ -867,7 +885,10 @@ const executeNodeStart = async (
     command: prod.command,
     args: prod.args,
     forwardSignals: false,
-    env: buildStartEnv(context.projectRoot),
+    env: {
+      ...buildStartEnv(context.projectRoot),
+      ZINTRUST_BOOTSTRAP_PREFERENCE: runFromSource() ? 'source' : 'compiled',
+    },
   });
   process.exit(exitCode);
 };

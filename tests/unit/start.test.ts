@@ -107,4 +107,30 @@ describe('start helpers', () => {
       envPaths: ['/workspace/config/env/microservices/billing/.env.staging'],
     });
   });
+
+  it('loads root env before project bootstrap when start() runs in node mode', async () => {
+    process.env['ZINTRUST_PROJECT_ROOT'] = '/workspace';
+
+    const order: string[] = [];
+    const loadProjectBootstrap = vi.fn(async () => {
+      order.push('bootstrap');
+    });
+    const ensureNodeStartupEnvLoaded = vi.fn(async () => {
+      order.push('env');
+      return { loadedFiles: ['.env'] };
+    });
+
+    vi.resetModules();
+    vi.doMock('@runtime/ProjectBootstrap', () => ({
+      loadProjectBootstrap,
+    }));
+    vi.doMock('@runtime/NodeStartup', () => ({
+      ensureNodeStartupEnvLoaded,
+    }));
+
+    const { start } = await import('@/start');
+    await start();
+
+    expect(order).toEqual(['env', 'bootstrap']);
+  });
 });

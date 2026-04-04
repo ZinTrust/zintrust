@@ -2,6 +2,12 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-04
+
+- Fixed the public `@zintrust/core/boot` Node startup path so it now loads project env files before importing the stock bootstrap lifecycle, matching the existing CLI/bootstrap env parser behavior instead of starting with fallback defaults when apps use the thin `src/boot/bootstrap.ts` wrapper directly. The boot entry now also emits one structured warning when no env files were loaded for that Node bootstrap path.
+- Fixed fresh Node startup queue-monitor registration so the runtime now prefers the preloaded project `config/queue.ts` override from `StartupConfigFileRegistry` before falling back to cached framework defaults or generated runtime config. This keeps `/queue-monitor` aligned with the same app-owned queue settings used during startup instead of disappearing when only the fallback config had `monitor.enabled=false`.
+- Unified Node startup around a shared env-first path so `@zintrust/core/start`, `@zintrust/core/boot`, and `zin start`/`zin s` no longer rely on separate Node bootstrap wrappers. Root project env files now load through one singleton helper before any bootstrap import, and CLI Node starts run through generated `@zintrust/core/start` runners instead of executing the project bootstrap file directly.
+
 ## 2026-04-03
 
 - Fixed package Docker and CI builds so workspace package builds no longer run redundant package-local `npm install` steps that can trigger npm workspace-filter warnings or unpublished-package resolution failures such as `@zintrust/governance in filter set, but no workspace folder present` and `ETARGET` for internal packages. The package build orchestrator now reuses the root workspace install by default and only performs a package-local install when `FORCE_PACKAGE_INSTALL=true` is explicitly set.

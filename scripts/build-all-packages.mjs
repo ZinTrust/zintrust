@@ -92,6 +92,17 @@ const failed = [];
 
 const isCi = process.env.CI === 'true' || process.env.CI === '1';
 const forcePackageInstall = process.env.FORCE_PACKAGE_INSTALL === 'true';
+const rootNodeModulesDir = path.join(rootDir, 'node_modules');
+
+const hasRootInstalledDependency = (dependencyName) => {
+  return fs.existsSync(path.join(rootNodeModulesDir, ...dependencyName.split('/')));
+};
+
+const getMissingRootDependencies = (dependencyMap) => {
+  return Object.keys(dependencyMap).filter((dependencyName) => {
+    return !hasRootInstalledDependency(dependencyName);
+  });
+};
 
 const getErrorText = (error) => {
   const asString = (value) => {
@@ -123,14 +134,24 @@ for (const pkg of selectedPackages) {
     ...pkgJson.optionalDependencies,
   };
   const hasDeps = Object.keys(deps).length > 0;
+  const missingRootDependencies = getMissingRootDependencies(deps);
   const skipInstall =
     process.env.SKIP_PACKAGE_INSTALL === 'true' || process.env.CI_PACKAGE_INSTALL === 'false';
+  const shouldInstallPackageDeps =
+    hasDeps && !skipInstall && (forcePackageInstall || missingRootDependencies.length > 0);
 
   console.log(`\n🔨 Building ${pkgJson.name}...`);
 
   try {
-    if (hasDeps && !skipInstall && forcePackageInstall) {
+    if (shouldInstallPackageDeps) {
       try {
+        if (missingRootDependencies.length > 0) {
+          console.log(
+            `ℹ️  Installing package-local dependencies for ${pkgJson.name}; missing from root workspace: ${missingRootDependencies.join(', ')}`
+          );
+        } else if (forcePackageInstall) {
+          console.log(`ℹ️  Installing package-local dependencies for ${pkgJson.name}`);
+        }
         execSync('npm install --ignore-scripts --no-package-lock --workspaces=false', {
           cwd: pkgPath,
           stdio: 'inherit',
