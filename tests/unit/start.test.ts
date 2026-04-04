@@ -58,6 +58,12 @@ describe('start helpers', () => {
     expect(ProjectRuntime.getActiveService()).toEqual(runtime);
   });
 
+  it('throws a validation error when standalone service shape is invalid', () => {
+    expect(() => configureStandaloneService({ domain: 'ecommerce' })).toThrow(
+      /Standalone service runtime requires at least domain and name/
+    );
+  });
+
   it('boots standalone service without starting node bootstrap when not main', async () => {
     process.argv = ['node'];
     process.env['ZINTRUST_PROJECT_ROOT'] = '/workspace';
@@ -180,5 +186,62 @@ describe('start helpers', () => {
 
     expect(workerFetch).toHaveBeenCalledTimes(1);
     await expect(response.text()).resolves.toBe('ok');
+  });
+
+  it('uses the direct worker fetch export when present', async () => {
+    const workerFetch = vi.fn(async () => new Response('direct', { status: 200 }));
+
+    vi.resetModules();
+    vi.doMock('@functions/cloudflare', () => ({
+      fetch: workerFetch,
+      ZintrustSocketHub: class {},
+    }));
+
+    const mod = await import('@/start');
+    const response = await mod.default.fetch(new Request('https://example.test'), {}, {});
+
+    expect(workerFetch).toHaveBeenCalledTimes(1);
+    await expect(response.text()).resolves.toBe('direct');
+  });
+
+  it('throws a validation error when the cloudflare worker export has no fetch handler', async () => {
+    vi.resetModules();
+    vi.doMock('@functions/cloudflare', () => ({
+      fetch: null,
+      default: {},
+      ZintrustSocketHub: class {},
+    }));
+
+    const mod = await import('@/start');
+
+    await expect(
+      mod.default.fetch(new Request('https://example.test'), {}, {})
+    ).rejects.toMatchObject({
+      name: 'ValidationError',
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('delegates deno and lambda exports to their runtime modules', async () => {
+    const denoHandler = vi.fn(async () => new Response('deno-ok', { status: 200 }));
+    const lambdaHandler = vi.fn(async () => ({ ok: true }));
+
+    vi.resetModules();
+    vi.doMock('@functions/deno', () => ({ default: denoHandler }));
+    vi.doMock('@functions/lambda', () => ({ handler: lambdaHandler }));
+    vi.doMock('@functions/cloudflare', () => ({
+      fetch: vi.fn(async () => new Response('worker-ok', { status: 200 })),
+      ZintrustSocketHub: class {},
+    }));
+
+    const mod = await import('@/start');
+    const denoResponse = await mod.deno(new Request('https://example.test/deno'));
+    const lambdaResponse = await mod.handler({ test: true }, { awsRequestId: 'req-1' });
+
+    expect(denoHandler).toHaveBeenCalledTimes(1);
+    await expect(denoResponse.text()).resolves.toBe('deno-ok');
+    expect(lambdaHandler).toHaveBeenCalledWith({ test: true }, { awsRequestId: 'req-1' });
+    expect(lambdaResponse).toEqual({ ok: true });
   });
 });
