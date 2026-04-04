@@ -133,4 +133,52 @@ describe('start helpers', () => {
 
     expect(order).toEqual(['env', 'bootstrap']);
   });
+
+  it('does not import cloudflare worker entry while starting in node mode', async () => {
+    process.env['ZINTRUST_PROJECT_ROOT'] = '/workspace';
+
+    const ensureNodeStartupEnvLoaded = vi.fn(async () => ({ loadedFiles: ['.env'] }));
+    const loadProjectBootstrap = vi.fn(async () => undefined);
+    const mockCloudflareImport = vi.fn(() => {
+      throw new Error('cloudflare-entry-imported');
+    });
+
+    vi.resetModules();
+    vi.doMock('@runtime/NodeStartup', () => ({
+      ensureNodeStartupEnvLoaded,
+    }));
+    vi.doMock('@runtime/ProjectBootstrap', () => ({
+      loadProjectBootstrap,
+    }));
+    vi.doMock('@functions/cloudflare', mockCloudflareImport);
+
+    const { start } = await import('@/start');
+
+    await expect(start()).resolves.toBeUndefined();
+  });
+
+  it('re-exports the socket durable object from the shared start entry', async () => {
+    const mod = await import('@/start');
+
+    expect(mod.ZintrustSocketHub).toBeTypeOf('function');
+  });
+
+  it('uses the default worker export when the cloudflare module is a namespace object', async () => {
+    const workerFetch = vi.fn(async () => new Response('ok', { status: 200 }));
+
+    vi.resetModules();
+    vi.doMock('@functions/cloudflare', () => ({
+      fetch: undefined,
+      default: {
+        fetch: workerFetch,
+      },
+      ZintrustSocketHub: class {},
+    }));
+
+    const mod = await import('@/start');
+    const response = await mod.default.fetch(new Request('https://example.test'), {}, {});
+
+    expect(workerFetch).toHaveBeenCalledTimes(1);
+    await expect(response.text()).resolves.toBe('ok');
+  });
 });

@@ -22,6 +22,7 @@ describe('SecurityMiddleware', () => {
         return res;
       }),
       setStatus: vi.fn().mockReturnThis(),
+      send: vi.fn(),
     } as unknown as IResponse;
 
     next = vi.fn().mockResolvedValue(undefined);
@@ -69,6 +70,7 @@ describe('SecurityMiddleware', () => {
     await middleware(req, res, next);
 
     expect(res.setStatus).toHaveBeenCalledWith(204);
+    expect(res.send).toHaveBeenCalledWith('');
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -123,6 +125,7 @@ describe('SecurityMiddleware', () => {
         return localRes;
       }),
       setStatus: vi.fn().mockReturnThis(),
+      send: vi.fn(),
     } as unknown as IResponse;
     const localNext = vi.fn().mockResolvedValue(undefined);
 

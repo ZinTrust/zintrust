@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
-    "lib": ["es2023"],
+    "lib": ["es2023", "dom"],
     "baseUrl": ".",
     "moduleResolution": "bundler",
     "rootDir": "./src",
@@ -12,9 +12,7 @@
     "sourceMap": false,
     "composite": false,
     "skipLibCheck": true,
-    "types": ["node"],
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "paths": {}
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "tests"]

@@ -294,8 +294,8 @@ export type { MiddlewareConfigType } from '@config/type';
 export { createBaseDrivers, queueConfig } from '@config/queue';
 export type { QueueConfig, QueueConfigOverrides } from '@config/queue';
 
-export { default as broadcastConfig } from '@config/broadcast';
-export type { BroadcastConfigOverrides } from '@config/broadcast';
+export { clearBroadcastConfigCache, default as broadcastConfig } from '@config/broadcast';
+export type { BroadcastConfigOverrides, SocketBroadcastConfig } from '@config/broadcast';
 export { default as notificationConfig } from '@config/notification';
 export type { NotificationConfig, NotificationConfigOverrides } from '@config/notification';
 
@@ -481,6 +481,25 @@ export {
 } from '@tools/redis/RedisKeyManager';
 
 export { CloudflareSocket } from '@sockets/CloudflareSocket';
+export { SocketFeature } from '@sockets/SocketRuntime';
+export type {
+  SocketAuthorizationContext,
+  SocketAuthorizationDecision,
+  SocketAuthorizer,
+  SocketAuthorizerHandler,
+  SocketFeatureSettings,
+  SocketNodeUpgradeInput,
+  SocketPublishContext,
+  SocketPublishDecision,
+  SocketPublishPolicy,
+  SocketPublishPolicyHandler,
+  SocketRouteRegistrar,
+  SocketRuntime,
+  SocketRuntimeDiagnostics,
+  SocketTransportMode,
+  SocketWorkerContext,
+} from '@sockets/SocketRuntime';
+export { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 
 export { detectRuntime } from '@runtime/detectRuntime';
 

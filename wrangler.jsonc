@@ -266,4 +266,25 @@
       "binding": "ZIN_KV",
     },
   ],
+
+  // --------------------------------------------------------------------------
+  // DURABLE OBJECT BINDINGS
+  // --------------------------------------------------------------------------
+  // Optional socket hub binding used by @zintrust/socket when Cloudflare
+  // websocket traffic needs cross-request fan-out instead of isolate-local state.
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ZT_SOCKET_HUB",
+        "class_name": "ZintrustSocketHub",
+      },
+    ],
+  },
+
+  "migrations": [
+    {
+      "tag": "v1-zintrust-socket-hub",
+      "new_sqlite_classes": ["ZintrustSocketHub"],
+    },
+  ],
 }

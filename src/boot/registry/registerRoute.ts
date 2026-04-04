@@ -105,6 +105,14 @@ const resolveServicePrefix = (entry: ServiceManifestEntry): string => {
   return `/${entry.domain}/${entry.name}`;
 };
 
+const shouldPreferRootEnvInMonolith = (): boolean => {
+  if (typeof process === 'undefined' || process.env === undefined) return false;
+
+  const raw = process.env['RUN_AS_MONOLITH'] ?? '';
+  const normalized = raw.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+};
+
 const ensureManifestServiceEnvLoaded = async (entry: ServiceManifestEntry): Promise<void> => {
   if (isCloudflare) return;
   if (entry.loadEnv === false) return;
@@ -117,6 +125,7 @@ const ensureManifestServiceEnvLoaded = async (entry: ServiceManifestEntry): Prom
     cwd: projectRoot,
     includeCwd: true,
     envPaths: [envPath],
+    envPathsOverrideExisting: !shouldPreferRootEnvInMonolith(),
   });
 };
 

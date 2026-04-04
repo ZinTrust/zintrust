@@ -168,6 +168,8 @@ zin add db:sqlite --package-manager pnpm
 
 `zin new` generates a new project directory with a selected template and baseline configuration.
 
+Fresh app scaffolds now also generate a default `eslint.config.mjs` backed by `@zintrust/governance/eslint` and include a ready-to-run `lint` script, so new projects can run ESLint immediately without wiring the flat config by hand.
+
 Options include:
 
 - `--template <basic|api|microservice|fullstack>`

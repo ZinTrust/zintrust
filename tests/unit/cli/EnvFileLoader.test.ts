@@ -287,6 +287,33 @@ describe('EnvFileLoader', () => {
     await project.dispose();
   });
 
+  it('allows envPaths to fill missing values without overriding root env', async () => {
+    const project = await createTempProject({
+      '.env': ['SHARED_KEY=root', 'ROOT_ONLY=available'].join('\n'),
+      '.env.service': ['SHARED_KEY=service', 'SERVICE_ONLY=loaded'].join('\n'),
+    });
+
+    process.chdir(project.dir);
+    delete process.env['SHARED_KEY'];
+    delete process.env['ROOT_ONLY'];
+    delete process.env['SERVICE_ONLY'];
+    vi.resetModules();
+
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+    EnvFileLoader.ensureLoaded({
+      cwd: project.dir,
+      includeCwd: true,
+      envPaths: [join(project.dir, '.env.service')],
+      envPathsOverrideExisting: false,
+    });
+
+    expect(process.env['SHARED_KEY']).toBe('root');
+    expect(process.env['ROOT_ONLY']).toBe('available');
+    expect(process.env['SERVICE_ONLY']).toBe('loaded');
+
+    await project.dispose();
+  });
+
   it('covers remaining branches in EnvFileLoader', async () => {
     const project = await createTempProject({
       '.env': 'KEY=val\n=invalid\n \n',

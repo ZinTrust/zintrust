@@ -10,6 +10,7 @@ import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
 import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -22,6 +23,8 @@ import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupCo
 import { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notification/NotificationRuntimeRegistration';
 import { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegistration';
+import { SocketFeature } from '@sockets/SocketRuntime';
+import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 import { registerDisksFromRuntimeConfig } from '@tools/storage/StorageRuntimeRegistration';
 import type { IRouter } from '@zintrust/core';
 
@@ -270,6 +273,7 @@ export const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager
 
   // Registry resets
   registerResetHook(shutdownManager, '@broadcast/BroadcastRegistry', 'BroadcastRegistry');
+  registerResetHook(shutdownManager, '@sockets/SocketRuntimeRegistry', 'SocketRuntimeRegistry');
 
   registerResetHook(shutdownManager, '@storage/StorageDiskRegistry', 'StorageDiskRegistry');
 
@@ -528,6 +532,41 @@ const initializeSystemDebugger = async (): Promise<void> => {
   }
 };
 
+const initializeSockets = (router: IRouter): void => {
+  const settings = SocketFeature.getSettings();
+  if (!settings.enabled) {
+    return;
+  }
+
+  const runtime = SocketRuntimeRegistry.getRuntime();
+  if (runtime === undefined || runtime.isEnabled() === false) {
+    Logger.warn(
+      'SOCKET_ENABLED=true but no socket runtime is registered. Install @zintrust/socket to activate unified socket transport.'
+    );
+    return;
+  }
+
+  const routeRegistrar = SocketRuntimeRegistry.getRouteRegistrar();
+  if (routeRegistrar !== undefined) {
+    try {
+      routeRegistrar.registerRoutes(router);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error('Failed to register socket compatibility routes', {
+        error: message,
+      });
+      throw ErrorFactory.createConfigError(
+        `Failed to register socket compatibility routes: ${message}`
+      );
+    }
+  }
+
+  const diagnostics = runtime.describe();
+  Logger.info('Socket runtime enabled');
+  Logger.info(`Transport: ${diagnostics.transport}`);
+  Logger.info(`Path: ${diagnostics.path}`);
+};
+
 export const createLifecycle = (params: {
   environment: string;
   resolvedBasePath: string;
@@ -568,6 +607,7 @@ export const createLifecycle = (params: {
 
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerMasterRoutes(params.resolvedBasePath, params.router);
+    initializeSockets(params.router);
     await initializeSystemDebugger();
 
     if (Cloudflare.getWorkersEnv() === null && appConfig.dockerWorker === false) {

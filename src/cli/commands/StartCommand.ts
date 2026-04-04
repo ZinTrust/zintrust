@@ -436,6 +436,11 @@ const buildStartEnv = (projectRoot: string): NodeJS.ProcessEnv => ({
   ZINTRUST_PROJECT_ROOT: projectRoot,
 });
 
+const shouldPreferRootEnvInMonolith = (): boolean => {
+  const raw = readEnvString('RUN_AS_MONOLITH').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+};
+
 const resolveManifestServiceEnvDir = (projectRoot: string, entry: ServiceManifestEntry): string => {
   const configRoot = (entry as { configRoot?: unknown }).configRoot;
   if (isNonEmptyString(configRoot)) {
@@ -485,6 +490,7 @@ const preloadManifestServiceEnv = async (
     cwd: context.projectRoot,
     includeCwd: resolveRootEnvPreference(options),
     envPaths,
+    envPathsOverrideExisting: !shouldPreferRootEnvInMonolith(),
   });
 };
 

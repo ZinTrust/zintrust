@@ -184,10 +184,21 @@ async function assertCoreShimHasRequiredExports() {
   const requiredTokensByFile = {
     'index.d.ts': [
       'export declare function useDatabase(...args: any[]): IDatabase;',
+      'export declare function isArray(value: unknown): value is unknown[];',
       'export declare const NodeSingletons: {',
       'EventEmitter: any;',
       'randomBytes: (size: number) => any;',
       'createHash: (algorithm: string) => any;',
+      'export type SocketAuthorizationDecision = any;',
+      'export declare const SocketFeature: {',
+      'export type SocketFeatureSettings = any;',
+      'export type SocketNodeUpgradeInput = any;',
+      'export type SocketPublishDecision = any;',
+      'export type SocketPublishPolicy = any;',
+      'export type SocketPublishPolicyHandler = any;',
+      'export type SocketRouteRegistrar = any;',
+      'export type SocketRuntime = any;',
+      'export declare const SocketRuntimeRegistry: {',
       'export declare const MultipartParserRegistry: any;',
       'export declare const LocalD1Resolver: {',
       'resolveD1Binding: (...args: any[]) => any;',
@@ -634,7 +645,9 @@ export declare const NodeSingletons: {
 export declare const RedisKeys: any;
 export declare const MIME_TYPES: any;
 export declare const appConfig: any;
+export declare const broadcastConfig: any;
 export declare const databaseConfig: any;
+export declare const middlewareConfig: any;
 export declare const queueConfig: any;
 export declare const workersConfig: any;
 export declare const ZintrustLang: any;
@@ -673,9 +686,22 @@ export declare function createRedisConnection(...args: any[]): {
   [key: string]: any;
 };
 export declare function useEnsureDbConnected(...args: any[]): any;
+export declare function isArray(value: unknown): value is unknown[];
 export declare function isFunction(value: unknown): value is (...args: any[]) => any;
 export declare function isNonEmptyString(value: unknown): value is string;
 export declare function isObject(value: unknown): value is Record<string, unknown>;
+export type SocketAuthorizationDecision = any;
+export declare const SocketFeature: {
+  getSettings: (...args: any[]) => SocketFeatureSettings;
+};
+export declare const SocketRuntimeRegistry: {
+  registerRuntime: (...args: any[]) => void;
+  getRuntime: (...args: any[]) => SocketRuntime | undefined;
+  registerRoutes: (...args: any[]) => void;
+  getRouteRegistrar: (...args: any[]) => SocketRouteRegistrar | undefined;
+  describe: (...args: any[]) => any;
+  reset: (...args: any[]) => void;
+};
 
 export declare const RedisQueue: any;
 export type QueueMessage<T = unknown> = any;
@@ -710,6 +736,15 @@ export type RedisConfig = any;
 export type IRouter = any;
 export type IRequest = any;
 export type IResponse = any;
+export type SocketAuthorizer = any;
+export type SocketAuthorizerHandler = any;
+export type SocketFeatureSettings = any;
+export type SocketNodeUpgradeInput = any;
+export type SocketPublishDecision = any;
+export type SocketPublishPolicy = any;
+export type SocketPublishPolicyHandler = any;
+export type SocketRouteRegistrar = any;
+export type SocketRuntime = any;
 export type AssetsBinding = any;
 export type UploadedFile = any;
 export type MultipartFieldValue = any;
@@ -840,7 +875,18 @@ export const NodeSingletons = {
 export const RedisKeys = {};
 export const MIME_TYPES = {};
 export const appConfig = {};
+export const broadcastConfig = {
+  socket: {
+    authorize: undefined,
+    publish: undefined,
+    authMiddleware: [],
+    allowAuthRouteOverride: false,
+  },
+};
 export const databaseConfig = {};
+export const middlewareConfig = {
+  route: {},
+};
 export const queueConfig = {};
 export const workersConfig = {};
 export const ZintrustLang = {};
@@ -983,6 +1029,10 @@ export function useEnsureDbConnected() {
   return undefined;
 }
 
+export function isArray(value) {
+  return Array.isArray(value);
+}
+
 export function isFunction(value) {
   return typeof value === 'function';
 }
@@ -994,6 +1044,35 @@ export function isNonEmptyString(value) {
 export function isObject(value) {
   return value !== null && typeof value === 'object';
 }
+
+export const SocketFeature = {
+  getSettings() {
+    return {
+      enabled: false,
+      transport: 'auto',
+      path: '/app',
+      appId: 'local',
+      appKey: '',
+      secret: '',
+      activityTimeout: 120,
+    };
+  },
+};
+
+export const SocketRuntimeRegistry = {
+  registerRuntime() {},
+  getRuntime() {
+    return undefined;
+  },
+  registerRoutes() {},
+  getRouteRegistrar() {
+    return undefined;
+  },
+  describe() {
+    return null;
+  },
+  reset() {},
+};
 
 export const Queue = {
   async dequeue() {

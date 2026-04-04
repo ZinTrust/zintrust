@@ -116,6 +116,7 @@ describe('Kernel', () => {
       }),
       getHeader: vi.fn((name: string) => mockResponseHeaders[name]),
       json: vi.fn(),
+      send: vi.fn(),
       getRaw: vi.fn().mockReturnValue(mockRes),
       locals: {},
     } as unknown as IResponse;
@@ -275,6 +276,7 @@ describe('Kernel', () => {
     expect(Router.match).toHaveBeenCalledWith(mockRouter, 'OPTIONS', '/api/v1/profile');
     expect(Router.match).toHaveBeenCalledWith(mockRouter, 'GET', '/api/v1/profile');
     expect(responseStatusSpy(mockResponse)).toHaveBeenCalledWith(204);
+    expect(mockResponse.send).toHaveBeenCalledWith('');
     expect(routeHandler).not.toHaveBeenCalled();
   });
 

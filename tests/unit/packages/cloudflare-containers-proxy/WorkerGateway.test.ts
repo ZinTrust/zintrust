@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock(
+  'cloudflare:workers',
+  () => ({
+    DurableObject: class MockDurableObject {},
+    WorkerEntrypoint: class MockWorkerEntrypoint {},
+  }),
+  { virtual: true }
+);
+
 vi.mock('@cloudflare/containers', () => ({
   Container: class MockContainer {
     public async startAndWaitForPorts(): Promise<void> {

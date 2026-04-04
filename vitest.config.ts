@@ -49,6 +49,8 @@ export default defineConfig({
       '@zintrust/queue-monitor': path.resolve(__dirname, './packages/queue-monitor/src/index.ts'),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
       '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
+      '@zintrust/socket': path.resolve(__dirname, './packages/socket/src/index.ts'),
+      '@zintrust/socket/register': path.resolve(__dirname, './packages/socket/src/register.ts'),
       '@zintrust/system-debugger': path.resolve(
         __dirname,
         './packages/system-debugger/src/index.ts'

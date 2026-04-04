@@ -12,6 +12,7 @@ import {
 import { WorkerAdapterImports } from '@runtime/WorkerAdapterImports';
 
 import { getKernel } from '@runtime/getKernel';
+import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 
 const startupConfigModules: ReadonlyArray<{
   file: StartupConfigFileTypes;
@@ -238,6 +239,18 @@ export default {
       await WorkerAdapterImports.ready; // NOSONAR - Ensure adapter imports are ready before handling requests.
       await injectIoredisModule();
 
+      const socketRuntime = SocketRuntimeRegistry.getRuntime();
+      if (socketRuntime?.isEnabled() === true && socketRuntime.canHandleWorkerRequest(request)) {
+        const socketResponse = await socketRuntime.handleWorkerRequest(request, {
+          env: workersEnv,
+          ctx: _ctx,
+        });
+
+        if (socketResponse !== null) {
+          return socketResponse;
+        }
+      }
+
       const kernel = await getKernel();
       const adapter = CloudflareAdapter.create({
         handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -257,3 +270,5 @@ export default {
     }
   },
 };
+
+export { ZintrustSocketHub } from '@zintrust/socket';

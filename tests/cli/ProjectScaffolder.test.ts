@@ -63,6 +63,16 @@ describe('ProjectScaffolder Templates', () => {
     const template = ProjectScaffolder.getTemplate('basic');
     expect(template).toBeDefined();
 
+    const packageJson = template?.files['package.json'] ?? '';
+    expect(packageJson).toContain('"lint": "eslint ."');
+    expect(packageJson).toContain('"@zintrust/governance": "{{governanceVersion}}"');
+    expect(packageJson).toContain('"eslint": "^10.0.0"');
+
+    const eslintConfig = template?.files['eslint.config.mjs'] ?? '';
+    expect(eslintConfig).toContain("from '@zintrust/governance/eslint'");
+    expect(eslintConfig).toContain('zintrustAppEslintConfig');
+    expect(eslintConfig).toContain('enforcePathAliases: false');
+
     const apiRoutes = template?.files['routes/api.ts'] ?? '';
     expect(apiRoutes).toContain("'@zintrust/core'");
     expect(apiRoutes).not.toContain("'@routing/Router'");

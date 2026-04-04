@@ -21,6 +21,8 @@ zin start
 
 Your API is now running at `http://localhost:7777`
 
+Fresh projects also include a default flat ESLint setup through `@zintrust/governance/eslint`, so `npm run lint` works immediately after scaffolding.
+
 If you’re targeting a different runtime:
 
 - Cloudflare Workers (Wrangler): `zin start --wg`

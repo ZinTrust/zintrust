@@ -17,6 +17,7 @@ const basePackages = Object.freeze([
   '@zintrust/storage-s3',
   '@zintrust/storage-r2',
   '@zintrust/storage-gcs',
+  '@zintrust/socket',
 ]);
 
 const workerPackages = Object.freeze(['@zintrust/workers', '@zintrust/queue-monitor']);
@@ -38,6 +39,7 @@ const baseAutoImports = Object.freeze([
   '@zintrust/storage-s3/register',
   '@zintrust/storage-r2/register',
   '@zintrust/storage-gcs/register',
+  '@zintrust/socket/register',
 ]);
 
 const workerAutoImports = Object.freeze(['@zintrust/workers/register']);

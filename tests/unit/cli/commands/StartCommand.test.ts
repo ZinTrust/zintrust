@@ -482,6 +482,45 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     });
   });
 
+  it('should keep root env authoritative for monolith manifest preload when RUN_AS_MONOLITH is enabled', async () => {
+    const projectRoot = '/workspace';
+
+    process.env['RUN_AS_MONOLITH'] = 'true';
+
+    vi.resetModules();
+    vi.doMock('@runtime/ProjectRuntime', () =>
+      createProjectRuntimeMock([
+        {
+          id: 'app/gatewaynext',
+          domain: 'app',
+          name: 'gatewaynext',
+          monolithEnabled: true,
+        },
+      ])
+    );
+
+    const { StartCommand: StartCommandWithMock } = await import('@cli/commands/StartCommand');
+    const { EnvFileLoader: EnvFileLoaderWithMock } = await import('@cli/utils/EnvFileLoader');
+    const command = StartCommandWithMock.create();
+
+    vi.spyOn(process, 'cwd').mockReturnValue(projectRoot);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      return isExistingManifestPath(value, projectRoot);
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({})).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoaderWithMock.ensureLoaded).toHaveBeenLastCalledWith({
+      cwd: projectRoot,
+      includeCwd: true,
+      envPaths: ['/workspace/src/services/app/gatewaynext'],
+      envPathsOverrideExisting: false,
+    });
+  });
+
   it('should handle missing production build', async () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockReturnValue(false);

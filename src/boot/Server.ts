@@ -15,6 +15,7 @@ import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { Response } from '@http/Response';
+import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 import * as http from '@node-singletons/http';
 import type { Socket } from '@node-singletons/net';
 import type { IApplication } from '@registry/type';
@@ -89,6 +90,53 @@ const handleRequest = async (
   }
 };
 
+const rejectUpgrade = (socket: Socket, statusCode: number, message: string): void => {
+  try {
+    socket.write(
+      `HTTP/1.1 ${statusCode} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`
+    );
+  } finally {
+    socket.destroy();
+  }
+};
+
+const isWebSocketUpgrade = (request: http.IncomingMessage): boolean => {
+  const upgrade = request.headers['upgrade'];
+  return typeof upgrade === 'string' && upgrade.trim().toLowerCase() === 'websocket';
+};
+
+const handleUpgrade = async (
+  request: http.IncomingMessage,
+  socket: Socket,
+  head: Buffer
+): Promise<void> => {
+  if (!isWebSocketUpgrade(request)) {
+    rejectUpgrade(socket, 400, 'Bad Request');
+    return;
+  }
+
+  const runtime = SocketRuntimeRegistry.getRuntime();
+  if (runtime === undefined || runtime.isEnabled() === false) {
+    rejectUpgrade(socket, 404, 'Not Found');
+    return;
+  }
+
+  if (!runtime.canHandleNodeUpgrade({ request, socket, head })) {
+    rejectUpgrade(socket, 404, 'Not Found');
+    return;
+  }
+
+  try {
+    const handled = await runtime.handleNodeUpgrade({ request, socket, head });
+    if (!handled) {
+      rejectUpgrade(socket, 426, 'Upgrade Required');
+    }
+  } catch (error) {
+    Logger.warn('Socket upgrade failed', error as Error);
+    rejectUpgrade(socket, 500, 'Internal Server Error');
+  }
+};
+
 /**
  * Server - HTTP Server implementation
  * Refactored to Functional Object pattern
@@ -125,6 +173,9 @@ export const Server = Object.freeze({
     httpServer.on('connection', (socket: Socket) => {
       sockets.add(socket);
       socket.on('close', () => sockets.delete(socket));
+    });
+    httpServer.on('upgrade', (request: http.IncomingMessage, socket: Socket, head: Buffer) => {
+      void handleUpgrade(request, socket, head);
     });
 
     return {

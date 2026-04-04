@@ -12,6 +12,40 @@ import { Env } from '@config/env';
 
 export default {
   default: Env.get('BROADCAST_CONNECTION', Env.get('BROADCAST_DRIVER', 'inmemory')),
+  // Example socket overrides for projects that want business-level control while
+  // keeping the framework-owned socket transport routes in core.
+  // socket: {
+  //   authMiddleware: ['auth', 'jwt'],
+  //   async authorize(_request, context) {
+  //     if (context.channelName.startsWith('private-')) {
+  //       return {
+  //         authorized: context.user !== null && context.user !== undefined,
+  //       };
+  //     }
+  //
+  //     if (context.channelName.startsWith('public-')) {
+  //       return {
+  //         authorized: true,
+  //       };
+  //     }
+  //
+  //     return {
+  //       authorized: false,
+  //     };
+  //   },
+  //   async publish(_request, context) {
+  //     if (context.event.startsWith('admin.')) {
+  //       return {
+  //         allowed: context.user !== null && context.user !== undefined,
+  //         message: 'Admin publish requires an authenticated user.',
+  //       };
+  //     }
+  //
+  //     return {
+  //       allowed: true,
+  //     };
+  //   },
+  // },
   drivers: {
     inmemory: {
       driver: 'inmemory' as const,

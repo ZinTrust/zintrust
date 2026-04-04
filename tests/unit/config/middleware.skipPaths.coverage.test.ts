@@ -102,7 +102,9 @@ import { StartupConfigFileRegistry } from '../../../src/runtime/StartupConfigFil
 describe('middleware config (coverage extras)', () => {
   it('prefers StartupConfigFileRegistry skipPaths when provided', () => {
     createMiddlewareConfig();
-    expect(csrfCreateMock).toHaveBeenCalledWith({ skipPaths: ['/from-config'] });
+    expect(csrfCreateMock).toHaveBeenCalledWith({
+      skipPaths: ['/broadcasting/auth', '/apps/*/events', '/from-config'],
+    });
   });
 
   it('merges project global and route middleware overrides', () => {
@@ -177,7 +179,7 @@ describe('middleware config (coverage extras)', () => {
     expect(jwtCreateMock).toHaveBeenCalledWith({ onUnauthorized: jwtResponder });
     expect(bulletproofCreateMock).toHaveBeenCalledWith({ onUnauthorized: undefined });
     expect(csrfCreateMock).toHaveBeenCalledWith({
-      skipPaths: ['/from-config'],
+      skipPaths: ['/broadcasting/auth', '/apps/*/events', '/from-config'],
       onFailure: csrfResponder,
     });
     expect(rateLimitCreateMock).toHaveBeenCalledWith({
@@ -215,6 +217,18 @@ describe('middleware config (coverage extras)', () => {
       max: 100,
       windowMs: 24_000,
       onFailure: rateLimitResponder,
+    });
+  });
+
+  it('always includes framework-owned socket paths in csrf skip paths', () => {
+    vi.mocked(StartupConfigFileRegistry.get).mockReturnValueOnce({
+      skipPaths: ['/custom-path'],
+    });
+
+    createMiddlewareConfig();
+
+    expect(csrfCreateMock).toHaveBeenCalledWith({
+      skipPaths: ['/broadcasting/auth', '/apps/*/events', '/custom-path'],
     });
   });
 });
