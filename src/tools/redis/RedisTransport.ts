@@ -19,6 +19,7 @@ type ProxySettings = Readonly<{
 }>;
 
 type RedisProxyConnection = {
+  [x: string]: unknown;
   status: 'ready';
   connect: () => Promise<void>;
   quit: () => Promise<'OK'>;
