@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 const buildExplicitEnv = () => ({
   get: vi.fn((key: string, fallback?: string) => {
     if (key === 'SOCKET_TRANSPORT') return 'cloudflare';
-    if (key === 'SOCKET_PATH') return '/ws';
+    if (key === 'SOCKET_PATH') return '/ws///';
     if (key === 'PUSHER_APP_ID') return 'app-1';
     if (key === 'PUSHER_APP_KEY') return 'key-1';
     if (key === 'PUSHER_APP_SECRET') return 'secret-1';

@@ -103,10 +103,6 @@ const normalizeSocketPath = (value: string): string => {
   if (trimmed === '' || trimmed === '/') return '/app';
 
   const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  if (normalized.length <= 1) {
-    return normalized;
-  }
-
   let end = normalized.length;
   while (end > 1 && normalized[end - 1] === '/') {
     end -= 1;
