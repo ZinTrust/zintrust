@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueueMonitor } from '../src/index';
+import type { QueueMonitorApi } from '../src/index';
 
 // Mock dependencies
 vi.mock('bullmq', () => {
@@ -7,16 +8,14 @@ vi.mock('bullmq', () => {
     Queue: class {
       add = vi.fn().mockResolvedValue({ id: '1' });
       getJob = vi.fn();
-      getJobCounts = vi
-        .fn()
-        .mockResolvedValue({
-          active: 0,
-          waiting: 0,
-          completed: 0,
-          failed: 0,
-          delayed: 0,
-          paused: 0,
-        });
+      getJobCounts = vi.fn().mockResolvedValue({
+        active: 0,
+        waiting: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+        paused: 0,
+      });
       close = vi.fn();
     },
     Worker: class {
@@ -44,17 +43,43 @@ vi.mock('ioredis', () => {
   };
 });
 
+vi.mock('../src/connection', () => ({
+  createRedisConnection: vi.fn(() => ({
+    scan: vi.fn().mockResolvedValue(['0', []]),
+    mget: vi.fn().mockResolvedValue([null, null, null]),
+    hincrby: vi.fn().mockResolvedValue(1),
+    expire: vi.fn().mockResolvedValue(1),
+    lpush: vi.fn().mockResolvedValue(1),
+    ltrim: vi.fn().mockResolvedValue('OK'),
+    pipeline: vi.fn(() => ({
+      hgetall: vi.fn(),
+      exec: vi.fn().mockResolvedValue([]),
+    })),
+    lrange: vi.fn().mockResolvedValue([]),
+    quit: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn(),
+  })),
+}));
+
 describe('QueueMonitor', () => {
   const redisConfig = { host: 'localhost', port: 6379 };
+  const monitors = new Set<QueueMonitorApi>();
+
+  afterEach(async () => {
+    await Promise.all(Array.from(monitors, (monitor) => monitor.close()));
+    monitors.clear();
+  });
 
   it('creates an instance with default settings', () => {
     const monitor = QueueMonitor.create({ redis: redisConfig });
+    monitors.add(monitor);
     expect(monitor).toBeDefined();
     expect(monitor.getSnapshot).toBeDefined();
   });
 
   it('registerRoutes calls router.get', () => {
     const monitor = QueueMonitor.create({ redis: redisConfig });
+    monitors.add(monitor);
     const router = {
       routes: [],
       prefix: '',
@@ -74,6 +99,7 @@ describe('QueueMonitor', () => {
 
   it('getSnapshot returns structure', async () => {
     const monitor = QueueMonitor.create({ redis: redisConfig });
+    monitors.add(monitor);
     const snapshot = await monitor.getSnapshot();
 
     expect(snapshot.status).toBe('ok');
@@ -85,6 +111,7 @@ describe('QueueMonitor', () => {
       redis: redisConfig,
       knownQueues: async () => ['emails', 'notifications', 'emails'],
     });
+    monitors.add(monitor);
 
     const snapshot = await monitor.getSnapshot();
 

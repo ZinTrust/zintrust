@@ -6,6 +6,14 @@ const queueMock = {
   ack: vi.fn(),
 };
 
+const queueMonitorMetricsMock = {
+  recordJob: vi.fn().mockResolvedValue(undefined),
+};
+
+vi.mock('@zintrust/queue-monitor', () => ({
+  createMetrics: vi.fn(() => queueMonitorMetricsMock),
+}));
+
 vi.mock('@zintrust/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@zintrust/core')>();
   return {
@@ -21,6 +29,7 @@ vi.mock('@zintrust/core', async (importOriginal) => {
     },
     Logger: {
       info: vi.fn(),
+      debug: vi.fn(),
       error: vi.fn(),
     },
     JobStateTracker: {
@@ -54,9 +63,10 @@ vi.mock('@zintrust/core', async (importOriginal) => {
   };
 });
 
+vi.unmock('@zintrust/workers');
+
 describe('createQueueWorker coverage', () => {
   it('processes one item using maxItems loop', async () => {
-    vi.unmock('@zintrust/workers');
     const { Queue } = await import('@zintrust/core');
     const queueDequeueMock = Queue.dequeue as any;
     queueDequeueMock

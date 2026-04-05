@@ -139,6 +139,8 @@ When the root runtime boots, ZinTrust loads `src/zintrust.runtime.ts`, reads the
 
 In Node monolith mode, ZinTrust also preloads each service-local `.env*` layer by default before mounting that service. Developers can disable that per service with `loadEnv: false` in the manifest entry.
 
+By default, duplicate keys from a mounted service env layer still override the root value during monolith preload. If you want the root app to stay authoritative while still filling missing service values, set `RUN_AS_MONOLITH=true` before starting the root runtime. With that flag enabled, ZinTrust keeps the root env value for duplicate keys and only pulls missing keys from the service-local env layer.
+
 Generated services standardize on:
 
 ```text
@@ -289,6 +291,8 @@ Practical rule for developers:
 3. use `envPath` when you want the microservice env source to be explicit instead of inferred
 4. set `rootEnv: false` only when the service must not inherit root env defaults
 5. use service-local `config/*.ts` only when you need code-level config overrides, not plain env overrides
+
+For root monolith starts, use `RUN_AS_MONOLITH=true` when service-local env files should act as gap-fillers instead of overriding duplicate root keys.
 
 If `zin s` fails with `Error: 'tsx' not found on PATH.`, install `tsx` in the project with `npm install -D tsx`.
 

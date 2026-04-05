@@ -110,6 +110,31 @@ describe('GovernanceScaffolder patch coverage', () => {
     expect(updated.devDependencies['@zintrust/governance']).toBe('^1.2.0');
   });
 
+  it('writes eslint config that imports the governance eslint subpath', async () => {
+    vi.resetModules();
+
+    existingFiles.clear();
+    writtenFiles.clear();
+
+    const projectRoot = '/tmp/project-eslint';
+    const pkgPath = `${projectRoot}/package.json`;
+    existingFiles.add(pkgPath);
+    writtenFiles.set(pkgPath, JSON.stringify({}));
+
+    const { GovernanceScaffolder } = await import('@cli/scaffolding/GovernanceScaffolder');
+    const result = await GovernanceScaffolder.scaffold(projectRoot, {
+      writeArchTests: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(writtenFiles.get(`${projectRoot}/eslint.config.mjs`)).toContain(
+      "from '@zintrust/governance/eslint'"
+    );
+    expect(writtenFiles.get(`${projectRoot}/eslint.config.mjs`)).toContain(
+      'enforcePathAliases: false'
+    );
+  });
+
   it('installs governance dependencies using resolved package manager', async () => {
     vi.resetModules();
 

@@ -8,7 +8,86 @@ vi.mock('@config/env', () => ({
   },
 }));
 
+const buildStartupConfigRegistryModule = (socket: Record<string, unknown>) => ({
+  StartupConfigFile: {
+    Broadcast: 'config/broadcast.ts',
+  },
+  StartupConfigFileRegistry: {
+    get: vi.fn(() => ({ socket })),
+  },
+});
+
 describe('src/config/broadcast patch coverage (extra)', () => {
+  it('normalizes socket authorizer and publish overrides from objects', async () => {
+    vi.resetModules();
+
+    const authorize = vi.fn();
+    const publishAuthorize = vi.fn();
+
+    vi.doMock('@runtime/StartupConfigFileRegistry', () =>
+      buildStartupConfigRegistryModule({
+        authorize: { authorize },
+        publish: { authorize: publishAuthorize },
+        authMiddleware: ['auth', 'jwt'],
+        allowAuthRouteOverride: true,
+      })
+    );
+
+    const broadcastConfig = (await import('@config/broadcast')).default;
+
+    expect(broadcastConfig.socket.authorize).toEqual({ authorize });
+    expect(broadcastConfig.socket.publish).toEqual({ authorize: publishAuthorize });
+    expect(broadcastConfig.socket.authMiddleware).toEqual(['auth', 'jwt']);
+    expect(broadcastConfig.socket.allowAuthRouteOverride).toBe(true);
+  });
+
+  it('keeps function-based socket authorizers as-is', async () => {
+    vi.resetModules();
+
+    const authorize = vi.fn();
+
+    vi.doMock('@runtime/StartupConfigFileRegistry', () =>
+      buildStartupConfigRegistryModule({ authorize })
+    );
+
+    const broadcastConfig = (await import('@config/broadcast')).default;
+
+    expect(broadcastConfig.socket.authorize).toBe(authorize);
+  });
+
+  it('throws for invalid socket publish overrides', async () => {
+    vi.resetModules();
+
+    vi.doMock('@runtime/StartupConfigFileRegistry', () =>
+      buildStartupConfigRegistryModule({
+        authorize: { authorize: vi.fn() },
+        publish: { authorize: 'nope' },
+      })
+    );
+
+    const broadcastConfig = (await import('@config/broadcast')).default;
+
+    expect(() => broadcastConfig.socket).toThrow(
+      /broadcastConfig\.socket\.publish must be a function or an object with an authorize/
+    );
+  });
+
+  it('throws for invalid socket authorizer overrides', async () => {
+    vi.resetModules();
+
+    vi.doMock('@runtime/StartupConfigFileRegistry', () =>
+      buildStartupConfigRegistryModule({
+        authorize: { authorize: 'nope' },
+      })
+    );
+
+    const broadcastConfig = (await import('@config/broadcast')).default;
+
+    expect(() => broadcastConfig.socket).toThrow(
+      /broadcastConfig\.socket\.authorize must be a function or an object with an authorize/
+    );
+  });
+
   it('throws when BROADCAST_DRIVER is unknown (no fallback)', async () => {
     const { Env } = await import('@config/env');
     (Env.get as unknown as Mock).mockImplementation((key: string, defaultVal?: string) => {

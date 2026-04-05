@@ -31,6 +31,8 @@
       "@zintrust/queue-monitor/*": ["./packages/queue-monitor/src/*"],
       "@zintrust/queue-redis": ["./packages/queue-redis/src/index.ts"],
       "@zintrust/queue-redis/*": ["./packages/queue-redis/src/*"],
+      "@zintrust/socket": ["./packages/socket/src/index.ts"],
+      "@zintrust/socket/*": ["./packages/socket/src/*"],
       "@zintrust/core/proxy": ["./src/proxy.ts"],
       "@zintrust/core/proxy/*": ["./src/proxy/*"],
       "@zintrust/core/start": ["./src/start.ts"],
@@ -128,6 +130,7 @@
     "packages/system-debugger/src/**/*",
     "packages/system-debugger/migrations/**/*.ts",
     "packages/queue-redis/src/**/*",
+    "packages/socket/src/**/*",
     "env.d.ts",
     "processors"
   ],

@@ -102,9 +102,10 @@ const inferGovernanceVersion = (pkg: PackageJson): string => {
 
 const writeEslintConfig = (projectRoot: string): string[] => {
   const eslintConfigPath = path.join(projectRoot, 'eslint.config.mjs');
-  const content = `import { zintrustAppEslintConfig } from '@zintrust/governance';
+  const content = `import { zintrustAppEslintConfig } from '@zintrust/governance/eslint';
 
 export default zintrustAppEslintConfig({
+    enforcePathAliases: false,
   tsconfigRootDir: import.meta.dirname,
 });
 `;

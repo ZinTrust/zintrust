@@ -62,6 +62,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   const queues = new Map<string, Queue>();
   let sharedConnection: RedisConnection | null = null;
   let lockProviderCache: ReturnType<typeof createLockProvider> | null = null;
+  const PULL_WORKER_TOKEN = 'pull-worker';
 
   const isRedisProxyEnabled = (): boolean => {
     return Env.USE_REDIS_PROXY === true || Env.get('REDIS_PROXY_URL', '').trim() !== '';
@@ -610,9 +611,8 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         const job = await q.getJob(id);
 
         if (job) {
-          // Remove the job entirely upon success
-          await job.remove();
-          Logger.debug(`BullMQ: Job ${id} acked and removed from ${queue}`);
+          await job.moveToCompleted('acknowledged', PULL_WORKER_TOKEN, false);
+          Logger.debug(`BullMQ: Job ${id} acked and completed in ${queue}`);
         } else {
           Logger.warn(`BullMQ: ACK failed - job ${id} not found in ${queue}`);
         }

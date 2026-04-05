@@ -105,9 +105,60 @@ describe('registerRoute helpers patch coverage', () => {
       cwd: process.cwd(),
       includeCwd: true,
       envPaths: [expect.stringContaining('/src/services/app/gatewaynext')],
+      envPathsOverrideExisting: true,
     });
     expect(Router.match(router, 'GET', '/edge/gateway')).not.toBeNull();
     expect(Router.match(router, 'GET', '/')).toBeNull();
+  });
+
+  it('registerMasterRoutes keeps root env authoritative in monolith mode when RUN_AS_MONOLITH is enabled', async () => {
+    process.env['RUN_AS_MONOLITH'] = 'true';
+
+    vi.doMock('@core-routes/CoreRoutes', () => ({ registerCoreRoutes: vi.fn() }));
+    vi.doMock('@runtime/detectRuntime', () => ({ detectRuntime: () => ({ isCloudflare: false }) }));
+    vi.doMock('@/config', () => ({ appConfig: { isDevelopment: () => true } }));
+    const ensureLoaded = vi.fn();
+    vi.doMock('@cli/utils/EnvFileLoader', () => ({
+      EnvFileLoader: {
+        ensureLoaded,
+      },
+    }));
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: {
+        tryLoadNodeRuntime: vi.fn(async () => undefined),
+        getActiveService: () => undefined,
+        getServiceManifest: () => [
+          {
+            id: 'app/gatewaynext',
+            domain: 'app',
+            name: 'gatewaynext',
+            prefix: '/edge/gateway',
+            monolithEnabled: true,
+            loadRoutes: async () => {
+              const { Router } = await import('@core-routes/Router');
+              return {
+                registerRoutes(router: unknown) {
+                  Router.get(router as any, '/', () => undefined);
+                },
+              };
+            },
+          },
+        ],
+      },
+    }));
+
+    const { Router } = await import('@core-routes/Router');
+    const { registerMasterRoutes } = await import('@registry/registerRoute');
+    const router = Router.createRouter();
+
+    await registerMasterRoutes('/missing', router);
+
+    expect(ensureLoaded).toHaveBeenCalledWith({
+      cwd: process.cwd(),
+      includeCwd: true,
+      envPaths: [expect.stringContaining('/src/services/app/gatewaynext')],
+      envPathsOverrideExisting: false,
+    });
   });
 
   it('registerMasterRoutes mounts the active service directly in standalone node mode', async () => {

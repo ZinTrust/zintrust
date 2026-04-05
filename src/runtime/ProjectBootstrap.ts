@@ -9,11 +9,22 @@ const getProjectRoot = (): string => {
   return process.cwd();
 };
 
-const getBootstrapCandidates = (projectRoot: string): string[] => [
-  path.join(projectRoot, 'src', 'boot', 'bootstrap.ts'),
-  path.join(projectRoot, 'dist', 'src', 'boot', 'bootstrap.js'),
-  path.join(projectRoot, 'src', 'boot', 'bootstrap.js'),
-];
+const getBootstrapPreference = (): 'compiled' | 'source' => {
+  const raw = process.env?.['ZINTRUST_BOOTSTRAP_PREFERENCE'] ?? '';
+  return raw.trim().toLowerCase() === 'compiled' ? 'compiled' : 'source';
+};
+
+const getBootstrapCandidates = (projectRoot: string): string[] => {
+  const sourceCandidates = [
+    path.join(projectRoot, 'src', 'boot', 'bootstrap.ts'),
+    path.join(projectRoot, 'src', 'boot', 'bootstrap.js'),
+  ];
+  const compiledCandidate = path.join(projectRoot, 'dist', 'src', 'boot', 'bootstrap.js');
+
+  return getBootstrapPreference() === 'compiled'
+    ? [compiledCandidate, ...sourceCandidates]
+    : [sourceCandidates[0], compiledCandidate, sourceCandidates[1]];
+};
 
 const tryImportBootstrapCandidate = async (candidate: string): Promise<boolean> => {
   if (!existsSync(candidate)) return false;

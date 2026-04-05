@@ -107,7 +107,7 @@ describe('StartCommand', () => {
     exitSpy.mockRestore();
   });
 
-  it('starts tsx watch src/boot/bootstrap.ts in framework repo development mode', async () => {
+  it('starts tsx watch through the singleton node runner in framework repo development mode', async () => {
     existsSync.mockImplementation((p: unknown) => {
       if (typeof p === 'string' && p.endsWith('package.json')) return true;
       if (typeof p === 'string' && p.endsWith('src/boot/bootstrap.ts')) return true;
@@ -126,7 +126,10 @@ describe('StartCommand', () => {
     await cmd.parseAsync([], { from: 'user' });
 
     expect(spawnAndWait).toHaveBeenCalledWith(
-      expect.objectContaining({ command: 'tsx', args: ['watch', 'src/boot/bootstrap.ts'] })
+      expect.objectContaining({
+        command: 'tsx',
+        args: ['watch', expect.stringContaining('zin-start-node.ts')],
+      })
     );
     expect(exitSpy).toHaveBeenCalledWith(0);
 

@@ -9,51 +9,76 @@ const queueMock = {
 const broadcastMock = { send: vi.fn() };
 const notificationMock = { send: vi.fn() };
 
-vi.mock('@zintrust/core', () => ({
-  appConfig: {
-    prefix: 'zintrust-test',
-  },
-  workersConfig: {
-    intervalMs: 5000,
-  },
-  Env: {
-    SSE_HEARTBEAT_INTERVAL: 15000,
-  },
-  Logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
-  Queue: queueMock,
-  Broadcast: broadcastMock,
-  Notification: notificationMock,
-  NodeSingletons: {
-    os: {
-      cpus: () => [{ model: 'test', speed: 2400 }],
-      totalmem: () => 8 * 1024 * 1024 * 1024,
-      freemem: () => 4 * 1024 * 1024 * 1024,
-      loadavg: () => [1, 1.5, 2],
-    },
-    path: {
-      resolve: (...parts: string[]) => parts.join('/'),
-    },
-    module: {
-      createRequire: vi.fn(() => ({
-        resolve: vi.fn(() => '/mocked/path'),
-      })),
-    },
-    createCipheriv: vi.fn(),
-    createDecipheriv: vi.fn(),
-    pbkdf2Sync: vi.fn(),
-    randomBytes: vi.fn(() => Buffer.from('test')),
-  },
-  generateUuid: vi.fn(() => 'test-uuid'),
+const queueMonitorMetricsMock = {
+  recordJob: vi.fn().mockResolvedValue(undefined),
+};
+
+vi.mock('@zintrust/queue-monitor', () => ({
+  createMetrics: vi.fn(() => queueMonitorMetricsMock),
 }));
+
+vi.mock('@zintrust/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core')>();
+  return {
+    ...actual,
+    appConfig: {
+      prefix: 'zintrust-test',
+    },
+    queueConfig: {
+      drivers: {
+        redis: {
+          driver: 'redis',
+          host: '127.0.0.1',
+          port: 6379,
+          database: 0,
+        },
+      },
+    },
+    workersConfig: {
+      intervalMs: 5000,
+    },
+    Env: {
+      SSE_HEARTBEAT_INTERVAL: 15000,
+    },
+    Logger: {
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
+    Queue: queueMock,
+    Broadcast: broadcastMock,
+    Notification: notificationMock,
+    NodeSingletons: {
+      ...actual.NodeSingletons,
+      os: {
+        cpus: () => [{ model: 'test', speed: 2400 }],
+        totalmem: () => 8 * 1024 * 1024 * 1024,
+        freemem: () => 4 * 1024 * 1024 * 1024,
+        loadavg: () => [1, 1.5, 2],
+      },
+      path: {
+        resolve: (...parts: string[]) => parts.join('/'),
+      },
+      module: {
+        createRequire: vi.fn(() => ({
+          resolve: vi.fn(() => '/mocked/path'),
+        })),
+      },
+      createCipheriv: vi.fn(),
+      createDecipheriv: vi.fn(),
+      pbkdf2Sync: vi.fn(),
+      randomBytes: vi.fn(() => Buffer.from('test')),
+    },
+    generateUuid: vi.fn(() => 'test-uuid'),
+  };
+});
+
+vi.unmock('@zintrust/workers');
 
 describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.unmock('@zintrust/workers');
     vi.clearAllMocks();
 
     queueMock.dequeue.mockResolvedValue(undefined);
@@ -62,6 +87,7 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
 
     broadcastMock.send.mockResolvedValue(undefined);
     notificationMock.send.mockResolvedValue(undefined);
+    queueMonitorMetricsMock.recordJob.mockResolvedValue(undefined);
   });
 
   it('BroadcastWorker.processOne uses Broadcast.send', async () => {

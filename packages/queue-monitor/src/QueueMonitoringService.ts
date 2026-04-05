@@ -43,7 +43,7 @@ const subscriptions = new Map<QueueMonitoringCallback, QueueMonitoringSubscripti
 const isAllQueuesSelection = (queue: string | null | undefined): boolean => queue === ALL_QUEUES;
 
 const sortJobsByTimestamp = (jobs: JobSummary[]): JobSummary[] =>
-  jobs.sort((left, right) => right.timestamp - left.timestamp);
+  jobs.toSorted((left, right) => right.timestamp - left.timestamp);
 
 export async function getRecentJobsForSelection(
   queueName: string,

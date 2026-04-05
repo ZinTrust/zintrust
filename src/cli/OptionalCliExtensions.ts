@@ -105,6 +105,16 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
       path.join(packageRoot, 'dist', 'packages', 'system-debugger', 'src', 'cli-register.js'),
     ],
   },
+  {
+    packageName: '@zintrust/expose',
+    specifier: '@zintrust/expose/register',
+    commands: ['expose', 'exp'],
+    installCommand: 'npm install @zintrust/expose',
+    localCandidates: [
+      path.join(packageRoot, 'packages', 'expose', 'src', 'register.ts'),
+      path.join(packageRoot, 'packages', 'expose', 'src', 'register.js'),
+    ],
+  },
 ]);
 
 const getProjectLocalCandidates = (entry: OptionalCliExtension): string[] => {

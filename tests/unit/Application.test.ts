@@ -46,6 +46,14 @@ vi.mock('@config/env', () => ({
   },
 }));
 
+vi.mock('@registry/runtime', () => ({
+  registerFrameworkShutdownHooks: vi.fn(),
+  createLifecycle: vi.fn(() => ({
+    boot: async () => undefined,
+    shutdown: async () => undefined,
+  })),
+}));
+
 describe('Application', () => {
   it('should initialize core services', () => {
     const app = Application.create('/root');

@@ -33,7 +33,9 @@ describe('queue monitor dashboard UI', () => {
     });
 
     expect(html).toContain("const ALL_QUEUES = '__all__';");
-    expect(html).toContain("allOption.textContent = 'All queues (");
+    expect(html).toContain(
+      "text: 'All queues (' + totalWaiting + ' waiting, ' + totalFailed + ' failed)'"
+    );
     expect(html).toContain('preferredQueue === ALL_QUEUES');
   });
 });

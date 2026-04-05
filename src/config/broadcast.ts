@@ -16,21 +16,92 @@ import type {
   RedisHttpsBroadcastDriverConfig,
 } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import type { IRequest } from '@http/Request';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
+
+type SocketBroadcastAuthorizationContext = Readonly<{
+  channelName: string;
+  socketId: string;
+  user: unknown;
+  channelData?: string;
+}>;
+
+type SocketBroadcastAuthorizationDecision = Readonly<{
+  authorized: boolean;
+  auth?: string;
+  channelData?: string;
+}>;
+
+type SocketBroadcastPublishContext = Readonly<{
+  appId: string;
+  channels: readonly string[];
+  event: string;
+  data: unknown;
+  socketId?: string;
+  user: unknown;
+}>;
+
+type SocketBroadcastPublishDecision = Readonly<{
+  allowed: boolean;
+  channels?: readonly string[];
+  event?: string;
+  data?: unknown;
+  socketId?: string;
+  statusCode?: number;
+  message?: string;
+}>;
+
+type SocketBroadcastAuthorizerHandler = (
+  request: IRequest,
+  context: SocketBroadcastAuthorizationContext
+) => Promise<SocketBroadcastAuthorizationDecision> | SocketBroadcastAuthorizationDecision;
+
+type SocketBroadcastAuthorizer = Readonly<{
+  authorize: SocketBroadcastAuthorizerHandler;
+}>;
+
+type SocketBroadcastPublishPolicyHandler = (
+  request: IRequest,
+  context: SocketBroadcastPublishContext
+) => Promise<SocketBroadcastPublishDecision> | SocketBroadcastPublishDecision;
+
+type SocketBroadcastPublishPolicy = Readonly<{
+  authorize: SocketBroadcastPublishPolicyHandler;
+}>;
+
+export type SocketBroadcastConfig = Readonly<{
+  authorize?: SocketBroadcastAuthorizer | SocketBroadcastAuthorizerHandler;
+  publish?: SocketBroadcastPublishPolicy | SocketBroadcastPublishPolicyHandler;
+  authMiddleware: readonly string[];
+  allowAuthRouteOverride: boolean;
+}>;
 
 export type BroadcastConfigOverrides = Partial<{
   default: string;
   drivers: Record<string, KnownBroadcastDriverConfig>;
+  socket: Partial<SocketBroadcastConfig>;
 }>;
 
 type BroadcastRuntimeConfig = {
   default: string;
   drivers: BroadcastDrivers;
+  socket: SocketBroadcastConfig;
   getDriverName: () => string;
   getDriverConfig: (name?: string) => KnownBroadcastDriverConfig;
 };
 
 const normalizeDriverName = (value: string): string => value.trim().toLowerCase();
+
+const parseMiddlewareList = (value: string): string[] => {
+  if (value.trim() === '') {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
+};
 
 const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
   return Object.hasOwn(obj, key);
@@ -72,6 +143,78 @@ const getRedisHttpsConfig = (): RedisHttpsBroadcastDriverConfig => ({
   token: Env.get('REDIS_HTTPS_TOKEN', ''),
   channelPrefix: Env.get('BROADCAST_CHANNEL_PREFIX', 'broadcast:'),
 });
+
+const normalizeSocketAuthorizerOverride = (
+  value: unknown
+): SocketBroadcastAuthorizer | SocketBroadcastAuthorizerHandler | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'function') {
+    return value as SocketBroadcastAuthorizerHandler;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const candidate = value as { authorize?: unknown };
+    if (typeof candidate.authorize === 'function') {
+      return value as SocketBroadcastAuthorizer;
+    }
+  }
+
+  throw ErrorFactory.createConfigError(
+    'broadcastConfig.socket.authorize must be a function or an object with an authorize(request, context) method.'
+  );
+};
+
+const normalizeSocketPublishOverride = (
+  value: unknown
+): SocketBroadcastPublishPolicy | SocketBroadcastPublishPolicyHandler | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'function') {
+    return value as SocketBroadcastPublishPolicyHandler;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const candidate = value as { authorize?: unknown };
+    if (typeof candidate.authorize === 'function') {
+      return value as SocketBroadcastPublishPolicy;
+    }
+  }
+
+  throw ErrorFactory.createConfigError(
+    'broadcastConfig.socket.publish must be a function or an object with an authorize(request, context) method.'
+  );
+};
+
+const getSocketBroadcastConfig = (
+  overrides: BroadcastConfigOverrides['socket']
+): SocketBroadcastConfig => {
+  const socketOverrides: Partial<SocketBroadcastConfig> = overrides ?? {};
+  const authorizerOverrideUnknown: unknown = socketOverrides['authorize'];
+  const publishOverrideUnknown: unknown = socketOverrides['publish'];
+  const configuredAuthorizer: SocketBroadcastConfig['authorize'] =
+    normalizeSocketAuthorizerOverride(authorizerOverrideUnknown);
+  const configuredPublishPolicy: SocketBroadcastConfig['publish'] =
+    normalizeSocketPublishOverride(publishOverrideUnknown);
+  const authMiddleware =
+    socketOverrides.authMiddleware ??
+    parseMiddlewareList(
+      Env.get('SOCKET_BROADCAST_AUTH_MIDDLEWARE', Env.get('SOCKET_AUTH_MIDDLEWARE', ''))
+    );
+
+  return Object.freeze({
+    authorize: configuredAuthorizer,
+    publish: configuredPublishPolicy,
+    authMiddleware,
+    allowAuthRouteOverride:
+      socketOverrides.allowAuthRouteOverride ??
+      Env.getBool('SOCKET_ALLOW_AUTH_ROUTE_OVERRIDE', false),
+  });
+};
 
 const getBroadcastDriver = (
   config: BroadcastConfigInput,
@@ -137,6 +280,10 @@ const createBroadcastConfig = (): BroadcastRuntimeConfig => {
       } as BroadcastDrivers;
     },
 
+    get socket(): SocketBroadcastConfig {
+      return getSocketBroadcastConfig(overrides.socket);
+    },
+
     /**
      * Normalized broadcast driver name for the default broadcaster.
      */
@@ -175,6 +322,10 @@ const ensureBroadcastConfig = (): BroadcastConfig => {
   }
 
   return cached;
+};
+
+export const clearBroadcastConfigCache = (): void => {
+  cached = null;
 };
 
 const broadcastConfig: BroadcastConfig = new Proxy(proxyTarget, {

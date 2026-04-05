@@ -359,8 +359,6 @@ const getDashboardScriptAutoRefresh = (): string => `
 const getRenderStatsFunction = (): string => `
         function renderStats(data) {
             const grid = document.getElementById('stats-grid');
-            grid.innerHTML = '';
-
             const totalActive = data.queues.reduce((acc, q) => acc + q.counts.active, 0);
             const totalFailed = data.queues.reduce((acc, q) => acc + q.counts.failed, 0);
             const totalDelayed = data.queues.reduce((acc, q) => acc + q.counts.delayed, 0);
@@ -396,25 +394,53 @@ const getRenderStatsFunction = (): string => `
                 }
             ];
 
-            cards.forEach(card => {
-                const div = document.createElement('div');
-                div.className = 'tile';
-                const infoIcon = '<span class="info-icon" data-info="' + card.info + '">i</span>';
-                div.innerHTML =
-                    '<div class="stat-header">' +
-                    '<div class="stat-label">' + card.label + '</div>' +
-                    infoIcon +
-                    '</div>' +
-                    '<div class="stat-value" style="' + (card.color ? 'color:' + card.color : '') + '">' +
-                    card.value +
-                    '</div>';
-                grid.appendChild(div);
+            cards.forEach((card, index) => {
+                let div = grid.children[index];
+                let labelEl;
+                let valueEl;
+                let iconEl;
+
+                if (!div) {
+                    div = document.createElement('div');
+                    div.className = 'tile';
+
+                    const header = document.createElement('div');
+                    header.className = 'stat-header';
+
+                    labelEl = document.createElement('div');
+                    labelEl.className = 'stat-label';
+
+                    iconEl = document.createElement('span');
+                    iconEl.className = 'info-icon';
+                    iconEl.textContent = 'i';
+                    iconEl.addEventListener('mouseenter', showTooltip);
+                    iconEl.addEventListener('mouseleave', hideTooltip);
+
+                    valueEl = document.createElement('div');
+                    valueEl.className = 'stat-value';
+
+                    header.appendChild(labelEl);
+                    header.appendChild(iconEl);
+                    div.appendChild(header);
+                    div.appendChild(valueEl);
+                    grid.appendChild(div);
+                } else {
+                    labelEl = div.querySelector('.stat-label');
+                    valueEl = div.querySelector('.stat-value');
+                    iconEl = div.querySelector('.info-icon');
+                }
+
+                if (labelEl) labelEl.textContent = card.label;
+                if (valueEl) {
+                    valueEl.textContent = String(card.value);
+                    valueEl.style.color = card.color || '';
+                }
+                if (iconEl) iconEl.setAttribute('data-info', card.info);
             });
 
-            document.querySelectorAll('.info-icon').forEach(icon => {
-                icon.addEventListener('mouseenter', showTooltip);
-                icon.addEventListener('mouseleave', hideTooltip);
-            });
+            while (grid.children.length > cards.length) {
+                grid.removeChild(grid.lastElementChild);
+            }
         }`;
 
 const getUpdateQueueSelectFunction = (): string => `
@@ -422,119 +448,250 @@ const getUpdateQueueSelectFunction = (): string => `
             const select = document.getElementById('queue-select');
             const storedQueue = localStorage.getItem(QUEUE_KEY);
             const preferredQueue = currentQueue || select.value || storedQueue || '';
-            select.innerHTML = '';
 
             if (queues.length === 0) {
                 select.disabled = true;
-                select.innerHTML = '<option value="">No queues</option>';
+                if (select.options.length !== 1 || select.options[0].value !== '' || select.options[0].textContent !== 'No queues') {
+                    select.innerHTML = '<option value="">No queues</option>';
+                }
                 return '';
             }
 
             const queueNames = queues.map(q => q.name);
             const totalWaiting = queues.reduce((acc, queue) => acc + queue.counts.waiting, 0);
             const totalFailed = queues.reduce((acc, queue) => acc + queue.counts.failed, 0);
-            const allOption = document.createElement('option');
-            allOption.value = ALL_QUEUES;
-            allOption.textContent = 'All queues (' + totalWaiting + ' waiting, ' + totalFailed + ' failed)';
 
             const nextQueue = preferredQueue === ALL_QUEUES || queueNames.includes(preferredQueue)
                 ? preferredQueue
                 : queueNames[0];
-            select.disabled = false;
-            allOption.selected = nextQueue === ALL_QUEUES;
-            select.appendChild(allOption);
+            const desiredOptions = [
+                {
+                    value: ALL_QUEUES,
+                    text: 'All queues (' + totalWaiting + ' waiting, ' + totalFailed + ' failed)'
+                },
+                ...queues.map(q => ({
+                    value: q.name,
+                    text: q.name + ' (' + q.counts.waiting + ' waiting, ' + q.counts.failed + ' failed)'
+                }))
+            ];
 
-            queues.forEach(q => {
-                const opt = document.createElement('option');
-                opt.value = q.name;
-                opt.textContent = q.name + ' (' + q.counts.waiting + ' waiting, ' + q.counts.failed + ' failed)';
-                opt.selected = q.name === nextQueue;
-                select.appendChild(opt);
+            const existingOptions = new Map();
+            Array.from(select.options).forEach(option => {
+                existingOptions.set(option.value, option);
+            });
+
+            select.disabled = false;
+
+            desiredOptions.forEach((item, index) => {
+                let option = existingOptions.get(item.value);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = item.value;
+                }
+
+                option.textContent = item.text;
+                option.selected = item.value === nextQueue;
+
+                const currentAtIndex = select.options[index];
+                if (currentAtIndex !== option) {
+                    select.appendChild(option);
+                }
+            });
+
+            Array.from(select.options).forEach(option => {
+                if (!desiredOptions.some(item => item.value === option.value)) {
+                    option.remove();
+                }
             });
 
             select.value = nextQueue;
             return nextQueue;
         }`;
 
-const getRenderJobsFunction = (): string => `
+const getRenderJobsStateFunction = (): string => `
         // Track expanded job IDs to preserve state during SSE updates
         let expandedJobIds = new Set();
+`;
 
-        function renderJobs(jobs) {
-            const tbody = document.querySelector('#jobs-table tbody');
+const getRenderJobsDetailHelpersFunction = (): string => `
+        function getJobId(job) {
+            return String(job.id);
+        }
 
-            // Store currently expanded job IDs before clearing
-            const currentExpanded = document.querySelectorAll('.expand-icon.expanded');
-            currentExpanded.forEach(icon => {
-                const row = icon.closest('tr');
-                if (row) {
-                    const jobId = row.querySelector('code')?.textContent;
-                    if (jobId) expandedJobIds.add(jobId);
-                }
-            });
+        function getJobStatusInfo(job) {
+            const status = (job.status || (job.failedReason ? 'failed' : 'completed')).toLowerCase();
+            const statusMap = {
+                failed: { label: 'Failed', cls: 'status-failed' },
+                completed: { label: 'Completed', cls: 'status-completed' },
+                active: { label: 'Active', cls: 'status-active' },
+                waiting: { label: 'Waiting', cls: 'status-waiting' },
+                delayed: { label: 'Delayed', cls: 'status-delayed' },
+                paused: { label: 'Paused', cls: 'status-paused' }
+            };
 
-            tbody.innerHTML = '';
+            return statusMap[status] || statusMap.completed;
+        }
 
-            if (!jobs || jobs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--muted)">No recent jobs found</td></tr>';
+        function getJobRetryMarkup(job) {
+            const status = (job.status || (job.failedReason ? 'failed' : 'completed')).toLowerCase();
+            if (status === 'failed') {
+                return '<button class="retry-btn" onclick="retryJob(' + "'" + job.id + "'" + ', ' + "'" + (job.queue || currentQueue) + "'" + ')" title="Retry this job">↻ Retry</button>';
+            }
+            return '<span style="color: var(--muted); font-size: 11px;">—</span>';
+        }
+
+        function buildJobDetailMarkup(job) {
+            const jobData = {
+                id: job.id,
+                name: job.name,
+                queue: job.queue || currentQueue,
+                status: job.status || (job.failedReason ? 'failed' : 'completed'),
+                attempts: job.attempts,
+                timestamp: new Date(job.timestamp).toISOString(),
+                data: job.data || {},
+                failedReason: job.failedReason || null,
+                processedOn: job.processedOn ? new Date(job.processedOn).toISOString() : null,
+                finishedOn: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
+                returnvalue: job.returnvalue
+            };
+
+            return '<td colspan="7" class="detail-cell">' +
+                '<div class="detail-content">' +
+                '<strong style="color: var(--accent); display: block; margin-bottom: 8px;">Job Details:</strong>' +
+                '<pre>' + JSON.stringify(jobData, null, 2) + '</pre>' +
+                '</div>' +
+                '</td>';
+        }
+
+        function removeJobDetailRow(row) {
+            const existingDetail = row.nextElementSibling;
+            if (existingDetail && existingDetail.classList.contains('detail-row')) {
+                existingDetail.remove();
+            }
+        }
+
+        function upsertJobDetailRow(row, job, parent) {
+            const existingDetail = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row')
+                ? row.nextElementSibling
+                : null;
+
+            let detailRow = existingDetail;
+            if (!detailRow) {
+                detailRow = document.createElement('tr');
+                detailRow.className = 'detail-row';
+            }
+
+            detailRow.dataset.jobId = getJobId(job);
+            detailRow.innerHTML = buildJobDetailMarkup(job);
+
+            if (parent) {
+                parent.appendChild(detailRow);
+            } else {
+                row.parentNode.insertBefore(detailRow, row.nextSibling);
+            }
+        }
+
+        function ensureEmptyJobsState(tbody) {
+            if (
+                tbody.children.length === 1 &&
+                tbody.children[0].textContent.includes('No recent jobs found')
+            ) {
                 return;
             }
 
-            jobs.forEach((job, idx) => {
-                const tr = document.createElement('tr');
-                tr.className = 'expandable-row';
-                tr.dataset.jobIndex = idx;
-                const status = (job.status || (job.failedReason ? 'failed' : 'completed')).toLowerCase();
-                const statusMap = {
-                    failed: { label: 'Failed', cls: 'status-failed' },
-                    completed: { label: 'Completed', cls: 'status-completed' },
-                    active: { label: 'Active', cls: 'status-active' },
-                    waiting: { label: 'Waiting', cls: 'status-waiting' },
-                    delayed: { label: 'Delayed', cls: 'status-delayed' },
-                    paused: { label: 'Paused', cls: 'status-paused' }
-                };
-                const statusInfo = statusMap[status] || statusMap.completed;
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--muted)">No recent jobs found</td></tr>';
+        }
+`;
 
-                const retryBtn = status === 'failed'
-                    ? '<button class="retry-btn" onclick="retryJob(' + "'" + job.id + "'" + ', ' + "'" + (job.queue || currentQueue) + "'" + ')" title="Retry this job">↻ Retry</button>'
-                    : '<span style="color: var(--muted); font-size: 11px;">—</span>';
+const getRenderJobsRowHelpersFunction = (): string => `
+        function createJobRow(job, idx) {
+            const tr = document.createElement('tr');
+            tr.className = 'expandable-row';
+            tr.addEventListener('click', (e) => {
+                if (e.target.classList.contains('retry-btn')) return;
+                toggleJobDetails(tr, tr.__jobData);
+            });
+            updateExistingJobRow(tr, job, idx);
+            return tr;
+        }
 
-                // Check if this job was previously expanded
-                const isExpanded = expandedJobIds.has(job.id);
+        function updateExistingJobRow(tr, job, idx) {
+            const jobId = getJobId(job);
+            const statusInfo = getJobStatusInfo(job);
+            const isExpanded = expandedJobIds.has(jobId);
 
-                tr.innerHTML =
-                    '<td><span class="expand-icon' + (isExpanded ? ' expanded' : '') + '">▶</span><code>' + job.id + '</code></td>' +
-                    '<td>' + job.name + '</td>' +
-                    '<td>' + (job.queue || currentQueue) + '</td>' +
-                    '<td><span class="status-badge ' +
-                    statusInfo.cls +
-                    '">' +
-                    statusInfo.label +
-                    '</span></td>' +
-                    '<td>' + job.attempts + '</td>' +
-                    '<td>' + new Date(job.timestamp).toLocaleTimeString() + '</td>' +
-                    '<td>' + retryBtn + '</td>';
-                if (job.failedReason) {
-                    tr.title = 'Click to see error details';
+            tr.__jobData = job;
+            tr.dataset.jobId = jobId;
+            tr.dataset.jobIndex = idx;
+            tr.innerHTML =
+                '<td><span class="expand-icon' + (isExpanded ? ' expanded' : '') + '">▶</span><code>' + job.id + '</code></td>' +
+                '<td>' + job.name + '</td>' +
+                '<td>' + (job.queue || currentQueue) + '</td>' +
+                '<td><span class="status-badge ' + statusInfo.cls + '">' + statusInfo.label + '</span></td>' +
+                '<td>' + job.attempts + '</td>' +
+                '<td>' + new Date(job.timestamp).toLocaleTimeString() + '</td>' +
+                '<td>' + getJobRetryMarkup(job) + '</td>';
+
+            if (job.failedReason) {
+                tr.title = 'Click to see error details';
+            } else {
+                tr.removeAttribute('title');
+            }
+        }
+
+        function getExistingJobRows(tbody) {
+            const rows = new Map();
+            Array.from(tbody.querySelectorAll('tr.expandable-row')).forEach(row => {
+                const jobId = row.dataset.jobId || row.querySelector('code')?.textContent;
+                if (jobId) rows.set(jobId, row);
+            });
+            return rows;
+        }
+
+        function removeObsoleteJobRows(tbody, currentJobIds) {
+            Array.from(tbody.querySelectorAll('tr.expandable-row')).forEach(row => {
+                const jobId = row.dataset.jobId || row.querySelector('code')?.textContent;
+                if (!jobId || currentJobIds.has(jobId)) return;
+                removeJobDetailRow(row);
+                row.remove();
+                expandedJobIds.delete(jobId);
+            });
+        }
+`;
+
+const getRenderJobsFunction = (): string => `
+        function renderJobs(jobs) {
+            const tbody = document.querySelector('#jobs-table tbody');
+            const jobList = Array.isArray(jobs) ? jobs : [];
+
+            if (jobList.length === 0) {
+                ensureEmptyJobsState(tbody);
+                expandedJobIds.clear();
+                return;
+            }
+
+            const currentJobIds = new Set(jobList.map(job => getJobId(job)));
+            removeObsoleteJobRows(tbody, currentJobIds);
+
+            const existingRows = getExistingJobRows(tbody);
+
+            jobList.forEach((job, idx) => {
+                const jobId = getJobId(job);
+                const existingRow = existingRows.get(jobId);
+                const row = existingRow || createJobRow(job, idx);
+
+                if (existingRow) {
+                    updateExistingJobRow(row, job, idx);
                 }
 
-                tr.addEventListener('click', (e) => {
-                    if (e.target.classList.contains('retry-btn')) return;
-                    toggleJobDetails(tr, job);
-                });
-
-                tbody.appendChild(tr);
-
-                // Auto-expand if this job was previously expanded
-                if (isExpanded) {
-                    setTimeout(() => {
-                        toggleJobDetails(tr, job);
-                    }, 10); // Small delay to ensure DOM is ready
+                tbody.appendChild(row);
+                if (expandedJobIds.has(jobId)) {
+                    upsertJobDetailRow(row, job, tbody);
+                } else {
+                    removeJobDetailRow(row);
                 }
             });
 
-            // Clean up expanded job IDs that are no longer in the current jobs list
-            const currentJobIds = new Set(jobs.map(job => job.id));
             expandedJobIds = new Set([...expandedJobIds].filter(id => currentJobIds.has(id)));
         }`;
 const getRenderLocksFunction = (): string => `
@@ -725,45 +882,20 @@ const getToggleDetailsFunctions = (): string => `
         function toggleJobDetails(row, job) {
             const expandIcon = row.querySelector('.expand-icon');
             const existingDetail = row.nextElementSibling;
+            const jobId = getJobId(job);
 
             if (existingDetail && existingDetail.classList.contains('detail-row')) {
                 expandIcon.classList.remove('expanded');
                 existingDetail.remove();
                 // Remove from expanded set
-                expandedJobIds.delete(job.id);
+                expandedJobIds.delete(jobId);
                 return;
             }
 
             expandIcon.classList.add('expanded');
             // Add to expanded set
-            expandedJobIds.add(job.id);
-
-            const detailRow = document.createElement('tr');
-            detailRow.className = 'detail-row';
-
-            const jobData = {
-                id: job.id,
-                name: job.name,
-                queue: job.queue || currentQueue,
-                status: job.status || (job.failedReason ? 'failed' : 'completed'),
-                attempts: job.attempts,
-                timestamp: new Date(job.timestamp).toISOString(),
-                data: job.data || {},
-                failedReason: job.failedReason || null,
-                processedOn: job.processedOn ? new Date(job.processedOn).toISOString() : null,
-                finishedOn: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
-                returnvalue: job.returnvalue
-            };
-
-            detailRow.innerHTML =
-                '<td colspan="7" class="detail-cell">' +
-                '<div class="detail-content">' +
-                '<strong style="color: var(--accent); display: block; margin-bottom: 8px;">Job Details:</strong>' +
-                '<pre>' + JSON.stringify(jobData, null, 2) + '</pre>' +
-                '</div>' +
-                '</td>';
-
-            row.parentNode.insertBefore(detailRow, row.nextSibling);
+            expandedJobIds.add(jobId);
+            upsertJobDetailRow(row, job);
         }
 
         function toggleLockDetails(row, lock) {
@@ -1065,6 +1197,9 @@ const getDashboardScriptRender = (): string =>
   [
     getRenderStatsFunction(),
     getUpdateQueueSelectFunction(),
+    getRenderJobsStateFunction(),
+    getRenderJobsDetailHelpersFunction(),
+    getRenderJobsRowHelpersFunction(),
     getRenderJobsFunction(),
     getRenderLocksFunction(),
     getLockHelperFunctions(),

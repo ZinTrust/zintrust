@@ -5,6 +5,7 @@ import tseslint from 'typescript-eslint';
 export type ZintrustEslintOptions = Readonly<{
   tsconfigPath?: string;
   tsconfigRootDir?: string;
+  enforcePathAliases?: boolean;
 }>;
 
 const DEFAULT_IGNORES: string[] = [
@@ -59,7 +60,26 @@ const testGlobalsConfig = (): unknown => ({
   },
 });
 
-const zintrustRulesConfig = (): unknown => ({
+const createPathAliasRule = (enforcePathAliases: boolean): unknown => {
+  if (!enforcePathAliases) {
+    return 'off';
+  }
+
+  return [
+    'error',
+    {
+      patterns: [
+        {
+          group: ['./*', '../*'],
+          message:
+            'Please use path aliases (e.g., @app/Controllers/UserController) instead of relative imports.',
+        },
+      ],
+    },
+  ];
+};
+
+const zintrustRulesConfig = (enforcePathAliases: boolean): unknown => ({
   rules: {
     '@typescript-eslint/no-unused-vars': [
       'error',
@@ -71,18 +91,7 @@ const zintrustRulesConfig = (): unknown => ({
     'prefer-const': 'warn',
 
     // Keep app code on aliases (relative imports are allowed in tests).
-    'no-restricted-imports': [
-      'error',
-      {
-        patterns: [
-          {
-            group: ['./*', '../*'],
-            message:
-              'Please use path aliases (e.g., @app/Controllers/UserController) instead of relative imports.',
-          },
-        ],
-      },
-    ],
+    'no-restricted-imports': createPathAliasRule(enforcePathAliases),
 
     // Avoid raw throw Error(...) in app code.
     'no-restricted-syntax': [
@@ -117,6 +126,7 @@ const zintrustRulesConfig = (): unknown => ({
 export function zintrustAppEslintConfig(opts: ZintrustEslintOptions = {}): unknown[] {
   const tsconfigPath = opts.tsconfigPath ?? './tsconfig.json';
   const tsconfigRootDir = opts.tsconfigRootDir ?? process.cwd();
+  const enforcePathAliases = opts.enforcePathAliases ?? true;
 
   return [
     {
@@ -129,6 +139,6 @@ export function zintrustAppEslintConfig(opts: ZintrustEslintOptions = {}): unkno
     // Enable type-aware linting for app source.
     typeAwareAppConfig(tsconfigPath, tsconfigRootDir),
     testGlobalsConfig(),
-    zintrustRulesConfig(),
+    zintrustRulesConfig(enforcePathAliases),
   ];
 }

@@ -1,13 +1,71 @@
-import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isArray, isNonEmptyString, isObject } from '@helper/index';
 import { ZintrustLang } from '@lang/lang';
 import {
   normalizeActiveServiceRuntime,
   type ActiveServiceRuntime,
 } from '@microservices/ServiceManifest';
-import { ProjectRuntime } from '@runtime/ProjectRuntime';
+import { ensureNodeStartupEnvLoaded } from '@runtime/NodeStartup';
+import { resolveNodeProjectRoot } from '@runtime/resolveNodeProjectRoot';
 
 import { isNodeRuntime } from '@runtime/detectRuntime';
+
+type ProjectRuntimeCache = {
+  serviceManifest?: unknown;
+  activeService?: ActiveServiceRuntime;
+};
+
+type ProjectRuntimeGlobal = typeof globalThis & {
+  __zintrustProjectRuntime?: ProjectRuntimeCache;
+};
+
+type CloudflareDefaultExport = {
+  fetch?: (request: Request, env: unknown, ctx: unknown) => Promise<Response>;
+};
+
+type CloudflareWorkerModule = CloudflareDefaultExport & {
+  default?: CloudflareDefaultExport;
+};
+
+const getProjectRuntimeGlobal = (): ProjectRuntimeGlobal => globalThis as ProjectRuntimeGlobal;
+
+const getCachedProjectRuntime = (): ProjectRuntimeCache | undefined => {
+  return getProjectRuntimeGlobal().__zintrustProjectRuntime;
+};
+
+const setCachedProjectRuntime = (value: ProjectRuntimeCache): ProjectRuntimeCache => {
+  const current = getCachedProjectRuntime();
+  const next = Object.freeze({
+    ...(current?.serviceManifest === undefined ? {} : { serviceManifest: current.serviceManifest }),
+    ...(current?.activeService === undefined ? {} : { activeService: current.activeService }),
+    ...(value.serviceManifest === undefined ? {} : { serviceManifest: value.serviceManifest }),
+    ...(value.activeService === undefined ? {} : { activeService: value.activeService }),
+  });
+
+  getProjectRuntimeGlobal().__zintrustProjectRuntime = next;
+  return next;
+};
+
+const createValidationError = (message: string): Error & { statusCode: number; code: string } => {
+  // eslint-disable-next-line no-restricted-syntax
+  const error = new Error(message) as Error & { statusCode: number; code: string };
+  error.name = 'ValidationError';
+  error.statusCode = 400;
+  error.code = 'VALIDATION_ERROR';
+  return error;
+};
+
+const loadCloudflareWorker = async (): Promise<CloudflareDefaultExport> => {
+  const module = (await import('@functions/cloudflare')) as CloudflareWorkerModule;
+  if (typeof module.fetch === 'function') {
+    return module;
+  }
+
+  if (module.default !== undefined && typeof module.default.fetch === 'function') {
+    return module.default;
+  }
+
+  return module;
+};
 
 type StandaloneServiceEnvOptions = {
   rootEnv?: boolean;
@@ -44,12 +102,10 @@ export const isNodeMain = (importMetaUrl: string): boolean => {
 export const configureStandaloneService = (activeService: unknown): ActiveServiceRuntime => {
   const normalized = normalizeActiveServiceRuntime(activeService);
   if (normalized === undefined) {
-    throw ErrorFactory.createValidationError(
-      'Standalone service runtime requires at least domain and name.'
-    );
+    throw createValidationError('Standalone service runtime requires at least domain and name.');
   }
 
-  return ProjectRuntime.set({ activeService: normalized }).activeService ?? normalized;
+  return setCachedProjectRuntime({ activeService: normalized }).activeService ?? normalized;
 };
 
 const normalizeStandaloneEnvPaths = (value: unknown): string[] => {
@@ -63,23 +119,6 @@ const normalizeStandaloneEnvPaths = (value: unknown): string[] => {
     .filter(isNonEmptyString)
     .map((item) => item.trim())
     .filter((item) => item !== '');
-};
-
-const resolveStandaloneProjectRoot = async (): Promise<string> => {
-  const configuredRoot = process.env?.['ZINTRUST_PROJECT_ROOT'] ?? '';
-  if (isNonEmptyString(configuredRoot)) return configuredRoot;
-
-  const { existsSync } = await import('@node-singletons/fs');
-  const path = await import('@node-singletons/path');
-
-  let current = process.cwd();
-  while (true) {
-    if (existsSync(path.join(current, 'package.json'))) return current;
-
-    const parent = path.dirname(current);
-    if (parent === current) return process.cwd();
-    current = parent;
-  }
 };
 
 const resolveServiceEnvPath = async (
@@ -124,7 +163,7 @@ const ensureStandaloneServiceEnv = async (
   if (!isNodeRuntime()) return;
 
   const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
-  const projectRoot = await resolveStandaloneProjectRoot();
+  const projectRoot = await resolveNodeProjectRoot();
   const envPaths = await resolveConfiguredEnvPaths(projectRoot, activeService, importMetaUrl);
   const rootEnv = !isObject(activeService) || activeService['rootEnv'] !== false;
 
@@ -157,25 +196,59 @@ export const bootStandaloneService = async (
 export const start = async (): Promise<void> => {
   if (!isNodeRuntime()) return;
 
+  await ensureNodeStartupEnvLoaded({
+    entry: '@zintrust/core/start',
+  });
+
   const projectBootstrapModule = (await import('@runtime/ProjectBootstrap')) as {
     loadProjectBootstrap: () => Promise<void>;
   };
   await projectBootstrapModule.loadProjectBootstrap();
 };
 
+const cloudflareFetch = async (request: Request, env: unknown, ctx: unknown): Promise<Response> => {
+  const worker = await loadCloudflareWorker();
+
+  if (typeof worker.fetch === 'function') {
+    return worker.fetch(request, env, ctx);
+  }
+
+  throw createValidationError(
+    'Cloudflare worker entry must export a fetch(request, env, ctx) handler.'
+  );
+};
+
+const cloudflareWorker = Object.freeze({
+  fetch: cloudflareFetch,
+});
+
+const deno = async (request: Request): Promise<Response> => {
+  const module = (await import('@functions/deno')) as {
+    default: (request: Request) => Promise<Response>;
+  };
+  return module.default(request);
+};
+
+const handler = async (event: unknown, context: unknown): Promise<unknown> => {
+  const module = (await import('@functions/lambda')) as {
+    handler: (event: unknown, context: unknown) => Promise<unknown>;
+  };
+  return module.handler(event, context);
+};
+
 /**
  * Cloudflare Workers entry (module worker style).
  */
-export { default } from '@functions/cloudflare';
+export default cloudflareWorker;
 
-export { default as cloudflareWorker } from '@functions/cloudflare';
+export { cloudflareWorker };
 
 /**
  * Deno fetch handler.
  */
-export { default as deno } from '@functions/deno';
+export { deno };
 
 /**
  * AWS Lambda handler.
  */
-export { handler } from '@functions/lambda';
+export { handler };

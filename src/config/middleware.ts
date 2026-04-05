@@ -472,17 +472,41 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
   const loadMiddlewareConfig: Partial<MiddlewaresType> =
     StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
 
+  const defaultCsrfSkipPaths = ['/broadcasting/auth', '/apps/*/events'];
+
+  const mergeCsrfSkipPaths = (...groups: ReadonlyArray<readonly string[]>): string[] => {
+    const merged = new Set<string>();
+
+    for (const group of groups) {
+      for (const path of group) {
+        const normalized = path.trim();
+        if (normalized !== '') {
+          merged.add(normalized);
+        }
+      }
+    }
+
+    return [...merged];
+  };
+
   const skipPathsFromEnv = Env.get('CSRF_SKIP_PATHS', '')
     .split(',')
     .map((path: string) => path.trim())
     .filter((path: string) => path.length > 0);
 
+  const configuredSkipPaths = Array.isArray(loadMiddlewareConfig.skipPaths)
+    ? loadMiddlewareConfig.skipPaths
+    : [];
+
+  const effectiveSkipPaths = mergeCsrfSkipPaths(
+    defaultCsrfSkipPaths,
+    configuredSkipPaths,
+    skipPathsFromEnv
+  );
+
   const effectiveMiddlewareConfig: Partial<MiddlewaresType> = {
     ...loadMiddlewareConfig,
-    skipPaths:
-      Array.isArray(loadMiddlewareConfig.skipPaths) && loadMiddlewareConfig.skipPaths.length > 0
-        ? loadMiddlewareConfig.skipPaths
-        : skipPathsFromEnv,
+    skipPaths: effectiveSkipPaths,
   };
 
   const responders = resolveMiddlewareResponders(effectiveMiddlewareConfig);

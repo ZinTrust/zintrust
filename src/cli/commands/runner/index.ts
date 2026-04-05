@@ -146,10 +146,21 @@ const lambdaRunnerTemplate = [
   '',
 ].join('\n');
 
+const nodeRunnerTemplate = [
+  `import { start } from ${START_MODULE_PLACEHOLDER};`,
+  '',
+  'await start();',
+  '',
+].join('\n');
+
 export const createDenoRunnerSource = (startModuleSpecifier: string): string => {
   return injectStartModuleSpecifier(denoRunnerTemplate, startModuleSpecifier);
 };
 
 export const createLambdaRunnerSource = (startModuleSpecifier: string): string => {
   return injectStartModuleSpecifier(lambdaRunnerTemplate, startModuleSpecifier);
+};
+
+export const createNodeRunnerSource = (startModuleSpecifier: string): string => {
+  return injectStartModuleSpecifier(nodeRunnerTemplate, startModuleSpecifier);
 };

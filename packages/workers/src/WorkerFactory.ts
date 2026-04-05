@@ -47,6 +47,7 @@ import { WorkerMetrics } from './WorkerMetrics';
 import { WorkerRegistry, type WorkerInstance as RegistryWorkerInstance } from './WorkerRegistry';
 import { WorkerVersioning } from './WorkerVersioning';
 import { keyPrefix } from './config/workerConfig';
+import { recordQueueMonitorJob } from './queueMonitorHistory';
 import {
   DbWorkerStore,
   InMemoryWorkerStore,
@@ -2685,12 +2686,18 @@ const initializeDatacenter = (config: WorkerFactoryConfig): void => {
 const setupWorkerEventListeners = (
   worker: Worker,
   workerName: string,
+  queueName: string,
   workerVersion: string,
   features?: WorkerFactoryConfig['features']
 ): void => {
   worker.on('completed', (job: Job) => {
     try {
       Logger.debug(`Job completed: ${workerName}`, { jobId: job.id });
+      void recordQueueMonitorJob({
+        queueName,
+        status: 'completed',
+        job,
+      });
 
       if (features?.observability === true) {
         Observability.incrementCounter('worker.jobs.completed', 1, {
@@ -2707,6 +2714,14 @@ const setupWorkerEventListeners = (
   worker.on('failed', (job: Job | undefined, error: Error) => {
     try {
       Logger.error(`Job failed: ${workerName}`, { error, jobId: job?.id }, 'workers');
+      if (job) {
+        void recordQueueMonitorJob({
+          queueName,
+          status: 'failed',
+          job,
+          error,
+        });
+      }
 
       if (features?.observability === true) {
         Observability.incrementCounter('worker.jobs.failed', 1, {
@@ -2900,7 +2915,7 @@ export const WorkerFactory = Object.freeze({
       const resolvedOptions = resolveWorkerOptions(config, autoStart);
       const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
 
-      setupWorkerEventListeners(worker, name, workerVersion, features);
+      setupWorkerEventListeners(worker, name, queueName, workerVersion, features);
 
       // Update status to "starting"
       await store.update(name, {

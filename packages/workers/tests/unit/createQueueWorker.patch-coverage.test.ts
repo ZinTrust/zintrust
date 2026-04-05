@@ -6,6 +6,16 @@ const queueMock = {
   ack: vi.fn(),
 };
 
+const queueMonitorMetricsMock = {
+  recordJob: vi.fn().mockResolvedValue(undefined),
+};
+
+vi.mock('@zintrust/queue-monitor', () => ({
+  createMetrics: vi.fn(() => queueMonitorMetricsMock),
+}));
+
+vi.unmock('@zintrust/workers');
+
 vi.mock('@zintrust/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@zintrust/core')>();
   return {
@@ -58,13 +68,13 @@ vi.mock('@zintrust/core', async (importOriginal) => {
 describe('createQueueWorker (patch coverage)', () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.unmock('@zintrust/workers');
     vi.resetAllMocks();
 
     // Re-setup default implementations
     queueMock.dequeue.mockResolvedValue(undefined);
     queueMock.enqueue.mockResolvedValue('id');
     queueMock.ack.mockResolvedValue(undefined);
+    queueMonitorMetricsMock.recordJob.mockResolvedValue(undefined);
   });
 
   it('processOne acks and returns true on success', async () => {
@@ -84,6 +94,17 @@ describe('createQueueWorker (patch coverage)', () => {
     await expect(worker.processOne('q')).resolves.toBe(true);
     expect(handle).toHaveBeenCalledWith({ v: 1 });
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm1', undefined);
+    expect(queueMonitorMetricsMock.recordJob).toHaveBeenCalledWith(
+      'q',
+      'completed',
+      expect.objectContaining({
+        id: 'm1',
+        name: 'q-job',
+        data: { v: 1 },
+        attemptsMade: 0,
+      }),
+      undefined
+    );
   }, 30000);
 
   it('processOne re-enqueues when handle throws and attempts below max', async () => {
@@ -106,6 +127,18 @@ describe('createQueueWorker (patch coverage)', () => {
       undefined
     );
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm2', undefined);
+    expect(queueMonitorMetricsMock.recordJob).toHaveBeenCalledWith(
+      'q',
+      'failed',
+      expect.objectContaining({
+        id: 'm2',
+        name: 'q-job',
+        data: { v: 2 },
+        attemptsMade: 1,
+        failedReason: 'boom',
+      }),
+      expect.objectContaining({ message: 'boom' })
+    );
   });
 
   it('processOne does not re-enqueue when attempts >= maxAttempts', async () => {

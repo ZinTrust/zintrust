@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -6,6 +7,7 @@ const packagesDir = path.join(repoRoot, 'packages');
 
 const cliArgs = process.argv.slice(2);
 const isCheckOnly = cliArgs.includes('--check');
+const npmVersionCache = new Map();
 
 function getArgValue(flag) {
   const i = cliArgs.indexOf(flag);
@@ -71,7 +73,52 @@ function normalizePeerRange(version, packageName) {
 }
 
 function normalizeWorkspaceDependencyRange(version) {
-  return `^${version}`;
+  return version;
+}
+
+function getPublishedWorkspaceDependencyVersion(packageName, fallbackVersion) {
+  if (typeof packageName !== 'string' || packageName.length === 0) {
+    return fallbackVersion;
+  }
+
+  if (npmVersionCache.has(packageName)) {
+    return npmVersionCache.get(packageName);
+  }
+
+  let resolvedVersion = fallbackVersion;
+
+  try {
+    const raw = execFileSync(
+      'npm',
+      ['view', packageName, 'version', '--json', '--loglevel=silent'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    ).trim();
+    const publishedVersion = JSON.parse(raw);
+
+    if (typeof publishedVersion === 'string' && publishedVersion.length > 0) {
+      resolvedVersion = publishedVersion;
+    }
+  } catch {
+    resolvedVersion = fallbackVersion;
+  }
+
+  npmVersionCache.set(packageName, resolvedVersion);
+  return resolvedVersion;
+}
+
+function getWorkspaceDependencyVersions(packageInfos) {
+  const dependencyVersions = new Map();
+
+  for (const pkgInfo of packageInfos) {
+    if (typeof pkgInfo.name !== 'string' || typeof pkgInfo.version !== 'string') continue;
+
+    dependencyVersions.set(
+      pkgInfo.name,
+      getPublishedWorkspaceDependencyVersion(pkgInfo.name, pkgInfo.version)
+    );
+  }
+
+  return dependencyVersions;
 }
 
 function compareVersions(a, b) {
@@ -184,24 +231,23 @@ function syncMirroredField(target, key, value) {
   return true;
 }
 
-function pinWorkspaceDependencyVersions(dependencies, packageInfos) {
+function pinWorkspaceDependencyVersions(dependencies, dependencyVersions) {
   if (typeof dependencies !== 'object' || dependencies === null) {
     return dependencies;
   }
 
   const pinnedDependencies = { ...dependencies };
 
-  for (const pkgInfo of packageInfos) {
-    if (typeof pkgInfo.name !== 'string' || typeof pkgInfo.version !== 'string') continue;
-    if (!(pkgInfo.name in pinnedDependencies)) continue;
+  for (const [packageName, version] of dependencyVersions.entries()) {
+    if (!(packageName in pinnedDependencies)) continue;
 
-    pinnedDependencies[pkgInfo.name] = pkgInfo.version;
+    pinnedDependencies[packageName] = version;
   }
 
   return pinnedDependencies;
 }
 
-function syncDistLockEntry(distEntry, rootPkg, packageInfos) {
+function syncDistLockEntry(distEntry, rootPkg, dependencyVersions) {
   let didChange = false;
 
   if (!distEntry || typeof distEntry !== 'object') {
@@ -216,7 +262,7 @@ function syncDistLockEntry(distEntry, rootPkg, packageInfos) {
 
   const expectedDistDependencies = pinWorkspaceDependencyVersions(
     rootPkg.dependencies,
-    packageInfos
+    dependencyVersions
   );
 
   if (syncMirroredField(distEntry, 'dependencies', expectedDistDependencies)) {
@@ -226,7 +272,7 @@ function syncDistLockEntry(distEntry, rootPkg, packageInfos) {
   return didChange;
 }
 
-function syncRootLockEntry(rootLock, rootPkg, packageInfos) {
+function syncRootLockEntry(rootLock, rootPkg, dependencyVersions) {
   let didChange = false;
 
   if (rootLock.name !== rootPkg.name) {
@@ -260,17 +306,23 @@ function syncRootLockEntry(rootLock, rootPkg, packageInfos) {
     }
   }
 
-  if (syncDistLockEntry(rootLock.packages.dist, rootPkg, packageInfos)) {
+  if (syncDistLockEntry(rootLock.packages.dist, rootPkg, dependencyVersions)) {
     didChange = true;
   }
 
   return didChange;
 }
 
-function collectDistLockIssues({ issues, relRootLockPath, rootPkg, distEntry, packageInfos }) {
+function collectDistLockIssues({
+  issues,
+  relRootLockPath,
+  rootPkg,
+  distEntry,
+  dependencyVersions,
+}) {
   const expectedDistDependencies = pinWorkspaceDependencyVersions(
     rootPkg.dependencies,
-    packageInfos
+    dependencyVersions
   );
 
   if (distEntry?.version !== rootPkg.version) {
@@ -334,8 +386,8 @@ function syncRootPackageLink(rootLock, rootPkg) {
   return true;
 }
 
-function syncPackageLock(rootLock, rootPkg, packageInfos, coreName) {
-  let didChange = syncRootLockEntry(rootLock, rootPkg, packageInfos);
+function syncPackageLock(rootLock, rootPkg, packageInfos, dependencyVersions, coreName) {
+  let didChange = syncRootLockEntry(rootLock, rootPkg, dependencyVersions);
 
   rootLock.packages = rootLock.packages ?? {};
 
@@ -376,7 +428,7 @@ function syncPackageLock(rootLock, rootPkg, packageInfos, coreName) {
   return didChange;
 }
 
-function syncRootWorkspaceDependencies(rootPkg, packageInfos) {
+function syncRootWorkspaceDependencies(rootPkg, dependencyVersions) {
   let didChange = false;
   const dependencySections = [
     'dependencies',
@@ -389,13 +441,12 @@ function syncRootWorkspaceDependencies(rootPkg, packageInfos) {
     const deps = rootPkg[section];
     if (typeof deps !== 'object' || deps === null) continue;
 
-    for (const pkgInfo of packageInfos) {
-      if (typeof pkgInfo.name !== 'string' || typeof pkgInfo.version !== 'string') continue;
-      if (!(pkgInfo.name in deps)) continue;
+    for (const [packageName, version] of dependencyVersions.entries()) {
+      if (!(packageName in deps)) continue;
 
-      const expectedRange = normalizeWorkspaceDependencyRange(pkgInfo.version);
-      if (deps[pkgInfo.name] !== expectedRange) {
-        deps[pkgInfo.name] = expectedRange;
+      const expectedRange = normalizeWorkspaceDependencyRange(version);
+      if (deps[packageName] !== expectedRange) {
+        deps[packageName] = expectedRange;
         didChange = true;
       }
     }
@@ -418,16 +469,21 @@ async function syncPackages(packageDirs, coreName, coreVersion) {
     }
   }
 
+  const dependencyVersions = getWorkspaceDependencyVersions(packageInfos);
+
   const rootPkgPath = path.join(repoRoot, 'package.json');
   const rootPkg = await readJson(rootPkgPath);
-  if (syncRootWorkspaceDependencies(rootPkg, packageInfos)) {
+  if (syncRootWorkspaceDependencies(rootPkg, dependencyVersions)) {
     await writeJson(rootPkgPath, rootPkg);
     touched.push(path.relative(repoRoot, rootPkgPath));
   }
 
   const rootLockPath = path.join(repoRoot, 'package-lock.json');
   const rootLock = await readJsonIfExists(rootLockPath);
-  if (rootLock !== undefined && syncPackageLock(rootLock, rootPkg, packageInfos, coreName)) {
+  if (
+    rootLock !== undefined &&
+    syncPackageLock(rootLock, rootPkg, packageInfos, dependencyVersions, coreName)
+  ) {
     await writeJson(rootLockPath, rootLock);
     touched.push(path.relative(repoRoot, rootLockPath));
   }
@@ -443,7 +499,7 @@ function pushIssue(issues, file, message) {
   issues.push({ file, message });
 }
 
-function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, packageInfos }) {
+function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, dependencyVersions }) {
   const rootLockPath = path.join(repoRootPath, 'package-lock.json');
   const relRootLockPath = path.relative(repoRootPath, rootLockPath);
 
@@ -482,7 +538,7 @@ function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, packag
     relRootLockPath,
     rootPkg,
     distEntry: rootLock.packages?.dist,
-    packageInfos,
+    dependencyVersions,
   });
 
   const rootPackageLink = rootLock.packages?.[`node_modules/${rootPkg.name}`];
@@ -562,7 +618,7 @@ function collectPackageLockIssues({
   }
 }
 
-function collectRootWorkspaceDependencyIssues({ issues, rootPkg, packageInfos }) {
+function collectRootWorkspaceDependencyIssues({ issues, rootPkg, dependencyVersions }) {
   const relRootPkgPath = 'package.json';
   const dependencySections = [
     'dependencies',
@@ -575,16 +631,15 @@ function collectRootWorkspaceDependencyIssues({ issues, rootPkg, packageInfos })
     const deps = rootPkg[section];
     if (typeof deps !== 'object' || deps === null) continue;
 
-    for (const pkgInfo of packageInfos) {
-      if (typeof pkgInfo.name !== 'string' || typeof pkgInfo.version !== 'string') continue;
-      if (!(pkgInfo.name in deps)) continue;
+    for (const [packageName, version] of dependencyVersions.entries()) {
+      if (!(packageName in deps)) continue;
 
-      const expectedRange = normalizeWorkspaceDependencyRange(pkgInfo.version);
-      if (deps[pkgInfo.name] !== expectedRange) {
+      const expectedRange = normalizeWorkspaceDependencyRange(version);
+      if (deps[packageName] !== expectedRange) {
         pushIssue(
           issues,
           relRootPkgPath,
-          `${pkgInfo.name} ${section} range is ${JSON.stringify(deps[pkgInfo.name])} but expected ${JSON.stringify(expectedRange)}`
+          `${packageName} ${section} range is ${JSON.stringify(deps[packageName])} but expected ${JSON.stringify(expectedRange)}`
         );
       }
     }
@@ -628,9 +683,17 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
     });
   }
 
-  collectRootLockIssues({ issues, repoRootPath: repoRoot, rootPkg, rootLock, packageInfos });
+  const dependencyVersions = getWorkspaceDependencyVersions(packageInfos);
 
-  collectRootWorkspaceDependencyIssues({ issues, rootPkg, packageInfos });
+  collectRootLockIssues({
+    issues,
+    repoRootPath: repoRoot,
+    rootPkg,
+    rootLock,
+    dependencyVersions,
+  });
+
+  collectRootWorkspaceDependencyIssues({ issues, rootPkg, dependencyVersions });
 
   return issues;
 }

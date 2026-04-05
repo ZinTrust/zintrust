@@ -43,14 +43,13 @@ afterEach(() => {
 });
 
 describe('Bootstrap additional branches', () => {
-  it('skips official plugin auto-import warnings outside docker worker mode', async () => {
+  it('loads official plugin auto-imports without warning outside docker worker mode', async () => {
     vi.resetModules();
 
     const warnSpy = vi.fn();
     const officialImportsSpy = vi.fn(async () => ({
-      ok: false as const,
-      reason: 'import-failed' as const,
-      errorMessage: 'Loaded 0/16 official plugin imports',
+      ok: true as const,
+      loadedPath: 'base',
     }));
 
     vi.doMock('@config/logger', () => ({
@@ -83,7 +82,7 @@ describe('Bootstrap additional branches', () => {
 
     await import('@boot/bootstrap');
 
-    expect(officialImportsSpy).not.toHaveBeenCalled();
+    expect(officialImportsSpy).toHaveBeenCalledWith('base');
     expect(warnSpy).not.toHaveBeenCalledWith(
       'Official plugin auto-imports failed:',
       expect.anything()
@@ -175,6 +174,51 @@ describe('Bootstrap additional branches', () => {
     await import('@boot/bootstrap');
 
     expect(projectImportsSpy).not.toHaveBeenCalled();
+  });
+
+  it('loads official plugin auto-imports during normal node bootstrap', async () => {
+    vi.resetModules();
+
+    const officialImportsSpy = vi.fn(async () => ({ ok: true as const, loadedPath: 'base' }));
+    const projectImportsSpy = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'not-found' as const,
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: {
+        cloudflareWorker: false,
+        dockerWorker: false,
+        worker: false,
+        detectRuntime: () => 'nodejs',
+      },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: {
+        tryImportRuntimeAutoImports: officialImportsSpy,
+        tryImportProjectAutoImports: projectImportsSpy,
+      },
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {},
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+
+    await import('@boot/bootstrap');
+
+    expect(officialImportsSpy).toHaveBeenCalledWith('base');
+    expect(projectImportsSpy).toHaveBeenCalledTimes(1);
   });
 
   it('with SHUTDOWN_TIMEOUT=0 uses immediate shutdown (no timeout) and exits 0', async () => {

@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.4.50",
+  "version": "0.4.54",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -93,11 +93,11 @@
     "prepro:build": "npm run -s worker-plugins:ensure && node scripts/toggle-dev-routes.mjs comment",
     "pro:build": "npm run clean && npm test && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/fix-worker-aliases.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
     "watch": "tsc --watch --noEmit",
-    "pretest": "npm run -s worker-plugins:ensure",
+    "pretest": "npm run -s worker-plugins:ensure && node scripts/ci/ensure-eslint-ajv8.mjs",
     "test": "vitest run",
     "test:workers": "vitest run tests/workers",
     "test:watch": "vitest",
-    "pretest:coverage": "npm run -s worker-plugins:ensure && npm run -s ci:coverage-prep",
+    "pretest:coverage": "npm run -s worker-plugins:ensure && node scripts/ci/ensure-eslint-ajv8.mjs && npm run -s ci:coverage-prep",
     "test:coverage": "vitest run --coverage",
     "coverage:diff": "tsx scripts/coverage-diff.ts",
     "coverage:patch": "sh scripts/coverage-patch.sh",
@@ -238,7 +238,6 @@
   },
   "dependencies": {
     "@cloudflare/containers": "^0.2.0",
-    "@zintrust/workers": "^0.4.50",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.71.1",
     "chalk": "^5.6.2",

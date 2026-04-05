@@ -118,7 +118,10 @@ describe('StartCommand', () => {
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'tsx',
-        args: ['watch', 'src/boot/bootstrap.ts'],
+        args: ['watch', expect.stringContaining('zin-start-node.ts')],
+        env: expect.objectContaining({
+          ZINTRUST_BOOTSTRAP_PREFERENCE: 'source',
+        }),
       })
     );
   });
@@ -136,7 +139,10 @@ describe('StartCommand', () => {
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'node',
-        args: ['dist/src/boot/bootstrap.js'],
+        args: [expect.stringContaining('zin-start-node.mjs')],
+        env: expect.objectContaining({
+          ZINTRUST_BOOTSTRAP_PREFERENCE: 'compiled',
+        }),
       })
     );
   });
@@ -335,7 +341,7 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'tsx',
-        args: ['watch', 'src/index.ts'],
+        args: ['watch', expect.stringContaining('zin-start-node.ts')],
         env: expect.objectContaining({ ZINTRUST_PROJECT_ROOT: projectRoot }),
       })
     );
@@ -473,6 +479,45 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
       cwd: projectRoot,
       includeCwd: true,
       extraCwds: [],
+    });
+  });
+
+  it('should keep root env authoritative for monolith manifest preload when RUN_AS_MONOLITH is enabled', async () => {
+    const projectRoot = '/workspace';
+
+    process.env['RUN_AS_MONOLITH'] = 'true';
+
+    vi.resetModules();
+    vi.doMock('@runtime/ProjectRuntime', () =>
+      createProjectRuntimeMock([
+        {
+          id: 'app/gatewaynext',
+          domain: 'app',
+          name: 'gatewaynext',
+          monolithEnabled: true,
+        },
+      ])
+    );
+
+    const { StartCommand: StartCommandWithMock } = await import('@cli/commands/StartCommand');
+    const { EnvFileLoader: EnvFileLoaderWithMock } = await import('@cli/utils/EnvFileLoader');
+    const command = StartCommandWithMock.create();
+
+    vi.spyOn(process, 'cwd').mockReturnValue(projectRoot);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      return isExistingManifestPath(value, projectRoot);
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({})).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoaderWithMock.ensureLoaded).toHaveBeenLastCalledWith({
+      cwd: projectRoot,
+      includeCwd: true,
+      envPaths: ['/workspace/src/services/app/gatewaynext'],
+      envPathsOverrideExisting: false,
     });
   });
 
@@ -800,7 +845,7 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
 
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: ['src/index.ts'],
+        args: [expect.stringContaining('zin-start-node.ts')],
       })
     );
   });
@@ -838,7 +883,7 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     await expect(command.execute({})).rejects.toThrow(/process.exit/);
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: ['watch', 'src/index.ts'],
+        args: ['watch', expect.stringContaining('zin-start-node.ts')],
       })
     );
   });

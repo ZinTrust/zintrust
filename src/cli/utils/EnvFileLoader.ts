@@ -154,6 +154,7 @@ type LoadOptions = {
   includeCwd?: boolean;
   extraCwds?: string[];
   envPaths?: string[];
+  envPathsOverrideExisting?: boolean;
   overrideExisting?: boolean;
 };
 
@@ -272,6 +273,7 @@ const createLoadPlan = (options: LoadOptions): LoadSource[] => {
   const extraCwds = normalizeCwdList(options.extraCwds);
   const envPaths = normalizeEnvPathList(options.envPaths);
   const overrideExisting = options.overrideExisting ?? true;
+  const envPathsOverrideExisting = options.envPathsOverrideExisting ?? true;
 
   const sources: LoadSource[] = [];
   if (includeCwd) {
@@ -298,7 +300,7 @@ const createLoadPlan = (options: LoadOptions): LoadSource[] => {
       key: `${looksLikeFile ? 'file' : 'cwd'}:${envPath}`,
       path: envPath,
       kind: looksLikeFile ? 'file' : 'cwd',
-      overrideExisting: true,
+      overrideExisting: envPathsOverrideExisting,
     });
   }
 

@@ -21,6 +21,8 @@ zin start
 
 Your API is now running at `http://localhost:7777`
 
+Fresh projects also include a default flat ESLint setup through `@zintrust/governance/eslint`, so `npm run lint` works immediately after scaffolding.
+
 If you’re targeting a different runtime:
 
 - Cloudflare Workers (Wrangler): `zin start --wg`
@@ -42,6 +44,8 @@ import '@zintrust/core/boot';
 
 export {};
 ```
+
+In Node mode, `@zintrust/core/boot` now loads the project env files before it hands off to the stock bootstrap lifecycle, using the same env-file parsing semantics as the CLI startup path.
 
 Use a full custom bootstrap only when you intentionally need behavior different from the stock ZinTrust bootstrap. If you replace it completely, you are also responsible for running any worker startup lifecycle that your app depends on.
 

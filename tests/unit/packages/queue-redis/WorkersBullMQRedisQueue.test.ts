@@ -1,18 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const bullMqState = {
+  add: vi.fn(async () => ({ id: '1' })),
+  getJobs: vi.fn(async () => []),
+  getJob: vi.fn(async () => undefined),
+  close: vi.fn(async () => undefined),
+};
+
 vi.mock('bullmq', () => {
   class Queue {
     add() {
-      return Promise.resolve({ id: '1' });
+      return bullMqState.add();
     }
     getJobs() {
-      return Promise.resolve([]);
+      return bullMqState.getJobs();
     }
     getJob() {
-      return Promise.resolve(undefined);
+      return bullMqState.getJob();
     }
     close() {
-      return Promise.resolve();
+      return bullMqState.close();
     }
   }
   return { Queue };
@@ -22,6 +29,20 @@ import { Env } from '@/config/env';
 import { BullMQRedisQueue } from '../../../../packages/queue-redis/src/BullMQRedisQueue';
 
 describe('BullMQ Redis queue (Workers)', () => {
+  it('acks pulled jobs by finalizing them as completed instead of removing them', async () => {
+    const moveToCompleted = vi.fn(async () => undefined);
+
+    bullMqState.getJob.mockResolvedValueOnce({
+      id: 'job-1',
+      moveToCompleted,
+      remove: vi.fn(async () => undefined),
+    });
+
+    await expect(BullMQRedisQueue.ack('jobs', 'job-1')).resolves.toBeUndefined();
+
+    expect(moveToCompleted).toHaveBeenCalledWith('acknowledged', 'pull-worker', false);
+  });
+
   it('fails fast when redis proxy mode is enabled without queue HTTP proxy mode', async () => {
     try {
       Env.setSource({
