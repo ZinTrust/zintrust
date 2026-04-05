@@ -1,6 +1,7 @@
 import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import * as Core from '@zintrust/core';
 import { Env, Logger, Queue } from '@zintrust/core';
+import { recordQueueMonitorJob } from './queueMonitorHistory';
 
 type QueueApi = Readonly<{
   enqueue: (queue: string, payload: BullMQPayload, driverName?: string) => Promise<string>;
@@ -320,6 +321,19 @@ const onProcessSuccess = async <TPayload>(input: {
 }): Promise<boolean> => {
   await TypedQueue.ack(input.queueName, input.message.id, input.driverName);
 
+  await recordQueueMonitorJob({
+    queueName: input.queueName,
+    status: 'completed',
+    job: {
+      id: input.message.id,
+      name: `${input.queueName}-job`,
+      data: input.message.payload,
+      attemptsMade: getAttemptsFromMessage(input.message),
+      processedOn: input.startedAtMs,
+      finishedOn: Date.now(),
+    },
+  });
+
   if (typeof input.trackerApi.completed === 'function') {
     await input.trackerApi.completed({
       queueName: input.queueName,
@@ -386,6 +400,22 @@ const onProcessFailure = async <TPayload>(input: {
   }
 
   await TypedQueue.ack(input.queueName, input.message.id, input.driverName);
+
+  await recordQueueMonitorJob({
+    queueName: input.queueName,
+    status: 'failed',
+    job: {
+      id: input.message.id,
+      name: `${input.queueName}-job`,
+      data: input.message.payload,
+      attemptsMade: nextAttempts,
+      failedReason: failure.message,
+      processedOn: Date.now(),
+      finishedOn: Date.now(),
+    },
+    error: failure,
+  });
+
   await removeHeartbeatIfSupported(input.queueName, input.message.id);
 
   if (typeof input.trackerApi.failed === 'function') {

@@ -1,5 +1,6 @@
 // Global Vitest setup
 
+import '../scripts/ci/ensure-eslint-ajv8.mjs';
 import { vi } from 'vitest';
 
 // JWT session allowlist is enforced by middleware; in tests we default to an in-memory store.

@@ -619,6 +619,7 @@ export declare const Logger: any;
 export declare const ErrorFactory: any;
 export declare const Env: any;
 export declare const DatabaseAdapterRegistry: any;
+export declare const DatabaseConnectionRegistry: any;
 export declare const CacheDriverRegistry: any;
 export declare const MailDriverRegistry: any;
 export declare const FeatureFlags: any;

@@ -17,6 +17,7 @@ import { createMetrics, type Metrics } from './metrics';
 import { getRecentJobsForSelection, QueueMonitoringStream } from './QueueMonitoringService';
 
 export type { JobPayload } from './driver';
+export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker';
 
 export type QueueMonitorConfig = {

@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 
-const eslintAjvPath = (() => {
+const resolveEslintAjvPath = () => {
   try {
     // `eslint/lib/...` may not be resolvable due to package export resolution.
     // `eslint/package.json` is reliably resolvable and lets us compute the internal path.
@@ -14,20 +14,9 @@ const eslintAjvPath = (() => {
   } catch {
     return null;
   }
-})();
+};
 
-if (eslintAjvPath === null) {
-  process.exit(0);
-}
-
-const current = fs.readFileSync(eslintAjvPath, 'utf8');
-
-// Idempotency: if we already applied the current patch variant, do nothing.
-if (current.includes('[ensure-eslint-ajv8:v2]')) {
-  process.exit(0);
-}
-
-const patched = `/**
+const patchContents = `/**
  * @fileoverview The instance of Ajv validator.
  * @author Evgeny Poberezkin
  */
@@ -62,13 +51,13 @@ module.exports = (additionalOptions = {}) => {
 	const strictDefaults = extraOptions.strictDefaults;
 	delete extraOptions.strictDefaults;
 
-	const strict = Object.prototype.hasOwnProperty.call(extraOptions, "strict")
+ 	const strict = Object.prototype.hasOwnProperty.call(extraOptions, "strict")
 		? extraOptions.strict
 		: strictDefaults === true
 			? true
 			: false;
 
-	const ajv = new Ajv({
+ 	const ajv = new Ajv({
 		meta: false,
 		useDefaults: true,
 		validateSchema: false,
@@ -79,9 +68,9 @@ module.exports = (additionalOptions = {}) => {
 		...extraOptions,
 	});
 
-	ajv.addMetaSchema(metaSchema);
+ 	ajv.addMetaSchema(metaSchema);
 
-	const metaId = metaSchema.$id || metaSchema.id;
+ 	const metaId = metaSchema.$id || metaSchema.id;
 	if (typeof metaId === "string" && metaId.length > 0) {
 		if (ajv.opts) {
 			ajv.opts.defaultMeta = metaId;
@@ -96,5 +85,28 @@ module.exports = (additionalOptions = {}) => {
 };
 `;
 
-fs.writeFileSync(eslintAjvPath, patched, 'utf8');
-console.log(`[ensure-eslint-ajv8] patched ESLint Ajv loader: ${eslintAjvPath}`);
+export const ensureEslintAjv8 = () => {
+  const eslintAjvPath = resolveEslintAjvPath();
+  if (eslintAjvPath === null) {
+    return false;
+  }
+
+  const current = fs.readFileSync(eslintAjvPath, 'utf8');
+  if (current.includes('[ensure-eslint-ajv8:v2]')) {
+    return false;
+  }
+
+  fs.writeFileSync(eslintAjvPath, patchContents, 'utf8');
+  console.log(`[ensure-eslint-ajv8] patched ESLint Ajv loader: ${eslintAjvPath}`);
+  return true;
+};
+
+const isDirectExecution = (() => {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  return path.resolve(entry) === path.resolve(new URL(import.meta.url).pathname);
+})();
+
+if (isDirectExecution) {
+  ensureEslintAjv8();
+}
