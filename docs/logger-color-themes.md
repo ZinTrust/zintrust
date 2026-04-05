@@ -2,17 +2,19 @@
 
 ZinTrust request logs can use one of five terminal color palettes. The default theme is `arctic`, and all themes are selected with `LOG_COLOR_THEME` when text logging is enabled.
 
+Fresh ZinTrust project scaffolds now enable request-path logging and ANSI colors by default with `LOG_HTTP_REQUEST=true`, `LOG_COLOR=true`, and `LOG_COLOR_THEME=arctic`.
+
 ## Enable Theme Selection
 
 ```env
 LOG_FORMAT=text
-LOG_COLOR=auto
+LOG_COLOR=true
 LOG_COLOR_THEME=arctic
 ```
 
 - `LOG_COLOR_THEME` accepts `arctic`, `sharp-ops`, `soft-contrast`, `neon-grid`, and `production-safe`.
 - Invalid values fall back to `arctic`.
-- `LOG_COLOR` still controls whether ANSI color codes are emitted at all. Use `always`, `auto`, or `never`.
+- `LOG_COLOR` still controls whether ANSI color codes are emitted at all. The runtime fallback is `true`, and you can still use `auto` or `false`/`never` when needed.
 - JSON logs and file logs stay uncolored.
 
 ## Shared Request Example

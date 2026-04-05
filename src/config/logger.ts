@@ -317,7 +317,7 @@ const colorize = (value: string, colorCode: string): string => `${colorCode}${va
 const shouldColorizeConsoleText = (): boolean => {
   if (isJsonFormat(getLogFormat())) return false;
 
-  const configured = getEnvString('LOG_COLOR', 'auto').trim().toLowerCase();
+  const configured = getEnvString('LOG_COLOR', 'true').trim().toLowerCase();
   if (
     configured === 'false' ||
     configured === '0' ||

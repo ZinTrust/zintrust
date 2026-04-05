@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-05
 
+- Enabled fresh-project request-path logging by default, added scaffolded `LOG_COLOR=true` and `LOG_COLOR_THEME=arctic` entries for colored text request logs, and aligned the documented logging env defaults with the runtime behavior.
 - Hardened `Broadcast.publish(...)` so core now normalizes `channelScope`, tries the package-owned internal socket publish route before falling back to in-process socket or driver delivery, reports explicit transport attempts including `internal-http`, and surfaces clearer official-plugin auto-import failure details when optional packages are missing or broken.
 - Added named request-log terminal color themes with `LOG_COLOR_THEME`, set `arctic` as the default palette, and documented all five supported theme options plus the standalone visual palette sheet for developer preview.
 - Added a framework-owned `Broadcast.publish(...)` / `Broadcast.publishLater(...)` surface that prefers the active socket runtime automatically when available, kept the older broadcast helpers as compatibility aliases, updated queued broadcast processing to use the new object-based publish contract, and rewrote the broadcast docs/scaffolds so normal application code no longer needs custom publish helpers or a default `/broadcast/send` bridge.

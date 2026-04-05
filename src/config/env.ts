@@ -533,7 +533,7 @@ export const Env = Object.freeze({
   LOG_FORMAT: get('LOG_FORMAT', 'text'),
   LOG_CHANNEL: get('LOG_CHANNEL', ''),
   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
-  LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', false),
+  LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', true),
   LOG_TO_FILE: getBool('LOG_TO_FILE', false),
   LOG_ROTATION_SIZE: getInt('LOG_ROTATION_SIZE', 10485760),
   LOG_ROTATION_DAYS: getInt('LOG_ROTATION_DAYS', 7),
