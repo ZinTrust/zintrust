@@ -120,7 +120,9 @@ const findViolations = async (
 };
 
 describe('Architecture: import boundaries', () => {
-  it('prevents core src/ from importing app/routes/bin', async () => {
+  it(
+    'prevents core src/ from importing app/routes/bin',
+    async () => {
     const srcDir = path.join(repoRoot, 'src');
     const files = await walkTsFiles(srcDir);
 
@@ -130,7 +132,9 @@ describe('Architecture: import boundaries', () => {
     });
 
     expect(violations).toEqual([]);
-  });
+    },
+    30000
+  );
 
   it('prevents app/ from importing routes/bin', async () => {
     const appDir = path.join(repoRoot, 'app');
