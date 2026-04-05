@@ -114,7 +114,7 @@ const REQUEST_LOG_COLOR_THEMES: Readonly<Record<LoggerColorThemeName, RequestLog
         OPTIONS: `${ANSI.bold}${ANSI.brightMagenta}`,
       }),
       methodFallback: `${ANSI.bold}${ANSI.white}`,
-      path: ANSI.white,
+      path: `${ANSI.bold}${ANSI.white}`,
       status: Object.freeze({
         success: `${ANSI.bold}${ANSI.brightGreen}`,
         redirect: `${ANSI.bold}${ANSI.cyan}`,
@@ -130,7 +130,7 @@ const REQUEST_LOG_COLOR_THEMES: Readonly<Record<LoggerColorThemeName, RequestLog
         slow: `${ANSI.bold}${ANSI.yellow}`,
         critical: `${ANSI.bold}${ANSI.brightRed}`,
       }),
-      meta: `${ANSI.dim}${ANSI.cyan}`,
+      meta: `${ANSI.dim}${ANSI.white}`,
     }),
     'sharp-ops': Object.freeze({
       level: Object.freeze({

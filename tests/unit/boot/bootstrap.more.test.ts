@@ -130,7 +130,10 @@ describe('Bootstrap additional branches', () => {
     await import('@boot/bootstrap');
 
     expect(officialImportsSpy).toHaveBeenCalledWith('base');
-    expect(warnSpy).toHaveBeenCalledWith('Official plugin auto-imports failed:', expect.anything());
+    expect(warnSpy).toHaveBeenCalledWith('Official plugin auto-import advisory', {
+      reason: 'import-failed',
+      details: 'Loaded 0/16 official plugin imports',
+    });
   });
 
   it('skips project plugin auto-imports in cloudflare worker mode', async () => {

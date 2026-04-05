@@ -256,19 +256,19 @@ const BootstrapFunctions = Object.freeze({
         const { PluginAutoImports } = await import('@runtime/PluginAutoImports');
         const officialImports = await PluginAutoImports.tryImportRuntimeAutoImports('base');
         if (!officialImports.ok) {
-          Logger.warn(
-            'Official plugin auto-imports failed:',
-            ErrorFactory.createGeneralError('officialImports', officialImports.errorMessage)
-          );
+          Logger.warn('Official plugin auto-import advisory', {
+            reason: officialImports.reason,
+            details: officialImports.errorMessage,
+          });
         }
 
         if (!shouldSkipProjectPluginAutoImports()) {
           const projectImports = await PluginAutoImports.tryImportProjectAutoImports();
           if (!projectImports.ok && projectImports.reason !== 'not-found') {
-            Logger.warn(
-              'Project plugin auto-imports failed:',
-              ErrorFactory.createGeneralError('projectImports', projectImports.errorMessage)
-            );
+            Logger.warn('Project plugin auto-import advisory', {
+              reason: projectImports.reason,
+              details: projectImports.errorMessage,
+            });
           }
         }
       } catch (error) {

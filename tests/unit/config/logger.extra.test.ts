@@ -263,7 +263,9 @@ describe('Logger additional branches', () => {
     const rendered = (logSpy.mock.calls[0]?.[0] ?? '') as string;
     expect(rendered).toContain('\u001b[1m\u001b[96m[INFO]\u001b[0m');
     expect(rendered).toContain('\u001b[1m\u001b[94m[GET]\u001b[0m');
+    expect(rendered).toContain('\u001b[1m\u001b[97m/health\u001b[0m');
     expect(rendered).toContain('\u001b[1m\u001b[92m200 OK\u001b[0m');
+    expect(rendered).toContain('\u001b[2m\u001b[97m[requestId=req-default]\u001b[0m');
 
     logSpy.mockRestore();
     vi.doUnmock('@config/env');
