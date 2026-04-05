@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueueMonitor } from '../src/index';
+import type { QueueMonitorApi } from '../src/index';
 
 // Mock dependencies
 vi.mock('bullmq', () => {
@@ -46,15 +47,23 @@ vi.mock('ioredis', () => {
 
 describe('QueueMonitor', () => {
   const redisConfig = { host: 'localhost', port: 6379 };
+  const monitors = new Set<QueueMonitorApi>();
+
+  afterEach(async () => {
+    await Promise.all(Array.from(monitors, (monitor) => monitor.close()));
+    monitors.clear();
+  });
 
   it('creates an instance with default settings', () => {
     const monitor = QueueMonitor.create({ redis: redisConfig });
+    monitors.add(monitor);
     expect(monitor).toBeDefined();
     expect(monitor.getSnapshot).toBeDefined();
   });
 
   it('registerRoutes calls router.get', () => {
     const monitor = QueueMonitor.create({ redis: redisConfig });
+    monitors.add(monitor);
     const router = {
       routes: [],
       prefix: '',
@@ -74,6 +83,7 @@ describe('QueueMonitor', () => {
 
   it('getSnapshot returns structure', async () => {
     const monitor = QueueMonitor.create({ redis: redisConfig });
+    monitors.add(monitor);
     const snapshot = await monitor.getSnapshot();
 
     expect(snapshot.status).toBe('ok');
@@ -85,6 +95,7 @@ describe('QueueMonitor', () => {
       redis: redisConfig,
       knownQueues: async () => ['emails', 'notifications', 'emails'],
     });
+    monitors.add(monitor);
 
     const snapshot = await monitor.getSnapshot();
 
