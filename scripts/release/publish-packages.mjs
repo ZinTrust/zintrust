@@ -700,7 +700,7 @@ export declare const SocketRuntimeRegistry: {
   getRuntime: (...args: any[]) => SocketRuntime | undefined;
   registerRoutes: (...args: any[]) => void;
   getRouteRegistrar: (...args: any[]) => SocketRouteRegistrar | undefined;
-  describe: (...args: any[]) => any;
+  getDiagnostics: (...args: any[]) => any;
   reset: (...args: any[]) => void;
 };
 
@@ -1069,7 +1069,7 @@ export const SocketRuntimeRegistry = {
   getRouteRegistrar() {
     return undefined;
   },
-  describe() {
+  getDiagnostics() {
     return null;
   },
   reset() {},
