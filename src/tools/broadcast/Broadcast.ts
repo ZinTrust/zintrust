@@ -19,6 +19,13 @@ type BroadcastChannelScope = 'public' | 'private' | 'presence' | 'persistent';
 type BroadcastDeliveryMode = 'auto' | 'socket' | 'driver';
 type BroadcastTransport = 'internal-http' | 'socket' | 'driver';
 
+const BROADCAST_CHANNEL_SCOPES = new Set<BroadcastChannelScope>([
+  'public',
+  'private',
+  'presence',
+  'persistent',
+]);
+
 export type BroadcastPublishInput = Readonly<{
   channel?: string;
   channels?: readonly string[];
@@ -99,13 +106,8 @@ const normalizeChannelScope = (value: unknown): BroadcastChannelScope | undefine
   }
 
   const normalized = value.trim().toLowerCase();
-  if (
-    normalized === 'public' ||
-    normalized === 'private' ||
-    normalized === 'presence' ||
-    normalized === 'persistent'
-  ) {
-    return normalized;
+  if (BROADCAST_CHANNEL_SCOPES.has(normalized as BroadcastChannelScope)) {
+    return normalized as BroadcastChannelScope;
   }
 
   return undefined;

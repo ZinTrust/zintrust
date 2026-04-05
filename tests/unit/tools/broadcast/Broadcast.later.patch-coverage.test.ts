@@ -4,6 +4,50 @@ const queueMock = {
   enqueue: vi.fn(),
 };
 
+const resetBroadcastEnv = (): void => {
+  delete process.env['BROADCAST_INTERNAL_URL'];
+  delete process.env['APP_URL'];
+  delete process.env['BASE_URL'];
+  delete process.env['PUSHER_APP_ID'];
+  delete process.env['BROADCAST_APP_ID'];
+  delete process.env['BROADCAST_SECRET'];
+  delete process.env['PUSHER_APP_SECRET'];
+  delete process.env['BROADCAST_APP_SECRET'];
+};
+
+const setBroadcastEnv = (values: Record<string, string>): void => {
+  for (const [key, value] of Object.entries(values)) {
+    process.env[key] = value;
+  }
+};
+
+const createJsonResponse = (body: string, status = 202): Response =>
+  new Response(body, {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+
+const installSocketMock = (
+  implementation?: () => Promise<unknown>
+): { publishSocketEventFromServer: ReturnType<typeof vi.fn> } => {
+  const publishSocketEventFromServer = vi.fn(
+    implementation ??
+      (async () => ({
+        ok: true,
+        transport: 'node' as const,
+        channels: ['c'],
+        event: 'e',
+        deliveries: 1,
+      }))
+  );
+
+  vi.doMock('@zintrust/socket', () => ({
+    publishSocketEventFromServer,
+  }));
+
+  return { publishSocketEventFromServer };
+};
+
 vi.mock('@tools/queue/Queue', () => ({
   Queue: queueMock,
   default: queueMock,
@@ -37,14 +81,7 @@ describe('Broadcast (later + now patch coverage)', () => {
 
     queueMock.enqueue.mockResolvedValue('msg-1');
     vi.unstubAllGlobals();
-    delete process.env['BROADCAST_INTERNAL_URL'];
-    delete process.env['APP_URL'];
-    delete process.env['BASE_URL'];
-    delete process.env['PUSHER_APP_ID'];
-    delete process.env['BROADCAST_APP_ID'];
-    delete process.env['BROADCAST_SECRET'];
-    delete process.env['PUSHER_APP_SECRET'];
-    delete process.env['BROADCAST_APP_SECRET'];
+    resetBroadcastEnv();
   });
 
   it('broadcastNow delegates to send()', async () => {
@@ -68,10 +105,7 @@ describe('Broadcast (later + now patch coverage)', () => {
       deliveries: 2,
     }));
 
-    vi.doMock('@zintrust/socket', () => ({
-      socketRuntime: { isEnabled: () => true },
-      publishSocketEventFromServer,
-    }));
+    vi.doMock('@zintrust/socket', () => ({ publishSocketEventFromServer }));
 
     const { Broadcast } = await import('@broadcast/Broadcast');
     await expect(
@@ -93,31 +127,18 @@ describe('Broadcast (later + now patch coverage)', () => {
   });
 
   it('publish prefers the internal socket publish route before in-process transport', async () => {
-    process.env['BASE_URL'] = 'http://127.0.0.1:7777';
-    process.env['PUSHER_APP_ID'] = 'app-1';
-    process.env['BROADCAST_SECRET'] = 'secret-1';
+    setBroadcastEnv({
+      BASE_URL: 'http://127.0.0.1:7777',
+      PUSHER_APP_ID: 'app-1',
+      BROADCAST_SECRET: 'secret-1',
+    });
 
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ ok: true, deliveries: 4, event: 'e', channels: ['c'] }), {
-          status: 202,
-          headers: { 'content-type': 'application/json' },
-        })
+    const fetchMock = vi.fn(async () =>
+      createJsonResponse(JSON.stringify({ ok: true, deliveries: 4, event: 'e', channels: ['c'] }))
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const publishSocketEventFromServer = vi.fn(async () => ({
-      ok: true,
-      transport: 'node' as const,
-      channels: ['c'],
-      event: 'e',
-      deliveries: 1,
-    }));
-
-    vi.doMock('@zintrust/socket', () => ({
-      publishSocketEventFromServer,
-      socketRuntime: { isEnabled: () => true },
-    }));
+    const { publishSocketEventFromServer } = installSocketMock();
 
     const { Broadcast } = await import('@broadcast/Broadcast');
     await expect(
@@ -144,19 +165,14 @@ describe('Broadcast (later + now patch coverage)', () => {
   });
 
   it('retries the alternate loopback host before falling back to the in-process socket transport', async () => {
-    process.env['BASE_URL'] = 'http://127.0.0.1:7777';
-    process.env['PUSHER_APP_ID'] = 'app-1';
+    setBroadcastEnv({ BASE_URL: 'http://127.0.0.1:7777', PUSHER_APP_ID: 'app-1' });
 
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1'))
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ ok: true, deliveries: 2, event: 'evt', channels: ['private-smart.1'] }),
-          {
-            status: 202,
-            headers: { 'content-type': 'application/json' },
-          }
+        createJsonResponse(
+          JSON.stringify({ ok: true, deliveries: 2, event: 'evt', channels: ['private-smart.1'] })
         )
       );
     vi.stubGlobal('fetch', fetchMock);
@@ -199,6 +215,171 @@ describe('Broadcast (later + now patch coverage)', () => {
         data: {},
       })
     ).rejects.toBeDefined();
+  });
+
+  it('keeps channels unchanged for public or invalid scope values', async () => {
+    const { Broadcast } = await import('@broadcast/Broadcast');
+
+    await expect(
+      Broadcast.publishLater({
+        channels: ['alpha', 'beta'],
+        channelScope: 'public',
+        event: 'evt',
+        data: { ok: true },
+      })
+    ).resolves.toBe('msg-1');
+
+    await expect(
+      Broadcast.publishLater({
+        channel: 'gamma',
+        channelScope: 'unsupported' as never,
+        event: 'evt',
+        data: { ok: true },
+      })
+    ).resolves.toBe('msg-1');
+
+    expect(queueMock.enqueue).toHaveBeenNthCalledWith(
+      1,
+      'broadcasts',
+      expect.objectContaining({ channels: ['alpha', 'beta'] })
+    );
+    expect(queueMock.enqueue).toHaveBeenNthCalledWith(
+      2,
+      'broadcasts',
+      expect.objectContaining({ channels: ['gamma'] })
+    );
+  });
+
+  it('rejects publishes without any channel input', async () => {
+    const { Broadcast } = await import('@broadcast/Broadcast');
+
+    await expect(Broadcast.publish({ event: 'evt', data: {} })).rejects.toBeDefined();
+  });
+
+  it('accepts host-only app urls and parses empty internal-http responses', async () => {
+    setBroadcastEnv({ APP_URL: '127.0.0.1:7788', BROADCAST_APP_ID: 'internal-app' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => createJsonResponse(''))
+    );
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'public.feed', event: 'evt', data: {} })
+    ).resolves.toMatchObject({
+      transport: 'internal-http',
+      channels: ['public.feed'],
+      event: 'evt',
+      endpoint: 'http://127.0.0.1:7788/apps/internal-app/events',
+    });
+  });
+
+  it('parses raw internal-http error bodies and falls back to the socket transport', async () => {
+    setBroadcastEnv({ BASE_URL: 'http://127.0.0.1:7788', PUSHER_APP_ID: 'internal-app' });
+    const loggerWarn = vi.fn();
+    vi.doMock('@config/logger', () => ({ Logger: { warn: loggerWarn, error: vi.fn() } }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => createJsonResponse('not-json', 500))
+    );
+    installSocketMock(async () => ({
+      ok: true,
+      transport: 'node' as const,
+      channels: ['alpha'],
+      event: 'evt',
+      deliveries: 3,
+    }));
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+    ).resolves.toMatchObject({
+      transport: 'socket',
+      attemptedTransports: ['internal-http', 'socket'],
+    });
+
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'Broadcast publish transport failed; falling back.',
+      expect.objectContaining({
+        transport: 'internal-http',
+        body: { raw: 'not-json' },
+      })
+    );
+  });
+
+  it('tries localhost and ipv6 loopback aliases before falling back to the driver', async () => {
+    setBroadcastEnv({ APP_URL: 'http://localhost:7788', PUSHER_APP_ID: 'loopback-app' });
+    const fetchMock = vi.fn().mockRejectedValue('boom');
+    const loggerWarn = vi.fn();
+    vi.doMock('@config/logger', () => ({ Logger: { warn: loggerWarn, error: vi.fn() } }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.doMock('@zintrust/socket', () => ({
+      publishSocketEventFromServer: vi.fn(async () => {
+        throw new Error('Socket runtime is not enabled.');
+      }),
+    }));
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+    ).resolves.toMatchObject({
+      transport: 'driver',
+      attemptedTransports: ['internal-http', 'socket', 'driver'],
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:7788/apps/loopback-app/events',
+      expect.any(Object)
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:7788/apps/loopback-app/events',
+      expect.any(Object)
+    );
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'Broadcast publish transport failed; falling back.',
+      expect.objectContaining({ transport: 'internal-http', error: 'boom' })
+    );
+  });
+
+  it('rethrows the last socket transport error when delivery requires sockets', async () => {
+    const socketError = new Error('socket transport failed');
+    vi.doMock('@zintrust/socket', () => ({
+      publishSocketEventFromServer: vi.fn(async () => {
+        throw socketError;
+      }),
+    }));
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {}, delivery: 'socket' })
+    ).rejects.toBe(socketError);
+  });
+
+  it('supports persistent scope and ipv6 broadcast internal urls', async () => {
+    setBroadcastEnv({
+      BROADCAST_INTERNAL_URL: 'http://[::1]:7799',
+      BROADCAST_APP_ID: 'persist-app',
+    });
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED ::1'))
+      .mockResolvedValueOnce(
+        createJsonResponse(
+          JSON.stringify({ ok: true, event: 'evt', channels: ['persistent-alpha'] })
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', scope: 'persistent', name: 'evt', data: {} })
+    ).resolves.toMatchObject({
+      transport: 'internal-http',
+      channels: ['persistent-alpha'],
+      endpoint: 'http://127.0.0.1:7799/apps/persist-app/events',
+    });
   });
 
   it('BroadcastLater enqueues with type/attempts and provided timestamp', async () => {
