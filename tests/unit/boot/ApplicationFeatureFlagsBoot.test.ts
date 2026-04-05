@@ -10,6 +10,28 @@ vi.mock('@config/logger', () => ({
   }),
 }));
 
+vi.mock('@runtime/WorkersModule', () => ({
+  loadWorkersModule: vi.fn(async () => ({
+    WorkerInit: Object.freeze({
+      initialize: vi.fn(async () => undefined),
+      autoStartPersistedWorkers: vi.fn(async () => undefined),
+    }),
+    WorkerShutdown: Object.freeze({
+      shutdown: vi.fn(async () => undefined),
+      isShuttingDown: vi.fn(() => false),
+      getShutdownState: vi.fn(() => ({ isShuttingDown: false, completedAt: null })),
+    }),
+    registerWorkerRoutes: vi.fn(),
+  })),
+  loadQueueMonitorModule: vi.fn(async () => ({
+    QueueMonitor: Object.freeze({
+      create: vi.fn(() => ({
+        registerRoutes: vi.fn(),
+      })),
+    }),
+  })),
+}));
+
 describe('Application boot - FeatureFlags wiring', () => {
   it('calls FeatureFlags.initialize during boot', async () => {
     vi.resetModules();

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootPackagePath = path.join(__dirname, '../package.json');
 const rootPackage = JSON.parse(fs.readFileSync(rootPackagePath, 'utf-8'));
+const npmVersionCache = new Map();
 
 function getWorkspacePackageVersions() {
   const workspaceVersions = new Map();
@@ -24,6 +25,19 @@ function getWorkspacePackageVersions() {
   }
 
   return workspaceVersions;
+}
+
+function getPublishedWorkspacePackageVersions(workspaceVersions) {
+  const publishedWorkspaceVersions = new Map();
+
+  for (const [packageName, fallbackVersion] of workspaceVersions.entries()) {
+    publishedWorkspaceVersions.set(
+      packageName,
+      getLatestNpmVersion(packageName) ?? fallbackVersion
+    );
+  }
+
+  return publishedWorkspaceVersions;
 }
 
 function pinWorkspaceDependencyVersions(dependencies, workspaceVersions) {
@@ -68,10 +82,20 @@ function isGreater(v1, v2) {
  * Get latest version from npm registry
  */
 function getLatestNpmVersion(packageName) {
+  if (npmVersionCache.has(packageName)) {
+    return npmVersionCache.get(packageName);
+  }
+
   try {
     const cmd = `npm view ${packageName} version`;
-    return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); // NOSONAR
+    const version = execSync(cmd, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim(); // NOSONAR
+    npmVersionCache.set(packageName, version);
+    return version;
   } catch {
+    npmVersionCache.set(packageName, null);
     return null;
   }
 }
@@ -79,7 +103,9 @@ function getLatestNpmVersion(packageName) {
 // 1. Determine next version
 const isCi = process.env.CI === 'true' || process.env.CI === '1';
 const skipNpmVersionCheck = process.env.DIST_SKIP_NPM_VERSION_CHECK === 'true';
-const workspacePackageVersions = getWorkspacePackageVersions();
+const workspacePackageVersions = skipNpmVersionCheck
+  ? getWorkspacePackageVersions()
+  : getPublishedWorkspacePackageVersions(getWorkspacePackageVersions());
 
 const latestPublished = skipNpmVersionCheck ? null : getLatestNpmVersion(rootPackage.name);
 let finalVersion = rootPackage.version;

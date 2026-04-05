@@ -2,6 +2,11 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-05
+
+- Updated the release version-sync flow so root and dist internal `@zintrust/*` dependency pins now resolve to the currently published npm version for each workspace package, falling back to the local workspace version only when a package has not been published yet. This prevents release metadata from pointing core or dist consumers at an unpublished next patch such as `0.4.62` when npm still only has `0.4.61`.
+- Removed `@zintrust/workers` from the root core runtime dependencies so worker support is install-on-demand again, and narrowed the official runtime auto-import sweep to packages explicitly selected by env/config signals instead of warning about every optional adapter package that is not installed.
+
 ## 2026-04-04
 
 - Fixed socket bootstrap ownership for published consumers. `@zintrust/core/start` no longer re-exports `ZintrustSocketHub`, which avoids published core builds resolving `@zintrust/socket` through internal workspace paths like `packages/socket/src/index.js` in downstream apps, while the Cloudflare worker entry continues to expose the durable object from `@zintrust/socket` where it is actually needed.
