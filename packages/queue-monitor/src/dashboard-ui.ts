@@ -553,7 +553,10 @@ const getRenderJobsStateFunction = (): string => `
 
 const getRenderJobsIdentityHelpersFunction = (): string => `
         function getJobId(job) {
-            return String(job.id);
+            const queue = job.queue || currentQueue || '';
+            const id = job.id == null ? '' : String(job.id);
+            const timestamp = Number.isFinite(job.timestamp) ? String(job.timestamp) : '';
+            return queue + '::' + id + '::' + timestamp;
         }
 
         function getAdjacentJobDetailRow(row) {

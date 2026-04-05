@@ -51,8 +51,20 @@ export const isNull = (value: unknown): boolean =>
 /** Check if value is undefined */
 export const isUndefined = (value: unknown): boolean => value === undefined;
 
-/** Check if value is undefined or satisfies isNull() */
+/**
+ * Legacy null-like check.
+ * Returns true for undefined, null, empty string, and the string "null".
+ * This is intentionally broader than strict TypeScript nullish narrowing.
+ */
 export const isUndefinedOrNull = (value: unknown): boolean => isUndefined(value) || isNull(value);
+
+/** Check if value is strictly null or undefined. Type-safe for TS narrowing. */
+export const isNullish = <T>(value: T | null | undefined): value is null | undefined =>
+  value === null || value === undefined;
+
+/** Check if value is neither null nor undefined. Type-safe for TS narrowing. */
+export const isDefined = <T>(value: T | null | undefined): value is NonNullable<T> =>
+  value !== null && value !== undefined;
 
 /* -------------------------------------------------------------------------- */
 /*                              Boolean Checks                                */
@@ -432,6 +444,8 @@ export const Helpers = Object.freeze({
   isNull,
   isUndefined,
   isUndefinedOrNull,
+  isNullish,
+  isDefined,
   isArray,
   isObject,
   isFunction,

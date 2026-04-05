@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-05
 
+- Added strict helper type guards `isNullish(...)` and `isDefined(...)` so application code can get correct TypeScript narrowing for `null | undefined` checks without changing the legacy null-like semantics of `isUndefinedOrNull(...)`.
 - Enabled fresh-project request-path logging by default, added scaffolded `LOG_COLOR=true` and `LOG_COLOR_THEME=arctic` entries for colored text request logs, and aligned the documented logging env defaults with the runtime behavior.
 - Hardened `Broadcast.publish(...)` so core now normalizes `channelScope`, tries the package-owned internal socket publish route before falling back to in-process socket or driver delivery, reports explicit transport attempts including `internal-http`, and surfaces clearer official-plugin auto-import failure details when optional packages are missing or broken.
 - Added named request-log terminal color themes with `LOG_COLOR_THEME`, set `arctic` as the default palette, and documented all five supported theme options plus the standalone visual palette sheet for developer preview.

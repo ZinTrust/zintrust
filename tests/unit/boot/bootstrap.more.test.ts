@@ -136,6 +136,55 @@ describe('Bootstrap additional branches', () => {
     });
   });
 
+  it('warns about project plugin auto-import failures when the file exists but import fails', async () => {
+    vi.resetModules();
+
+    const warnSpy = vi.fn();
+    const projectImportsSpy = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'import-failed' as const,
+      errorMessage: 'Project plugin register import failed',
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: {
+        cloudflareWorker: false,
+        dockerWorker: false,
+        worker: false,
+        detectRuntime: () => 'nodejs',
+      },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: {
+        tryImportRuntimeAutoImports: vi.fn(async () => ({ ok: true as const, loadedPath: 'base' })),
+        tryImportProjectAutoImports: projectImportsSpy,
+      },
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {},
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+
+    await import('@boot/bootstrap');
+
+    expect(projectImportsSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith('Project plugin auto-import advisory', {
+      reason: 'import-failed',
+      details: 'Project plugin register import failed',
+    });
+  });
+
   it('skips project plugin auto-imports in cloudflare worker mode', async () => {
     vi.resetModules();
 

@@ -221,8 +221,8 @@ const callGateway = async <T>(
 };
 
 const resolveFallbackJobId = (payload: BullMQPayload): string => {
-  if (typeof payload.uniqueId === 'string' && payload.uniqueId.trim().length > 0) {
-    return payload.uniqueId.trim();
+  if (typeof payload.jobId === 'string' && payload.jobId.trim().length > 0) {
+    return payload.jobId.trim();
   }
 
   return generateUuid();

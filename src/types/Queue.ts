@@ -50,6 +50,7 @@ export interface QueueConfig {
 }
 
 export interface AdvancedJobOptions {
+  jobId?: string;
   uniqueId?: string;
   uniqueVia?: string;
   deduplication?: DeduplicationOptions;

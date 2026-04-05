@@ -65,4 +65,20 @@ describe('queue monitor dashboard UI', () => {
     expect(html).toContain('tbody.replaceChildren(fragment);');
     expect(html).not.toContain('tbody.appendChild(row);');
   });
+
+  it('keys rendered jobs by queue, id, and timestamp so SSE updates do not collapse distinct history entries with the same job id', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    });
+
+    expect(html).toContain("const queue = job.queue || currentQueue || '';");
+    expect(html).toContain("const id = job.id == null ? '' : String(job.id);");
+    expect(html).toContain(
+      "const timestamp = Number.isFinite(job.timestamp) ? String(job.timestamp) : '';"
+    );
+    expect(html).toContain("return queue + '::' + id + '::' + timestamp;");
+    expect(html).not.toContain('return String(job.id);');
+  });
 });

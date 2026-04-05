@@ -95,7 +95,7 @@ describe('HttpQueueDriver', () => {
     }
   });
 
-  it('returns fallback job id and marks pending recovery when enqueue gateway fails', async () => {
+  it('returns the explicit jobId and marks pending recovery when enqueue gateway fails', async () => {
     const originalFetch = globalThis.fetch;
 
     try {
@@ -114,12 +114,47 @@ describe('HttpQueueDriver', () => {
       }) as unknown as typeof fetch;
 
       const jobId = await HttpQueueDriver.enqueue('emails', {
+        jobId: 'job-http-fallback-1',
         uniqueId: 'idempotent-job-1',
         payload: { hello: 'world' },
       } as any);
 
-      expect(jobId).toBe('idempotent-job-1');
-      expect(JobStateTracker.get('emails', 'idempotent-job-1')?.status).toBe('pending_recovery');
+      expect(jobId).toBe('job-http-fallback-1');
+      expect(JobStateTracker.get('emails', 'job-http-fallback-1')?.status).toBe('pending_recovery');
+    } finally {
+      Env.setSource(null);
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('does not reuse uniqueId as the fallback id when jobId is omitted', async () => {
+    const originalFetch = globalThis.fetch;
+
+    try {
+      JobStateTracker.reset();
+      Env.setSource({
+        QUEUE_HTTP_PROXY_URL: 'http://127.0.0.1:7772',
+        QUEUE_HTTP_PROXY_PATH: '/api/_sys/queue/rpc',
+        QUEUE_HTTP_PROXY_KEY_ID: 'test-key',
+        QUEUE_HTTP_PROXY_KEY: 'test-secret',
+        QUEUE_HTTP_PROXY_TIMEOUT_MS: '5',
+        QUEUE_HTTP_PROXY_RETRY_MAX: '0',
+      });
+
+      globalThis.fetch = vi.fn(async () => {
+        throw new Error('network down');
+      }) as unknown as typeof fetch;
+
+      const jobId = await HttpQueueDriver.enqueue('emails', {
+        uniqueId: 'legacy-unique-id-1',
+        payload: { hello: 'world' },
+      } as any);
+
+      expect(jobId).not.toBe('legacy-unique-id-1');
+      expect(jobId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      );
+      expect(JobStateTracker.get('emails', jobId)?.status).toBe('pending_recovery');
     } finally {
       Env.setSource(null);
       globalThis.fetch = originalFetch;

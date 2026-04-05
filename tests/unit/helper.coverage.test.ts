@@ -8,6 +8,7 @@ import {
   isBooleanString,
   isDate,
   isDecimal,
+  isDefined,
   isDivisibleBy,
   isEmail,
   isEmpty,
@@ -31,6 +32,7 @@ import {
   isNonEmptyString,
   isNotIn,
   isNull,
+  isNullish,
   isNumeric,
   isObject,
   isOdd,
@@ -74,6 +76,15 @@ describe('helper validators', () => {
     expect(isUndefinedOrNull(undefined)).toBe(true);
     expect(isUndefinedOrNull(null)).toBe(true);
     expect(isUndefinedOrNull('')).toBe(true); // '' treated as null by isNull
+
+    expect(isNullish(undefined)).toBe(true);
+    expect(isNullish(null)).toBe(true);
+    expect(isNullish('')).toBe(false);
+
+    expect(isDefined('value')).toBe(true);
+    expect(isDefined(0)).toBe(true);
+    expect(isDefined(null)).toBe(false);
+    expect(isDefined(undefined)).toBe(false);
   });
 
   it('boolean helpers', () => {

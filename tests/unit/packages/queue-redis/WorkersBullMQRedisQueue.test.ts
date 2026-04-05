@@ -9,8 +9,8 @@ const bullMqState = {
 
 vi.mock('bullmq', () => {
   class Queue {
-    add() {
-      return bullMqState.add();
+    add(...args: unknown[]) {
+      return bullMqState.add(...args);
     }
     getJobs() {
       return bullMqState.getJobs();
@@ -25,7 +25,35 @@ vi.mock('bullmq', () => {
   return { Queue };
 });
 
-import { Env } from '@/config/env';
+vi.mock('@zintrust/core', async () => {
+  const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
+
+  return {
+    ...actual,
+    Cloudflare: {
+      ...actual.Cloudflare,
+      getWorkersEnv: vi.fn(() => null),
+      isCloudflareSocketsEnabled: vi.fn(() => true),
+    },
+    createRedisConnection: vi.fn(() => {
+      const proxyUrl = actual.Env.get('REDIS_PROXY_URL', '').trim();
+      const httpProxyEnabled = actual.Env.getBool('QUEUE_HTTP_PROXY_ENABLED', false);
+
+      if (proxyUrl.length > 0 && httpProxyEnabled === false) {
+        throw new Error('mocked direct BullMQ connection rejected REDIS proxy transport');
+      }
+
+      return {
+        status: 'ready',
+        once: vi.fn(),
+        off: vi.fn(),
+        quit: vi.fn(async () => undefined),
+      };
+    }),
+  };
+});
+
+import { Env } from '@zintrust/core';
 import { BullMQRedisQueue } from '../../../../packages/queue-redis/src/BullMQRedisQueue';
 
 describe('BullMQ Redis queue (Workers)', () => {
@@ -43,7 +71,7 @@ describe('BullMQ Redis queue (Workers)', () => {
     expect(moveToCompleted).toHaveBeenCalledWith('acknowledged', 'pull-worker', false);
   });
 
-  it('fails fast when redis proxy mode is enabled without queue HTTP proxy mode', async () => {
+  it('uses the direct BullMQ driver when HTTP proxy mode is disabled', async () => {
     try {
       Env.setSource({
         USE_REDIS_PROXY: 'true',
@@ -55,7 +83,9 @@ describe('BullMQ Redis queue (Workers)', () => {
         BullMQRedisQueue.enqueue('jobs', {
           payload: { ok: true },
         } as any)
-      ).rejects.toThrow(/Failed to enqueue job via BullMQ/);
+      ).resolves.toBe('1');
+
+      expect(bullMqState.add).toHaveBeenCalled();
     } finally {
       Env.setSource(null);
     }
@@ -94,5 +124,22 @@ describe('BullMQ Redis queue (Workers)', () => {
       Env.setSource(null);
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('prefers explicit payload jobId over legacy uniqueId when enqueueing BullMQ jobs', async () => {
+    await BullMQRedisQueue.enqueue('jobs', {
+      jobId: 'job-id-123',
+      uniqueId: 'legacy-unique-id',
+      payload: { ok: true },
+    } as any);
+
+    expect(bullMqState.add).toHaveBeenCalledWith(
+      'jobs-job',
+      expect.objectContaining({
+        jobId: 'job-id-123',
+        uniqueId: 'legacy-unique-id',
+      }),
+      expect.objectContaining({ jobId: 'job-id-123' })
+    );
   });
 });
