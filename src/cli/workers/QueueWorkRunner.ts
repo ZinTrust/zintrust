@@ -25,9 +25,13 @@ export type QueueWorkKind = 'broadcast' | 'notification';
 
 type BroadcastPayload = {
   type?: unknown;
-  channel: string;
+  channel?: string;
+  channels?: readonly string[];
   event: string;
   data: unknown;
+  delivery?: 'auto' | 'socket' | 'driver';
+  broadcaster?: string;
+  socketId?: string;
   timestamp?: number;
   attempts?: number;
 };
@@ -279,7 +283,15 @@ const processMessage = async (
   try {
     if (kind === 'broadcast') {
       const job = payloadWithoutMeta as unknown as BroadcastPayload;
-      await Broadcast.send(job.channel, job.event, job.data);
+      await Broadcast.publish({
+        channel: job.channel,
+        channels: job.channels,
+        event: job.event,
+        data: job.data,
+        delivery: job.delivery,
+        broadcaster: job.broadcaster,
+        socketId: job.socketId,
+      });
     } else {
       const job = payloadWithoutMeta as unknown as NotificationPayload;
       await Notification.send(job.recipient, job.message, job.options ?? {});

@@ -47,8 +47,6 @@ describe('Routes API', () => {
     registerRoutes(router);
 
     expect(Router.match(router, 'GET', '/')).not.toBeNull();
-    expect(Router.match(router, 'GET', '/broadcast/health')).not.toBeNull();
-    expect(Router.match(router, 'POST', '/broadcast/send')).not.toBeNull();
     expect(Router.match(router, 'POST', '/api/v1/auth/login')).not.toBeNull();
     expect(Router.match(router, 'GET', '/admin/dashboard')).not.toBeNull();
 

@@ -7,7 +7,7 @@ const queueMock = {
 };
 
 const broadcastMock = {
-  send: vi.fn(),
+  publish: vi.fn(),
 };
 
 const notificationMock = {
@@ -71,7 +71,7 @@ describe('QueueWorkRunner (patch coverage)', () => {
     queueMock.enqueue.mockResolvedValue('msg-1');
     queueMock.ack.mockResolvedValue(undefined);
 
-    broadcastMock.send.mockResolvedValue(undefined);
+    broadcastMock.publish.mockResolvedValue(undefined);
     notificationMock.send.mockResolvedValue(undefined);
   });
 
@@ -107,7 +107,15 @@ describe('QueueWorkRunner (patch coverage)', () => {
 
     const result = await QueueWorkRunner.run({ queueName: 'broadcasts' });
 
-    expect(broadcastMock.send).toHaveBeenCalledWith('c', 'e', { a: 1 });
+    expect(broadcastMock.publish).toHaveBeenCalledWith({
+      channel: 'c',
+      channels: undefined,
+      event: 'e',
+      data: { a: 1 },
+      delivery: undefined,
+      broadcaster: undefined,
+      socketId: undefined,
+    });
     expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'm1', undefined);
 
     expect(result.processed).toBe(1);
@@ -161,7 +169,7 @@ describe('QueueWorkRunner (patch coverage)', () => {
       undefined
     );
     expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'm3', undefined);
-    expect(broadcastMock.send).not.toHaveBeenCalled();
+    expect(broadcastMock.publish).not.toHaveBeenCalled();
 
     expect(result.notDueRequeued).toBe(1);
 
@@ -183,7 +191,7 @@ describe('QueueWorkRunner (patch coverage)', () => {
       attempts: 0,
     });
 
-    broadcastMock.send.mockRejectedValueOnce(new Error('boom'));
+    broadcastMock.publish.mockRejectedValueOnce(new Error('boom'));
 
     const result = await QueueWorkRunner.run({ queueName: 'broadcasts', kind: 'broadcast' });
 
@@ -213,7 +221,7 @@ describe('QueueWorkRunner (patch coverage)', () => {
       attempts: 0,
     });
 
-    broadcastMock.send.mockRejectedValueOnce(new Error('boom'));
+    broadcastMock.publish.mockRejectedValueOnce(new Error('boom'));
 
     const result = await QueueWorkRunner.run({
       queueName: 'broadcasts',
@@ -293,7 +301,7 @@ describe('QueueWorkRunner (patch coverage)', () => {
       attempts: 0,
     });
 
-    broadcastMock.send.mockRejectedValueOnce(new Error('boom'));
+    broadcastMock.publish.mockRejectedValueOnce(new Error('boom'));
 
     await QueueWorkRunner.run({ queueName: 'broadcasts', kind: 'broadcast' });
 

@@ -1,9 +1,31 @@
-import { describe, expect, it, vi } from 'vitest';
-import { ALL_QUEUES, getRecentJobsForSelection } from '../src/QueueMonitoringService';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@zintrust/core', () => ({
+  Logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+import { Logger } from '@zintrust/core';
+import {
+  ALL_QUEUES,
+  getRecentJobsForSelection,
+  QueueMonitoringService,
+} from '../src/QueueMonitoringService';
 import type { QueueDriver } from '../src/driver';
 import type { Metrics } from '../src/metrics';
 
 describe('QueueMonitoringService', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('aggregates recent jobs across all queues when the All queues selection is used', async () => {
     const metrics: Metrics = {
       recordJob: vi.fn(async () => undefined),
@@ -109,5 +131,62 @@ describe('QueueMonitoringService', () => {
         failedReason: 'wallet mismatch',
       }),
     ]);
+  });
+
+  it('does not emit polling debug logs for subscription churn', () => {
+    const metrics: Metrics = {
+      recordJob: vi.fn(async () => undefined),
+      getStats: vi.fn(async () => []),
+      getRecentJobs: vi.fn(async () => []),
+      getFailedJobs: vi.fn(async () => []),
+      close: vi.fn(async () => undefined),
+    };
+
+    const driver: QueueDriver = {
+      enqueue: vi.fn(async () => '1'),
+      getJob: vi.fn(async () => undefined),
+      getJobCounts: vi.fn(async () => ({
+        waiting: 0,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+        paused: 0,
+      })),
+      getRecentJobs: vi.fn(async () => []),
+      retryJob: vi.fn(async () => true),
+      getQueues: vi.fn(async () => ['alpha']),
+      close: vi.fn(async () => undefined),
+    };
+
+    const config = {
+      getSnapshot: vi.fn(async () => ({
+        status: 'ok' as const,
+        startedAt: new Date(0).toISOString(),
+        queues: [],
+      })),
+      getLocks: vi.fn(async () => ({
+        locks: [],
+        metrics: { active: 0, attempts: 0, acquired: 0, collisions: 0, collisionRate: 0 },
+        histogram: [],
+      })),
+      getRecentJobsForQueue: vi.fn(async () => []),
+      metrics,
+      driver,
+      queue: 'advanced-queue-redis',
+      pattern: '*',
+      intervalMs: 1000,
+    };
+
+    const callbackA = vi.fn();
+    const callbackB = vi.fn();
+
+    QueueMonitoringService.subscribe(callbackA, config);
+    QueueMonitoringService.subscribe(callbackB, config);
+
+    QueueMonitoringService.unsubscribe(callbackA);
+    QueueMonitoringService.unsubscribe(callbackB);
+
+    expect(Logger.debug).not.toHaveBeenCalled();
   });
 });

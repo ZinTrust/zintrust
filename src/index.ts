@@ -294,7 +294,7 @@ export type { MiddlewareConfigType } from '@config/type';
 export { createBaseDrivers, queueConfig } from '@config/queue';
 export type { QueueConfig, QueueConfigOverrides } from '@config/queue';
 
-export { clearBroadcastConfigCache, default as broadcastConfig } from '@config/broadcast';
+export { default as broadcastConfig, clearBroadcastConfigCache } from '@config/broadcast';
 export type { BroadcastConfigOverrides, SocketBroadcastConfig } from '@config/broadcast';
 export { default as notificationConfig } from '@config/notification';
 export type { NotificationConfig, NotificationConfigOverrides } from '@config/notification';
@@ -371,6 +371,7 @@ export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 
 // Broadcast (for real-time features)
 export { Broadcast } from '@tools/broadcast/Broadcast';
+export type { BroadcastPublishInput, BroadcastPublishResult } from '@tools/broadcast/Broadcast';
 export { BroadcastRegistry } from '@tools/broadcast/BroadcastRegistry';
 export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 // Broadcast workers and notification workers are provided by the optional

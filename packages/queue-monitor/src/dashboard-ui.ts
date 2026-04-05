@@ -443,42 +443,49 @@ const getRenderStatsFunction = (): string => `
             }
         }`;
 
-const getUpdateQueueSelectFunction = (): string => `
-        function updateQueueSelect(queues) {
-            const select = document.getElementById('queue-select');
+const getUpdateQueueSelectHelpersFunction = (): string => `
+        function formatQueueOptionCounts(counts) {
+            return counts.waiting + ' waiting, ' + counts.failed + ' failed, ' + counts.completed + ' completed';
+        }
+
+        function getPreferredQueue(select) {
             const storedQueue = localStorage.getItem(QUEUE_KEY);
-            const preferredQueue = currentQueue || select.value || storedQueue || '';
+            return currentQueue || select.value || storedQueue || '';
+        }
 
-            if (queues.length === 0) {
-                select.disabled = true;
-                if (select.options.length !== 1 || select.options[0].value !== '' || select.options[0].textContent !== 'No queues') {
-                    select.innerHTML = '<option value="">No queues</option>';
-                }
-                return '';
+        function getEmptyQueueSelection(select) {
+            select.disabled = true;
+            if (select.options.length !== 1 || select.options[0].value !== '' || select.options[0].textContent !== 'No queues') {
+                select.innerHTML = '<option value="">No queues</option>';
             }
+            return '';
+        }
 
-            const queueNames = queues.map(q => q.name);
+        function getDesiredQueueOptions(queues) {
             const totalWaiting = queues.reduce((acc, queue) => acc + queue.counts.waiting, 0);
             const totalFailed = queues.reduce((acc, queue) => acc + queue.counts.failed, 0);
+            const totalCompleted = queues.reduce((acc, queue) => acc + queue.counts.completed, 0);
 
-            const nextQueue = preferredQueue === ALL_QUEUES || queueNames.includes(preferredQueue)
-                ? preferredQueue
-                : queueNames[0];
-            const desiredOptions = [
+            return [
                 {
                     value: ALL_QUEUES,
-                    text: 'All queues (' + totalWaiting + ' waiting, ' + totalFailed + ' failed)'
+                    text: 'All queues (' + totalWaiting + ' waiting, ' + totalFailed + ' failed, ' + totalCompleted + ' completed)'
                 },
                 ...queues.map(q => ({
                     value: q.name,
-                    text: q.name + ' (' + q.counts.waiting + ' waiting, ' + q.counts.failed + ' failed)'
+                    text: q.name + ' (' + formatQueueOptionCounts(q.counts) + ')'
                 }))
             ];
+        }
 
+        function syncQueueSelectOptions(select, desiredOptions) {
             const existingOptions = new Map();
             Array.from(select.options).forEach(option => {
                 existingOptions.set(option.value, option);
             });
+            const existingValues = Array.from(select.options).map(option => option.value);
+            const desiredValues = desiredOptions.map(option => option.value);
+            const needsStructuralSync = existingValues.length !== desiredValues.length || desiredValues.some((value, index) => existingValues[index] !== value);
 
             select.disabled = false;
 
@@ -489,22 +496,53 @@ const getUpdateQueueSelectFunction = (): string => `
                     option.value = item.value;
                 }
 
-                option.textContent = item.text;
-                option.selected = item.value === nextQueue;
+                if (option.textContent !== item.text) {
+                    option.textContent = item.text;
+                }
 
-                const currentAtIndex = select.options[index];
-                if (currentAtIndex !== option) {
-                    select.appendChild(option);
+                if (needsStructuralSync) {
+                    const currentAtIndex = select.options[index];
+                    if (currentAtIndex !== option) {
+                        select.insertBefore(option, currentAtIndex || null);
+                    }
                 }
             });
 
-            Array.from(select.options).forEach(option => {
-                if (!desiredOptions.some(item => item.value === option.value)) {
-                    option.remove();
-                }
-            });
+            if (needsStructuralSync) {
+                Array.from(select.options).forEach(option => {
+                    if (!desiredOptions.some(item => item.value === option.value)) {
+                        option.remove();
+                    }
+                });
+            }
+        }
+`;
 
-            select.value = nextQueue;
+const getUpdateQueueSelectFunction = (): string => `
+
+        function updateQueueSelect(queues) {
+            const select = document.getElementById('queue-select');
+            const preferredQueue = getPreferredQueue(select);
+
+            if (queues.length === 0) {
+                return getEmptyQueueSelection(select);
+            }
+
+            const queueNames = queues.map(q => q.name);
+            const nextQueue = preferredQueue === ALL_QUEUES || queueNames.includes(preferredQueue)
+                ? preferredQueue
+                : queueNames[0];
+            const desiredOptions = getDesiredQueueOptions(queues);
+
+            if (document.activeElement === select) {
+                return nextQueue;
+            }
+
+            syncQueueSelectOptions(select, desiredOptions);
+
+            if (select.value !== nextQueue) {
+                select.value = nextQueue;
+            }
             return nextQueue;
         }`;
 
@@ -513,9 +551,16 @@ const getRenderJobsStateFunction = (): string => `
         let expandedJobIds = new Set();
 `;
 
-const getRenderJobsDetailHelpersFunction = (): string => `
+const getRenderJobsIdentityHelpersFunction = (): string => `
         function getJobId(job) {
             return String(job.id);
+        }
+
+        function getAdjacentJobDetailRow(row) {
+            const existingDetail = row.nextElementSibling;
+            return existingDetail && existingDetail.classList.contains('detail-row')
+                ? existingDetail
+                : null;
         }
 
         function getJobStatusInfo(job) {
@@ -539,6 +584,9 @@ const getRenderJobsDetailHelpersFunction = (): string => `
             }
             return '<span style="color: var(--muted); font-size: 11px;">—</span>';
         }
+`;
+
+const getRenderJobsDetailRowHelpersFunction = (): string => `
 
         function buildJobDetailMarkup(job) {
             const jobData = {
@@ -564,17 +612,13 @@ const getRenderJobsDetailHelpersFunction = (): string => `
         }
 
         function removeJobDetailRow(row) {
-            const existingDetail = row.nextElementSibling;
-            if (existingDetail && existingDetail.classList.contains('detail-row')) {
+            const existingDetail = getAdjacentJobDetailRow(row);
+            if (existingDetail) {
                 existingDetail.remove();
             }
         }
 
-        function upsertJobDetailRow(row, job, parent) {
-            const existingDetail = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row')
-                ? row.nextElementSibling
-                : null;
-
+        function buildOrUpdateJobDetailRow(job, existingDetail) {
             let detailRow = existingDetail;
             if (!detailRow) {
                 detailRow = document.createElement('tr');
@@ -583,13 +627,23 @@ const getRenderJobsDetailHelpersFunction = (): string => `
 
             detailRow.dataset.jobId = getJobId(job);
             detailRow.innerHTML = buildJobDetailMarkup(job);
+            return detailRow;
+        }
+
+        function upsertJobDetailRow(row, job, parent) {
+            const detailRow = buildOrUpdateJobDetailRow(job, getAdjacentJobDetailRow(row));
 
             if (parent) {
                 parent.appendChild(detailRow);
             } else {
                 row.parentNode.insertBefore(detailRow, row.nextSibling);
             }
+
+            return detailRow;
         }
+`;
+
+const getRenderJobsEmptyStateFunction = (): string => `
 
         function ensureEmptyJobsState(tbody) {
             if (
@@ -648,6 +702,15 @@ const getRenderJobsRowHelpersFunction = (): string => `
             return rows;
         }
 
+        function getExistingJobDetailRows(tbody) {
+            const rows = new Map();
+            Array.from(tbody.querySelectorAll('tr.detail-row')).forEach(row => {
+                const jobId = row.dataset.jobId;
+                if (jobId) rows.set(jobId, row);
+            });
+            return rows;
+        }
+
         function removeObsoleteJobRows(tbody, currentJobIds) {
             Array.from(tbody.querySelectorAll('tr.expandable-row')).forEach(row => {
                 const jobId = row.dataset.jobId || row.querySelector('code')?.textContent;
@@ -671,9 +734,9 @@ const getRenderJobsFunction = (): string => `
             }
 
             const currentJobIds = new Set(jobList.map(job => getJobId(job)));
-            removeObsoleteJobRows(tbody, currentJobIds);
-
             const existingRows = getExistingJobRows(tbody);
+            const existingDetailRows = getExistingJobDetailRows(tbody);
+            const fragment = document.createDocumentFragment();
 
             jobList.forEach((job, idx) => {
                 const jobId = getJobId(job);
@@ -684,15 +747,14 @@ const getRenderJobsFunction = (): string => `
                     updateExistingJobRow(row, job, idx);
                 }
 
-                tbody.appendChild(row);
+                fragment.appendChild(row);
                 if (expandedJobIds.has(jobId)) {
-                    upsertJobDetailRow(row, job, tbody);
-                } else {
-                    removeJobDetailRow(row);
+                    fragment.appendChild(buildOrUpdateJobDetailRow(job, existingDetailRows.get(jobId)));
                 }
             });
 
             expandedJobIds = new Set([...expandedJobIds].filter(id => currentJobIds.has(id)));
+            tbody.replaceChildren(fragment);
         }`;
 const getRenderLocksFunction = (): string => `
     // Track expanded lock keys to preserve state during SSE updates
@@ -1196,9 +1258,12 @@ const getDashboardScriptFetch = (): string => `
 const getDashboardScriptRender = (): string =>
   [
     getRenderStatsFunction(),
+    getUpdateQueueSelectHelpersFunction(),
     getUpdateQueueSelectFunction(),
     getRenderJobsStateFunction(),
-    getRenderJobsDetailHelpersFunction(),
+    getRenderJobsIdentityHelpersFunction(),
+    getRenderJobsDetailRowHelpersFunction(),
+    getRenderJobsEmptyStateFunction(),
     getRenderJobsRowHelpersFunction(),
     getRenderJobsFunction(),
     getRenderLocksFunction(),

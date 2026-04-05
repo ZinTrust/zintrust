@@ -44,6 +44,370 @@ const getEnvBool = (key: string, fallback: boolean): boolean => {
 const getLogFormat = (): string => getEnvString('LOG_FORMAT', 'text');
 const isJsonFormat = (value: unknown): value is 'json' => value === 'json';
 
+const ANSI = Object.freeze({
+  reset: '\u001b[0m',
+  bold: '\u001b[1m',
+  dim: '\u001b[2m',
+  gray: '\u001b[90m',
+  red: '\u001b[31m',
+  brightRed: '\u001b[91m',
+  green: '\u001b[32m',
+  brightGreen: '\u001b[92m',
+  yellow: '\u001b[33m',
+  brightYellow: '\u001b[93m',
+  blue: '\u001b[34m',
+  brightBlue: '\u001b[94m',
+  magenta: '\u001b[35m',
+  brightMagenta: '\u001b[95m',
+  cyan: '\u001b[36m',
+  brightCyan: '\u001b[96m',
+  white: '\u001b[97m',
+});
+
+type LoggerColorThemeName =
+  | 'arctic'
+  | 'sharp-ops'
+  | 'soft-contrast'
+  | 'neon-grid'
+  | 'production-safe';
+
+type RequestLogColorTheme = Readonly<{
+  level: Readonly<Record<LogLevel, string>>;
+  method: Readonly<Record<string, string>>;
+  methodFallback: string;
+  path: string;
+  status: Readonly<{
+    success: string;
+    redirect: string;
+    warn: string;
+    special: string;
+    error: string;
+    fallback: string;
+  }>;
+  duration: Readonly<{
+    fast: string;
+    steady: string;
+    elevated: string;
+    slow: string;
+    critical: string;
+  }>;
+  meta: string;
+}>;
+
+const REQUEST_LOG_COLOR_THEMES: Readonly<Record<LoggerColorThemeName, RequestLogColorTheme>> =
+  Object.freeze({
+    arctic: Object.freeze({
+      level: Object.freeze({
+        debug: ANSI.gray,
+        info: `${ANSI.bold}${ANSI.brightCyan}`,
+        warn: `${ANSI.bold}${ANSI.brightYellow}`,
+        error: `${ANSI.bold}${ANSI.brightRed}`,
+        fatal: `${ANSI.bold}${ANSI.brightMagenta}`,
+      }),
+      method: Object.freeze({
+        GET: `${ANSI.bold}${ANSI.brightBlue}`,
+        POST: `${ANSI.bold}${ANSI.brightGreen}`,
+        PUT: `${ANSI.bold}${ANSI.brightYellow}`,
+        PATCH: `${ANSI.bold}${ANSI.brightMagenta}`,
+        DELETE: `${ANSI.bold}${ANSI.brightRed}`,
+        HEAD: `${ANSI.bold}${ANSI.cyan}`,
+        OPTIONS: `${ANSI.bold}${ANSI.brightMagenta}`,
+      }),
+      methodFallback: `${ANSI.bold}${ANSI.white}`,
+      path: ANSI.white,
+      status: Object.freeze({
+        success: `${ANSI.bold}${ANSI.brightGreen}`,
+        redirect: `${ANSI.bold}${ANSI.cyan}`,
+        warn: `${ANSI.bold}${ANSI.yellow}`,
+        special: `${ANSI.bold}${ANSI.brightMagenta}`,
+        error: `${ANSI.bold}${ANSI.brightRed}`,
+        fallback: `${ANSI.bold}${ANSI.white}`,
+      }),
+      duration: Object.freeze({
+        fast: `${ANSI.bold}${ANSI.cyan}`,
+        steady: `${ANSI.bold}${ANSI.brightBlue}`,
+        elevated: `${ANSI.bold}${ANSI.brightYellow}`,
+        slow: `${ANSI.bold}${ANSI.yellow}`,
+        critical: `${ANSI.bold}${ANSI.brightRed}`,
+      }),
+      meta: `${ANSI.dim}${ANSI.cyan}`,
+    }),
+    'sharp-ops': Object.freeze({
+      level: Object.freeze({
+        debug: ANSI.gray,
+        info: `${ANSI.bold}${ANSI.cyan}`,
+        warn: `${ANSI.bold}${ANSI.yellow}`,
+        error: `${ANSI.bold}${ANSI.red}`,
+        fatal: `${ANSI.bold}${ANSI.brightMagenta}`,
+      }),
+      method: Object.freeze({
+        GET: `${ANSI.bold}${ANSI.brightBlue}`,
+        POST: `${ANSI.bold}${ANSI.green}`,
+        PUT: `${ANSI.bold}${ANSI.yellow}`,
+        PATCH: `${ANSI.bold}${ANSI.magenta}`,
+        DELETE: `${ANSI.bold}${ANSI.red}`,
+        HEAD: `${ANSI.bold}${ANSI.blue}`,
+        OPTIONS: `${ANSI.bold}${ANSI.brightMagenta}`,
+      }),
+      methodFallback: `${ANSI.bold}${ANSI.white}`,
+      path: ANSI.white,
+      status: Object.freeze({
+        success: `${ANSI.bold}${ANSI.green}`,
+        redirect: `${ANSI.bold}${ANSI.brightBlue}`,
+        warn: `${ANSI.bold}${ANSI.yellow}`,
+        special: `${ANSI.bold}${ANSI.brightMagenta}`,
+        error: `${ANSI.bold}${ANSI.red}`,
+        fallback: `${ANSI.bold}${ANSI.white}`,
+      }),
+      duration: Object.freeze({
+        fast: `${ANSI.bold}${ANSI.green}`,
+        steady: `${ANSI.bold}${ANSI.brightGreen}`,
+        elevated: `${ANSI.bold}${ANSI.yellow}`,
+        slow: `${ANSI.bold}${ANSI.brightYellow}`,
+        critical: `${ANSI.bold}${ANSI.red}`,
+      }),
+      meta: `${ANSI.dim}${ANSI.gray}`,
+    }),
+    'soft-contrast': Object.freeze({
+      level: Object.freeze({
+        debug: ANSI.gray,
+        info: `${ANSI.bold}${ANSI.white}`,
+        warn: `${ANSI.bold}${ANSI.yellow}`,
+        error: `${ANSI.bold}${ANSI.red}`,
+        fatal: `${ANSI.bold}${ANSI.magenta}`,
+      }),
+      method: Object.freeze({
+        GET: `${ANSI.bold}${ANSI.blue}`,
+        POST: `${ANSI.bold}${ANSI.cyan}`,
+        PUT: `${ANSI.bold}${ANSI.yellow}`,
+        PATCH: `${ANSI.bold}${ANSI.magenta}`,
+        DELETE: `${ANSI.bold}${ANSI.brightRed}`,
+        HEAD: `${ANSI.bold}${ANSI.gray}`,
+        OPTIONS: `${ANSI.bold}${ANSI.brightMagenta}`,
+      }),
+      methodFallback: `${ANSI.bold}${ANSI.white}`,
+      path: `${ANSI.bold}${ANSI.white}`,
+      status: Object.freeze({
+        success: `${ANSI.bold}${ANSI.cyan}`,
+        redirect: `${ANSI.bold}${ANSI.blue}`,
+        warn: `${ANSI.bold}${ANSI.yellow}`,
+        special: `${ANSI.bold}${ANSI.brightMagenta}`,
+        error: `${ANSI.bold}${ANSI.red}`,
+        fallback: `${ANSI.bold}${ANSI.white}`,
+      }),
+      duration: Object.freeze({
+        fast: `${ANSI.bold}${ANSI.cyan}`,
+        steady: `${ANSI.bold}${ANSI.brightBlue}`,
+        elevated: `${ANSI.bold}${ANSI.yellow}`,
+        slow: `${ANSI.bold}${ANSI.brightYellow}`,
+        critical: `${ANSI.bold}${ANSI.red}`,
+      }),
+      meta: `${ANSI.dim}${ANSI.white}`,
+    }),
+    'neon-grid': Object.freeze({
+      level: Object.freeze({
+        debug: ANSI.gray,
+        info: `${ANSI.bold}${ANSI.cyan}`,
+        warn: `${ANSI.bold}${ANSI.brightYellow}`,
+        error: `${ANSI.bold}${ANSI.brightRed}`,
+        fatal: `${ANSI.bold}${ANSI.brightMagenta}`,
+      }),
+      method: Object.freeze({
+        GET: `${ANSI.bold}${ANSI.brightCyan}`,
+        POST: `${ANSI.bold}${ANSI.brightGreen}`,
+        PUT: `${ANSI.bold}${ANSI.brightYellow}`,
+        PATCH: `${ANSI.bold}${ANSI.brightMagenta}`,
+        DELETE: `${ANSI.bold}${ANSI.brightRed}`,
+        HEAD: `${ANSI.bold}${ANSI.brightBlue}`,
+        OPTIONS: `${ANSI.bold}${ANSI.magenta}`,
+      }),
+      methodFallback: `${ANSI.bold}${ANSI.white}`,
+      path: `${ANSI.bold}${ANSI.white}`,
+      status: Object.freeze({
+        success: `${ANSI.bold}${ANSI.brightGreen}`,
+        redirect: `${ANSI.bold}${ANSI.brightCyan}`,
+        warn: `${ANSI.bold}${ANSI.brightYellow}`,
+        special: `${ANSI.bold}${ANSI.brightMagenta}`,
+        error: `${ANSI.bold}${ANSI.brightRed}`,
+        fallback: `${ANSI.bold}${ANSI.white}`,
+      }),
+      duration: Object.freeze({
+        fast: `${ANSI.bold}${ANSI.brightCyan}`,
+        steady: `${ANSI.bold}${ANSI.brightGreen}`,
+        elevated: `${ANSI.bold}${ANSI.yellow}`,
+        slow: `${ANSI.bold}${ANSI.brightYellow}`,
+        critical: `${ANSI.bold}${ANSI.brightRed}`,
+      }),
+      meta: `${ANSI.dim}${ANSI.gray}`,
+    }),
+    'production-safe': Object.freeze({
+      level: Object.freeze({
+        debug: ANSI.gray,
+        info: `${ANSI.bold}${ANSI.blue}`,
+        warn: `${ANSI.bold}${ANSI.yellow}`,
+        error: `${ANSI.bold}${ANSI.red}`,
+        fatal: `${ANSI.bold}${ANSI.magenta}`,
+      }),
+      method: Object.freeze({
+        GET: `${ANSI.bold}${ANSI.blue}`,
+        POST: `${ANSI.bold}${ANSI.green}`,
+        PUT: `${ANSI.bold}${ANSI.yellow}`,
+        PATCH: `${ANSI.bold}${ANSI.magenta}`,
+        DELETE: `${ANSI.bold}${ANSI.red}`,
+        HEAD: `${ANSI.bold}${ANSI.gray}`,
+        OPTIONS: `${ANSI.bold}${ANSI.brightMagenta}`,
+      }),
+      methodFallback: `${ANSI.bold}${ANSI.white}`,
+      path: ANSI.white,
+      status: Object.freeze({
+        success: `${ANSI.bold}${ANSI.green}`,
+        redirect: `${ANSI.bold}${ANSI.blue}`,
+        warn: `${ANSI.bold}${ANSI.yellow}`,
+        special: `${ANSI.bold}${ANSI.brightMagenta}`,
+        error: `${ANSI.bold}${ANSI.red}`,
+        fallback: `${ANSI.bold}${ANSI.white}`,
+      }),
+      duration: Object.freeze({
+        fast: `${ANSI.bold}${ANSI.green}`,
+        steady: `${ANSI.bold}${ANSI.brightGreen}`,
+        elevated: `${ANSI.bold}${ANSI.yellow}`,
+        slow: `${ANSI.bold}${ANSI.brightYellow}`,
+        critical: `${ANSI.bold}${ANSI.red}`,
+      }),
+      meta: `${ANSI.dim}${ANSI.gray}`,
+    }),
+  });
+
+const LOGGER_COLOR_THEME_ALIASES: Readonly<Record<string, LoggerColorThemeName>> = Object.freeze({
+  arctic: 'arctic',
+  'arctic-terminal': 'arctic',
+  'theme-a': 'arctic',
+  'sharp-ops': 'sharp-ops',
+  sharpops: 'sharp-ops',
+  'theme-b': 'sharp-ops',
+  'soft-contrast': 'soft-contrast',
+  softcontrast: 'soft-contrast',
+  'theme-c': 'soft-contrast',
+  'neon-grid': 'neon-grid',
+  neongrid: 'neon-grid',
+  'theme-d': 'neon-grid',
+  'production-safe': 'production-safe',
+  productionsafe: 'production-safe',
+  'theme-e': 'production-safe',
+});
+
+const getLoggerColorThemeName = (): LoggerColorThemeName => {
+  const normalized = getEnvString('LOG_COLOR_THEME', 'arctic')
+    .trim()
+    .toLowerCase()
+    .replaceAll('_', '-')
+    .replaceAll(' ', '-');
+
+  return LOGGER_COLOR_THEME_ALIASES[normalized] ?? 'arctic';
+};
+
+const getLoggerColorTheme = (): RequestLogColorTheme =>
+  REQUEST_LOG_COLOR_THEMES[getLoggerColorThemeName()];
+
+const REQUEST_LOG_PATTERN =
+  /^(\[[A-Z]+\])\s(.+?)\s(\d{3}(?: [A-Za-z][A-Za-z' -]*)?)\s\((\d+)ms\)(\s\[[^\]]+\])?$/;
+
+const colorize = (value: string, colorCode: string): string => `${colorCode}${value}${ANSI.reset}`;
+
+const shouldColorizeConsoleText = (): boolean => {
+  if (isJsonFormat(getLogFormat())) return false;
+
+  const configured = getEnvString('LOG_COLOR', 'auto').trim().toLowerCase();
+  if (
+    configured === 'false' ||
+    configured === '0' ||
+    configured === 'off' ||
+    configured === 'never'
+  ) {
+    return false;
+  }
+  if (
+    configured === 'true' ||
+    configured === '1' ||
+    configured === 'on' ||
+    configured === 'always'
+  ) {
+    return true;
+  }
+
+  if (getEnvString('NO_COLOR', '').trim() !== '') return false;
+  if (typeof process === 'undefined') return true;
+  return process.stdout?.isTTY !== false;
+};
+
+const getLevelColor = (level: LogLevel): string => {
+  return getLoggerColorTheme().level[level];
+};
+
+const getMethodColor = (methodToken: string): string => {
+  const theme = getLoggerColorTheme();
+  const method = methodToken.replaceAll('[', '').replaceAll(']', '');
+  return theme.method[method] ?? theme.methodFallback;
+};
+
+const getStatusColor = (status: number): string => {
+  const theme = getLoggerColorTheme();
+  if (status === 419) return theme.status.special;
+  if (status >= 500) return theme.status.error;
+  if (status >= 400) return theme.status.warn;
+  if (status >= 300) return theme.status.redirect;
+  if (status >= 200) return theme.status.success;
+  return theme.status.fallback;
+};
+
+const getDurationColor = (durationMs: number): string => {
+  const theme = getLoggerColorTheme();
+  if (durationMs >= 1000) return theme.duration.critical;
+  if (durationMs >= 250) return theme.duration.slow;
+  if (durationMs >= 100) return theme.duration.elevated;
+  if (durationMs >= 50) return theme.duration.steady;
+  return theme.duration.fast;
+};
+
+const colorizeRequestLogMessage = (line: string): string => {
+  const match = REQUEST_LOG_PATTERN.exec(line);
+  if (!match) return line;
+
+  const theme = getLoggerColorTheme();
+
+  const methodToken = match[1] ?? '';
+  const path = match[2] ?? '';
+  const statusSummary = match[3] ?? '';
+  const durationMs = Number.parseInt(match[4] ?? '0', 10);
+  const meta = (match[5] ?? '').trim();
+  const statusCode = Number.parseInt(statusSummary.split(' ')[0] ?? '0', 10);
+
+  const pieces = [
+    colorize(methodToken, getMethodColor(methodToken)),
+    colorize(path, theme.path),
+    colorize(statusSummary, getStatusColor(statusCode)),
+    colorize(`(${durationMs}ms)`, getDurationColor(durationMs)),
+  ];
+
+  if (meta !== '') {
+    pieces.push(colorize(meta, theme.meta));
+  }
+
+  return pieces.join(' ');
+};
+
+const colorizeConsoleTextMessage = (level: LogLevel, line: string): string => {
+  if (!shouldColorizeConsoleText()) return line;
+
+  const levelToken = `[${level.toUpperCase()}]`;
+  if (!line.startsWith(`${levelToken} `)) {
+    return colorize(line, getLevelColor(level));
+  }
+
+  const rest = line.slice(levelToken.length + 1);
+  return `${colorize(levelToken, getLevelColor(level))} ${colorizeRequestLogMessage(rest)}`;
+};
+
 // Log level priority: lower means more verbose
 const levelPriority: Record<string, number> = {
   debug: 0,
@@ -311,7 +675,7 @@ const logDebug = (message: string, data?: unknown, category?: string): void => {
   if (isJsonFormat(getLogFormat())) {
     console.debug(out); // eslint-disable-line no-console
   } else {
-    console.debug(out, data ?? ''); // eslint-disable-line no-console
+    console.debug(colorizeConsoleTextMessage('debug', out), data ?? ''); // eslint-disable-line no-console
   }
 
   emitCloudLogs({
@@ -334,7 +698,7 @@ const logInfo = (message: string, data?: unknown, category?: string): void => {
   if (isJsonFormat(getLogFormat())) {
     console.log(out); // eslint-disable-line no-console
   } else {
-    console.log(out, data ?? ''); // eslint-disable-line no-console
+    console.log(colorizeConsoleTextMessage('info', out), data ?? ''); // eslint-disable-line no-console
   }
 
   emitCloudLogs({
@@ -357,7 +721,7 @@ const logWarn = (message: string, data?: unknown, category?: string): void => {
   if (isJsonFormat(getLogFormat())) {
     console.warn(out); // eslint-disable-line no-console
   } else {
-    console.warn(out, data ?? ''); // eslint-disable-line no-console
+    console.warn(colorizeConsoleTextMessage('warn', out), data ?? ''); // eslint-disable-line no-console
   }
 
   emitCloudLogs({
@@ -386,7 +750,7 @@ const logError = (message: string, error?: unknown, category?: string): void => 
   if (isJsonFormat(getLogFormat())) {
     console.error(out); // eslint-disable-line no-console
   } else {
-    console.error(out, errorMessage); // eslint-disable-line no-console
+    console.error(colorizeConsoleTextMessage('error', out), errorMessage); // eslint-disable-line no-console
   }
 
   emitCloudLogs({
@@ -415,7 +779,7 @@ const logFatal = (message: string, error?: unknown, category?: string): void => 
   if (isJsonFormat(getLogFormat())) {
     console.error(out); // eslint-disable-line no-console
   } else {
-    console.error(out, errorMessage); // eslint-disable-line no-console
+    console.error(colorizeConsoleTextMessage('fatal', out), errorMessage); // eslint-disable-line no-console
   }
 
   emitCloudLogs({

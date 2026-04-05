@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@broadcast/Broadcast', () => ({ Broadcast: { send: vi.fn() } }));
+vi.mock('@broadcast/Broadcast', () => ({ Broadcast: { publish: vi.fn() } }));
 
 const makeReqRes = () => {
   const calls: any = {};
@@ -61,7 +61,7 @@ describe('patch coverage: broadcast routes', () => {
 
   it('/broadcast/send: succeeds with valid payload', async () => {
     const { Broadcast } = await import('@broadcast/Broadcast');
-    vi.mocked(Broadcast.send as any).mockResolvedValue({ messageId: '123' });
+    vi.mocked(Broadcast.publish as any).mockResolvedValue({ messageId: '123' });
 
     const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();

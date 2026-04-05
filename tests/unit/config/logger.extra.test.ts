@@ -178,6 +178,127 @@ describe('Logger additional branches', () => {
     vi.doUnmock('@config/env');
   });
 
+  it('colors request log segments in text mode when LOG_COLOR is enabled', async () => {
+    vi.resetModules();
+    const logSpy = vi.spyOn(globalThis.console, 'log').mockImplementation(() => undefined);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        LOG_LEVEL: 'debug',
+        get: (key: string, fallback?: string) => {
+          if (key === 'LOG_FORMAT') return 'text';
+          if (key === 'LOG_COLOR') return 'always';
+          return fallback ?? '';
+        },
+        getBool: (_key: string, fallback?: boolean) => fallback ?? false,
+      },
+    }));
+
+    const { Logger } = await import('@config/logger');
+
+    Logger.info('[GET] /queue-monitor/api/events 200 OK (14ms) [requestId=req-123]');
+
+    const rendered = (logSpy.mock.calls[0]?.[0] ?? '') as string;
+    expect(rendered).toContain('\u001b[');
+    expect(rendered).toContain('[INFO]');
+    expect(rendered).toContain('[GET]');
+    expect(rendered).toContain('200 OK');
+    expect(rendered).toContain('(14ms)');
+    expect(rendered).toContain('[requestId=req-123]');
+
+    logSpy.mockRestore();
+    vi.doUnmock('@config/env');
+  });
+
+  it('colors slow and error request segments with ANSI output', async () => {
+    vi.resetModules();
+    const logSpy = vi.spyOn(globalThis.console, 'log').mockImplementation(() => undefined);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        LOG_LEVEL: 'debug',
+        get: (key: string, fallback?: string) => {
+          if (key === 'LOG_FORMAT') return 'text';
+          if (key === 'LOG_COLOR') return 'always';
+          return fallback ?? '';
+        },
+        getBool: (_key: string, fallback?: boolean) => fallback ?? false,
+      },
+    }));
+
+    const { Logger } = await import('@config/logger');
+
+    Logger.info('[POST] /jobs 500 Internal Server Error (1000ms) [requestId=req-500]');
+
+    const rendered = (logSpy.mock.calls[0]?.[0] ?? '') as string;
+    expect(rendered).toContain('\u001b[');
+    expect(rendered).toContain('500 Internal Server Error');
+    expect(rendered).toContain('(1000ms)');
+
+    logSpy.mockRestore();
+    vi.doUnmock('@config/env');
+  });
+
+  it('uses Arctic as the default request-log theme fallback', async () => {
+    vi.resetModules();
+    const logSpy = vi.spyOn(globalThis.console, 'log').mockImplementation(() => undefined);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        LOG_LEVEL: 'debug',
+        get: (key: string, fallback?: string) => {
+          if (key === 'LOG_FORMAT') return 'text';
+          if (key === 'LOG_COLOR') return 'always';
+          if (key === 'LOG_COLOR_THEME') return 'unknown-theme';
+          return fallback ?? '';
+        },
+        getBool: (_key: string, fallback?: boolean) => fallback ?? false,
+      },
+    }));
+
+    const { Logger } = await import('@config/logger');
+
+    Logger.info('[GET] /health 200 OK (14ms) [requestId=req-default]');
+
+    const rendered = (logSpy.mock.calls[0]?.[0] ?? '') as string;
+    expect(rendered).toContain('\u001b[1m\u001b[96m[INFO]\u001b[0m');
+    expect(rendered).toContain('\u001b[1m\u001b[94m[GET]\u001b[0m');
+    expect(rendered).toContain('\u001b[1m\u001b[92m200 OK\u001b[0m');
+
+    logSpy.mockRestore();
+    vi.doUnmock('@config/env');
+  });
+
+  it('switches request-log colors when LOG_COLOR_THEME is set', async () => {
+    vi.resetModules();
+    const logSpy = vi.spyOn(globalThis.console, 'log').mockImplementation(() => undefined);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        LOG_LEVEL: 'debug',
+        get: (key: string, fallback?: string) => {
+          if (key === 'LOG_FORMAT') return 'text';
+          if (key === 'LOG_COLOR') return 'always';
+          if (key === 'LOG_COLOR_THEME') return 'production-safe';
+          return fallback ?? '';
+        },
+        getBool: (_key: string, fallback?: boolean) => fallback ?? false,
+      },
+    }));
+
+    const { Logger } = await import('@config/logger');
+
+    Logger.info('[GET] /health 200 OK (14ms) [requestId=req-production]');
+
+    const rendered = (logSpy.mock.calls[0]?.[0] ?? '') as string;
+    expect(rendered).toContain('\u001b[1m\u001b[34m[INFO]\u001b[0m');
+    expect(rendered).toContain('\u001b[1m\u001b[34m[GET]\u001b[0m');
+    expect(rendered).toContain('\u001b[1m\u001b[32m200 OK\u001b[0m');
+
+    logSpy.mockRestore();
+    vi.doUnmock('@config/env');
+  });
+
   it('debug logs only in development', async () => {
     process.env.NODE_ENV = 'development';
 

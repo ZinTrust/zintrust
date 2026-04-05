@@ -2,30 +2,39 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const DEFAULT_ROOT = process.cwd();
-
 const KNOWN_IMPORT_EXTENSIONS = ['.js', '.mjs', '.cjs', '.json', '.node'];
-const SPECIAL_PACKAGE_REWRITES = [
-  { packageName: '@zintrust/workers', distSuffix: '/packages/workers/src/index.js' },
-  { packageName: '@zintrust/queue-monitor', distSuffix: '/packages/queue-monitor/src/index.js' },
-  { packageName: '@zintrust/queue-redis', distSuffix: '/packages/queue-redis/src/index.js' },
-  {
-    packageName: '@zintrust/telemetry-dashboard',
-    distSuffix: '/packages/telemetry-dashboard/src/index.js',
-  },
-];
-const NO_ALIAS_REWRITE_PREFIXES = SPECIAL_PACKAGE_REWRITES.map((rule) => rule.packageName);
-const NO_ALIAS_REWRITE_DYNAMIC_PREFIXES = ['@zintrust/cloudflare-'];
+const ZINTRUST_PACKAGE_PREFIX = '@zintrust/';
+
+function buildWorkspacePackageRewrites(tsconfigPath) {
+  const tsconfig = readJson(tsconfigPath);
+  const compilerOptions = tsconfig.compilerOptions ?? {};
+  const paths = compilerOptions.paths ?? {};
+
+  return Object.entries(paths)
+    .filter(([key, values]) => {
+      if (!key.startsWith(ZINTRUST_PACKAGE_PREFIX) || key.includes('*')) {
+        return false;
+      }
+
+      return Array.isArray(values) && values.length > 0;
+    })
+    .map(([packageName, values]) => {
+      const target = String(values[0]).replace(/^\.\//, '');
+      const withoutExt = target.replace(/\.(ts|tsx)$/, '');
+      return {
+        packageName,
+        distSuffix: `/${withoutExt}.js`,
+      };
+    })
+    .filter((rule) => rule.distSuffix.startsWith('/packages/'));
+}
+
+const SPECIAL_PACKAGE_REWRITES = buildWorkspacePackageRewrites(
+  path.resolve(DEFAULT_ROOT, 'tsconfig.json')
+);
 
 function shouldSkipAliasRewrite(specifier) {
-  if (
-    NO_ALIAS_REWRITE_PREFIXES.some(
-      (prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`)
-    )
-  ) {
-    return true;
-  }
-
-  return NO_ALIAS_REWRITE_DYNAMIC_PREFIXES.some((prefix) => specifier.startsWith(prefix));
+  return specifier.startsWith(ZINTRUST_PACKAGE_PREFIX);
 }
 
 function isFile(p) {
@@ -48,7 +57,7 @@ function readJson(jsonPath) {
   return JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 }
 
-function listJsFilesRecursive(dir) {
+function listRewritableFilesRecursive(dir) {
   /** @type {string[]} */
   const out = [];
   if (!isDir(dir)) return out;
@@ -66,7 +75,7 @@ function listJsFilesRecursive(dir) {
         stack.push(full);
         continue;
       }
-      if (entry.isFile() && full.endsWith('.js')) {
+      if (entry.isFile() && (full.endsWith('.js') || full.endsWith('.d.ts'))) {
         out.push(full);
       }
     }
@@ -342,7 +351,7 @@ function main() {
   const { outDir, aliases } = buildAliasesFromTsconfig(tsconfigPath);
 
   const targets = [path.join(outDir, 'src'), path.join(outDir, 'bin')];
-  const jsFiles = targets.flatMap((t) => listJsFilesRecursive(t));
+  const jsFiles = targets.flatMap((t) => listRewritableFilesRecursive(t));
 
   let changedFiles = 0;
   let totalReplacements = 0;

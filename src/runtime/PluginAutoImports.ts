@@ -20,6 +20,23 @@ type ImportSummary = {
   loaded: number;
   missing: number;
   failed: number;
+  loadedSpecifiers: string[];
+  missingSpecifiers: string[];
+  failedSpecifiers: string[];
+};
+
+const formatImportSummary = (summary: ImportSummary, total: number): string => {
+  const details: string[] = [`Loaded ${summary.loaded}/${total} official plugin imports`];
+
+  if (summary.missingSpecifiers.length > 0) {
+    details.push(`missing: ${summary.missingSpecifiers.join(', ')}`);
+  }
+
+  if (summary.failedSpecifiers.length > 0) {
+    details.push(`failed: ${summary.failedSpecifiers.join(', ')}`);
+  }
+
+  return details.join(' | ');
 };
 
 const getProjectCwd = (): string => process.cwd();
@@ -207,13 +224,27 @@ const importSpecifiers = async (specifiers: Iterable<ImportSpecifier>): Promise<
         return summary;
       }
 
-      if (result.value.status === 'loaded') summary.loaded += 1;
-      else if (result.value.status === 'missing') summary.missing += 1;
-      else summary.failed += 1;
+      if (result.value.status === 'loaded') {
+        summary.loaded += 1;
+        summary.loadedSpecifiers.push(result.value.specifier);
+      } else if (result.value.status === 'missing') {
+        summary.missing += 1;
+        summary.missingSpecifiers.push(result.value.specifier);
+      } else {
+        summary.failed += 1;
+        summary.failedSpecifiers.push(result.value.specifier);
+      }
 
       return summary;
     },
-    { loaded: 0, missing: 0, failed: 0 }
+    {
+      loaded: 0,
+      missing: 0,
+      failed: 0,
+      loadedSpecifiers: [],
+      missingSpecifiers: [],
+      failedSpecifiers: [],
+    }
   );
 };
 
@@ -232,7 +263,7 @@ export const PluginAutoImports = Object.freeze({
       ok: false,
       loadedPath: `official:${mode}`,
       reason: 'import-failed',
-      errorMessage: `Loaded ${summary.loaded}/${specifiers.length} official plugin imports`,
+      errorMessage: formatImportSummary(summary, specifiers.length),
     };
   },
 

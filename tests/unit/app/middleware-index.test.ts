@@ -190,8 +190,7 @@ describe('app/Middleware/index.ts', () => {
 
     await loggingMiddleware(req as any, res as any, next);
 
-    expect(loggerInfo).toHaveBeenCalledWith('→ GET /ping');
-    expect(loggerInfo).toHaveBeenCalledWith('← 200 GET /ping (10ms)');
+    expect(loggerInfo).toHaveBeenCalledWith('[GET] /ping 200 OK (10ms)');
 
     vi.useRealTimers();
   });

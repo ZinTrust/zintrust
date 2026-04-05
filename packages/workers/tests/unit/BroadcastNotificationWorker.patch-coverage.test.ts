@@ -6,7 +6,7 @@ const queueMock = {
   ack: vi.fn(),
 };
 
-const broadcastMock = { send: vi.fn() };
+const broadcastMock = { publish: vi.fn() };
 const notificationMock = { send: vi.fn() };
 
 const queueMonitorMetricsMock = {
@@ -85,12 +85,12 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
     queueMock.enqueue.mockResolvedValue('id');
     queueMock.ack.mockResolvedValue(undefined);
 
-    broadcastMock.send.mockResolvedValue(undefined);
+    broadcastMock.publish.mockResolvedValue(undefined);
     notificationMock.send.mockResolvedValue(undefined);
     queueMonitorMetricsMock.recordJob.mockResolvedValue(undefined);
   });
 
-  it('BroadcastWorker.processOne uses Broadcast.send', async () => {
+  it('BroadcastWorker.processOne uses Broadcast.publish', async () => {
     const { BroadcastWorker } = await import('@zintrust/workers');
 
     queueMock.dequeue.mockResolvedValueOnce({
@@ -100,7 +100,11 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
     });
 
     await expect(BroadcastWorker.processOne('broadcasts')).resolves.toBe(true);
-    expect(broadcastMock.send).toHaveBeenCalledWith('c', 'e', { ok: true });
+    expect(broadcastMock.publish).toHaveBeenCalledWith({
+      channel: 'c',
+      event: 'e',
+      data: { ok: true },
+    });
     expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'b1', undefined);
   });
 

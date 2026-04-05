@@ -106,11 +106,6 @@ const pushSnapshot = async (subscription: QueueMonitoringSubscription): Promise<
 const startPolling = (subscription: QueueMonitoringSubscription): void => {
   if (subscription.interval) return;
 
-  Logger.debug('Starting QueueMonitoringService polling', {
-    queue: subscription.config.queue || null,
-    pattern: subscription.config.pattern,
-  });
-
   void pushSnapshot(subscription);
   subscription.interval = setInterval(() => {
     void pushSnapshot(subscription);
@@ -119,11 +114,6 @@ const startPolling = (subscription: QueueMonitoringSubscription): void => {
 
 const stopPolling = (subscription: QueueMonitoringSubscription): void => {
   if (!subscription.interval) return;
-
-  Logger.debug('Stopping QueueMonitoringService polling', {
-    queue: subscription.config.queue || null,
-    pattern: subscription.config.pattern,
-  });
   clearInterval(subscription.interval);
   subscription.interval = null;
 };

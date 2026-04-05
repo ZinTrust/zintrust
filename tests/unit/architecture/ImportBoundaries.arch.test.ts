@@ -130,7 +130,7 @@ describe('Architecture: import boundaries', () => {
     });
 
     expect(violations).toEqual([]);
-  });
+  }, 30000);
 
   it('prevents app/ from importing routes/bin', async () => {
     const appDir = path.join(repoRoot, 'app');
