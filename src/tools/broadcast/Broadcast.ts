@@ -475,6 +475,30 @@ const normalizePublishInput = (input: BroadcastPublishInput): NormalizedBroadcas
   };
 };
 
+/**
+ * Error codes from publishSocketEventFromServer that represent policy/auth failures.
+ * These must not be swallowed in auto delivery mode — the socket publish policy must
+ * be respected even when a driver fallback is available.
+ */
+const NON_TRANSIENT_SOCKET_ERROR_CODES = new Set([
+  'FORBIDDEN',
+  'UNAUTHORIZED',
+  'VALIDATION_ERROR',
+  'SECURITY_ERROR',
+  'SANITIZER_ERROR',
+]);
+
+/**
+ * Returns true for authorization/validation/policy errors from the socket module.
+ * Returns false for "socket unavailable" errors (module missing, disabled, connection
+ * failure, config) which are safe to fall back from.
+ */
+const isNonTransientSocketError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && NON_TRANSIENT_SOCKET_ERROR_CODES.has(code);
+};
+
 const tryPublishViaSocket = async (
   input: NormalizedBroadcastPublishInput
 ): Promise<BroadcastTransportAttemptResult> => {
@@ -500,6 +524,12 @@ const tryPublishViaSocket = async (
       },
     };
   } catch (error) {
+    // For authorization/validation/policy errors, rethrow even in auto delivery mode
+    // to prevent bypassing socket publish policy via driver fallback.
+    // Only allow fallback for "socket unavailable" cases (module missing, disabled, connection issues).
+    if (isNonTransientSocketError(error)) {
+      throw error;
+    }
     return { result: null, error };
   }
 };

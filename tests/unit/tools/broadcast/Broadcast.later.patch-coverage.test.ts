@@ -473,4 +473,94 @@ describe('Broadcast (later + now patch coverage)', () => {
 
     nowSpy.mockRestore();
   });
+
+  it('rethrows FORBIDDEN socket errors in auto delivery mode instead of falling back to driver', async () => {
+    const forbiddenError = Object.assign(new Error('Socket publish not authorized'), {
+      code: 'FORBIDDEN',
+      statusCode: 403,
+    });
+    vi.doMock('@zintrust/socket', () => ({
+      publishSocketEventFromServer: vi.fn(async () => {
+        throw forbiddenError;
+      }),
+    }));
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'private-alpha', event: 'evt', data: {} })
+    ).rejects.toBe(forbiddenError);
+  });
+
+  it('rethrows UNAUTHORIZED socket errors in auto delivery mode instead of falling back to driver', async () => {
+    const unauthorizedError = Object.assign(new Error('Socket publish authentication required'), {
+      code: 'UNAUTHORIZED',
+      statusCode: 401,
+    });
+    vi.doMock('@zintrust/socket', () => ({
+      publishSocketEventFromServer: vi.fn(async () => {
+        throw unauthorizedError;
+      }),
+    }));
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'presence-room', event: 'evt', data: {} })
+    ).rejects.toBe(unauthorizedError);
+  });
+
+  it('rethrows VALIDATION_ERROR socket errors in auto delivery mode instead of falling back to driver', async () => {
+    const validationError = Object.assign(new Error('Invalid socket publish payload'), {
+      code: 'VALIDATION_ERROR',
+      statusCode: 400,
+    });
+    vi.doMock('@zintrust/socket', () => ({
+      publishSocketEventFromServer: vi.fn(async () => {
+        throw validationError;
+      }),
+    }));
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+    ).rejects.toBe(validationError);
+  });
+
+  it('rethrows SECURITY_ERROR socket errors in auto delivery mode instead of falling back to driver', async () => {
+    const securityError = Object.assign(new Error('Socket security policy violation'), {
+      code: 'SECURITY_ERROR',
+      statusCode: 401,
+    });
+    vi.doMock('@zintrust/socket', () => ({
+      publishSocketEventFromServer: vi.fn(async () => {
+        throw securityError;
+      }),
+    }));
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+    ).rejects.toBe(securityError);
+  });
+
+  it('falls back to driver for plain socket errors (socket unavailable) in auto delivery mode', async () => {
+    vi.doMock('@broadcast/BroadcastRegistry', () => ({
+      BroadcastRegistry: {
+        has: () => true,
+        get: () => ({ driver: 'inmemory' }),
+      },
+    }));
+    vi.doMock('@zintrust/socket', () => ({
+      publishSocketEventFromServer: vi.fn(async () => {
+        throw new Error('Socket runtime is not enabled.');
+      }),
+    }));
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+    ).resolves.toMatchObject({
+      transport: 'driver',
+      attemptedTransports: expect.arrayContaining(['socket', 'driver']),
+    });
+  });
 });
