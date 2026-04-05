@@ -18,7 +18,8 @@ describe('JobTracking cleanup schedule (coverage extras)', () => {
     vi.resetModules();
 
     try {
-      const { default: JobTrackingCleanupSchedule } = await import('../../../app/Schedules/JobTracking');
+      const { default: JobTrackingCleanupSchedule } =
+        await import('../../../app/Schedules/JobTracking');
       await JobTrackingCleanupSchedule.handler(undefined as any);
       expect(cleanupMock).toHaveBeenCalledTimes(1);
     } finally {
