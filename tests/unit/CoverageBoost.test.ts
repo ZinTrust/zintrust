@@ -18,9 +18,13 @@ import { QueryBuilder } from '@orm/QueryBuilder';
 import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 import { QueryLogger } from '@profiling/QueryLogger';
 import { XssProtection } from '@security/XssProtection';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let httpRequestHandler: ((req: unknown, res: unknown) => void | Promise<void>) | undefined;
+let consoleLogSpy: ReturnType<typeof vi.spyOn> | undefined;
+let consoleDebugSpy: ReturnType<typeof vi.spyOn> | undefined;
+let consoleWarnSpy: ReturnType<typeof vi.spyOn> | undefined;
+let consoleErrorSpy: ReturnType<typeof vi.spyOn> | undefined;
 
 // Mock node:fs for Application/Server/Logger
 vi.mock('@node-singletons/fs', async (importOriginal) => {
@@ -103,6 +107,10 @@ vi.mock('@config/logger', () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   QueryLogger.clear();
+  consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+  consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
   // Reset mocked fs implementations to defaults (avoid cross-test leakage)
   vi.mocked(fs.readFileSync).mockReturnValue('{}');
@@ -112,6 +120,13 @@ beforeEach(() => {
     mtime: new Date(),
     isDirectory: vi.fn().mockReturnValue(false),
   } as unknown as fs.Stats);
+});
+
+afterEach(() => {
+  consoleLogSpy?.mockRestore();
+  consoleDebugSpy?.mockRestore();
+  consoleWarnSpy?.mockRestore();
+  consoleErrorSpy?.mockRestore();
 });
 
 describe('Application & Server', () => {
