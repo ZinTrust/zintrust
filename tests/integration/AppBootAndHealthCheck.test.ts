@@ -21,9 +21,14 @@ describe.sequential('Application Boot and Health Check Integration', () => {
   let Application: typeof import('@boot/Application').Application;
   let app: IApplication;
   let tempDir: string | undefined;
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalWorkerEnabled = process.env.WORKER_ENABLED;
+  const originalDockerWorker = process.env.DOCKER_WORKER;
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'testing';
+    process.env.WORKER_ENABLED = 'false';
+    process.env.DOCKER_WORKER = 'true';
     vi.resetModules();
     ({ Application } = await import('@boot/Application'));
     tempDir = await mkdtemp(join(tmpdir(), 'zintrust-app-boot-health-'));
@@ -36,6 +41,21 @@ describe.sequential('Application Boot and Health Check Integration', () => {
     if (tempDir !== undefined) {
       await rm(tempDir, { recursive: true, force: true });
       tempDir = undefined;
+    }
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+    if (originalWorkerEnabled === undefined) {
+      delete process.env.WORKER_ENABLED;
+    } else {
+      process.env.WORKER_ENABLED = originalWorkerEnabled;
+    }
+    if (originalDockerWorker === undefined) {
+      delete process.env.DOCKER_WORKER;
+    } else {
+      process.env.DOCKER_WORKER = originalDockerWorker;
     }
   });
 

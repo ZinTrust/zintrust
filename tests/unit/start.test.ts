@@ -12,6 +12,11 @@ import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 
 import { bootStandaloneService, configureStandaloneService, isNodeMain } from '@/start';
 
+const createCloudflareWorkerModule = (fetchImpl?: ((...args: unknown[]) => Promise<Response>) | null) => ({
+  fetch: fetchImpl,
+  ZintrustSocketHub: class {},
+});
+
 describe('start helpers', () => {
   const originalArgv = process.argv;
   const originalEnv = process.env;
@@ -192,10 +197,7 @@ describe('start helpers', () => {
     const workerFetch = vi.fn(async () => new Response('direct', { status: 200 }));
 
     vi.resetModules();
-    vi.doMock('@functions/cloudflare', () => ({
-      fetch: workerFetch,
-      ZintrustSocketHub: class {},
-    }));
+    vi.doMock('@functions/cloudflare', () => createCloudflareWorkerModule(workerFetch));
 
     const mod = await import('@/start');
     const response = await mod.default.fetch(new Request('https://example.test'), {}, {});
@@ -207,9 +209,8 @@ describe('start helpers', () => {
   it('throws a validation error when the cloudflare worker export has no fetch handler', async () => {
     vi.resetModules();
     vi.doMock('@functions/cloudflare', () => ({
-      fetch: null,
+      ...createCloudflareWorkerModule(null),
       default: {},
-      ZintrustSocketHub: class {},
     }));
 
     const mod = await import('@/start');
@@ -226,14 +227,12 @@ describe('start helpers', () => {
   it('delegates deno and lambda exports to their runtime modules', async () => {
     const denoHandler = vi.fn(async () => new Response('deno-ok', { status: 200 }));
     const lambdaHandler = vi.fn(async () => ({ ok: true }));
+    const workerFetch = vi.fn(async () => new Response('worker-ok', { status: 200 }));
 
     vi.resetModules();
     vi.doMock('@functions/deno', () => ({ default: denoHandler }));
     vi.doMock('@functions/lambda', () => ({ handler: lambdaHandler }));
-    vi.doMock('@functions/cloudflare', () => ({
-      fetch: vi.fn(async () => new Response('worker-ok', { status: 200 })),
-      ZintrustSocketHub: class {},
-    }));
+    vi.doMock('@functions/cloudflare', () => createCloudflareWorkerModule(workerFetch));
 
     const mod = await import('@/start');
     const denoResponse = await mod.deno(new Request('https://example.test/deno'));

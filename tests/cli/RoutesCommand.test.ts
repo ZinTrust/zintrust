@@ -1,28 +1,37 @@
 import { CLI } from '@/cli/CLI';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 type ExitFn = typeof process.exit;
 
+const originalEnv = process.env;
+
 describe('CLI RoutesCommand', () => {
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.restoreAllMocks();
+  });
+
   it('prints a route table for zin routes', async () => {
     process.env['BASE_URL'] = 'http://127.0.0.1';
     process.env['PORT'] = '7777';
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    const cli = CLI.create();
-    await cli.run(['routes']);
+    try {
+      const cli = CLI.create();
+      await cli.run(['routes']);
 
-    const output = logSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
+      const output = logSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
 
-    expect(output).toContain('┌');
-    expect(output).toContain('Group');
-    expect(output).toContain('Method');
-    expect(output).toContain('Path');
-    expect(output).toContain('http://127.0.0.1:7777');
-    expect(output).toContain('/health');
-
-    logSpy.mockRestore();
+      expect(output).toContain('┌');
+      expect(output).toContain('Group');
+      expect(output).toContain('Method');
+      expect(output).toContain('Path');
+      expect(output).toContain('http://127.0.0.1:7777');
+      expect(output).toContain('/health');
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it('prints JSON when --json is used', async () => {
@@ -31,24 +40,26 @@ describe('CLI RoutesCommand', () => {
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    const cli = CLI.create();
-    await cli.run(['routes', '--json', '--group-by', 'none', '--method', 'GET']);
+    try {
+      const cli = CLI.create();
+      await cli.run(['routes', '--json', '--group-by', 'none', '--method', 'GET']);
 
-    const outputLines = logSpy.mock.calls.map((c) => String(c[0] ?? '')).filter(Boolean);
-    const jsonPayload = outputLines.find((l) => l.trim().startsWith('{'));
-    expect(jsonPayload).toBeDefined();
+      const outputLines = logSpy.mock.calls.map((c) => String(c[0] ?? '')).filter(Boolean);
+      const jsonPayload = outputLines.find((l) => l.trim().startsWith('{'));
+      expect(jsonPayload).toBeDefined();
 
-    const parsed = JSON.parse(String(jsonPayload)) as {
-      count: number;
-      routes: Array<{ method: string }>;
-    };
+      const parsed = JSON.parse(String(jsonPayload)) as {
+        count: number;
+        routes: Array<{ method: string }>;
+      };
 
-    expect(typeof parsed.count).toBe('number');
-    expect(Array.isArray(parsed.routes)).toBe(true);
-    expect(parsed.routes.length).toBeGreaterThan(0);
-    expect(parsed.routes[0]?.method).toBe('GET');
-
-    logSpy.mockRestore();
+      expect(typeof parsed.count).toBe('number');
+      expect(Array.isArray(parsed.routes)).toBe(true);
+      expect(parsed.routes.length).toBeGreaterThan(0);
+      expect(parsed.routes[0]?.method).toBe('GET');
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it('exits with an error for an invalid --group-by value', async () => {
@@ -71,21 +82,23 @@ describe('CLI RoutesCommand', () => {
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    const cli = CLI.create();
-    await cli.run(['routes', '--json', '--method', ',']);
+    try {
+      const cli = CLI.create();
+      await cli.run(['routes', '--json', '--method', ',']);
 
-    const outputLines = logSpy.mock.calls.map((c) => String(c[0] ?? '')).filter(Boolean);
-    const jsonPayload = outputLines.find((l) => l.trim().startsWith('{'));
-    expect(jsonPayload).toBeDefined();
+      const outputLines = logSpy.mock.calls.map((c) => String(c[0] ?? '')).filter(Boolean);
+      const jsonPayload = outputLines.find((l) => l.trim().startsWith('{'));
+      expect(jsonPayload).toBeDefined();
 
-    const parsed = JSON.parse(String(jsonPayload)) as {
-      routes: Array<{ url: string }>;
-    };
+      const parsed = JSON.parse(String(jsonPayload)) as {
+        routes: Array<{ url: string }>;
+      };
 
-    expect(parsed.routes.length).toBeGreaterThan(0);
-    expect(parsed.routes[0]?.url.startsWith('/')).toBe(true);
-    expect(parsed.routes[0]?.url.includes('://')).toBe(false);
-
-    logSpy.mockRestore();
+      expect(parsed.routes.length).toBeGreaterThan(0);
+      expect(parsed.routes[0]?.url.startsWith('/')).toBe(true);
+      expect(parsed.routes[0]?.url.includes('://')).toBe(false);
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });

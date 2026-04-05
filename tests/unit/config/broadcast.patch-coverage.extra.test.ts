@@ -8,6 +8,15 @@ vi.mock('@config/env', () => ({
   },
 }));
 
+const buildStartupConfigRegistryModule = (socket: Record<string, unknown>) => ({
+  StartupConfigFile: {
+    Broadcast: 'config/broadcast.ts',
+  },
+  StartupConfigFileRegistry: {
+    get: vi.fn(() => ({ socket })),
+  },
+});
+
 describe('src/config/broadcast patch coverage (extra)', () => {
   it('normalizes socket authorizer and publish overrides from objects', async () => {
     vi.resetModules();
@@ -15,21 +24,14 @@ describe('src/config/broadcast patch coverage (extra)', () => {
     const authorize = vi.fn();
     const publishAuthorize = vi.fn();
 
-    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
-      StartupConfigFile: {
-        Broadcast: 'config/broadcast.ts',
-      },
-      StartupConfigFileRegistry: {
-        get: vi.fn(() => ({
-          socket: {
-            authorize: { authorize },
-            publish: { authorize: publishAuthorize },
-            authMiddleware: ['auth', 'jwt'],
-            allowAuthRouteOverride: true,
-          },
-        })),
-      },
-    }));
+    vi.doMock('@runtime/StartupConfigFileRegistry', () =>
+      buildStartupConfigRegistryModule({
+        authorize: { authorize },
+        publish: { authorize: publishAuthorize },
+        authMiddleware: ['auth', 'jwt'],
+        allowAuthRouteOverride: true,
+      })
+    );
 
     const broadcastConfig = (await import('@config/broadcast')).default;
 
@@ -44,18 +46,9 @@ describe('src/config/broadcast patch coverage (extra)', () => {
 
     const authorize = vi.fn();
 
-    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
-      StartupConfigFile: {
-        Broadcast: 'config/broadcast.ts',
-      },
-      StartupConfigFileRegistry: {
-        get: vi.fn(() => ({
-          socket: {
-            authorize,
-          },
-        })),
-      },
-    }));
+    vi.doMock('@runtime/StartupConfigFileRegistry', () =>
+      buildStartupConfigRegistryModule({ authorize })
+    );
 
     const broadcastConfig = (await import('@config/broadcast')).default;
 
@@ -65,19 +58,12 @@ describe('src/config/broadcast patch coverage (extra)', () => {
   it('throws for invalid socket publish overrides', async () => {
     vi.resetModules();
 
-    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
-      StartupConfigFile: {
-        Broadcast: 'config/broadcast.ts',
-      },
-      StartupConfigFileRegistry: {
-        get: vi.fn(() => ({
-          socket: {
-            authorize: { authorize: vi.fn() },
-            publish: { authorize: 'nope' },
-          },
-        })),
-      },
-    }));
+    vi.doMock('@runtime/StartupConfigFileRegistry', () =>
+      buildStartupConfigRegistryModule({
+        authorize: { authorize: vi.fn() },
+        publish: { authorize: 'nope' },
+      })
+    );
 
     const broadcastConfig = (await import('@config/broadcast')).default;
 
@@ -89,18 +75,11 @@ describe('src/config/broadcast patch coverage (extra)', () => {
   it('throws for invalid socket authorizer overrides', async () => {
     vi.resetModules();
 
-    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
-      StartupConfigFile: {
-        Broadcast: 'config/broadcast.ts',
-      },
-      StartupConfigFileRegistry: {
-        get: vi.fn(() => ({
-          socket: {
-            authorize: { authorize: 'nope' },
-          },
-        })),
-      },
-    }));
+    vi.doMock('@runtime/StartupConfigFileRegistry', () =>
+      buildStartupConfigRegistryModule({
+        authorize: { authorize: 'nope' },
+      })
+    );
 
     const broadcastConfig = (await import('@config/broadcast')).default;
 
