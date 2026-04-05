@@ -52,6 +52,7 @@ describe('PluginAutoImports official imports', () => {
     if (!result.ok) {
       expect(result.reason).toBe('import-failed');
       expect(result.errorMessage).toContain('Loaded 0/1 official plugin imports');
+      expect(result.errorMessage).toContain('failed: @zintrust/broken-plugin/register');
     }
 
     rmSync(tmp, { recursive: true, force: true });

@@ -81,6 +81,8 @@ await Broadcast.publish({
 - `socket`: require socket-runtime delivery and fail if that surface is unavailable
 - `driver`: skip the socket runtime and send through the configured broadcaster directly
 
+When the socket package is installed and `BASE_URL`, `APP_URL`, or `BROADCAST_INTERNAL_URL` resolves to the local app, core first tries the package-owned `POST /apps/:appId/events` route before falling back to in-process socket delivery or a broadcast driver. Publish results expose this as `transport: 'internal-http'`.
+
 Example:
 
 ```ts
@@ -103,6 +105,21 @@ await Broadcast.broadcaster('redis').publish({
   data: { id: 'job-1' },
 });
 ```
+
+### Channel Scope
+
+You can keep application code on logical channel names and let core prefix the wire channel:
+
+```ts
+await Broadcast.publish({
+  channel: 'smart.ZTF-10514',
+  channelScope: 'private',
+  event: 'smart.data',
+  data: { ok: true },
+});
+```
+
+Supported scopes are `public`, `private`, `presence`, and `persistent`. If the `channel` is already fully qualified, core keeps it as-is and rejects contradictory explicit scopes.
 
 ## Queued Publish
 

@@ -1,9 +1,11 @@
-import { isArray, isNonEmptyString } from '@/helper';
+import { isArray, isNonEmptyString, isObject } from '@/helper';
 import { InMemoryDriver } from '@broadcast/drivers/InMemory';
 import { PusherDriver } from '@broadcast/drivers/Pusher';
 import { RedisDriver } from '@broadcast/drivers/Redis';
 import { RedisHttpsDriver } from '@broadcast/drivers/RedisHttps';
 import broadcastConfig from '@config/broadcast';
+import { Env } from '@config/env';
+import { Logger } from '@config/logger';
 import type { KnownBroadcastDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
@@ -13,11 +15,15 @@ type Broadcaster = Readonly<{
   publish: (input: BroadcastPublishInput) => Promise<BroadcastPublishResult>;
 }>;
 
+type BroadcastChannelScope = 'public' | 'private' | 'presence' | 'persistent';
 type BroadcastDeliveryMode = 'auto' | 'socket' | 'driver';
+type BroadcastTransport = 'internal-http' | 'socket' | 'driver';
 
 export type BroadcastPublishInput = Readonly<{
   channel?: string;
   channels?: readonly string[];
+  scope?: BroadcastChannelScope;
+  channelScope?: BroadcastChannelScope;
   event?: string;
   name?: string;
   data?: unknown;
@@ -41,15 +47,340 @@ type NormalizedBroadcastPublishInput = Readonly<{
 
 export type BroadcastPublishResult = Readonly<{
   ok: true;
-  transport: 'socket' | 'driver';
+  transport: BroadcastTransport;
   channels: readonly string[];
   event: string;
   deliveries?: number;
   driver?: KnownBroadcastDriverConfig['driver'];
   broadcaster?: string;
+  endpoint?: string;
+  attemptedTransports?: readonly BroadcastTransport[];
   result?: unknown;
   results?: readonly unknown[];
 }>;
+
+type BroadcastTransportAttemptResult = Readonly<{
+  result: BroadcastPublishResult | null;
+  error?: unknown;
+}>;
+
+type SocketPublishModule = Readonly<{
+  publishSocketEventFromServer: (input: {
+    channels: readonly string[];
+    event: string;
+    data: unknown;
+    socketId?: string;
+    request?: IRequest;
+    user?: unknown;
+  }) => Promise<{
+    ok: true;
+    transport: 'node' | 'cloudflare';
+    channels: readonly string[];
+    event: string;
+    deliveries: number;
+  }>;
+}>;
+
+const INTERNAL_SOCKET_SECRET_HEADER = 'x-zintrust-socket-secret';
+
+const pickFirstNonEmpty = (...values: readonly string[]): string => {
+  for (const value of values) {
+    if (value.trim() !== '') {
+      return value.trim();
+    }
+  }
+
+  return '';
+};
+
+const normalizeChannelScope = (value: unknown): BroadcastChannelScope | undefined => {
+  if (!isNonEmptyString(value)) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'public' ||
+    normalized === 'private' ||
+    normalized === 'presence' ||
+    normalized === 'persistent'
+  ) {
+    return normalized;
+  }
+
+  return undefined;
+};
+
+const getQualifiedChannelScope = (channel: string): BroadcastChannelScope | undefined => {
+  if (channel.startsWith('private-')) return 'private';
+  if (channel.startsWith('presence-')) return 'presence';
+  if (channel.startsWith('persistent-')) return 'persistent';
+  return undefined;
+};
+
+const applyChannelScope = (channel: string, scope: BroadcastChannelScope | undefined): string => {
+  const normalizedChannel = channel.trim();
+  const existingScope = getQualifiedChannelScope(normalizedChannel);
+
+  if (existingScope !== undefined) {
+    if (scope !== undefined && scope !== existingScope) {
+      throw ErrorFactory.createValidationError(
+        `Broadcast channel scope ${scope} conflicts with fully-qualified channel ${normalizedChannel}.`
+      );
+    }
+
+    return normalizedChannel;
+  }
+
+  if (scope === undefined || scope === 'public') {
+    return normalizedChannel;
+  }
+
+  return `${scope}-${normalizedChannel}`;
+};
+
+const normalizeChannels = (input: BroadcastPublishInput): readonly string[] => {
+  const scope = normalizeChannelScope(input.channelScope ?? input.scope);
+
+  if (isArray(input.channels)) {
+    return input.channels
+      .filter(isNonEmptyString)
+      .map((channel) => applyChannelScope(channel, scope));
+  }
+
+  if (isNonEmptyString(input.channel)) {
+    return [applyChannelScope(input.channel, scope)];
+  }
+
+  return [];
+};
+
+const appendUnique = (values: string[], nextValue: string): void => {
+  if (nextValue !== '' && !values.includes(nextValue)) {
+    values.push(nextValue);
+  }
+};
+
+const toAbsoluteBaseUrl = (value: string): string => {
+  const trimmed = value.trim();
+  if (trimmed === '' || trimmed.startsWith('/')) {
+    return '';
+  }
+
+  try {
+    return new URL(trimmed).toString();
+  } catch {
+    try {
+      return new URL(`http://${trimmed}`).toString();
+    } catch {
+      return '';
+    }
+  }
+};
+
+const getLoopbackAlternativeBaseUrl = (value: string): string => {
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname === '127.0.0.1') {
+      parsed.hostname = 'localhost';
+      return parsed.toString();
+    }
+
+    if (
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === '[::1]' ||
+      parsed.hostname === '::1'
+    ) {
+      parsed.hostname = '127.0.0.1';
+      return parsed.toString();
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+};
+
+const getInternalPublishConfig = (): Readonly<{
+  endpoints: readonly string[];
+  appId: string;
+  secret: string;
+}> => {
+  const baseUrls: string[] = [];
+  appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('BROADCAST_INTERNAL_URL', '')));
+  appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('APP_URL', '')));
+  appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('BASE_URL', Env.BASE_URL ?? '')));
+
+  const resolvedBaseUrls: string[] = [];
+  for (const baseUrl of baseUrls) {
+    appendUnique(resolvedBaseUrls, baseUrl);
+    appendUnique(resolvedBaseUrls, getLoopbackAlternativeBaseUrl(baseUrl));
+  }
+
+  const appId =
+    pickFirstNonEmpty(Env.get('PUSHER_APP_ID', ''), Env.get('BROADCAST_APP_ID', '')) || 'internal';
+  const secret = pickFirstNonEmpty(
+    Env.get('BROADCAST_SECRET', ''),
+    Env.get('PUSHER_APP_SECRET', ''),
+    Env.get('BROADCAST_APP_SECRET', '')
+  );
+
+  return Object.freeze({
+    endpoints: resolvedBaseUrls.map((baseUrl) =>
+      new URL(`/apps/${encodeURIComponent(appId)}/events`, baseUrl).toString()
+    ),
+    appId,
+    secret,
+  });
+};
+
+const parseJsonResponseSafe = async (response: Response): Promise<unknown> => {
+  const raw = await response.text();
+  if (raw.trim() === '') {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { raw };
+  }
+};
+
+const getDeliveries = (payload: unknown): number | undefined => {
+  if (!isObject(payload)) {
+    return undefined;
+  }
+
+  const deliveries = payload['deliveries'];
+  return typeof deliveries === 'number' && Number.isFinite(deliveries) ? deliveries : undefined;
+};
+
+const describeError = (error: unknown): unknown => {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return String(error);
+};
+
+const logTransportFallback = (
+  transport: BroadcastTransport,
+  details: Record<string, unknown>
+): void => {
+  Logger.warn('Broadcast publish transport failed; falling back.', {
+    transport,
+    ...details,
+  });
+};
+
+const requestInternalPublishEndpoint = async (
+  endpoint: string,
+  secret: string,
+  payload: {
+    channels: readonly string[];
+    event: string;
+    data: unknown;
+    socket_id?: string;
+  }
+): Promise<BroadcastTransportAttemptResult> => {
+  try {
+    const response = await globalThis.fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(secret === ''
+          ? {}
+          : {
+              [INTERNAL_SOCKET_SECRET_HEADER]: secret,
+              authorization: `Bearer ${secret}`,
+            }),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const responseBody = await parseJsonResponseSafe(response);
+    if (!response.ok) {
+      const error = ErrorFactory.createTryCatchError(
+        `Internal socket publish request failed (${response.status})`,
+        {
+          status: response.status,
+          endpoint,
+          body: responseBody,
+        }
+      );
+      logTransportFallback('internal-http', {
+        endpoint,
+        status: response.status,
+        body: responseBody,
+      });
+
+      return { result: null, error };
+    }
+
+    const resolvedChannels =
+      isObject(responseBody) && isArray(responseBody['channels'])
+        ? responseBody['channels'].filter(isNonEmptyString).map((channel) => channel.trim())
+        : payload.channels;
+    const resolvedEvent =
+      isObject(responseBody) && isNonEmptyString(responseBody['event'])
+        ? responseBody['event'].trim()
+        : payload.event;
+
+    return {
+      result: {
+        ok: true,
+        transport: 'internal-http',
+        channels: resolvedChannels,
+        event: resolvedEvent,
+        deliveries: getDeliveries(responseBody),
+        endpoint,
+        result: responseBody,
+      },
+    };
+  } catch (error) {
+    logTransportFallback('internal-http', {
+      endpoint,
+      error: describeError(error),
+    });
+
+    return { result: null, error };
+  }
+};
+
+const tryInternalPublishEndpoints = async (
+  endpoints: readonly string[],
+  secret: string,
+  payload: {
+    channels: readonly string[];
+    event: string;
+    data: unknown;
+    socket_id?: string;
+  },
+  index = 0,
+  lastError?: unknown
+): Promise<BroadcastTransportAttemptResult> => {
+  const endpoint = endpoints[index];
+  if (endpoint === undefined) {
+    return { result: null, error: lastError };
+  }
+
+  const attempt = await requestInternalPublishEndpoint(endpoint, secret, payload);
+  if (attempt.result !== null) {
+    return attempt;
+  }
+
+  return tryInternalPublishEndpoints(
+    endpoints,
+    secret,
+    payload,
+    index + 1,
+    attempt.error ?? lastError
+  );
+};
 
 const resolveBroadcasterConfig = async (name?: string): Promise<KnownBroadcastDriverConfig> => {
   const selection = (name ?? broadcastConfig.getDriverName()).toString().trim().toLowerCase();
@@ -122,17 +453,7 @@ const normalizePublishInput = (input: BroadcastPublishInput): NormalizedBroadcas
     event = input.name.trim();
   }
 
-  const channels = (() => {
-    if (isArray(input.channels)) {
-      return input.channels.filter(isNonEmptyString).map((channel) => channel.trim());
-    }
-
-    if (isNonEmptyString(input.channel)) {
-      return [input.channel.trim()];
-    }
-
-    return [];
-  })();
+  const channels = normalizeChannels(input);
 
   if (event === '' || channels.length === 0) {
     throw ErrorFactory.createValidationError(
@@ -154,13 +475,9 @@ const normalizePublishInput = (input: BroadcastPublishInput): NormalizedBroadcas
 
 const tryPublishViaSocket = async (
   input: NormalizedBroadcastPublishInput
-): Promise<BroadcastPublishResult | null> => {
+): Promise<BroadcastTransportAttemptResult> => {
   try {
-    const socketModule = await import('@zintrust/socket');
-    if (socketModule.socketRuntime.isEnabled() !== true) {
-      return null;
-    }
-
+    const socketModule = (await import('@zintrust/socket')) as SocketPublishModule;
     const socketResult = await socketModule.publishSocketEventFromServer({
       channels: input.channels,
       event: input.event,
@@ -171,20 +488,36 @@ const tryPublishViaSocket = async (
     });
 
     return {
-      ok: true,
-      transport: 'socket',
-      channels: socketResult.channels,
-      event: socketResult.event,
-      deliveries: socketResult.deliveries,
-      result: socketResult,
+      result: {
+        ok: true,
+        transport: 'socket',
+        channels: socketResult.channels,
+        event: socketResult.event,
+        deliveries: socketResult.deliveries,
+        result: socketResult,
+      },
     };
   } catch (error) {
-    if (input.delivery === 'socket') {
-      throw error;
-    }
-
-    return null;
+    return { result: null, error };
   }
+};
+
+const tryPublishViaInternalHttp = async (
+  input: NormalizedBroadcastPublishInput
+): Promise<BroadcastTransportAttemptResult> => {
+  const config = getInternalPublishConfig();
+  if (config.endpoints.length === 0 || typeof globalThis.fetch !== 'function') {
+    return { result: null };
+  }
+
+  const payload = {
+    channels: input.channels,
+    event: input.event,
+    data: input.data,
+    ...(input.socketId === undefined ? {} : { socket_id: input.socketId }),
+  };
+
+  return tryInternalPublishEndpoints(config.endpoints, config.secret, payload);
 };
 
 const publishWithConfig = async (
@@ -209,20 +542,46 @@ const publishWithConfig = async (
 
 const publishInternal = async (input: BroadcastPublishInput): Promise<BroadcastPublishResult> => {
   const normalized = normalizePublishInput(input);
+  const attemptedTransports: BroadcastTransport[] = [];
+  let lastTransportError: unknown;
 
   if (normalized.delivery !== 'driver') {
+    attemptedTransports.push('internal-http');
+    const internalHttpResult = await tryPublishViaInternalHttp(normalized);
+    if (internalHttpResult.result !== null) {
+      return { ...internalHttpResult.result, attemptedTransports };
+    }
+    if (internalHttpResult.error !== undefined) {
+      lastTransportError = internalHttpResult.error;
+    }
+
+    attemptedTransports.push('socket');
     const socketResult = await tryPublishViaSocket(normalized);
-    if (socketResult !== null) {
-      return socketResult;
+    if (socketResult.result !== null) {
+      return { ...socketResult.result, attemptedTransports };
+    }
+    if (socketResult.error !== undefined) {
+      lastTransportError = socketResult.error;
+      logTransportFallback('socket', {
+        error: describeError(socketResult.error),
+      });
     }
   }
 
   if (normalized.delivery === 'socket') {
+    if (lastTransportError instanceof Error) {
+      throw lastTransportError;
+    }
+
     throw ErrorFactory.createConfigError('Socket publish delivery is not available.');
   }
 
+  attemptedTransports.push('driver');
   const config = await resolveBroadcasterConfig(normalized.broadcaster);
-  return publishWithConfig(config, normalized.broadcaster, normalized);
+  return {
+    ...(await publishWithConfig(config, normalized.broadcaster, normalized)),
+    attemptedTransports,
+  };
 };
 
 const publishLaterInternal = async (

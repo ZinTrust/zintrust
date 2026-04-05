@@ -85,13 +85,13 @@ The `Broadcast` helper attempts to use this registry lazily. If nothing is regis
 
 The `Broadcast` helper exposes:
 
-- `Broadcast.publish({ channel|channels, event|name, data, delivery?, broadcaster? })` – framework-owned publish API
+- `Broadcast.publish({ channel|channels, channelScope?, event|name, data, delivery?, broadcaster? })` – framework-owned publish API
 - `Broadcast.publishLater(input, { queueName?, timestamp? })` – enqueue a publish job
 - `Broadcast.queue('name').publishLater(input)` – pick a queue name
 - `Broadcast.broadcaster('name').publish(input)` – force a named broadcaster
 - `Broadcast.send(...)`, `Broadcast.broadcastNow(...)`, and `Broadcast.BroadcastLater(...)` – legacy migration aliases
 
-If sockets are enabled, `Broadcast.publish({ delivery: 'auto' })` prefers the framework-owned socket runtime and its reserved `POST /apps/:appId/events` surface automatically. Application code does not need to build custom publish headers or route bridges for the normal publish path.
+If sockets are enabled, `Broadcast.publish({ delivery: 'auto' })` prefers the framework-owned socket runtime and its reserved `POST /apps/:appId/events` surface automatically. Application code does not need to build custom publish headers or route bridges for the normal publish path. When `BROADCAST_INTERNAL_URL`, `APP_URL`, or `BASE_URL` points at the running Node app, core first tries the internal publish route and reports `transport: 'internal-http'` on success.
 
 If you need to expose runtime endpoints for external tools, see the optional route template in `routes/broadcast.ts`.
 
