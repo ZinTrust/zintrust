@@ -326,6 +326,9 @@ const shouldColorizeConsoleText = (): boolean => {
   ) {
     return false;
   }
+
+  if (getEnvString('NO_COLOR', '').trim() !== '') return false;
+
   if (
     configured === 'true' ||
     configured === '1' ||
@@ -334,8 +337,6 @@ const shouldColorizeConsoleText = (): boolean => {
   ) {
     return true;
   }
-
-  if (getEnvString('NO_COLOR', '').trim() !== '') return false;
   if (typeof process === 'undefined') return true;
   return process.stdout?.isTTY !== false;
 };

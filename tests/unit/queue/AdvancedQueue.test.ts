@@ -6,6 +6,7 @@ import type { AdvancedJobOptions, QueueConfig } from '@/types/Queue';
 import { Logger } from '@config/logger';
 import { createAdvancedQueue } from '@tools/queue/AdvancedQueue';
 import { createMemoryLockProvider, registerLockProvider } from '@tools/queue/LockProvider';
+import { Queue } from '@tools/queue/Queue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock Logger
@@ -88,6 +89,32 @@ describe('AdvancedQueue', () => {
       const jobId = await advancedQueue.enqueue('test-queue', { data: 'test' }, options);
 
       expect(jobId).toBe('job-123');
+    });
+
+    it('should plumb options.jobId into the payload forwarded to Queue.enqueue', async () => {
+      const options: AdvancedJobOptions = {
+        jobId: 'my-explicit-job-id',
+      };
+
+      await advancedQueue.enqueue('test-queue', { data: 'test' }, options);
+
+      expect(vi.mocked(Queue.enqueue)).toHaveBeenCalledWith(
+        'test-queue',
+        expect.objectContaining({ jobId: 'my-explicit-job-id' })
+      );
+    });
+
+    it('options.jobId takes precedence over payload.jobId', async () => {
+      const options: AdvancedJobOptions = {
+        jobId: 'options-job-id',
+      };
+
+      await advancedQueue.enqueue('test-queue', { data: 'test', jobId: 'payload-job-id' }, options);
+
+      expect(vi.mocked(Queue.enqueue)).toHaveBeenCalledWith(
+        'test-queue',
+        expect.objectContaining({ jobId: 'options-job-id' })
+      );
     });
 
     it('should validate uniqueId format', async () => {
