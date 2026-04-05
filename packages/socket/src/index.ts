@@ -1,6 +1,6 @@
 import {
-  Cloudflare,
   broadcastConfig,
+  Cloudflare,
   ErrorFactory,
   type IRequest,
   type IResponse,
@@ -43,6 +43,15 @@ type SocketForwardPublishPayload = {
   data: unknown;
   socket_id?: string;
 };
+
+type ServerSideSocketPublishInput = Readonly<{
+  channels: readonly string[];
+  event: string;
+  data: unknown;
+  socketId?: string;
+  request?: IRequest;
+  user?: unknown;
+}>;
 
 type WorkerMessageEvent = Event & { data?: unknown };
 
@@ -978,6 +987,107 @@ const normalizePublishDecisionPayload = (
   };
 };
 
+const createServerSidePublishRequest = (input: ServerSideSocketPublishInput): IRequest => {
+  return {
+    getBody: () => null,
+    getHeader: () => undefined,
+    getParam: () => undefined,
+    user: input.user ?? null,
+  } as unknown as IRequest;
+};
+
+const getResponseDeliveries = (payload: unknown): number => {
+  if (typeof payload !== 'object' || payload === null) {
+    return 0;
+  }
+
+  const deliveries = (payload as { deliveries?: unknown }).deliveries;
+  return typeof deliveries === 'number' && Number.isFinite(deliveries) ? deliveries : 0;
+};
+
+const publishSocketEventFromServer = async (
+  input: ServerSideSocketPublishInput
+): Promise<{
+  ok: true;
+  transport: 'node' | 'cloudflare';
+  channels: readonly string[];
+  event: string;
+  deliveries: number;
+}> => {
+  const settings = getSocketRuntimeSettings(Cloudflare.getWorkersEnv());
+  if (!settings.enabled || settings.appKey.trim() === '') {
+    throw ErrorFactory.createConfigError('Socket runtime is not enabled.');
+  }
+
+  const request = input.request ?? createServerSidePublishRequest(input);
+  const payload: SocketForwardPublishPayload = {
+    channels: input.channels.map((channel) => channel.trim()),
+    event: input.event.trim(),
+    data: input.data ?? {},
+    ...(isNonEmptyString(input.socketId) ? { socket_id: input.socketId.trim() } : {}),
+  };
+
+  const publishPolicy = resolveSocketPublishPolicy();
+  const decision = await publishPolicy.authorize(request, {
+    appId: settings.appId,
+    channels: payload.channels,
+    event: payload.event,
+    data: payload.data,
+    socketId: payload.socket_id,
+    user: input.user ?? request.user ?? null,
+  });
+
+  if (decision.allowed !== true) {
+    throw ErrorFactory.createForbiddenError(decision.message ?? 'Forbidden', {
+      statusCode: decision.statusCode ?? 403,
+    });
+  }
+
+  const allowedPayload = normalizePublishDecisionPayload(payload, decision);
+  if (allowedPayload === null) {
+    throw ErrorFactory.createValidationError(
+      'Socket publish policy must return a non-empty event and channels.'
+    );
+  }
+
+  if (shouldUseCloudflareHub(settings)) {
+    const response = await forwardPublishToHub(
+      settings,
+      allowedPayload,
+      Cloudflare.getWorkersEnv()
+    );
+    const responseBody = await parseJsonResponse(response);
+    if (!response.ok) {
+      throw ErrorFactory.createTryCatchError(`Socket publish request failed (${response.status})`, {
+        status: response.status,
+        body: responseBody,
+      });
+    }
+
+    return {
+      ok: true,
+      transport: 'cloudflare',
+      channels: allowedPayload.channels,
+      event: allowedPayload.event,
+      deliveries: getResponseDeliveries(responseBody),
+    };
+  }
+
+  return {
+    ok: true,
+    transport: 'node',
+    channels: allowedPayload.channels,
+    event: allowedPayload.event,
+    deliveries: publishToChannels(
+      getNodeSocketState(),
+      allowedPayload.channels,
+      allowedPayload.event,
+      allowedPayload.data,
+      allowedPayload.socket_id
+    ),
+  };
+};
+
 const forwardPublishToHub = async (
   settings: SocketFeatureSettings,
   payload: SocketForwardPublishPayload,
@@ -1322,5 +1432,5 @@ export const publishSocketEvent = (
   return publishToChannels(getNodeSocketState(), channels, event, data, excludeSocketId);
 };
 
-export { registerSocketRoutes, socketRouteRegistrar, socketRuntime };
+export { publishSocketEventFromServer, registerSocketRoutes, socketRouteRegistrar, socketRuntime };
 export default SocketPackage;

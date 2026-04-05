@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@broadcast/Broadcast', () => ({
   Broadcast: {
-    send: vi.fn(),
+    publish: vi.fn(),
   },
 }));
 
@@ -44,7 +44,7 @@ describe('QueueWorkRunner releaseAfter handling', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    vi.mocked(Broadcast.send).mockReset();
+    vi.mocked(Broadcast.publish).mockReset();
     vi.mocked(Notification.send).mockReset();
     process.env['QUEUE_DRIVER'] = 'memory';
     process.env['QUEUE_LOCK_PREFIX'] = 'test:';
@@ -96,7 +96,13 @@ describe('QueueWorkRunner releaseAfter handling', () => {
     const driver = makeDriver(messages);
     Queue.register('test', driver);
 
-    vi.mocked(Broadcast.send).mockResolvedValueOnce(undefined);
+    vi.mocked(Broadcast.publish).mockResolvedValueOnce({
+      ok: true,
+      transport: 'driver',
+      channels: ['chan'],
+      event: 'evt',
+      driver: 'inmemory',
+    });
 
     await QueueWorkRunner.run({
       queueName: 'test-queue',

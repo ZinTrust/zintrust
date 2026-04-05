@@ -34,8 +34,35 @@ describe('queue monitor dashboard UI', () => {
 
     expect(html).toContain("const ALL_QUEUES = '__all__';");
     expect(html).toContain(
-      "text: 'All queues (' + totalWaiting + ' waiting, ' + totalFailed + ' failed)'"
+      "text: 'All queues (' + totalWaiting + ' waiting, ' + totalFailed + ' failed, ' + totalCompleted + ' completed)'"
     );
+    expect(html).toContain("text: q.name + ' (' + formatQueueOptionCounts(q.counts) + ')'");
     expect(html).toContain('preferredQueue === ALL_QUEUES');
+  });
+
+  it('avoids mutating the queue select while the control has focus', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    });
+
+    expect(html).toContain('if (document.activeElement === select) {');
+    expect(html).not.toContain('option.selected = item.value === nextQueue;');
+  });
+
+  it('rebuilds the jobs table from reused row and detail nodes to avoid duplicate expanders', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    });
+
+    expect(html).toContain('const existingDetailRows = getExistingJobDetailRows(tbody);');
+    expect(html).toContain(
+      'fragment.appendChild(buildOrUpdateJobDetailRow(job, existingDetailRows.get(jobId)));'
+    );
+    expect(html).toContain('tbody.replaceChildren(fragment);');
+    expect(html).not.toContain('tbody.appendChild(row);');
   });
 });

@@ -1,5 +1,6 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { formatHttpRequestLog } from '@http/HttpStatus';
 import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';
 import type { IResponse } from '@http/Response';
@@ -19,7 +20,9 @@ const getStatusSafe = (res: IResponse): number => {
 export const LoggingMiddleware = Object.freeze({
   create(options: LoggingOptions = {}): Middleware {
     const enabled: boolean =
-      typeof options.enabled === 'boolean' ? options.enabled : Boolean(Env.LOG_HTTP_REQUEST);
+      typeof options.enabled === 'boolean'
+        ? options.enabled
+        : Env.getBool('LOG_HTTP_REQUEST', true);
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
       if (enabled === false) {
@@ -34,19 +37,21 @@ export const LoggingMiddleware = Object.freeze({
       const requestId = ctx?.requestId ?? (req.context['requestId'] as string);
       const traceId = ctx?.traceId;
 
-      const prefix =
-        typeof traceId === 'string' && traceId.trim() !== ''
-          ? `[${requestId} trace=${traceId}]`
-          : `[${requestId}]`;
-
-      Logger.info(`${prefix} ↓ ${method} ${path}`);
-
       try {
         await next();
       } finally {
         const durationMs = Date.now() - start;
         const status = getStatusSafe(res);
-        Logger.info(`${prefix} ↑ ${method} ${path} ${status} ${durationMs}ms`);
+        Logger.info(
+          formatHttpRequestLog({
+            method,
+            path,
+            status,
+            durationMs,
+            requestId,
+            traceId,
+          })
+        );
       }
     };
   },

@@ -1,48 +1,165 @@
 # Broadcasting
 
-ZinTrust includes a broadcasting toolkit for publishing events via pluggable drivers.
+ZinTrust core owns server-side broadcast publishing. Application developers should not need to build custom publish helpers, runtime branches, header adapters, or project-local `/broadcast/send` bridges just to emit an event.
 
-## Core API
+## Default Developer Contract
 
-The main entrypoint is `Broadcast.send(channel, event, data)`.
+Use the framework API directly:
+
+```ts
+import { Broadcast } from '@zintrust/core';
+
+await Broadcast.publish({
+  channel: 'private-user.123',
+  event: 'profile.updated',
+  data: {
+    id: 123,
+    name: 'Ada',
+  },
+});
+```
+
+For queued delivery, use the matching framework method:
+
+```ts
+await Broadcast.publishLater({
+  channel: 'private-user.123',
+  event: 'profile.updated',
+  data: {
+    id: 123,
+    name: 'Ada',
+  },
+});
+```
+
+That is the supported default path. Do not create an app-local helper such as `sendBroadcast(...)` unless you have an application-specific reason to wrap the payload shape.
+
+## What Core Owns
+
+`Broadcast.publish(...)` is the framework-owned server-side publish abstraction. In `delivery: 'auto'` mode, core decides whether to publish through:
+
+- the active socket runtime when sockets are enabled
+- the configured broadcast driver when socket delivery is unavailable
+
+The application does not need to decide between Node, Cloudflare, queue-worker, or socket-runtime publishing paths manually.
+
+## Immediate Publish
+
+### Primary API
+
+```ts
+import { Broadcast } from '@zintrust/core';
+
+await Broadcast.publish({
+  channel: 'orders.42',
+  event: 'order.updated',
+  data: {
+    id: 42,
+    status: 'paid',
+  },
+});
+```
+
+### Multiple Channels
+
+```ts
+await Broadcast.publish({
+  channels: ['public-orders', 'private-user.42'],
+  event: 'order.updated',
+  data: {
+    id: 42,
+    status: 'paid',
+  },
+});
+```
+
+### Delivery Control
+
+`Broadcast.publish(...)` accepts an optional `delivery` mode:
+
+- `auto` (default): prefer the framework-owned socket runtime when available, otherwise fall back to the configured broadcaster
+- `socket`: require socket-runtime delivery and fail if that surface is unavailable
+- `driver`: skip the socket runtime and send through the configured broadcaster directly
 
 Example:
 
-    	import { Broadcast } from '@zintrust/core';
+```ts
+await Broadcast.publish({
+  channel: 'private-user.7',
+  event: 'profile.changed',
+  data: { id: 7 },
+  delivery: 'socket',
+});
+```
 
-    	await Broadcast.send('notifications', 'user.created', {
-    		id: 'user_123',
-    		email: 'hello@example.com',
-    	});
+### Named Broadcasters
 
-    ### Explicit “now” vs queued “later”
+If you explicitly want a configured broadcaster instead of `delivery: 'auto'`, use `Broadcast.broadcaster(name)`:
 
-    `Broadcast.send(...)` already sends immediately. For explicit intent, you can use `broadcastNow(...)`.
+```ts
+await Broadcast.broadcaster('redis').publish({
+  channel: 'ops.alerts',
+  event: 'job.failed',
+  data: { id: 'job-1' },
+});
+```
 
-    ```ts
-    import { Broadcast, BroadcastWorker } from '@zintrust/core';
+## Queued Publish
 
-    // Immediate
-    await Broadcast.send('user.123', 'user.updated', { name: 'John Doe' });
-    await Broadcast.broadcastNow('user.456', 'user.created', { name: 'Jane Smith' });
+Use `Broadcast.publishLater(...)` when you want the framework queue to deliver the event asynchronously:
 
-    // Queue for later processing
-    await Broadcast.BroadcastLater('user.789', 'user.deleted', { id: 789 });
+```ts
+await Broadcast.publishLater({
+  channel: 'admin.alerts',
+  event: 'system.alert',
+  data: { severity: 'high' },
+});
 
-    // Schedule for a specific time (timestamp is milliseconds since epoch)
-    const futureTime = Date.now() + 5 * 60 * 1000;
-    await Broadcast.BroadcastLater('user.999', 'user.reminder', { id: 999 }, { timestamp: futureTime });
+const futureTime = Date.now() + 5 * 60 * 1000;
 
-    // Custom queue name
-    await Broadcast.BroadcastLater('admin.alerts', 'system.alert', { severity: 'high' }, {
-      queueName: 'priority-broadcasts',
-    });
+await Broadcast.publishLater(
+  {
+    channel: 'user.999',
+    event: 'user.reminder',
+    data: { id: 999 },
+  },
+  { timestamp: futureTime }
+);
 
-    // Cron/supervisor-friendly: drain queue once
-    await BroadcastWorker.processAll('broadcasts');
-    ```
+await Broadcast.queue('priority-broadcasts').publishLater({
+  channel: 'admin.alerts',
+  event: 'system.alert',
+  data: { severity: 'high' },
+});
+```
 
-The driver used is selected by `BROADCAST_DRIVER`.
+Queued broadcasts are processed by `BroadcastWorker` or the CLI worker commands described below.
+
+## Compatibility Aliases
+
+ZinTrust keeps older helpers for migration and backward compatibility:
+
+- `Broadcast.send(channel, event, data)`
+- `Broadcast.broadcastNow(channel, event, data)`
+- `Broadcast.BroadcastLater(channel, event, data, options)`
+
+They continue to work, but treat them as compatibility surfaces. New application code should prefer `Broadcast.publish(...)` and `Broadcast.publishLater(...)`.
+
+## What You Do Not Need To Build
+
+With the framework-owned publish API in place, application code should not need:
+
+- a local wrapper whose only job is to call `Broadcast.publish(...)`
+- a custom `/broadcast/send` route for normal app-to-runtime publishing
+- runtime checks for Node versus Cloudflare versus worker mode
+- custom socket publish headers or app-id resolution
+- host loopback retries or internal socket path construction
+
+If you expose a custom broadcast route, treat it as an external integration surface, not as the normal way your application publishes its own events.
+
+## Driver Configuration
+
+The configured fallback broadcaster still comes from `BROADCAST_CONNECTION` or `BROADCAST_DRIVER`. See [config-broadcast.md](./config-broadcast.md) for the full driver and env reference.
 
 ## Drivers
 
@@ -91,15 +208,16 @@ Publishes via an HTTP endpoint that accepts Redis commands (useful when you can�
     REDIS_HTTPS_TIMEOUT=5000
     BROADCAST_CHANNEL_PREFIX=broadcast:
 
-## Where to look in the codebase
+## Where To Look In The Codebase
 
 - Toolkit: `src/tools/broadcast/Broadcast.ts`
 - Config/env mapping: `src/config/broadcast.ts`
 - Drivers: `src/tools/broadcast/drivers/`
+- Socket runtime routes and internal publish surface: `packages/socket/src/index.ts`
 
 ## Running queued broadcasts (cron / supervisor)
 
-`Broadcast.BroadcastLater(...)` enqueues jobs. Nothing will process that queue unless you run a worker.
+`Broadcast.publishLater(...)` enqueues jobs. Nothing will process that queue unless you run a worker.
 
 ### CLI (recommended)
 

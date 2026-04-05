@@ -4,6 +4,7 @@
  */
 
 import { Logger } from '@config/logger';
+import { formatHttpRequestLog } from '@http/HttpStatus';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';
@@ -102,13 +103,18 @@ export const loggingMiddleware = async (
   const method = req.getMethod();
   const path = req.getPath();
 
-  Logger.info(`→ ${method} ${path}`);
-
   await next();
 
   const duration = Date.now() - startTime;
   const status = res.getStatus();
-  Logger.info(`← ${status} ${method} ${path} (${duration}ms)`);
+  Logger.info(
+    formatHttpRequestLog({
+      method,
+      path,
+      status,
+      durationMs: duration,
+    })
+  );
 };
 
 /**

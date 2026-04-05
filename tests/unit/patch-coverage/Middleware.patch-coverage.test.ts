@@ -231,8 +231,8 @@ describe('patch coverage: Middleware', () => {
     req.getPath = () => '/p';
     res._calls.status = 201;
     await loggingMiddleware(req, res, next);
-    // Logger.info is mocked; ensure it was called at least twice
     const { Logger } = await import('@config/logger');
-    expect((Logger.info as any).mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect((Logger.info as any).mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect((Logger.info as any).mock.calls[0][0]).toContain('[POST] /p 201 Created');
   });
 });

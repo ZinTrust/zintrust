@@ -171,8 +171,6 @@ const runKernelPipeline = async (
   context: IRequestContext,
   traceSpan: KernelTraceSpan | undefined
 ): Promise<string> => {
-  Logger.info(`[${req.getMethod()}] ${req.getPath()}`);
-
   const route = resolveRouteWithPreflightFallback(router, req.getMethod(), req.getPath());
   if (route === null) {
     const routeLabel = 'not_found';

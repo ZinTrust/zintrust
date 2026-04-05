@@ -10,7 +10,6 @@ import type { MiddlewareKey } from '@config/middleware';
 import { type IRouter, Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
-import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerStorageRoutes } from '@routes/storage';
 import { getRuntimeMode } from '@runtime/detectRuntime';
 import { ErrorFactory } from '@zintrust/core';
@@ -36,7 +35,6 @@ export function registerRoutes(router: IRouter): void {
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
   registerHealthRoute(router);
-  registerBroadcastRoutes(router);
   registerStorageRoutes(router);
 }
 

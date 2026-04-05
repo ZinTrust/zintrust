@@ -16,11 +16,15 @@ import { Broadcast, broadcastConfig } from '@zintrust/core';
 // Resolve the active config (based on env + defaults)
 const defaultCfg = broadcastConfig.getDriverConfig();
 
-// Send using the default broadcaster
-await Broadcast.send('channel', 'event', { ok: true });
+// Framework-owned publish abstraction (recommended)
+await Broadcast.publish({ channel: 'channel', event: 'event', data: { ok: true } });
 
 // Send using a specific named broadcaster
-await Broadcast.broadcaster('redis').send('channel', 'event', { ok: true });
+await Broadcast.broadcaster('redis').publish({
+  channel: 'channel',
+  event: 'event',
+  data: { ok: true },
+});
 ```
 
 ## Environment Variables
@@ -81,13 +85,15 @@ The `Broadcast` helper attempts to use this registry lazily. If nothing is regis
 
 The `Broadcast` helper exposes:
 
-- `Broadcast.send(channel, event, data)` – sends immediately
-- `Broadcast.broadcastNow(channel, event, data)` – explicit alias for immediate send
-- `Broadcast.BroadcastLater(channel, event, data, { queueName?, timestamp? })` – enqueue for async processing (see `src/workers/BroadcastWorker.ts`)
-- `Broadcast.queue('name').BroadcastLater(...)` – pick a queue name
-- `Broadcast.broadcaster('name').send(...)` – send using a named broadcaster
+- `Broadcast.publish({ channel|channels, event|name, data, delivery?, broadcaster? })` – framework-owned publish API
+- `Broadcast.publishLater(input, { queueName?, timestamp? })` – enqueue a publish job
+- `Broadcast.queue('name').publishLater(input)` – pick a queue name
+- `Broadcast.broadcaster('name').publish(input)` – force a named broadcaster
+- `Broadcast.send(...)`, `Broadcast.broadcastNow(...)`, and `Broadcast.BroadcastLater(...)` – legacy migration aliases
 
-If you need to expose runtime endpoints for broadcasting (e.g., for internal tools), see the built-in route template in `routes/broadcast.ts`.
+If sockets are enabled, `Broadcast.publish({ delivery: 'auto' })` prefers the framework-owned socket runtime and its reserved `POST /apps/:appId/events` surface automatically. Application code does not need to build custom publish headers or route bridges for the normal publish path.
+
+If you need to expose runtime endpoints for external tools, see the optional route template in `routes/broadcast.ts`.
 
 ## Customizing Drivers in an App
 

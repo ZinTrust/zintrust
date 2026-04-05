@@ -7,7 +7,6 @@ import { AuthController } from '@app/Controllers/AuthController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env , Router } from '@zintrust/core';
 import type { MiddlewareKey ,  IRouter , IResponse, IRequest} from '@zintrust/core';
-import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerStorageRoutes } from '@routes/storage';
 
 export function registerRoutes(router: IRouter): void {
@@ -23,7 +22,6 @@ export function registerRoutes(router: IRouter): void {
  */
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
-  registerBroadcastRoutes(router);
   registerStorageRoutes(router);
 }
 

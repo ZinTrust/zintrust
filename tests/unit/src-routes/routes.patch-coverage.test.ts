@@ -76,7 +76,7 @@ vi.mock('@/health/RuntimeHealthProbes', () => ({
 
 vi.mock('@broadcast/Broadcast', () => ({
   Broadcast: {
-    send: vi.fn(async () => ({ ok: true })),
+    publish: vi.fn(async () => ({ ok: true })),
   },
 }));
 
@@ -306,7 +306,7 @@ describe('src/routes/* patch coverage', () => {
 
       const res3 = createRes();
       await send.handler({ body: { channel: 'c', event: 'e', data: { x: 1 } } } as any, res3);
-      expect(Broadcast.send).toHaveBeenCalledWith('c', 'e', { x: 1 });
+      expect(Broadcast.publish).toHaveBeenCalledWith({ channel: 'c', event: 'e', data: { x: 1 } });
       expect(res3.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
     });
   });

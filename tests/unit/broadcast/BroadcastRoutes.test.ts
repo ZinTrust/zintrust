@@ -3,7 +3,7 @@ import { registerBroadcastRoutes } from '@routes/broadcast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockSend = vi.fn(async () => ({ ok: true }));
-vi.mock('@broadcast/Broadcast', () => ({ Broadcast: { send: mockSend } }));
+vi.mock('@broadcast/Broadcast', () => ({ Broadcast: { publish: mockSend } }));
 
 describe('Broadcast routes', () => {
   let router: ReturnType<typeof Router.createRouter>;
@@ -13,7 +13,7 @@ describe('Broadcast routes', () => {
     vi.resetAllMocks();
   });
 
-  it('registers POST /broadcast/send and delegates to Broadcast.send', async () => {
+  it('registers POST /broadcast/send and delegates to Broadcast.publish', async () => {
     const match = Router.match(router, 'POST', '/broadcast/send');
     expect(match).not.toBeNull();
     const handler = match?.handler as any;
@@ -25,7 +25,7 @@ describe('Broadcast routes', () => {
     // Call handler
     await handler(req, res);
 
-    expect(mockSend).toHaveBeenCalledWith('test', 'Ev', { x: 1 });
+    expect(mockSend).toHaveBeenCalledWith({ channel: 'test', event: 'Ev', data: { x: 1 } });
     expect(jsonMock).toHaveBeenCalledWith({ ok: true, result: { ok: true } });
   });
 

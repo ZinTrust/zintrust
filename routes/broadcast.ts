@@ -1,8 +1,8 @@
 /**
  * Broadcast Routes
  *
- * Runtime-only endpoints for broadcast.
- * Provider setup and secret provisioning remain CLI-only.
+ * Legacy compatibility endpoints for external tools.
+ * Regular application code should call Broadcast.publish(...) directly.
  */
 
 import { type IRouter, Router } from '@core-routes/Router';
@@ -26,7 +26,7 @@ export function registerBroadcastRoutes(router: IRouter): void {
     }
 
     const { Broadcast } = await import('@broadcast/Broadcast');
-    const result = await Broadcast.send(channel, event, data);
+    const result = await Broadcast.publish({ channel, event, data });
     res.json({ ok: true, result });
   });
 }

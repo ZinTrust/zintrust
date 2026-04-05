@@ -1,11 +1,23 @@
-/* eslint-disable no-console */
 import { LoggingMiddleware } from '@/middleware/LoggingMiddleware';
-import type { Mock} from 'vitest';
+import { Logger } from '@config/logger';
+import type { Mock } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@config/env', () => ({
+  Env: {
+    getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? true),
+  },
+}));
+
+vi.mock('@config/logger', () => ({
+  Logger: {
+    info: vi.fn(),
+  },
+}));
 
 describe('LoggingMiddleware additional branches', () => {
   beforeEach(() => {
-    vi.spyOn(console, 'log').mockImplementation(() => undefined as any);
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -22,7 +34,7 @@ describe('LoggingMiddleware additional branches', () => {
     });
 
     expect(nextCalled).toBe(true);
-    expect(console.log).not.toHaveBeenCalled();
+    expect(Logger.info).not.toHaveBeenCalled();
   });
 
   it('logs with getStatus function', async () => {
@@ -36,10 +48,11 @@ describe('LoggingMiddleware additional branches', () => {
 
     await mw(req, res, async () => {});
 
-    expect(console.log).toHaveBeenCalledTimes(2);
-    const last = (console.log as unknown as Mock).mock.calls[1][0] as string;
-    expect(last).toContain('201');
-    expect(last).toMatch(/\d+ms/);
+    expect(Logger.info).toHaveBeenCalledTimes(1);
+    const last = (Logger.info as unknown as Mock).mock.calls[0][0] as string;
+    expect(last).toContain('[POST] /y 201 Created');
+    expect(last).toContain('[requestId=rid]');
+    expect(last).toMatch(/\(\d+ms\)/);
   });
 
   it('logs with statusCode fallback', async () => {
@@ -53,9 +66,9 @@ describe('LoggingMiddleware additional branches', () => {
 
     await mw(req, res, async () => {});
 
-    expect(console.log).toHaveBeenCalledTimes(2);
-    const last = (console.log as unknown as Mock).mock.calls[1][0] as string;
-    expect(last).toContain('404');
+    expect(Logger.info).toHaveBeenCalledTimes(1);
+    const last = (Logger.info as unknown as Mock).mock.calls[0][0] as string;
+    expect(last).toContain('[PUT] /z 404 Not Found');
   });
 
   it('honors Env.LOG_HTTP_REQUEST when options omitted', async () => {
@@ -69,14 +82,9 @@ describe('LoggingMiddleware additional branches', () => {
 
     await mw(req, res, async () => {});
 
-    // Behavior depends on Env.LOG_HTTP_REQUEST (set at import-time) — assert accordingly
-    // Importing Env here to read current test environment value
-    const { Env } = await import('@config/env');
-    if (Env.LOG_HTTP_REQUEST) {
-      expect(console.log).toHaveBeenCalledTimes(2);
-    } else {
-      expect(console.log).not.toHaveBeenCalled();
-    }
+    expect(Logger.info).toHaveBeenCalledTimes(1);
+    const last = (Logger.info as unknown as Mock).mock.calls[0][0] as string;
+    expect(last).toContain('[GET] /auto 200 OK');
   });
 
   it('logs default 200 when no status method or code present', async () => {
@@ -90,8 +98,10 @@ describe('LoggingMiddleware additional branches', () => {
 
     await mw(req, res, async () => {});
 
-    expect(console.log).toHaveBeenCalledTimes(2);
-    const last = (console.log as unknown as Mock).mock.calls[1][0] as string;
-    expect(last).toContain('200');
+    expect(Logger.info).toHaveBeenCalledTimes(1);
+    const last = (Logger.info as unknown as Mock).mock.calls[0][0] as string;
+    expect(last).toContain('[GET] /default 200 OK');
+    expect(last).toContain('[requestId=rid-default]');
+    expect(last).toMatch(/\(\d+ms\)/);
   });
 });
