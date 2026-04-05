@@ -149,7 +149,16 @@ const normalizeSocketPath = (value: string): string => {
   if (trimmed === '' || trimmed === '/') return '/app';
 
   const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return normalized.length > 1 ? normalized.replace(/\/+$/, '') : normalized;
+  if (normalized.length <= 1) {
+    return normalized;
+  }
+
+  let end = normalized.length;
+  while (end > 1 && normalized[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return end === normalized.length ? normalized : normalized.slice(0, end);
 };
 
 const pickFirstNonEmpty = (...values: string[]): string => {
