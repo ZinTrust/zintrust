@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/db-postgres",
-  "version": "0.4.52",
+  "version": "0.4.53",
   "description": "PostgreSQL database adapter for ZinTrust.",
   "private": false,
   "type": "module",
@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.4.52"
+    "@zintrust/core": "^0.4.53"
   },
   "publishConfig": {
     "access": "public"
