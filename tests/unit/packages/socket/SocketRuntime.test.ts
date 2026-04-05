@@ -148,15 +148,15 @@ describe('@zintrust/socket', () => {
     expect(Router.match(router, 'POST', '/broadcasting/auth')?.middleware).toEqual(['auth', 'jwt']);
   });
 
-  it('rejects duplicate reserved auth routes unless explicit override is enabled', async () => {
+  it('preserves an application-owned auth route by default', async () => {
     const { registerSocketRoutes } = await import('@zintrust/socket');
     const router = Router.createRouter();
+    const appOwnedAuthRoute = vi.fn(() => undefined);
 
-    Router.post(router, '/broadcasting/auth', () => undefined);
+    Router.post(router, '/broadcasting/auth', appOwnedAuthRoute);
 
-    expect(() => registerSocketRoutes(router)).toThrow(
-      'Socket compatibility route POST /broadcasting/auth is reserved while sockets are enabled.'
-    );
+    expect(() => registerSocketRoutes(router)).not.toThrow();
+    expect(Router.match(router, 'POST', '/broadcasting/auth')?.handler).toBe(appOwnedAuthRoute);
   });
 
   it('allows application-owned auth routes when explicit override is enabled', async () => {

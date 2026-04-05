@@ -252,5 +252,3 @@ export { deno };
  * AWS Lambda handler.
  */
 export { handler };
-
-export { ZintrustSocketHub } from '@zintrust/socket';

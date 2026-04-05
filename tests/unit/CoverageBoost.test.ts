@@ -700,7 +700,7 @@ describe('SecretsManager', () => {
 describe('ConnectionManager', () => {
   it('should manage connection pool', async () => {
     // Mock the database operations to avoid actual connections
-    vi.mock('@orm/ConnectionManager', () => ({
+    vi.doMock('@orm/ConnectionManager', () => ({
       ConnectionManager: {
         getInstance: () => ({
           getConnection: vi.fn().mockResolvedValue({ id: 'mock-connection' }),

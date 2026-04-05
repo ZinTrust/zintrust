@@ -748,7 +748,7 @@ const shouldUseCloudflareHub = (settings: SocketFeatureSettings): boolean => {
 
 const parseJsonResponse = async (response: Response): Promise<unknown> => {
   try {
-    return (await response.clone().json()) as unknown;
+    return await response.clone().json();
   } catch {
     try {
       return await response.text();
@@ -1194,18 +1194,16 @@ const publishEvent = async (req: IRequest, res: IResponse): Promise<void> => {
 const registerSocketRoutes = (router: IRouter): void => {
   const settings = getSocketRuntimeSettings();
   const allowAuthRouteOverride = isSocketAuthRouteOverrideEnabled();
+  const hasExistingAuthRoute = routeExists(router, 'POST', '/broadcasting/auth');
 
   assertReservedSocketRouteAvailable(router, 'GET', `${settings.path}/:appKey`);
-  assertReservedSocketRouteAvailable(router, 'POST', '/broadcasting/auth', {
-    allowOverride: true,
-  });
   assertReservedSocketRouteAvailable(router, 'POST', '/apps/:appId/events');
 
   Router.get(router, `${settings.path}/:appKey`, respondUpgradeRequired);
-  if (allowAuthRouteOverride) {
-    if (!routeExists(router, 'POST', '/broadcasting/auth')) {
-      Logger.warn(
-        'SOCKET_ALLOW_AUTH_ROUTE_OVERRIDE=true but POST /broadcasting/auth is not registered by the application.'
+  if (hasExistingAuthRoute) {
+    if (!allowAuthRouteOverride) {
+      Logger.info(
+        'Detected existing application-owned POST /broadcasting/auth route; preserving it while sockets are enabled.'
       );
     }
   } else {

@@ -12,7 +12,9 @@ import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 
 import { bootStandaloneService, configureStandaloneService, isNodeMain } from '@/start';
 
-const createCloudflareWorkerModule = (fetchImpl?: ((...args: unknown[]) => Promise<Response>) | null) => ({
+const createCloudflareWorkerModule = (
+  fetchImpl?: ((...args: unknown[]) => Promise<Response>) | null
+) => ({
   fetch: fetchImpl,
   ZintrustSocketHub: class {},
 });
@@ -168,10 +170,10 @@ describe('start helpers', () => {
     await expect(start()).resolves.toBeUndefined();
   });
 
-  it('re-exports the socket durable object from the shared start entry', async () => {
+  it('does not re-export the socket durable object from the shared start entry', async () => {
     const mod = await import('@/start');
 
-    expect(mod.ZintrustSocketHub).toBeTypeOf('function');
+    expect('ZintrustSocketHub' in mod).toBe(false);
   });
 
   it('uses the default worker export when the cloudflare module is a namespace object', async () => {
