@@ -219,7 +219,7 @@ describe('QueueRecoveryCommand', () => {
       'emails',
       expect.objectContaining({
         to: 'user@example.com',
-        uniqueId: 'job-123',
+        jobId: 'job-123',
         attempts: 3,
         _currentAttempts: 0,
       }),

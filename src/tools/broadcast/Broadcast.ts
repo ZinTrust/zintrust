@@ -52,6 +52,19 @@ type NormalizedBroadcastPublishInput = Readonly<{
   user?: unknown;
 }>;
 
+type QueuedBroadcastPayload = Readonly<{
+  type: 'broadcast';
+  channel?: string;
+  channels: readonly string[];
+  event: string;
+  data: unknown;
+  socketId?: string;
+  broadcaster?: string;
+  delivery: BroadcastDeliveryMode;
+  timestamp: number;
+  attempts: number;
+}>;
+
 export type BroadcastPublishResult = Readonly<{
   ok: true;
   transport: BroadcastTransport;
@@ -624,7 +637,7 @@ const publishLaterInternal = async (
   const { queueName = 'broadcasts', timestamp = Date.now() } = options;
   const { Queue } = await import('@tools/queue/Queue');
 
-  return Queue.enqueue(queueName, {
+  const payload: QueuedBroadcastPayload = {
     type: 'broadcast',
     channel: normalized.channels[0],
     channels: normalized.channels,
@@ -635,7 +648,19 @@ const publishLaterInternal = async (
     delivery: normalized.delivery,
     timestamp,
     attempts: 0,
+  };
+
+  Logger.debug('Broadcast queued publish prepared', {
+    queueName,
+    channels: payload.channels,
+    compatibilityChannel: payload.channel,
+    event: payload.event,
+    delivery: payload.delivery,
+    broadcaster: payload.broadcaster,
+    timestamp: payload.timestamp,
   });
+
+  return Queue.enqueue(queueName, payload);
 };
 
 export const Broadcast = Object.freeze({

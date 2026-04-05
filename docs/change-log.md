@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-05
 
+- Clarified queued broadcast delivery in core so queued payloads treat `channels` as the authoritative resolved target list, keep legacy `channel` only as derived compatibility metadata, and ensure framework-owned broadcast workers publish from `channels` while preserving socket, delivery, and broadcaster metadata.
 - Added strict helper type guards `isNullish(...)` and `isDefined(...)` so application code can get correct TypeScript narrowing for `null | undefined` checks without changing the legacy null-like semantics of `isUndefinedOrNull(...)`.
 - Enabled fresh-project request-path logging by default, added scaffolded `LOG_COLOR=true` and `LOG_COLOR_THEME=arctic` entries for colored text request logs, and aligned the documented logging env defaults with the runtime behavior.
 - Hardened `Broadcast.publish(...)` so core now normalizes `channelScope`, tries the package-owned internal socket publish route before falling back to in-process socket or driver delivery, reports explicit transport attempts including `internal-http`, and surfaces clearer official-plugin auto-import failure details when optional packages are missing or broken.

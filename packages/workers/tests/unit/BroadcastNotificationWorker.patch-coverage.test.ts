@@ -95,17 +95,50 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
 
     queueMock.dequeue.mockResolvedValueOnce({
       id: 'b1',
-      payload: { channel: 'c', event: 'e', data: { ok: true }, timestamp: 1 },
+      payload: {
+        channel: 'legacy-only',
+        channels: ['private-user.10', 'private-user.11'],
+        event: 'e',
+        data: { ok: true },
+        delivery: 'driver',
+        broadcaster: 'redis',
+        socketId: 'socket-1',
+        timestamp: 1,
+      },
       attempts: 0,
     });
 
     await expect(BroadcastWorker.processOne('broadcasts')).resolves.toBe(true);
     expect(broadcastMock.publish).toHaveBeenCalledWith({
-      channel: 'c',
+      channels: ['private-user.10', 'private-user.11'],
       event: 'e',
       data: { ok: true },
+      delivery: 'driver',
+      broadcaster: 'redis',
+      socketId: 'socket-1',
     });
     expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'b1', undefined);
+  });
+
+  it('BroadcastWorker falls back to a legacy single channel when channels are absent', async () => {
+    const { BroadcastWorker } = await import('@zintrust/workers');
+
+    queueMock.dequeue.mockResolvedValueOnce({
+      id: 'b2',
+      payload: { channel: 'legacy-channel', event: 'e2', data: { ok: true }, timestamp: 2 },
+      attempts: 0,
+    });
+
+    await expect(BroadcastWorker.processOne('broadcasts')).resolves.toBe(true);
+    expect(broadcastMock.publish).toHaveBeenCalledWith({
+      channels: ['legacy-channel'],
+      event: 'e2',
+      data: { ok: true },
+      delivery: undefined,
+      broadcaster: undefined,
+      socketId: undefined,
+    });
+    expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'b2', undefined);
   });
 
   it('NotificationWorker.processOne uses Notification.send', async () => {

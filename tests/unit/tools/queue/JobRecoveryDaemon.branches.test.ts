@@ -106,7 +106,7 @@ describe('JobRecoveryDaemon (branches)', () => {
 
     expect(out).toBe('requeued');
     const payload = enqueueMock.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(payload['uniqueId']).toBe('j');
+    expect(payload['jobId']).toBe('j');
     expect(payload['timestamp']).toBe(new Date('2026-01-01T00:01:00.000Z').getTime());
     expect(JobStateTracker.get('q', 'j')?.status).toBe('enqueued');
   });

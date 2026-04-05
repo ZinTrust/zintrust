@@ -277,7 +277,9 @@ describe('Broadcast (later + now patch coverage)', () => {
   it('parses raw internal-http error bodies and falls back to the socket transport', async () => {
     setBroadcastEnv({ BASE_URL: 'http://127.0.0.1:7788', PUSHER_APP_ID: 'internal-app' });
     const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({ Logger: { warn: loggerWarn, error: vi.fn() } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
+    }));
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => createJsonResponse('not-json', 500))
@@ -311,7 +313,9 @@ describe('Broadcast (later + now patch coverage)', () => {
     setBroadcastEnv({ APP_URL: 'http://localhost:7788', PUSHER_APP_ID: 'loopback-app' });
     const fetchMock = vi.fn().mockRejectedValue('boom');
     const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({ Logger: { warn: loggerWarn, error: vi.fn() } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
+    }));
     vi.stubGlobal('fetch', fetchMock);
     vi.doMock('@zintrust/socket', () => ({
       publishSocketEventFromServer: vi.fn(async () => {
@@ -436,6 +440,26 @@ describe('Broadcast (later + now patch coverage)', () => {
     );
   });
 
+  it('publishLater keeps channels authoritative and stores channel only as derived compatibility metadata', async () => {
+    const { Broadcast } = await import('@broadcast/Broadcast');
+
+    await expect(
+      Broadcast.publishLater({
+        channels: ['private-user.10', 'private-user.11'],
+        event: 'session.revoked',
+        data: { byAdmin: true },
+      })
+    ).resolves.toBe('msg-1');
+
+    expect(queueMock.enqueue).toHaveBeenCalledWith(
+      'broadcasts',
+      expect.objectContaining({
+        channel: 'private-user.10',
+        channels: ['private-user.10', 'private-user.11'],
+      })
+    );
+  });
+
   it('publishLater applies channelScope normalization before queueing', async () => {
     const { Broadcast } = await import('@broadcast/Broadcast');
 
@@ -520,9 +544,9 @@ describe('Broadcast (later + now patch coverage)', () => {
     }));
 
     const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
-    ).rejects.toBe(validationError);
+    await expect(Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })).rejects.toBe(
+      validationError
+    );
   });
 
   it('rethrows SECURITY_ERROR socket errors in auto delivery mode instead of falling back to driver', async () => {
@@ -537,9 +561,9 @@ describe('Broadcast (later + now patch coverage)', () => {
     }));
 
     const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
-    ).rejects.toBe(securityError);
+    await expect(Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })).rejects.toBe(
+      securityError
+    );
   });
 
   it('falls back to driver for plain socket errors (socket unavailable) in auto delivery mode', async () => {
