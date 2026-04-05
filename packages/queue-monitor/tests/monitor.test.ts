@@ -8,16 +8,14 @@ vi.mock('bullmq', () => {
     Queue: class {
       add = vi.fn().mockResolvedValue({ id: '1' });
       getJob = vi.fn();
-      getJobCounts = vi
-        .fn()
-        .mockResolvedValue({
-          active: 0,
-          waiting: 0,
-          completed: 0,
-          failed: 0,
-          delayed: 0,
-          paused: 0,
-        });
+      getJobCounts = vi.fn().mockResolvedValue({
+        active: 0,
+        waiting: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+        paused: 0,
+      });
       close = vi.fn();
     },
     Worker: class {
@@ -44,6 +42,24 @@ vi.mock('ioredis', () => {
     },
   };
 });
+
+vi.mock('../src/connection', () => ({
+  createRedisConnection: vi.fn(() => ({
+    scan: vi.fn().mockResolvedValue(['0', []]),
+    mget: vi.fn().mockResolvedValue([null, null, null]),
+    hincrby: vi.fn().mockResolvedValue(1),
+    expire: vi.fn().mockResolvedValue(1),
+    lpush: vi.fn().mockResolvedValue(1),
+    ltrim: vi.fn().mockResolvedValue('OK'),
+    pipeline: vi.fn(() => ({
+      hgetall: vi.fn(),
+      exec: vi.fn().mockResolvedValue([]),
+    })),
+    lrange: vi.fn().mockResolvedValue([]),
+    quit: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn(),
+  })),
+}));
 
 describe('QueueMonitor', () => {
   const redisConfig = { host: 'localhost', port: 6379 };
