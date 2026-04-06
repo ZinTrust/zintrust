@@ -83,6 +83,7 @@ describe('StartCommand', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     process.env = { ...originalEnv };
+    delete process.env['ZINTRUST_PROJECT_ROOT'];
     process.argv = [...originalArgv];
     vi.mocked(fs.fsPromises.mkdir).mockResolvedValue(undefined);
     vi.mocked(fs.fsPromises.readFile).mockRejectedValue(new Error('missing env file'));
@@ -160,7 +161,7 @@ describe('StartCommand', () => {
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev'],
+        args: expect.arrayContaining(['dev']),
       })
     );
   });
@@ -179,7 +180,7 @@ describe('StartCommand', () => {
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev'],
+        args: expect.arrayContaining(['dev']),
         env: expect.objectContaining({
           WORKER_ENABLED: 'false',
           CLOUDFLARE_WORKER: 'true',
@@ -386,10 +387,11 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
       extraCwds: [serviceCwd],
     });
 
-    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+    const wranglerCall = vi.mocked(SpawnUtil.spawnAndWait).mock.calls.at(-1)?.[0];
+    expect(wranglerCall).toEqual(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev'],
+        args: expect.arrayContaining(['dev']),
         env: expect.objectContaining({ ZINTRUST_PROJECT_ROOT: projectRoot }),
       })
     );

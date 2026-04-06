@@ -83,7 +83,8 @@ const safeUnlink = (fullPath: string): void => {
 
 const readDirSafe = (dirPath: string): string[] => {
   try {
-    return fs.readdirSync(dirPath);
+    const entries = fs.readdirSync(dirPath);
+    return Array.isArray(entries) ? entries : [];
   } catch {
     return [];
   }

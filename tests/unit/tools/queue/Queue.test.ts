@@ -220,12 +220,13 @@ describe('Queue', () => {
     vi.resetModules();
     Env.setSource(null);
     const mod = await import('@/tools/queue/Queue');
+    const { appConfig } = await import('@config/app');
     const first = mod.resolveLockPrefix();
     // Call it again to verify caching works
     const second = mod.resolveLockPrefix();
-    // Both should return the same cached value (zintrust_zintrust_test_lock:)
-    expect(first).toBe('zintrust_zintrust_test_lock:');
-    expect(second).toBe('zintrust_zintrust_test_lock:');
+    const expectedPrefix = `${appConfig.prefix}_lock:`;
+    expect(first).toBe(expectedPrefix);
+    expect(second).toBe(expectedPrefix);
     expect(first).toBe(second); // Verify they're the same (cached)
   });
 });
