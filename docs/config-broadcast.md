@@ -3,7 +3,7 @@
 Broadcasting is configured via the framework-level `broadcastConfig` object. It is responsible for:
 
 - Selecting a default broadcast driver (from environment variables)
-- Exposing built-in driver config objects (in-memory, Pusher, Redis, Redis HTTPS)
+- Exposing built-in driver config objects (in-memory, Pusher, Redis, Redis HTTPS, HTTP bridge)
 - Resolving named broadcasters (including the reserved alias `default`)
 
 **Source:** `src/config/broadcast.ts`
@@ -46,16 +46,19 @@ Important behavior:
 
 ### Driver-specific variables
 
-| Driver       | Variables                                                                                                                                              | Notes                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `inmemory`   | (none)                                                                                                                                                 | Best for local/dev only; does not broadcast across processes. |
-| `pusher`     | `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET`, `PUSHER_APP_CLUSTER`, `PUSHER_USE_TLS`                                                         | Missing required values cause runtime errors when sending.    |
-| `redis`      | `BROADCAST_REDIS_HOST` (fallback `REDIS_HOST`), `BROADCAST_REDIS_PORT` (fallback `REDIS_PORT`), `BROADCAST_REDIS_PASSWORD` (fallback `REDIS_PASSWORD`) | Uses Redis pub/sub semantics in the driver.                   |
-| `redishttps` | `REDIS_HTTPS_ENDPOINT`, `REDIS_HTTPS_TOKEN`                                                                                                            | Intended for HTTPS-backed Redis proxies.                      |
+| Driver        | Variables                                                                                                                                              | Notes                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `inmemory`    | (none)                                                                                                                                                 | Best for local/dev only; does not broadcast across processes unless automatic isolated-worker bridge settings are configured. |
+| `pusher`      | `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET`, `PUSHER_APP_CLUSTER`, `PUSHER_USE_TLS`                                                         | Missing required values cause runtime errors when sending.                                                                    |
+| `redis`       | `BROADCAST_REDIS_HOST` (fallback `REDIS_HOST`), `BROADCAST_REDIS_PORT` (fallback `REDIS_PORT`), `BROADCAST_REDIS_PASSWORD` (fallback `REDIS_PASSWORD`) | Uses Redis pub/sub semantics in the driver.                                                                                   |
+| `redishttps`  | `REDIS_HTTPS_ENDPOINT`, `REDIS_HTTPS_TOKEN`                                                                                                            | Intended for HTTPS-backed Redis proxies.                                                                                      |
+| `http-bridge` | `BROADCAST_BRIDGE_URL`, `BROADCAST_BRIDGE_SECRET`                                                                                                      | Sends broadcast payloads to a configured HTTP endpoint instead of local process memory.                                       |
 
 Shared:
 
 - `BROADCAST_CHANNEL_PREFIX` (default: `broadcast:`) prefixes channel names for Redis-based drivers.
+- `BROADCAST_BRIDGE_PATH` and `BROADCAST_BRIDGE_PROTOCOL` help build a bridge endpoint from `ZINTRUST_SOCKET_HOST` / `ZINTRUST_SOCKET_PORT` for local worker-container setups.
+- `WORKER_ISOLATED=true` or `DOCKER_WORKER=true` enables automatic HTTP bridging when the selected broadcaster is `inmemory` and bridge endpoint settings are present.
 
 ## Driver Resolution Semantics
 
@@ -92,6 +95,11 @@ The `Broadcast` helper exposes:
 - `Broadcast.send(...)`, `Broadcast.broadcastNow(...)`, and `Broadcast.BroadcastLater(...)` – legacy migration aliases
 
 If sockets are enabled, `Broadcast.publish({ delivery: 'auto' })` prefers the framework-owned socket runtime and its reserved `POST /apps/:appId/events` surface automatically. Application code does not need to build custom publish headers or route bridges for the normal publish path. When `BROADCAST_INTERNAL_URL`, `APP_URL`, or `BASE_URL` points at the running Node app, core first tries the internal publish route and reports `transport: 'internal-http'` on success.
+
+For isolated worker containers, core also supports two HTTP bridge modes without application wrappers:
+
+- Automatic bridge mode: keep `BROADCAST_CONNECTION=inmemory`, set `DOCKER_WORKER=true` or `WORKER_ISOLATED=true`, and configure either `BROADCAST_BRIDGE_URL` or `ZINTRUST_SOCKET_HOST`/`ZINTRUST_SOCKET_PORT`. In that case `Broadcast.publish({ delivery: 'auto' })` tries the configured bridge before the normal socket/driver fallbacks.
+- Dedicated driver mode: set `BROADCAST_CONNECTION=http-bridge` and configure `BROADCAST_BRIDGE_URL` plus `BROADCAST_BRIDGE_SECRET`.
 
 If you need to expose runtime endpoints for external tools, see the optional route template in `routes/broadcast.ts`.
 

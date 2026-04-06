@@ -6,6 +6,10 @@ const queueMock = {
 
 const resetBroadcastEnv = (): void => {
   delete process.env['BROADCAST_INTERNAL_URL'];
+  delete process.env['BROADCAST_BRIDGE_URL'];
+  delete process.env['BROADCAST_BRIDGE_SECRET'];
+  delete process.env['BROADCAST_BRIDGE_PATH'];
+  delete process.env['BROADCAST_BRIDGE_PROTOCOL'];
   delete process.env['APP_URL'];
   delete process.env['BASE_URL'];
   delete process.env['PUSHER_APP_ID'];
@@ -13,6 +17,11 @@ const resetBroadcastEnv = (): void => {
   delete process.env['BROADCAST_SECRET'];
   delete process.env['PUSHER_APP_SECRET'];
   delete process.env['BROADCAST_APP_SECRET'];
+  delete process.env['DOCKER_WORKER'];
+  delete process.env['WORKER_ISOLATED'];
+  delete process.env['ZINTRUST_SOCKET_HOST'];
+  delete process.env['ZINTRUST_SOCKET_PORT'];
+  delete process.env['X_ZINTRUST_SOCKET_SEC'];
 };
 
 const setBroadcastEnv = (values: Record<string, string>): void => {
@@ -158,6 +167,51 @@ describe('Broadcast (later + now patch coverage)', () => {
           'content-type': 'application/json',
           'x-zintrust-socket-secret': 'secret-1',
           authorization: 'Bearer secret-1',
+        }),
+      })
+    );
+    expect(publishSocketEventFromServer).not.toHaveBeenCalled();
+  });
+
+  it('automatically bridges isolated inmemory broadcasts over configured HTTP bridge endpoints', async () => {
+    setBroadcastEnv({
+      DOCKER_WORKER: 'true',
+      BROADCAST_BRIDGE_URL: 'http://127.0.0.1:7785/apps/bridge-app/events',
+      BROADCAST_BRIDGE_SECRET: 'bridge-secret',
+    });
+
+    const fetchMock = vi.fn(async () =>
+      createJsonResponse(
+        JSON.stringify({ ok: true, deliveries: 5, event: 'evt', channels: ['private-smart.1'] })
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { publishSocketEventFromServer } = installSocketMock();
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({
+        channel: 'smart.1',
+        channelScope: 'private',
+        event: 'evt',
+        data: { ok: true },
+      })
+    ).resolves.toMatchObject({
+      transport: 'internal-http',
+      endpoint: 'http://127.0.0.1:7785/apps/bridge-app/events',
+      attemptedTransports: ['internal-http'],
+      deliveries: 5,
+      channels: ['private-smart.1'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:7785/apps/bridge-app/events',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'x-zintrust-socket-secret': 'bridge-secret',
+          authorization: 'Bearer bridge-secret',
         }),
       })
     );
@@ -384,6 +438,43 @@ describe('Broadcast (later + now patch coverage)', () => {
       channels: ['persistent-alpha'],
       endpoint: 'http://127.0.0.1:7799/apps/persist-app/events',
     });
+  });
+
+  it('supports the explicit http-bridge broadcaster', async () => {
+    vi.doMock('@broadcast/BroadcastRegistry', () => ({
+      BroadcastRegistry: {
+        has: () => true,
+        get: () => ({
+          driver: 'http-bridge',
+          url: 'http://127.0.0.1:7787/apps/bridge-driver/events',
+          secret: 'driver-secret',
+        }),
+      },
+    }));
+
+    const fetchMock = vi.fn(async () =>
+      createJsonResponse(
+        JSON.stringify({ ok: true, deliveries: 2, event: 'evt', channels: ['alpha', 'beta'] })
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.broadcaster('bridge').publish({
+        channels: ['alpha', 'beta'],
+        event: 'evt',
+        data: { ok: true },
+      })
+    ).resolves.toMatchObject({
+      transport: 'driver',
+      driver: 'http-bridge',
+      endpoint: 'http://127.0.0.1:7787/apps/bridge-driver/events',
+      deliveries: 2,
+      channels: ['alpha', 'beta'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('BroadcastLater enqueues with type/attempts and provided timestamp', async () => {

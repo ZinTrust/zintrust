@@ -48,8 +48,11 @@ export interface WorkerData {
   driver: WorkerDriver;
   version: string;
   processed: number;
+  failed: number;
   avgTime: number;
   memory: number;
+  cpu: number;
+  uptime: number;
   autoStart: boolean;
   activeStatus?: boolean;
   details?: {
@@ -66,6 +69,7 @@ export interface WorkerData {
 
 // Workers List Response Types
 export interface WorkersListResponse {
+  appName: string;
   workers: WorkerData[];
   queueData: QueueData;
   pagination: {
@@ -118,6 +122,9 @@ export type RawWorkerData = {
   avgTime?: number;
   memory?: number;
   processed?: number;
+  failed?: number;
+  cpu?: number;
+  uptime?: number;
   version?: string;
   autoStart?: boolean;
   activeStatus?: boolean;

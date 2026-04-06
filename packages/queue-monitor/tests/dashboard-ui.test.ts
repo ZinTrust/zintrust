@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { getDashboardHtml } from '../src/dashboard-ui';
 
 describe('queue monitor dashboard UI', () => {
+  it('renders APP_NAME in the dashboard title and brand block', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+      appName: 'ZinTrust App',
+    });
+
+    expect(html).toContain('<title>ZinTrust App Queue Monitor</title>');
+    expect(html).toContain('<b>ZinTrust App</b>');
+  });
+
   it('includes SSE recovery that resets the page after the stream stays stale', () => {
     const html = getDashboardHtml({
       basePath: '/queue-monitor',

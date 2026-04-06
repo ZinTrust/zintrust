@@ -1,6 +1,7 @@
 import { Env, ErrorFactory, Logger } from '@zintrust/core';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
+import { WorkerRegistry } from '../WorkerRegistry';
 import type { WorkerRecord } from '../storage/WorkerStore';
 import type {
   GetWorkersQuery,
@@ -18,6 +19,19 @@ import type {
 
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 200;
+
+type LiveWorkerMetrics = Readonly<{
+  processed: number;
+  failed: number;
+  memory: number;
+  cpu: number;
+  uptime: number;
+}>;
+
+type HistoricalMetric = Readonly<{
+  total: number;
+  average: number;
+}>;
 
 type PersistenceResult = {
   workers: WorkerData[];
@@ -155,6 +169,7 @@ export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListRes
 
   // Prepare result
   const result: WorkersListResponse = {
+    appName: resolveAppName(),
     workers: workersWithMetrics,
     queueData,
     pagination: {
@@ -428,8 +443,11 @@ const buildWorkerFromRaw = (workerData: RawWorkerData, driver: WorkerDriver): Wo
     driver,
     version: workerData.version || '1.0.0',
     processed: workerData.processed || 0,
+    failed: workerData.failed || 0,
     avgTime: workerData.avgTime || 0,
     memory: workerData.memory || 0,
+    cpu: workerData.cpu || 0,
+    uptime: workerData.uptime || 0,
     autoStart: workerData.autoStart || false,
     activeStatus: workerData.activeStatus ?? true,
     details: workerData.details || {
@@ -708,69 +726,120 @@ async function getMemoryQueueData(): Promise<QueueData> {
   };
 }
 
-async function enrichWithMetrics(workers: WorkerData[]): Promise<WorkerData[]> {
-  const now = Date.now();
-  const oneHourAgo = new Date(now - 60 * 60 * 1000);
-  const endDate = new Date(now);
-
-  if (workers.length === 0) return workers;
-
-  const metricRequests = workers.flatMap((worker) => [
+const createWorkerMetricRequests = (
+  workers: ReadonlyArray<WorkerData>,
+  startDate: Date,
+  endDate: Date
+): Array<{
+  workerName: string;
+  metricType: 'processed' | 'duration' | 'memory';
+  granularity: 'hourly';
+  startDate: Date;
+  endDate: Date;
+}> => {
+  return workers.flatMap((worker) => [
     {
       workerName: worker.name,
       metricType: 'processed' as const,
       granularity: 'hourly' as const,
-      startDate: oneHourAgo,
+      startDate,
       endDate,
     },
     {
       workerName: worker.name,
       metricType: 'duration' as const,
       granularity: 'hourly' as const,
-      startDate: oneHourAgo,
+      startDate,
       endDate,
     },
     {
       workerName: worker.name,
       metricType: 'memory' as const,
       granularity: 'hourly' as const,
-      startDate: oneHourAgo,
+      startDate,
       endDate,
     },
   ]);
+};
+
+const mergeWorkerListMetrics = (
+  worker: WorkerData,
+  results: ReadonlyArray<{ total: number; average: number }>,
+  index: number,
+  liveMetricsByName: ReadonlyMap<string, LiveWorkerMetrics>
+): WorkerData => {
+  const baseIdx = index * 3;
+  const processedMetric = results[baseIdx];
+  const durationMetric = results[baseIdx + 1];
+  const memoryMetric = results[baseIdx + 2];
+  const liveMetrics = liveMetricsByName.get(worker.name);
+
+  let processed = worker.processed;
+  if (liveMetrics) {
+    processed = liveMetrics.processed;
+  } else if (Number.isFinite(processedMetric?.total)) {
+    processed = Math.round(processedMetric.total);
+  }
+
+  let memory = worker.memory;
+  if (liveMetrics) {
+    memory = liveMetrics.memory;
+  } else if (Number.isFinite(memoryMetric?.average)) {
+    memory = Math.round(memoryMetric.average);
+  }
+
+  const avgTime =
+    durationMetric && Number.isFinite(durationMetric.average)
+      ? Math.round(durationMetric.average)
+      : worker.avgTime;
+
+  return {
+    ...worker,
+    processed,
+    failed: liveMetrics?.failed ?? worker.failed,
+    avgTime,
+    memory,
+    cpu: liveMetrics?.cpu ?? worker.cpu,
+    uptime: liveMetrics?.uptime ?? worker.uptime,
+  };
+};
+
+const applyWorkerLiveMetricsFallback = (
+  worker: WorkerData,
+  liveMetricsByName: ReadonlyMap<string, LiveWorkerMetrics>
+): WorkerData => {
+  const liveMetrics = liveMetricsByName.get(worker.name);
+  if (liveMetrics === undefined) {
+    return worker;
+  }
+
+  return {
+    ...worker,
+    processed: liveMetrics.processed,
+    failed: liveMetrics.failed,
+    memory: liveMetrics.memory,
+    cpu: liveMetrics.cpu,
+    uptime: liveMetrics.uptime,
+  };
+};
+
+async function enrichWithMetrics(workers: WorkerData[]): Promise<WorkerData[]> {
+  const now = Date.now();
+  const oneHourAgo = new Date(now - 60 * 60 * 1000);
+  const endDate = new Date(now);
+  const liveMetricsByName = getLiveWorkerMetricsByName();
+
+  if (workers.length === 0) return workers;
+  const metricRequests = createWorkerMetricRequests(workers, oneHourAgo, endDate);
 
   try {
     const results = await WorkerMetricsManager.aggregateBatch(metricRequests);
-
-    return workers.map((worker, index) => {
-      const baseIdx = index * 3;
-      const processedMetric = results[baseIdx];
-      const durationMetric = results[baseIdx + 1];
-      const memoryMetric = results[baseIdx + 2];
-
-      const processed =
-        processedMetric && Number.isFinite(processedMetric.total)
-          ? Math.round(processedMetric.total)
-          : worker.processed;
-      const avgTime =
-        durationMetric && Number.isFinite(durationMetric.average)
-          ? Math.round(durationMetric.average)
-          : worker.avgTime;
-      const memory =
-        memoryMetric && Number.isFinite(memoryMetric.average)
-          ? Math.round(memoryMetric.average)
-          : worker.memory;
-
-      return {
-        ...worker,
-        processed,
-        avgTime,
-        memory,
-      };
-    });
+    return workers.map((worker, index) =>
+      mergeWorkerListMetrics(worker, results, index, liveMetricsByName)
+    );
   } catch (error) {
     Logger.debug('Batch metrics unavailable', error);
-    return workers;
+    return workers.map((worker) => applyWorkerLiveMetricsFallback(worker, liveMetricsByName));
   }
 }
 
@@ -791,8 +860,11 @@ async function buildWorkerDetails(worker: WorkerData): Promise<WorkerData> {
     return {
       ...worker,
       processed: metrics.processed,
+      failed: metrics.failed,
       avgTime: metrics.avgTime,
       memory: metrics.memory,
+      cpu: metrics.cpu,
+      uptime: metrics.uptime,
       details: {
         configuration,
         health,
@@ -865,57 +937,167 @@ const getWorkerMetricsSnapshot = async (
   const now = Date.now();
   const oneHourAgo = new Date(now - 60 * 60 * 1000);
   const endDate = new Date(now);
+  const liveMetrics = getLiveWorkerMetrics(name);
 
   try {
-    const [processedMetric, durationMetric, memoryMetric] = await Promise.all([
-      WorkerMetricsManager.aggregate({
-        workerName: name,
-        metricType: 'processed',
-        granularity: 'hourly',
-        startDate: oneHourAgo,
-        endDate,
-      }),
-      WorkerMetricsManager.aggregate({
-        workerName: name,
-        metricType: 'duration',
-        granularity: 'hourly',
-        startDate: oneHourAgo,
-        endDate,
-      }),
-      WorkerMetricsManager.aggregate({
-        workerName: name,
-        metricType: 'memory',
-        granularity: 'hourly',
-        startDate: oneHourAgo,
-        endDate,
-      }),
-    ]);
-
-    return {
-      processed: Number.isFinite(processedMetric.total)
-        ? Math.round(processedMetric.total)
-        : fallback.processed,
-      failed: 0,
-      avgTime: Number.isFinite(durationMetric.average)
-        ? Math.round(durationMetric.average)
-        : fallback.avgTime,
-      memory: Number.isFinite(memoryMetric.average)
-        ? Math.round(memoryMetric.average)
-        : fallback.memory,
-      cpu: 0,
-      uptime: 0,
-    };
+    const historicalMetrics = await loadHistoricalWorkerMetrics(name, oneHourAgo, endDate);
+    return buildWorkerMetricsSnapshot(fallback, liveMetrics, historicalMetrics);
   } catch (error) {
     Logger.debug(`Metrics snapshot unavailable for worker ${name}`, error);
-    return {
-      processed: fallback.processed,
-      failed: 0,
-      avgTime: fallback.avgTime,
-      memory: fallback.memory,
-      cpu: 0,
-      uptime: 0,
-    };
+    return buildWorkerMetricsSnapshot(fallback, liveMetrics);
   }
+};
+
+const loadHistoricalWorkerMetrics = async (
+  name: string,
+  startDate: Date,
+  endDate: Date
+): Promise<ReadonlyArray<HistoricalMetric>> => {
+  return Promise.all([
+    WorkerMetricsManager.aggregate({
+      workerName: name,
+      metricType: 'processed',
+      granularity: 'hourly',
+      startDate,
+      endDate,
+    }),
+    WorkerMetricsManager.aggregate({
+      workerName: name,
+      metricType: 'errors',
+      granularity: 'hourly',
+      startDate,
+      endDate,
+    }),
+    WorkerMetricsManager.aggregate({
+      workerName: name,
+      metricType: 'duration',
+      granularity: 'hourly',
+      startDate,
+      endDate,
+    }),
+    WorkerMetricsManager.aggregate({
+      workerName: name,
+      metricType: 'memory',
+      granularity: 'hourly',
+      startDate,
+      endDate,
+    }),
+    WorkerMetricsManager.aggregate({
+      workerName: name,
+      metricType: 'cpu',
+      granularity: 'hourly',
+      startDate,
+      endDate,
+    }),
+  ]);
+};
+
+const resolveHistoricalTotal = (
+  liveValue: number | undefined,
+  metric: HistoricalMetric | undefined,
+  fallback: number
+): number => {
+  if (typeof liveValue === 'number') {
+    return liveValue;
+  }
+
+  if (Number.isFinite(metric?.total)) {
+    const total = metric?.total ?? fallback;
+    return Math.round(total);
+  }
+
+  return fallback;
+};
+
+const resolveHistoricalAverage = (
+  liveValue: number | undefined,
+  metric: HistoricalMetric | undefined,
+  fallback: number
+): number => {
+  if (typeof liveValue === 'number') {
+    return liveValue;
+  }
+
+  if (Number.isFinite(metric?.average)) {
+    const average = metric?.average ?? fallback;
+    return Math.round(average);
+  }
+
+  return fallback;
+};
+
+const buildWorkerMetricsSnapshot = (
+  fallback: WorkerData,
+  liveMetrics?: LiveWorkerMetrics,
+  historicalMetrics?: ReadonlyArray<HistoricalMetric>
+): WorkerMetrics => {
+  const [processedMetric, errorMetric, durationMetric, memoryMetric, cpuMetric] =
+    historicalMetrics ?? [];
+
+  return {
+    processed: resolveHistoricalTotal(liveMetrics?.processed, processedMetric, fallback.processed),
+    failed: resolveHistoricalTotal(liveMetrics?.failed, errorMetric, fallback.failed),
+    avgTime: resolveHistoricalAverage(undefined, durationMetric, fallback.avgTime),
+    memory: resolveHistoricalAverage(liveMetrics?.memory, memoryMetric, fallback.memory),
+    cpu: resolveHistoricalAverage(liveMetrics?.cpu, cpuMetric, fallback.cpu),
+    uptime: liveMetrics?.uptime ?? fallback.uptime,
+  };
+};
+
+const resolveAppName = (): string => {
+  return Env.get('APP_NAME', 'ZinTrust').trim() || 'ZinTrust';
+};
+
+const getLiveWorkerMetrics = (name: string): LiveWorkerMetrics | undefined => {
+  const metrics = WorkerRegistry.getMetrics(name);
+  const uptime = WorkerRegistry.getSnapshot().workers.find(
+    (worker) => worker.name === name
+  )?.uptime;
+
+  if (metrics === null && uptime === undefined) {
+    return undefined;
+  }
+
+  return Object.freeze({
+    processed: metrics?.processedCount ?? 0,
+    failed: metrics?.errorCount ?? 0,
+    memory: metrics?.memoryUsage ?? 0,
+    cpu: metrics?.cpuUsage ?? 0,
+    uptime:
+      typeof uptime === 'number' && Number.isFinite(uptime) ? Math.max(0, Math.round(uptime)) : 0,
+  });
+};
+
+const getLiveWorkerMetricsByName = (): ReadonlyMap<string, LiveWorkerMetrics> => {
+  const snapshot = WorkerRegistry.getSnapshot();
+  const uptimeByName = new Map(
+    snapshot.workers.map((worker) => [worker.name, worker.uptime ?? 0] as const)
+  );
+  const liveMetrics = new Map<string, LiveWorkerMetrics>();
+
+  for (const workerName of WorkerRegistry.list()) {
+    const metrics = WorkerRegistry.getMetrics(workerName);
+    const uptime = uptimeByName.get(workerName);
+    if (metrics === null && uptime === undefined) {
+      continue;
+    }
+
+    liveMetrics.set(
+      workerName,
+      Object.freeze({
+        processed: metrics?.processedCount ?? 0,
+        failed: metrics?.errorCount ?? 0,
+        memory: metrics?.memoryUsage ?? 0,
+        cpu: metrics?.cpuUsage ?? 0,
+        uptime:
+          typeof uptime === 'number' && Number.isFinite(uptime)
+            ? Math.max(0, Math.round(uptime))
+            : 0,
+      })
+    );
+  }
+
+  return liveMetrics;
 };
 
 export async function toggleAutoStart(name: string, enabled: boolean): Promise<void> {

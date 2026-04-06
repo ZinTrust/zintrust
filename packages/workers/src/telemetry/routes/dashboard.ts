@@ -7,6 +7,11 @@ export type DashboardUiOptions = {
   basePath: string;
   autoRefresh: boolean;
   refreshIntervalMs: number;
+  appName?: string;
+};
+
+const resolveAppName = (appName?: string): string => {
+  return typeof appName === 'string' && appName.trim() !== '' ? appName.trim() : 'ZinTrust';
 };
 
 const getDashboardColorStyles = (): string => `
@@ -148,24 +153,24 @@ const getLogo = (): string => `
   <path d="M44 50H56" stroke="rgba(255,255,255,0.22)" stroke-width="6" stroke-linecap="round" />
 </svg>`;
 
-const getDashboardHead = (): string => `
+const getDashboardHead = (appName: string): string => `
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ZinTrust Telemetry Dashboard</title>
+    <title>${appName} Telemetry Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     ${getDashboardStyles()}
   </head>`;
 
-const getDashboardHeader = (): string => `
+const getDashboardHeader = (appName: string): string => `
         <header class="zt-header">
           <div class="zt-brand">
             <div class="zt-brand-icon">
               ${getLogo()}
             </div>
             <div>
-              <p class="zt-kicker">ZinTrust</p>
-              <h1 class="zt-title">Telemetry Dashboard</h1>
+              <p class="zt-kicker">${appName}</p>
+              <h1 class="zt-title">${appName} Telemetry Dashboard</h1>
               <p class="zt-subtitle">Unified view of worker health and performance</p>
             </div>
           </div>
@@ -212,10 +217,10 @@ const getDashboardCharts = (): string => `
 
         ${renderAlertPanel()}`;
 
-const getDashboardBody = (): string => `
+const getDashboardBody = (appName: string): string => `
     <div class="zt-page">
       <div class="zt-container">
-${getDashboardHeader()}
+${getDashboardHeader(appName)}
 
         <section id="error" class="hidden zt-alert"></section>
 
@@ -628,11 +633,15 @@ ${getDashboardScriptControls()}
 ${getDashboardScriptBootstrap()}
     </script>`;
 
-export const getDashboardHtml = (options: DashboardUiOptions): string => `<!DOCTYPE html>
+export const getDashboardHtml = (options: DashboardUiOptions): string => {
+  const appName = resolveAppName(options.appName);
+
+  return `<!DOCTYPE html>
 <html lang="en">
-${getDashboardHead()}
+${getDashboardHead(appName)}
   <body>
-${getDashboardBody()}
+${getDashboardBody(appName)}
 ${getDashboardScript(options)}
   </body>
 </html>`;
+};

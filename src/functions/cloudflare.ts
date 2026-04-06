@@ -222,6 +222,20 @@ const ensureStartupConfigOverridesLoaded = async (): Promise<void> => {
   await startupConfigOverridesPromise;
 };
 
+type SocketHubInstance = {
+  fetch: (request: Request) => Promise<Response>;
+};
+
+type SocketHubConstructor = new (state: unknown, env: unknown) => SocketHubInstance;
+
+type SocketHubGlobal = typeof globalThis & {
+  __zintrustSocketHubClass?: SocketHubConstructor;
+};
+
+const getRegisteredSocketHubClass = (): SocketHubConstructor | undefined => {
+  return (globalThis as SocketHubGlobal).__zintrustSocketHubClass;
+};
+
 export default {
   async fetch(request: Request, _env: unknown, _ctx: unknown): Promise<Response> {
     try {
@@ -271,4 +285,31 @@ export default {
   },
 };
 
-export { ZintrustSocketHub } from '@zintrust/socket';
+// eslint-disable-next-line no-restricted-syntax -- Cloudflare Durable Objects require class exports.
+export class ZintrustSocketHub {
+  private readonly delegate: SocketHubInstance | null;
+
+  constructor(state: unknown, env: unknown) {
+    const HubClass = getRegisteredSocketHubClass();
+    this.delegate = HubClass ? new HubClass(state, env) : null;
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    if (this.delegate !== null) {
+      return this.delegate.fetch(request);
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: 'socket_runtime_unavailable',
+        message: 'Socket durable object support requires the optional @zintrust/socket package.',
+      }),
+      {
+        status: 503,
+        headers: {
+          'content-type': 'application/json',
+        },
+      }
+    );
+  }
+}

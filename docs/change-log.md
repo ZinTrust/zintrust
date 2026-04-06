@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-05
 
+- Added first-class HTTP bridge broadcast support for isolated worker/container runtimes. Core now supports both automatic `inmemory` bridge forwarding in isolated runtimes and an explicit `http-bridge` broadcaster, so cross-process local socket delivery no longer requires application-level proxy wrappers.
 - Added compatibility fallback from `TIME_ZONE` to `APP_TIMEZONE` and wired scheduler cron defaults to inherit the configured app timezone instead of hardcoded `UTC` when a schedule does not specify its own timezone.
 - Updated the D1 migrator to normalize null-like string values such as `NULL` and `null` into real SQL `NULL` during data migration and schema default-value generation, preventing those sentinel strings from being preserved as quoted text in D1.
 - Hardened `@zintrust/queue-redis/register` so official plugin auto-imports no longer treat a partially initialized core `Queue` export as a hard import failure; the Redis queue driver now registers only when the core queue registry API is actually available.

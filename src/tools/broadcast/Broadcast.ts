@@ -84,6 +84,11 @@ type BroadcastTransportAttemptResult = Readonly<{
   error?: unknown;
 }>;
 
+type HttpBridgeRuntimeConfig = Readonly<{
+  url: string;
+  secret: string;
+}>;
+
 type SocketPublishModule = Readonly<{
   publishSocketEventFromServer: (input: {
     channels: readonly string[];
@@ -102,6 +107,7 @@ type SocketPublishModule = Readonly<{
 }>;
 
 const INTERNAL_SOCKET_SECRET_HEADER = 'x-zintrust-socket-secret';
+const DEFAULT_BROADCAST_EVENTS_PATH_TEMPLATE = '/apps/{appId}/events';
 
 const pickFirstNonEmpty = (...values: readonly string[]): string => {
   for (const value of values) {
@@ -216,6 +222,79 @@ const getLoopbackAlternativeBaseUrl = (value: string): string => {
   return '';
 };
 
+const resolveBroadcastAppId = (): string => {
+  return (
+    pickFirstNonEmpty(Env.get('PUSHER_APP_ID', ''), Env.get('BROADCAST_APP_ID', '')) || 'internal'
+  );
+};
+
+const resolveBroadcastSecret = (): string => {
+  return pickFirstNonEmpty(
+    Env.get('BROADCAST_BRIDGE_SECRET', ''),
+    Env.get('X_ZINTRUST_SOCKET_SEC', ''),
+    Env.get('BROADCAST_SECRET', ''),
+    Env.get('PUSHER_APP_SECRET', ''),
+    Env.get('BROADCAST_APP_SECRET', '')
+  );
+};
+
+const resolveBridgePath = (appId: string, value?: string): string => {
+  const raw = (value ?? DEFAULT_BROADCAST_EVENTS_PATH_TEMPLATE).trim();
+  const withLeadingSlash = raw === '' ? DEFAULT_BROADCAST_EVENTS_PATH_TEMPLATE : raw;
+  const normalized = withLeadingSlash.startsWith('/') ? withLeadingSlash : `/${withLeadingSlash}`;
+
+  return normalized
+    .replaceAll('{appId}', encodeURIComponent(appId))
+    .replaceAll(':appId', encodeURIComponent(appId));
+};
+
+const resolveExplicitEndpoint = (value: string, appId: string): string => {
+  const absoluteUrl = toAbsoluteBaseUrl(value);
+  if (absoluteUrl === '') {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(absoluteUrl);
+    if (parsed.pathname === '/' || parsed.pathname.trim() === '') {
+      parsed.pathname = resolveBridgePath(appId);
+    }
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+};
+
+const resolveLegacyBridgeEndpoint = (appId: string): string => {
+  const host = Env.get('ZINTRUST_SOCKET_HOST', '').trim();
+  if (host === '') {
+    return '';
+  }
+
+  const port = Env.get('ZINTRUST_SOCKET_PORT', '').trim();
+  const protocol = pickFirstNonEmpty(Env.get('BROADCAST_BRIDGE_PROTOCOL', ''), 'http');
+  const portSuffix = port === '' ? '' : `:${port}`;
+  const baseUrl = `${protocol}://${host}${portSuffix}`;
+
+  try {
+    return new URL(
+      resolveBridgePath(appId, Env.get('BROADCAST_BRIDGE_PATH', '')),
+      baseUrl
+    ).toString();
+  } catch {
+    return '';
+  }
+};
+
+const buildEndpointCandidates = (values: readonly string[]): readonly string[] => {
+  const resolved: string[] = [];
+  for (const value of values) {
+    appendUnique(resolved, value);
+    appendUnique(resolved, getLoopbackAlternativeBaseUrl(value));
+  }
+  return resolved;
+};
+
 const getInternalPublishConfig = (): Readonly<{
   endpoints: readonly string[];
   appId: string;
@@ -226,27 +305,34 @@ const getInternalPublishConfig = (): Readonly<{
   appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('APP_URL', '')));
   appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('BASE_URL', Env.BASE_URL ?? '')));
 
-  const resolvedBaseUrls: string[] = [];
-  for (const baseUrl of baseUrls) {
-    appendUnique(resolvedBaseUrls, baseUrl);
-    appendUnique(resolvedBaseUrls, getLoopbackAlternativeBaseUrl(baseUrl));
-  }
-
-  const appId =
-    pickFirstNonEmpty(Env.get('PUSHER_APP_ID', ''), Env.get('BROADCAST_APP_ID', '')) || 'internal';
-  const secret = pickFirstNonEmpty(
-    Env.get('BROADCAST_SECRET', ''),
-    Env.get('PUSHER_APP_SECRET', ''),
-    Env.get('BROADCAST_APP_SECRET', '')
-  );
+  const appId = resolveBroadcastAppId();
+  const secret = resolveBroadcastSecret();
 
   return Object.freeze({
-    endpoints: resolvedBaseUrls.map((baseUrl) =>
+    endpoints: buildEndpointCandidates(baseUrls).map((baseUrl) =>
       new URL(`/apps/${encodeURIComponent(appId)}/events`, baseUrl).toString()
     ),
     appId,
     secret,
   });
+};
+
+const getBridgePublishConfig = (): Readonly<{
+  endpoints: readonly string[];
+  secret: string;
+}> => {
+  const appId = resolveBroadcastAppId();
+  return Object.freeze({
+    endpoints: buildEndpointCandidates([
+      resolveExplicitEndpoint(Env.get('BROADCAST_BRIDGE_URL', ''), appId),
+      resolveLegacyBridgeEndpoint(appId),
+    ]),
+    secret: resolveBroadcastSecret(),
+  });
+};
+
+const isIsolatedWorkerRuntime = (): boolean => {
+  return Env.getBool('WORKER_ISOLATED', false) || Env.getBool('DOCKER_WORKER', false);
 };
 
 const parseJsonResponseSafe = async (response: Response): Promise<unknown> => {
@@ -449,6 +535,13 @@ const sendWithConfig = async (
     return RedisHttpsDriver.send(config, channel, event, data);
   }
 
+  if (driverName === 'http-bridge') {
+    return publishViaHttpBridgeDriver(
+      toHttpBridgeRuntimeConfig(config),
+      normalizePublishInput({ channel, event, data })
+    );
+  }
+
   throw ErrorFactory.createConfigError(`Broadcast driver not implemented: ${driverName}`);
 };
 
@@ -565,11 +658,142 @@ const tryPublishViaInternalHttp = async (
   return tryInternalPublishEndpoints(config.endpoints, config.secret, payload);
 };
 
+const tryPublishViaConfiguredBridge = async (
+  input: NormalizedBroadcastPublishInput,
+  config: Readonly<{
+    endpoints: readonly string[];
+    secret: string;
+  }>
+): Promise<BroadcastTransportAttemptResult> => {
+  if (config.endpoints.length === 0 || typeof globalThis.fetch !== 'function') {
+    return { result: null };
+  }
+
+  const payload = {
+    channels: input.channels,
+    event: input.event,
+    data: input.data,
+    ...(input.socketId === undefined ? {} : { socket_id: input.socketId }),
+  };
+
+  return tryInternalPublishEndpoints(config.endpoints, config.secret, payload);
+};
+
+const shouldUseAutomaticHttpBridge = (
+  config: KnownBroadcastDriverConfig,
+  input: NormalizedBroadcastPublishInput
+): boolean => {
+  if (input.delivery === 'driver') {
+    return false;
+  }
+
+  return config.driver === 'inmemory' && isIsolatedWorkerRuntime();
+};
+
+const toHttpBridgeRuntimeConfig = (config: {
+  url: string;
+  secret: string;
+}): HttpBridgeRuntimeConfig => {
+  return Object.freeze({
+    url: config.url,
+    secret: config.secret,
+  });
+};
+
+const publishViaHttpBridgeDriver = async (
+  config: HttpBridgeRuntimeConfig,
+  input: NormalizedBroadcastPublishInput
+): Promise<BroadcastPublishResult> => {
+  const bridgeConfig = Object.freeze({
+    endpoints: buildEndpointCandidates([
+      resolveExplicitEndpoint(config.url, resolveBroadcastAppId()),
+    ]),
+    secret: config.secret.trim(),
+  });
+
+  const bridgeResult = await tryPublishViaConfiguredBridge(input, bridgeConfig);
+  if (bridgeResult.result !== null) {
+    return {
+      ok: true,
+      transport: 'driver',
+      channels: bridgeResult.result.channels,
+      event: bridgeResult.result.event,
+      deliveries: bridgeResult.result.deliveries,
+      driver: 'http-bridge',
+      endpoint: bridgeResult.result.endpoint,
+      result: bridgeResult.result.result,
+    };
+  }
+
+  if (bridgeResult.error instanceof Error) {
+    throw bridgeResult.error;
+  }
+
+  throw ErrorFactory.createConfigError(
+    'HTTP bridge broadcast driver misconfigured: BROADCAST_BRIDGE_URL is required'
+  );
+};
+
+const tryPublishNonDriverTransports = async (
+  normalized: NormalizedBroadcastPublishInput,
+  selectedConfig: KnownBroadcastDriverConfig
+): Promise<
+  Readonly<{
+    result: BroadcastPublishResult | null;
+    attemptedTransports: readonly BroadcastTransport[];
+    lastTransportError?: unknown;
+  }>
+> => {
+  const attemptedTransports: BroadcastTransport[] = [];
+  let lastTransportError: unknown;
+
+  if (shouldUseAutomaticHttpBridge(selectedConfig, normalized)) {
+    attemptedTransports.push('internal-http');
+    const bridgeResult = await tryPublishViaConfiguredBridge(normalized, getBridgePublishConfig());
+    if (bridgeResult.result !== null) {
+      return { result: bridgeResult.result, attemptedTransports, lastTransportError };
+    }
+    if (bridgeResult.error !== undefined) {
+      lastTransportError = bridgeResult.error;
+    }
+  }
+
+  attemptedTransports.push('internal-http');
+  const internalHttpResult = await tryPublishViaInternalHttp(normalized);
+  if (internalHttpResult.result !== null) {
+    return { result: internalHttpResult.result, attemptedTransports, lastTransportError };
+  }
+  if (internalHttpResult.error !== undefined) {
+    lastTransportError = internalHttpResult.error;
+  }
+
+  attemptedTransports.push('socket');
+  const socketResult = await tryPublishViaSocket(normalized);
+  if (socketResult.result !== null) {
+    return { result: socketResult.result, attemptedTransports, lastTransportError };
+  }
+  if (socketResult.error !== undefined) {
+    lastTransportError = socketResult.error;
+    logTransportFallback('socket', {
+      error: describeError(socketResult.error),
+    });
+  }
+
+  return { result: null, attemptedTransports, lastTransportError };
+};
+
 const publishWithConfig = async (
   config: KnownBroadcastDriverConfig,
   broadcasterName: string | undefined,
   input: NormalizedBroadcastPublishInput
 ): Promise<BroadcastPublishResult> => {
+  if (config.driver === 'http-bridge') {
+    return {
+      ...(await publishViaHttpBridgeDriver(toHttpBridgeRuntimeConfig(config), input)),
+      ...(broadcasterName === undefined ? {} : { broadcaster: broadcasterName }),
+    };
+  }
+
   const results = await Promise.all(
     input.channels.map(async (channel) => sendWithConfig(config, channel, input.event, input.data))
   );
@@ -587,44 +811,33 @@ const publishWithConfig = async (
 
 const publishInternal = async (input: BroadcastPublishInput): Promise<BroadcastPublishResult> => {
   const normalized = normalizePublishInput(input);
-  const attemptedTransports: BroadcastTransport[] = [];
-  let lastTransportError: unknown;
+  const selectedConfig = await resolveBroadcasterConfig(normalized.broadcaster);
+  const autoTransportResult =
+    normalized.delivery === 'driver'
+      ? { result: null, attemptedTransports: [] as readonly BroadcastTransport[] }
+      : await tryPublishNonDriverTransports(normalized, selectedConfig);
 
-  if (normalized.delivery !== 'driver') {
-    attemptedTransports.push('internal-http');
-    const internalHttpResult = await tryPublishViaInternalHttp(normalized);
-    if (internalHttpResult.result !== null) {
-      return { ...internalHttpResult.result, attemptedTransports };
-    }
-    if (internalHttpResult.error !== undefined) {
-      lastTransportError = internalHttpResult.error;
-    }
-
-    attemptedTransports.push('socket');
-    const socketResult = await tryPublishViaSocket(normalized);
-    if (socketResult.result !== null) {
-      return { ...socketResult.result, attemptedTransports };
-    }
-    if (socketResult.error !== undefined) {
-      lastTransportError = socketResult.error;
-      logTransportFallback('socket', {
-        error: describeError(socketResult.error),
-      });
-    }
+  if (autoTransportResult.result !== null) {
+    return {
+      ...autoTransportResult.result,
+      attemptedTransports: autoTransportResult.attemptedTransports,
+    };
   }
 
   if (normalized.delivery === 'socket') {
-    if (lastTransportError instanceof Error) {
-      throw lastTransportError;
+    if (autoTransportResult.lastTransportError instanceof Error) {
+      throw autoTransportResult.lastTransportError;
     }
 
     throw ErrorFactory.createConfigError('Socket publish delivery is not available.');
   }
 
-  attemptedTransports.push('driver');
-  const config = await resolveBroadcasterConfig(normalized.broadcaster);
+  const attemptedTransports: readonly BroadcastTransport[] = [
+    ...autoTransportResult.attemptedTransports,
+    'driver',
+  ];
   return {
-    ...(await publishWithConfig(config, normalized.broadcaster, normalized)),
+    ...(await publishWithConfig(selectedConfig, normalized.broadcaster, normalized)),
     attemptedTransports,
   };
 };

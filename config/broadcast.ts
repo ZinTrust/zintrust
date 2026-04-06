@@ -71,5 +71,13 @@ export default {
       token: Env.get('REDIS_HTTPS_TOKEN', ''),
       channelPrefix: Env.get('BROADCAST_CHANNEL_PREFIX', 'broadcast:'),
     },
+    'http-bridge': {
+      driver: 'http-bridge' as const,
+      url: Env.get('BROADCAST_BRIDGE_URL', ''),
+      secret: Env.get(
+        'BROADCAST_BRIDGE_SECRET',
+        Env.get('X_ZINTRUST_SOCKET_SEC', Env.get('BROADCAST_SECRET', ''))
+      ),
+    },
   },
 } satisfies BroadcastConfigOverrides;

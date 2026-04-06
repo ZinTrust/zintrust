@@ -1,4 +1,5 @@
 import {
+  Env,
   isArray,
   isNonEmptyString,
   Logger,
@@ -429,6 +430,7 @@ function registerDashboardRoutes(
         basePath: settings.basePath,
         autoRefresh: settings.autoRefresh,
         refreshIntervalMs: settings.refreshIntervalMs,
+        appName: Env.get('APP_NAME', 'ZinTrust'),
       })
     );
   };

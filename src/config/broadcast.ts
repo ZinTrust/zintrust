@@ -276,6 +276,14 @@ const createBroadcastConfig = (): BroadcastRuntimeConfig => {
         pusher: getPusherConfig(),
         redis: getRedisConfig(),
         redishttps: getRedisHttpsConfig(),
+        'http-bridge': {
+          driver: 'http-bridge',
+          url: Env.get('BROADCAST_BRIDGE_URL', ''),
+          secret: Env.get(
+            'BROADCAST_BRIDGE_SECRET',
+            Env.get('X_ZINTRUST_SOCKET_SEC', Env.get('BROADCAST_SECRET', ''))
+          ),
+        } satisfies KnownBroadcastDriverConfig,
         ...overrides.drivers,
       } as BroadcastDrivers;
     },

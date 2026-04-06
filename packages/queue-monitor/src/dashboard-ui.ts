@@ -2,6 +2,11 @@ export type DashboardUiOptions = {
   basePath: string;
   autoRefresh: boolean;
   refreshIntervalMs: number;
+  appName?: string;
+};
+
+const resolveAppName = (appName?: string): string => {
+  return typeof appName === 'string' && appName.trim() !== '' ? appName.trim() : 'ZinTrust';
 };
 
 const getRootAndThemeVariables = (): string => `
@@ -138,14 +143,14 @@ const getDashboardStyles = (): string =>
     getInteractiveStyles(),
   ].join('\n');
 
-const getHeaderSection = (): string => `
+const getHeaderSection = (appName: string): string => `
     <header>
         <div class="brand">
             <div class="logo-frame">
                 ${getLogoSvg()}
             </div>
             <div>
-                <b>ZinTrust</b>
+                <b>${appName}</b>
                 <span>Queue Monitor</span>
             </div>
         </div>
@@ -241,10 +246,10 @@ const getJobsSection = (): string => `
     </div>
 `;
 
-const getDashboardBody = (): string => `
+const getDashboardBody = (appName: string): string => `
     <div class="page">
         <div class="shell">
-            ${getHeaderSection()}
+            ${getHeaderSection(appName)}
 
             <section id="error-container"></section>
 
@@ -1345,21 +1350,25 @@ const getDashboardScript = (options: DashboardUiOptions): string =>
     getDashboardScriptBootstrap(),
   ].join('\n');
 
-export const getDashboardHtml = (options: DashboardUiOptions): string => `<!DOCTYPE html>
+export const getDashboardHtml = (options: DashboardUiOptions): string => {
+  const appName = resolveAppName(options.appName);
+
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZinTrust Queue Monitor</title>
+    <title>${appName} Queue Monitor</title>
     <style>
 ${getDashboardStyles()}
     </style>
 </head>
 <body>
-${getDashboardBody()}
+${getDashboardBody(appName)}
 
     <script>
 ${getDashboardScript(options)}
     </script>
 </body>
 </html>`;
+};
