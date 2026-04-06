@@ -28,6 +28,9 @@ afterEach(() => {
   } catch {
     /* empty */
   }
+  process.removeAllListeners('SIGTERM');
+  process.removeAllListeners('SIGINT');
+  process.removeAllListeners('SIGUSR2');
 });
 
 describe('Bootstrap edge branches', () => {

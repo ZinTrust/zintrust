@@ -11,6 +11,7 @@ import { appConfig } from '@config/app';
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { shutdownRedisConnections } from '@config/workers';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
 import { WorkerProjectAutoImports } from '@runtime/WorkerProjectAutoImports';
@@ -187,6 +188,20 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
             Logger.warn('App shutdown failed or timed out, forcing exit', error as Error);
           }
         }
+
+        try {
+          const redisBudgetMs = Math.max(250, Math.min(3000, remainingMs()));
+          await withTimeout(
+            shutdownRedisConnections(),
+            redisBudgetMs,
+            'Redis connection shutdown timed out'
+          );
+        } catch (error) {
+          Logger.warn(
+            'Redis connection shutdown failed (continuing with app shutdown)',
+            error as Error
+          );
+        }
       })(),
       shutdownBudgetMs,
       'Graceful shutdown timed out'
@@ -340,6 +355,10 @@ const BootstrapFunctions = Object.freeze({
 
     process.on('SIGINT', async () => {
       await gracefulShutdown('SIGINT');
+    });
+
+    process.on('SIGUSR2', async () => {
+      await gracefulShutdown('SIGUSR2');
     });
   },
 });

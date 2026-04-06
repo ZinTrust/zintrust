@@ -27,6 +27,115 @@ import type IORedis from 'ioredis';
 let redisModule: typeof import('ioredis') | null | undefined;
 let warnedRedisProxyMismatch = false;
 
+type ManagedRedisConnection = IORedis & {
+  __zintrustRedisLifecycleManaged__?: boolean;
+  __zintrustRedisRegistryKey__?: string;
+};
+
+type RedisConnectionRegistryState = {
+  activeConnections: Set<ManagedRedisConnection>;
+  cachedConnections: Map<string, ManagedRedisConnection>;
+};
+
+type RedisRegistryGlobal = typeof globalThis & {
+  __zintrustRedisConnectionRegistry__?: RedisConnectionRegistryState;
+};
+
+const getRedisConnectionRegistry = (): RedisConnectionRegistryState => {
+  const registryGlobal = globalThis as RedisRegistryGlobal;
+  registryGlobal.__zintrustRedisConnectionRegistry__ ??= {
+    activeConnections: new Set<ManagedRedisConnection>(),
+    cachedConnections: new Map<string, ManagedRedisConnection>(),
+  };
+  return registryGlobal.__zintrustRedisConnectionRegistry__;
+};
+
+const unregisterRedisConnection = (client: ManagedRedisConnection): void => {
+  const registry = getRedisConnectionRegistry();
+  registry.activeConnections.delete(client);
+
+  const registryKey = client.__zintrustRedisRegistryKey__;
+  if (registryKey !== undefined && registry.cachedConnections.get(registryKey) === client) {
+    registry.cachedConnections.delete(registryKey);
+  }
+};
+
+const hasReusableRedisStatus = (client: ManagedRedisConnection): boolean => {
+  return client.status !== 'end' && client.status !== 'close';
+};
+
+const shouldCacheRedisConnection = (
+  isWorkersRuntime: boolean,
+  options?: RedisTransportOptions
+): boolean => {
+  const subsystem = options?.subsystem?.trim() ?? '';
+  if (subsystem === '') return false;
+  if (isWorkersRuntime) return false;
+  return Env.NODE_ENV !== 'production';
+};
+
+const createRedisConnectionCacheKey = (
+  config: RedisConfig,
+  maxRetries: number,
+  options?: RedisTransportOptions
+): string => {
+  return JSON.stringify({
+    subsystem: options?.subsystem?.trim() ?? 'redis',
+    host: config.host,
+    port: config.port,
+    db: config.db,
+    password: config.password ?? '',
+    maxRetries,
+  });
+};
+
+const trackRedisConnection = (client: IORedis, registryKey?: string): ManagedRedisConnection => {
+  const managedClient = client as ManagedRedisConnection;
+  const registry = getRedisConnectionRegistry();
+
+  registry.activeConnections.add(managedClient);
+
+  if (registryKey !== undefined) {
+    managedClient.__zintrustRedisRegistryKey__ = registryKey;
+    registry.cachedConnections.set(registryKey, managedClient);
+  }
+
+  if (managedClient.__zintrustRedisLifecycleManaged__ === true) {
+    return managedClient;
+  }
+
+  managedClient.__zintrustRedisLifecycleManaged__ = true;
+
+  const originalQuit =
+    typeof managedClient.quit === 'function' ? managedClient.quit.bind(managedClient) : undefined;
+  if (originalQuit) {
+    managedClient.quit = async (...args: Parameters<typeof originalQuit>) => {
+      unregisterRedisConnection(managedClient);
+      return originalQuit(...args);
+    };
+  }
+
+  const originalDisconnect =
+    typeof managedClient.disconnect === 'function'
+      ? managedClient.disconnect.bind(managedClient)
+      : undefined;
+  if (originalDisconnect) {
+    managedClient.disconnect = (...args: Parameters<typeof originalDisconnect>) => {
+      unregisterRedisConnection(managedClient);
+      return originalDisconnect(...args);
+    };
+  }
+
+  const clearConnection = (): void => {
+    unregisterRedisConnection(managedClient);
+  };
+
+  managedClient.on?.('end', clearConnection);
+  managedClient.on?.('close', clearConnection);
+
+  return managedClient;
+};
+
 const parseHttpProxyEndpoint = (proxyUrl: string): { host: string; port: number } | null => {
   try {
     const url = new URL(proxyUrl);
@@ -234,6 +343,22 @@ export const createRedisConnection = (
 
   validateRedisConfig(config, effectiveConfig, isWorkersRuntime, proxySettings);
 
+  const shouldCache = shouldCacheRedisConnection(isWorkersRuntime, options);
+  const cacheKey = shouldCache
+    ? createRedisConnectionCacheKey(effectiveConfig, maxRetries, options)
+    : undefined;
+
+  if (cacheKey !== undefined) {
+    const cachedClient = getRedisConnectionRegistry().cachedConnections.get(cacheKey);
+    if (cachedClient && hasReusableRedisStatus(cachedClient)) {
+      return cachedClient;
+    }
+
+    if (cachedClient) {
+      unregisterRedisConnection(cachedClient);
+    }
+  }
+
   const RedisCtor = resolveRedisConstructor();
 
   const client = new RedisCtor({
@@ -250,7 +375,37 @@ export const createRedisConnection = (
 
   setupRedisErrorHandler(client);
 
-  return client;
+  return trackRedisConnection(client, cacheKey);
+};
+
+export const shutdownRedisConnections = async (): Promise<void> => {
+  const registry = getRedisConnectionRegistry();
+  const trackedConnections = Array.from(registry.activeConnections);
+
+  if (trackedConnections.length === 0) return;
+
+  registry.activeConnections.clear();
+  registry.cachedConnections.clear();
+
+  Logger.info('Shutting down tracked Redis connections', {
+    count: trackedConnections.length,
+  });
+
+  await Promise.allSettled(
+    trackedConnections.map(async (client) => {
+      try {
+        await client.quit();
+      } catch (error) {
+        Logger.warn('Tracked Redis graceful shutdown failed, forcing disconnect', error as Error);
+
+        try {
+          client.disconnect();
+        } catch (disconnectError) {
+          Logger.error('Tracked Redis forced disconnect failed', disconnectError as Error);
+        }
+      }
+    })
+  );
 };
 
 const createIntervalConfig = (): number => Env.SSE_SNAPSHOT_INTERVAL;

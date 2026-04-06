@@ -38,6 +38,7 @@ afterEach(() => {
   }
   process.removeAllListeners('SIGTERM');
   process.removeAllListeners('SIGINT');
+  process.removeAllListeners('SIGUSR2');
   delete process.env['SHUTDOWN_TIMEOUT'];
   delete process.env['SCHEDULES_ENABLED'];
 });
@@ -374,8 +375,65 @@ describe('Bootstrap additional branches', () => {
 
     process.removeAllListeners('SIGTERM');
     process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGUSR2');
     vi.useRealTimers();
     delete process.env['SHUTDOWN_FORCE_EXIT_MS'];
+  });
+
+  it('handles SIGUSR2 with graceful worker and Redis shutdown', async () => {
+    vi.resetModules();
+
+    const workerShutdown = vi.fn(async () => undefined);
+    const shutdownRedisConnections = vi.fn(async () => undefined);
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: {
+        cloudflareWorker: false,
+        dockerWorker: false,
+        worker: true,
+        detectRuntime: () => 'nodejs',
+      },
+    }));
+    vi.doMock('@config/workers', () => ({
+      shutdownRedisConnections,
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {},
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: { tryImportProjectAutoImports: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerInit: {
+          initialize: vi.fn(async () => undefined),
+          autoStartPersistedWorkers: vi.fn(),
+        },
+        WorkerShutdown: { shutdown: workerShutdown },
+      })),
+    }));
+
+    await import('@boot/bootstrap');
+
+    process.emit('SIGUSR2');
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(workerShutdown).toHaveBeenCalledWith(expect.objectContaining({ signal: 'SIGUSR2' }));
+    expect(shutdownRedisConnections).toHaveBeenCalledTimes(1);
+    expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(0);
   });
 
   it('starts schedules when runtime is nodejs and registers shutdown hook', async () => {

@@ -52,6 +52,7 @@ let shutdownHandlersRegistered = false;
 const signalHandlers: {
   sigterm?: () => Promise<void>;
   sighup?: () => Promise<void>;
+  sigusr2?: () => Promise<void>;
   uncaughtException?: (error: Error) => Promise<void>;
   unhandledRejection?: (reason: unknown) => void;
 } = {};
@@ -153,6 +154,17 @@ function registerShutdownHandlers(): void {
   };
   process.on('SIGHUP', signalHandlers.sighup);
 
+  // SIGUSR2 - watcher/hot-reload restart
+  signalHandlers.sigusr2 = async (): Promise<void> => {
+    Logger.info('📨 Received SIGUSR2 signal');
+    try {
+      await shutdown({ signal: 'SIGUSR2', timeout: 30000, forceExit: true });
+    } catch (error) {
+      Logger.error('Error during SIGUSR2 shutdown', error);
+    }
+  };
+  process.on('SIGUSR2', signalHandlers.sigusr2);
+
   // Handle uncaught errors during shutdown
   signalHandlers.uncaughtException = async (error: Error): Promise<void> => {
     Logger.error('💥 Uncaught exception during worker operations', error);
@@ -185,6 +197,7 @@ function unregisterShutdownHandlers(): void {
 
   if (signalHandlers.sigterm) process.off('SIGTERM', signalHandlers.sigterm);
   if (signalHandlers.sighup) process.off('SIGHUP', signalHandlers.sighup);
+  if (signalHandlers.sigusr2) process.off('SIGUSR2', signalHandlers.sigusr2);
   if (signalHandlers.uncaughtException)
     process.off('uncaughtException', signalHandlers.uncaughtException);
   if (signalHandlers.unhandledRejection)
@@ -192,6 +205,7 @@ function unregisterShutdownHandlers(): void {
 
   signalHandlers.sigterm = undefined;
   signalHandlers.sighup = undefined;
+  signalHandlers.sigusr2 = undefined;
   signalHandlers.uncaughtException = undefined;
   signalHandlers.unhandledRejection = undefined;
 
