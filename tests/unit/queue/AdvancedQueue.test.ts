@@ -193,6 +193,26 @@ describe('AdvancedQueue', () => {
       );
     });
 
+    it('warns when advanced identifiers cannot be attached to a non-object payload', async () => {
+      const options: AdvancedJobOptions = {
+        jobId: 'advanced-job-123',
+        uniqueId: 'advanced-unique-123',
+      };
+
+      const jobId = await advancedQueue.enqueue('test-queue', 'not-an-object', options);
+
+      expect(jobId).toBe('job-123');
+      expect(Logger.warn).toHaveBeenCalledWith(
+        'Advanced queue identifiers could not be attached; payload is not an object',
+        expect.objectContaining({
+          queueName: 'test-queue',
+          jobId: 'advanced-job-123',
+          uniqueId: 'advanced-unique-123',
+        })
+      );
+      expect(Queue.enqueue).toHaveBeenCalledWith('test-queue', 'not-an-object');
+    });
+
     it('should handle deduplication', async () => {
       const options: AdvancedJobOptions = {
         deduplication: {
