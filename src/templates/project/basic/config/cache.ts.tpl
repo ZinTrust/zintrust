@@ -19,6 +19,8 @@ export default {
       driver: 'redis' as const,
       host: Env.get('REDIS_HOST', 'localhost'),
       port: Env.getInt('REDIS_PORT', 6379),
+      password: Env.get('REDIS_PASSWORD', ''),
+      database: Env.getInt('REDIS_CACHE_DB', Env.getInt('REDIS_DB', 0)),
       ttl: Env.getInt('CACHE_REDIS_TTL', 3600),
     },
     mongodb: {

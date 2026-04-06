@@ -348,7 +348,7 @@ export const Env = Object.freeze({
   getResolvedState,
 
   // Core
-  NODE_ENV: get('NODE_ENV', 'development'),
+  NODE_ENV: get('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'],
   // Prefer PORT, fallback to APP_PORT for compatibility
   PORT: getInt('PORT', getInt('APP_PORT', 3000)),
   HOST: get('HOST', 'localhost'),

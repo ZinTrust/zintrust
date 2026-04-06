@@ -396,6 +396,8 @@ export type RedisCacheDriverConfig = {
   driver: 'redis';
   host: string;
   port: number;
+  password?: string;
+  database?: number;
   ttl: number;
 };
 

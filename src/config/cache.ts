@@ -96,6 +96,12 @@ const createCacheConfig = (): {
       driver: 'redis' as const,
       host: readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
       port: readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
+      password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD', ''),
+      database: readWorkersFallbackInt(
+        'WORKERS_REDIS_CACHE_DB',
+        'REDIS_CACHE_DB',
+        Env.getInt('REDIS_DB', 0)
+      ),
       ttl: Env.getInt('CACHE_REDIS_TTL', 3600),
     },
     mongodb: {
