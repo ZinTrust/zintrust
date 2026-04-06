@@ -94,9 +94,13 @@ describe('QueueWorkRunner (patch coverage)', () => {
         id: 'm1',
         payload: {
           type: 'broadcast',
-          channel: 'c',
+          channel: 'legacy-only',
+          channels: ['private-a', 'private-b'],
           event: 'e',
           data: { a: 1 },
+          delivery: 'driver',
+          broadcaster: 'redis',
+          socketId: 'socket-1',
           // exercise string→number normalization for attempts/timestamp
           attempts: '0',
           timestamp: '123',
@@ -108,18 +112,46 @@ describe('QueueWorkRunner (patch coverage)', () => {
     const result = await QueueWorkRunner.run({ queueName: 'broadcasts' });
 
     expect(broadcastMock.publish).toHaveBeenCalledWith({
-      channel: 'c',
-      channels: undefined,
+      channels: ['private-a', 'private-b'],
       event: 'e',
       data: { a: 1 },
-      delivery: undefined,
-      broadcaster: undefined,
-      socketId: undefined,
+      delivery: 'driver',
+      broadcaster: 'redis',
+      socketId: 'socket-1',
     });
     expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'm1', undefined);
 
     expect(result.processed).toBe(1);
     expect(result.unknown).toBe(0);
+  });
+
+  it('auto-detects broadcast kind from channels-only payloads', async () => {
+    const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
+
+    queueMock.dequeue
+      .mockResolvedValueOnce({
+        id: 'm1b',
+        payload: {
+          channels: ['presence-room.1', 'presence-room.2'],
+          event: 'e',
+          data: { a: 2 },
+        },
+        attempts: 0,
+      })
+      .mockResolvedValueOnce(undefined);
+
+    const result = await QueueWorkRunner.run({ queueName: 'broadcasts' });
+
+    expect(broadcastMock.publish).toHaveBeenCalledWith({
+      channels: ['presence-room.1', 'presence-room.2'],
+      event: 'e',
+      data: { a: 2 },
+      delivery: undefined,
+      broadcaster: undefined,
+      socketId: undefined,
+    });
+    expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'm1b', undefined);
+    expect(result.processed).toBe(1);
   });
 
   it('auto-detects notification kind from recipient/message and processes it', async () => {

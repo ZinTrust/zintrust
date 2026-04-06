@@ -24,15 +24,17 @@ const _lastWorkers = [];
 const detailsCache = new Map();
 const MAX_CACHE_SIZE = 50;
 
+function toMetricNumber(value, fallback = 0) {
+  return Number.isFinite(value) ? value : fallback;
+}
+
 // Theme management
 function getPreferredTheme() {
   const stored = localStorage.getItem(THEME_KEY);
   if (stored === 'light' || stored === 'dark') {
     return stored;
   }
-  const prefersLight =
-    globalThis.window.matchMedia &&
-    globalThis.window.matchMedia('(prefers-color-scheme: light)').matches;
+  const prefersLight = globalThis.window.matchMedia?.('(prefers-color-scheme: light)').matches;
   return prefersLight ? 'light' : 'dark';
 }
 
@@ -84,7 +86,7 @@ function handleFetchError(elements, error) {
 
 // Helper function to validate worker data
 function validateWorkerData(data) {
-  if (!data || !data.workers || !Array.isArray(data.workers)) {
+  if (!Array.isArray(data?.workers)) {
     console.error('Invalid worker data structure:', data);
     return false;
   }
@@ -312,7 +314,7 @@ function updateDetailViews(detailRow, details) {
 
   // Update all data-key elements
   detailRow.querySelectorAll('[data-key]').forEach((element) => {
-    updateDetailElement(element);
+    updateDetailElement(element, details);
   });
 
   // Delegate to specialized functions
@@ -673,13 +675,16 @@ function createVersionCell(worker) {
 
 // Helper function to safely extract performance metrics
 function getPerformanceMetrics(worker) {
-  if (!worker) return { processed: 0, avgTime: 0, memory: 0 };
+  if (!worker) return { processed: 0, failed: 0, avgTime: 0, memory: 0, cpu: 0, uptime: 0 };
 
-  const metrics = worker.metrics || {};
+  const metrics = worker.metrics || worker.details?.metrics || {};
   return {
-    processed: metrics.processed || worker.processed || 0,
-    avgTime: metrics.avgTime || worker.avgTime || 0,
-    memory: metrics.memory || worker.memory || 0,
+    processed: toMetricNumber(metrics.processed, toMetricNumber(worker.processed, 0)),
+    failed: toMetricNumber(metrics.failed, toMetricNumber(worker.failed, 0)),
+    avgTime: toMetricNumber(metrics.avgTime, toMetricNumber(worker.avgTime, 0)),
+    memory: toMetricNumber(metrics.memory, toMetricNumber(worker.memory, 0)),
+    cpu: toMetricNumber(metrics.cpu, toMetricNumber(worker.cpu, 0)),
+    uptime: toMetricNumber(metrics.uptime, toMetricNumber(worker.uptime, 0)),
   };
 }
 
@@ -974,32 +979,34 @@ function createConfigurationSection(worker) {
 
 // Helper function to create Performance Metrics section HTML
 function createPerformanceMetricsSection(worker) {
+  const metrics = getPerformanceMetrics(worker);
+
   return `
     <div class="detail-section">
       <h4>Performance Metrics</h4>
       <div class="detail-item">
         <span>Processed Jobs</span>
-        <span data-key="metrics.processed">${worker.processed.toLocaleString()}</span>
+        <span data-key="metrics.processed">${metrics.processed.toLocaleString()}</span>
       </div>
       <div class="detail-item">
         <span>Failed Jobs</span>
-        <span data-key="metrics.failed">${worker.failed || 0}</span>
+        <span data-key="metrics.failed">${metrics.failed}</span>
       </div>
       <div class="detail-item">
         <span>Average Time</span>
-        <span data-key="metrics.avgTime">${worker.avgTime}ms</span>
+        <span data-key="metrics.avgTime">${metrics.avgTime}ms</span>
       </div>
       <div class="detail-item">
         <span>Memory Usage</span>
-        <span data-key="metrics.memory">${worker.memory}MB</span>
+        <span data-key="metrics.memory">${metrics.memory}MB</span>
       </div>
       <div class="detail-item">
         <span>CPU Usage</span>
-        <span data-key="metrics.cpu">${worker.cpu || 'N/A'}</span>
+        <span data-key="metrics.cpu">${metrics.cpu > 0 ? metrics.cpu + '%' : 'N/A'}</span>
       </div>
       <div class="detail-item">
         <span>Uptime</span>
-        <span data-key="metrics.uptime">${worker.uptime || 'N/A'}</span>
+        <span data-key="metrics.uptime">${metrics.uptime > 0 ? formatUptime(metrics.uptime) : 'N/A'}</span>
       </div>
     </div>
   `;
@@ -1135,6 +1142,8 @@ function renderWorkers(data) {
   const tbody = document.getElementById('workers-tbody');
   if (!tbody) return;
 
+  updateDashboardIdentity(data.appName);
+
   const expandedWorkers = new Set(
     Array.from(tbody.querySelectorAll('.expandable-row.open'))
       .map((row) => row.getAttribute('id')?.replace('details-', ''))
@@ -1180,6 +1189,18 @@ function renderWorkers(data) {
   updateDriverFilter(data.drivers);
   updateDriversList(data.drivers);
   updatePagination(data.pagination);
+}
+
+function updateDashboardIdentity(appName) {
+  if (typeof appName !== 'string' || appName.trim() === '') return;
+
+  const normalizedAppName = appName.trim();
+  document.title = `${normalizedAppName} Workers Dashboard`;
+
+  const heading = document.querySelector('.header-top h1');
+  if (heading) {
+    heading.textContent = `${normalizedAppName}'s Workers`;
+  }
 }
 
 function toggleDetails(rowId) {
@@ -1346,7 +1367,6 @@ async function toggleAutoStart(name, driver, enabled) {
 }
 
 function showAddWorkerModal() {
-  // TODO: Implement add worker modal
   alert('Add Worker functionality coming soon!');
 }
 
@@ -1766,7 +1786,7 @@ function setupEventStream() {
 
     try {
       const payload = JSON.parse(evt.data);
-      if (payload && payload.type === 'snapshot') {
+      if (payload?.type === 'snapshot') {
         const now = Date.now();
         if (now - lastSseRefresh < 4000) return;
         lastSseRefresh = now;

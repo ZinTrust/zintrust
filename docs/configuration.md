@@ -83,7 +83,10 @@ If validation fails, boot throws a structured `ConfigError`.
 | `LOG_LEVEL`                    | string | depends on `NODE_ENV`    | prod defaults to `info`, testing defaults to `error`, otherwise `debug` |
 | `LOG_FORMAT`                   | string | `text`                   | `text` or `json`                                                        |
 | `DISABLE_LOGGING`              | bool   | `false`                  | Disables log output                                                     |
-| `LOG_HTTP_REQUEST`             | bool   | `false`                  | Enables HTTP request logging middleware                                 |
+| `LOG_HTTP_REQUEST`             | bool   | `true`                   | Enables HTTP request logging middleware                                 |
+| `LOG_COLOR`                    | string | `true`                   | ANSI color output policy: `true`/`always`, `auto`, or `false`/`never`   |
+| `LOG_COLOR_THEME`              | string | `arctic`                 | Request-log color palette for text logs                                 |
+| `NO_COLOR`                     | string | unset                    | Disables ANSI colors regardless of `LOG_COLOR`                          |
 | `LOG_TO_FILE`                  | bool   | `false`                  | Enables Node-only file logging                                          |
 | `LOG_ROTATION_SIZE`            | int    | `10485760`               | Max bytes before rotating (Node-only)                                   |
 | `LOG_ROTATION_DAYS`            | int    | `7`                      | Retention window in days (Node-only)                                    |

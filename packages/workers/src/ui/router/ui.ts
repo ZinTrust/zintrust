@@ -1,5 +1,13 @@
 import type { AssetsBinding, IRouter } from '@zintrust/core';
-import { Cloudflare, Logger, MIME_TYPES, NodeSingletons, Router } from '@zintrust/core';
+import {
+  Cloudflare,
+  Env,
+  ErrorFactory,
+  Logger,
+  MIME_TYPES,
+  NodeSingletons,
+  Router,
+} from '@zintrust/core';
 import { INDEX_HTML, MAIN_JS, STYLES_CSS, ZINTRUST_SVG } from './EmbeddedAssets';
 
 const isCloudflare = ((): boolean => {
@@ -50,6 +58,23 @@ const fetchAssetBytes = async (assetPath: string): Promise<Uint8Array | null> =>
   return new Uint8Array(buffer);
 };
 
+const escapeHtml = (value: string): string => {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+};
+
+const injectIndexAppName = (html: string): string => {
+  const appName = Env.get('APP_NAME', 'ZinTrust').trim() || 'ZinTrust';
+
+  return html
+    .replaceAll('__ZINTRUST_WORKERS_TITLE__', escapeHtml(`${appName} Workers Dashboard`))
+    .replaceAll('__ZINTRUST_WORKERS_HEADING__', escapeHtml(`${appName}'s Workers`));
+};
+
 const resolveEmbeddedAssetText = (assetPath: string): string | null => {
   const normalizedPath = assetPath.replace(/^\//, '');
   if (normalizedPath === 'workers/index.html') {
@@ -79,16 +104,16 @@ export const uiResolver = async (uiBasePath: string): Promise<string> => {
   // const __filename = NodeSingletons.url.fileURLToPath(import.meta.url);
   // const __dirname = NodeSingletons.path.dirname(__filename);
   const assetHtml = await fetchAssetText('/workers/index.html');
-  if (assetHtml !== '') return assetHtml;
+  if (assetHtml !== '') return injectIndexAppName(assetHtml);
 
   const uiPath = NodeSingletons.path.resolve(uiBasePath, 'workers/index.html');
 
   try {
-    return await NodeSingletons.fs.readFile(uiPath, 'utf8');
+    return injectIndexAppName(await NodeSingletons.fs.readFile(uiPath, 'utf8'));
   } catch {
     const embedded = resolveEmbeddedAssetText('/workers/index.html');
-    if (embedded !== null) return embedded;
-    throw Error('workers index.html is unavailable');
+    if (embedded !== null) return injectIndexAppName(embedded);
+    throw ErrorFactory.createConfigError('workers index.html is unavailable');
   }
 };
 
@@ -182,7 +207,7 @@ const serveStaticFile = async (
       content = await NodeSingletons.fs.readFile(fullPath);
     } catch {
       if (tryServeEmbedded(filePath)) return;
-      throw Error(`Missing static asset: ${filePath}`);
+      throw ErrorFactory.createNotFoundError(`Missing static asset: ${filePath}`);
     }
     const mimeType = getMimeType(filePath);
 

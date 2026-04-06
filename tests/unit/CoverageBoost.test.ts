@@ -122,7 +122,12 @@ beforeEach(() => {
   } as unknown as fs.Stats);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  httpRequestHandler = undefined;
+  await Promise.resolve();
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
   consoleLogSpy?.mockRestore();
   consoleDebugSpy?.mockRestore();
   consoleWarnSpy?.mockRestore();

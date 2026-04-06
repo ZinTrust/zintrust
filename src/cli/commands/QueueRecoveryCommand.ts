@@ -527,7 +527,7 @@ const runPushForJob = async (
 
   const payload = {
     ...basePayload,
-    uniqueId: record.jobId,
+    jobId: record.jobId,
     attempts: typeof record.maxAttempts === 'number' ? record.maxAttempts : 3,
     _currentAttempts: Math.max(0, Math.floor(record.attempts ?? 0)),
     timestamp: Date.now(),

@@ -10,6 +10,9 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  process.removeAllListeners('SIGTERM');
+  process.removeAllListeners('SIGINT');
+  process.removeAllListeners('SIGUSR2');
 });
 
 describe('Bootstrap start flow', () => {
@@ -87,6 +90,7 @@ describe('Bootstrap start flow', () => {
     // cleanup attached signal handlers to avoid flakiness in other tests
     process.removeAllListeners('SIGTERM');
     process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGUSR2');
   });
 
   it('exits process when start fails', async () => {

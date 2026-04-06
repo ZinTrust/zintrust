@@ -31,6 +31,7 @@ export interface BullMQPayload {
   attempts?: number;
 
   // BullMQ JobOptions fields (extracted to jobOptions)
+  jobId?: string;
   uniqueId?: string;
   delay?: number;
   priority?: number;
@@ -90,10 +91,18 @@ const shouldPreserveExistingStatus = (queueName: string, jobId: string): boolean
   return existing?.status === 'pending_recovery';
 };
 
-const resolveRequestedUniqueId = (payload: BullMQPayload): string | undefined => {
-  if (typeof payload?.uniqueId !== 'string') return undefined;
-  const normalized = payload.uniqueId.trim();
+const normalizeRequestedId = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
   return normalized.length > 0 ? normalized : undefined;
+};
+
+const resolveRequestedJobId = (payload: BullMQPayload): string | undefined => {
+  return normalizeRequestedId(payload?.jobId);
+};
+
+const resolveRequestedUniqueId = (payload: BullMQPayload): string | undefined => {
+  return normalizeRequestedId(payload?.uniqueId);
 };
 
 const resolveMaxAttempts = (payload: BullMQPayload): number | undefined => {
@@ -123,18 +132,19 @@ const markEnqueued = async (input: {
   });
 };
 
-const createFallbackJobId = (requestedUniqueId: string | undefined): string => {
-  if (requestedUniqueId !== undefined) return requestedUniqueId;
+const createFallbackJobId = (requestedJobId: string | undefined): string => {
+  if (requestedJobId !== undefined) return requestedJobId;
   return `fallback-${generateUuid()}`;
 };
 
 const markFailedEnqueue = async (input: {
   queueName: string;
   payload: BullMQPayload;
+  requestedJobId?: string;
   requestedUniqueId?: string;
   error: unknown;
 }): Promise<string> => {
-  const fallbackJobId = createFallbackJobId(input.requestedUniqueId);
+  const fallbackJobId = createFallbackJobId(input.requestedJobId);
 
   await markEnqueued({
     queueName: input.queueName,
@@ -173,6 +183,7 @@ export const Queue = Object.freeze({
 
   async enqueue(queue: string, payload: BullMQPayload, driverName?: string): Promise<string> {
     const resolvedDriver = resolveDriverName(driverName);
+    const requestedJobId = resolveRequestedJobId(payload);
     const requestedUniqueId = resolveRequestedUniqueId(payload);
 
     try {
@@ -181,6 +192,7 @@ export const Queue = Object.freeze({
         operation: 'enqueue',
         attributes: {
           driverName: resolvedDriver,
+          hasJobId: requestedJobId !== undefined,
           hasUniqueId: requestedUniqueId !== undefined,
         },
         execute: async () => {
@@ -193,6 +205,7 @@ export const Queue = Object.freeze({
         queue,
         driver: resolvedDriver,
         jobId,
+        requestedJobId,
         requestedUniqueId,
       });
 
@@ -203,6 +216,7 @@ export const Queue = Object.freeze({
             queue,
             driver: resolvedDriver,
             jobId,
+            requestedJobId,
             requestedUniqueId,
           }
         );
@@ -223,6 +237,7 @@ export const Queue = Object.freeze({
       const fallbackJobId = await markFailedEnqueue({
         queueName: queue,
         payload,
+        requestedJobId,
         requestedUniqueId,
         error,
       });
@@ -231,6 +246,7 @@ export const Queue = Object.freeze({
         queue,
         driver: resolvedDriver,
         fallbackJobId,
+        requestedJobId,
         requestedUniqueId,
         error: error instanceof Error ? error.message : String(error),
       });

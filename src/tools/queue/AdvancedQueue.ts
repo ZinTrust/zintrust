@@ -3,6 +3,7 @@
  * Extends ZinTrust queue functionality with deduplication and lock management
  */
 
+import { isNonEmptyString } from '@/helper';
 import type {
   AdvancedJobOptions,
   DeduplicationOptions,
@@ -139,6 +140,45 @@ type QueueMeta = {
 function shouldAttachReleaseAfterMeta(options: AdvancedJobOptions): boolean {
   if (options.deduplication?.releaseAfter === undefined) return false;
   return typeof options.deduplication.releaseAfter !== 'number';
+}
+
+function normalizeOptionId(value: unknown): string | undefined {
+  if (!isNonEmptyString(value)) return undefined;
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function attachAdvancedIdentifiers(
+  payload: BullMQPayload,
+  options: AdvancedJobOptions
+): { payload: BullMQPayload; identifiersSkipped: boolean } {
+  const requestedJobId = normalizeOptionId(options.jobId);
+  const requestedUniqueId = normalizeOptionId(options.uniqueId);
+
+  if (requestedJobId === undefined && requestedUniqueId === undefined) {
+    return { payload, identifiersSkipped: false };
+  }
+
+  if (payload === null || payload === undefined || typeof payload !== 'object') {
+    return { payload, identifiersSkipped: true };
+  }
+
+  const payloadJobId = normalizeOptionId(payload.jobId);
+  const payloadUniqueId = normalizeOptionId(payload.uniqueId);
+
+  return {
+    payload: {
+      ...payload,
+      ...(payloadJobId === undefined && requestedJobId !== undefined
+        ? { jobId: requestedJobId }
+        : {}),
+      ...(payloadUniqueId === undefined && requestedUniqueId !== undefined
+        ? { uniqueId: requestedUniqueId }
+        : {}),
+    },
+    identifiersSkipped: false,
+  };
 }
 
 function attachQueueMeta(
@@ -284,9 +324,25 @@ async function enqueueWithDeduplication(
       return deduplicationResult;
     }
 
-    const { payload: payloadToSend, metaAttached } = attachQueueMeta(payload, options);
+    const { payload: payloadWithIdentifiers, identifiersSkipped } = attachAdvancedIdentifiers(
+      payload,
+      options
+    );
 
-    if (!metaAttached && shouldAttachReleaseAfterMeta(options)) {
+    if (identifiersSkipped) {
+      Logger.warn('Advanced queue identifiers could not be attached; payload is not an object', {
+        queueName: name,
+        jobId: normalizeOptionId(options.jobId),
+        uniqueId: normalizeOptionId(options.uniqueId),
+      });
+    }
+
+    const { payload: payloadToSend, metaAttached } = attachQueueMeta(
+      payloadWithIdentifiers,
+      options
+    );
+
+    if (shouldAttachReleaseAfterMeta(options) && metaAttached === false) {
       Logger.warn(
         'releaseAfter condition metadata could not be attached; payload is not an object',
         {

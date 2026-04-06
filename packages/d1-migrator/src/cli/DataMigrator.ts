@@ -63,6 +63,11 @@ type ConnectionDetails = {
   password: string;
 };
 
+const normalizeNullLikeValue = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value;
+  return value.trim().toLowerCase() === 'null' ? null : value;
+};
+
 const parseConnectionDetails = (
   connectionString: string,
   defaultPort: number,
@@ -510,7 +515,7 @@ export const DataMigrator = Object.freeze({
       const transformed: Record<string, unknown> = {};
 
       for (const [key, rawValue] of Object.entries(row)) {
-        const value = rawValue;
+        const value = normalizeNullLikeValue(rawValue);
 
         if (value === undefined) {
           transformed[key] = null;

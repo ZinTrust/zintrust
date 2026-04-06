@@ -38,6 +38,7 @@ afterEach(() => {
   }
   process.removeAllListeners('SIGTERM');
   process.removeAllListeners('SIGINT');
+  process.removeAllListeners('SIGUSR2');
   delete process.env['SHUTDOWN_TIMEOUT'];
   delete process.env['SCHEDULES_ENABLED'];
 });
@@ -130,7 +131,59 @@ describe('Bootstrap additional branches', () => {
     await import('@boot/bootstrap');
 
     expect(officialImportsSpy).toHaveBeenCalledWith('base');
-    expect(warnSpy).toHaveBeenCalledWith('Official plugin auto-imports failed:', expect.anything());
+    expect(warnSpy).toHaveBeenCalledWith('Official plugin auto-import advisory', {
+      reason: 'import-failed',
+      details: 'Loaded 0/16 official plugin imports',
+    });
+  });
+
+  it('warns about project plugin auto-import failures when the file exists but import fails', async () => {
+    vi.resetModules();
+
+    const warnSpy = vi.fn();
+    const projectImportsSpy = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'import-failed' as const,
+      errorMessage: 'Project plugin register import failed',
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: {
+        cloudflareWorker: false,
+        dockerWorker: false,
+        worker: false,
+        detectRuntime: () => 'nodejs',
+      },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: {
+        tryImportRuntimeAutoImports: vi.fn(async () => ({ ok: true as const, loadedPath: 'base' })),
+        tryImportProjectAutoImports: projectImportsSpy,
+      },
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {},
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+
+    await import('@boot/bootstrap');
+
+    expect(projectImportsSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith('Project plugin auto-import advisory', {
+      reason: 'import-failed',
+      details: 'Project plugin register import failed',
+    });
   });
 
   it('skips project plugin auto-imports in cloudflare worker mode', async () => {
@@ -322,8 +375,65 @@ describe('Bootstrap additional branches', () => {
 
     process.removeAllListeners('SIGTERM');
     process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGUSR2');
     vi.useRealTimers();
     delete process.env['SHUTDOWN_FORCE_EXIT_MS'];
+  });
+
+  it('handles SIGUSR2 with graceful worker and Redis shutdown', async () => {
+    vi.resetModules();
+
+    const workerShutdown = vi.fn(async () => undefined);
+    const shutdownRedisConnections = vi.fn(async () => undefined);
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: {
+        cloudflareWorker: false,
+        dockerWorker: false,
+        worker: true,
+        detectRuntime: () => 'nodejs',
+      },
+    }));
+    vi.doMock('@config/workers', () => ({
+      shutdownRedisConnections,
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {},
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: { tryImportProjectAutoImports: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerInit: {
+          initialize: vi.fn(async () => undefined),
+          autoStartPersistedWorkers: vi.fn(),
+        },
+        WorkerShutdown: { shutdown: workerShutdown },
+      })),
+    }));
+
+    await import('@boot/bootstrap');
+
+    process.emit('SIGUSR2');
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(workerShutdown).toHaveBeenCalledWith(expect.objectContaining({ signal: 'SIGUSR2' }));
+    expect(shutdownRedisConnections).toHaveBeenCalledTimes(1);
+    expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(0);
   });
 
   it('starts schedules when runtime is nodejs and registers shutdown hook', async () => {

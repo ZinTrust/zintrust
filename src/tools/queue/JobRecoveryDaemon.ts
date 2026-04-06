@@ -158,7 +158,7 @@ export const JobRecoveryDaemon = Object.freeze({
     try {
       await Queue.enqueue(record.queueName, {
         ...payload,
-        uniqueId: record.jobId, // Preserves job ID (prevents duplication)
+        jobId: record.jobId,
         attempts: maxAttempts,
         _currentAttempts: record.attempts + 1,
         timestamp: Date.now() + backoffMs,

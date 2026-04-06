@@ -167,6 +167,20 @@ describe('Env Config', () => {
       expect(PackedEnv.getOptional('MISSING_PACKED_KEY')).toBeUndefined();
     });
 
+    it('supports TIME_ZONE as an alias for APP_TIMEZONE', async () => {
+      delete (process.env as Record<string, string | undefined>)['APP_TIMEZONE'];
+      process.env['TIME_ZONE'] = 'America/New_York';
+
+      vi.resetModules();
+      const { Env: AliasedEnv, resolveAppTimezone } = await import('../../../src/config/env');
+
+      expect(AliasedEnv.get('APP_TIMEZONE')).toBe('America/New_York');
+      expect(AliasedEnv.getOptional('APP_TIMEZONE')).toBe('America/New_York');
+      expect(AliasedEnv.has('APP_TIMEZONE')).toBe(true);
+      expect(AliasedEnv.getSourceOf('APP_TIMEZONE')).toBe('direct-env');
+      expect(resolveAppTimezone()).toBe('America/New_York');
+    });
+
     it('rejects invalid packed env payloads', async () => {
       process.env['USE_PACK'] = 'true';
       process.env['PACK_KEYS'] = 'K1';

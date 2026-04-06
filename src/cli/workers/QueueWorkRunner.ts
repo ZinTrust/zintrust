@@ -9,6 +9,7 @@
  * - No changes needed - uses standard Queue API which is BullMQ-compatible
  */
 import type { QueueDriverName } from '@/config/type';
+import { isArray, isNonEmptyString } from '@/helper';
 import type { ReleaseCondition } from '@/types/Queue';
 import { Broadcast } from '@broadcast/Broadcast';
 import { Env } from '@config/env';
@@ -66,11 +67,29 @@ export type QueueWorkRunnerResult = {
 const isKind = (value: unknown): value is QueueWorkKind =>
   value === 'broadcast' || value === 'notification';
 
+const resolveQueuedBroadcastChannels = (payload: {
+  channel?: unknown;
+  channels?: unknown;
+}): readonly string[] => {
+  if (isArray(payload.channels)) {
+    const channels = payload.channels.filter(isNonEmptyString).map((channel) => channel.trim());
+    if (channels.length > 0) return channels;
+  }
+
+  if (isNonEmptyString(payload.channel)) {
+    return [payload.channel.trim()];
+  }
+
+  return [];
+};
+
 const detectKindFromPayload = (payload: unknown): QueueWorkKind | undefined => {
   if (payload !== null && typeof payload === 'object') {
     const p = payload as Record<string, unknown>;
     if (isKind(p['type'])) return p['type'];
-    if (typeof p['channel'] === 'string' && typeof p['event'] === 'string') return 'broadcast';
+    if (resolveQueuedBroadcastChannels(p).length > 0 && typeof p['event'] === 'string') {
+      return 'broadcast';
+    }
     if (typeof p['recipient'] === 'string' && typeof p['message'] === 'string')
       return 'notification';
   }
@@ -245,6 +264,56 @@ const releaseLockAfterResult = async (
   }
 };
 
+const getPayloadWithMeta = (
+  payloadWithoutMeta: Record<string, unknown>,
+  meta: QueueMeta | undefined
+): Record<string, unknown> => {
+  return meta ? { ...payloadWithoutMeta, [QUEUE_META_KEY]: meta } : payloadWithoutMeta;
+};
+
+const processBroadcastJob = async (
+  options: QueueWorkRunnerOptions,
+  msg: { id: string },
+  job: BroadcastPayload
+): Promise<void> => {
+  const channels = resolveQueuedBroadcastChannels(job);
+
+  Logger.debug('Queue worker: processing queued broadcast', {
+    queue: options.queueName,
+    messageId: msg.id,
+    channels,
+    compatibilityChannel: job.channel,
+    event: job.event,
+    queuedAt: job.timestamp,
+    delivery: job.delivery,
+    broadcaster: job.broadcaster,
+  });
+
+  await Broadcast.publish({
+    channels,
+    event: job.event,
+    data: job.data,
+    delivery: job.delivery,
+    broadcaster: job.broadcaster,
+    socketId: job.socketId,
+  });
+};
+
+const processKnownJob = async (
+  kind: QueueWorkKind,
+  options: QueueWorkRunnerOptions,
+  msg: { id: string },
+  payloadWithoutMeta: Record<string, unknown>
+): Promise<void> => {
+  if (kind === 'broadcast') {
+    await processBroadcastJob(options, msg, payloadWithoutMeta as unknown as BroadcastPayload);
+    return;
+  }
+
+  const job = payloadWithoutMeta as unknown as NotificationPayload;
+  await Notification.send(job.recipient, job.message, job.options ?? {});
+};
+
 const processMessage = async (
   options: QueueWorkRunnerOptions,
   msg: { id: string; payload: Record<string, unknown> },
@@ -269,9 +338,7 @@ const processMessage = async (
   const timestamp = getTimestamp(payloadWithoutMeta);
   if (typeof timestamp === 'number' && timestamp > Date.now()) {
     // Not due yet: re-enqueue and stop after rotating the head once.
-    const payloadForRequeue = meta
-      ? { ...payloadWithoutMeta, [QUEUE_META_KEY]: meta }
-      : payloadWithoutMeta;
+    const payloadForRequeue = getPayloadWithMeta(payloadWithoutMeta, meta);
     await Queue.enqueue(options.queueName, payloadForRequeue, options.driverName);
     await Queue.ack(options.queueName, msg.id, options.driverName);
     result.notDueRequeued++;
@@ -281,21 +348,7 @@ const processMessage = async (
   const attempts = getAttempts(payloadWithoutMeta);
 
   try {
-    if (kind === 'broadcast') {
-      const job = payloadWithoutMeta as unknown as BroadcastPayload;
-      await Broadcast.publish({
-        channel: job.channel,
-        channels: job.channels,
-        event: job.event,
-        data: job.data,
-        delivery: job.delivery,
-        broadcaster: job.broadcaster,
-        socketId: job.socketId,
-      });
-    } else {
-      const job = payloadWithoutMeta as unknown as NotificationPayload;
-      await Notification.send(job.recipient, job.message, job.options ?? {});
-    }
+    await processKnownJob(kind, options, msg, payloadWithoutMeta);
 
     await releaseLockAfterResult(meta, 'success');
 
@@ -316,9 +369,7 @@ const processMessage = async (
     });
 
     if (canRetry) {
-      const payloadForRetry = meta
-        ? { ...payloadWithoutMeta, [QUEUE_META_KEY]: meta }
-        : payloadWithoutMeta;
+      const payloadForRetry = getPayloadWithMeta(payloadWithoutMeta, meta);
       await Queue.enqueue(
         options.queueName,
         withAttempts(payloadForRetry, nextAttempts),

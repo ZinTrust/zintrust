@@ -17,7 +17,7 @@ describe('Queue', () => {
 
     Queue.register('test-driver', {
       async enqueue(queueName: string, payload: Record<string, unknown>): Promise<string> {
-        const jobId = (payload['uniqueId'] as string) || 'fallback-job-id';
+        const jobId = (payload['jobId'] as string) || 'fallback-job-id';
         await JobStateTracker.enqueued({
           queueName,
           jobId,
@@ -48,7 +48,8 @@ describe('Queue', () => {
     const jobId = await Queue.enqueue(
       'emails',
       {
-        uniqueId: 'idempotent-fallback-job-1',
+        jobId: 'idempotent-fallback-job-1',
+        uniqueId: 'idempotency-key-1',
         attempts: 3,
       },
       'test-driver'
@@ -62,7 +63,7 @@ describe('Queue', () => {
     Env.setSource(null);
   });
 
-  it('tracks failed enqueue attempts in memory as pending_recovery', async () => {
+  it('tracks failed enqueue attempts in memory using the explicit jobId', async () => {
     Env.setSource({
       JOB_TRACKING_ENABLED: 'true',
     });
@@ -97,7 +98,8 @@ describe('Queue', () => {
       Queue.enqueue(
         'emails',
         {
-          uniqueId: 'failed-job-1',
+          jobId: 'failed-job-1',
+          uniqueId: 'idempotency-key-2',
           attempts: 2,
         },
         'failing-driver'
@@ -105,6 +107,104 @@ describe('Queue', () => {
     ).rejects.toThrow(/driver enqueue failed/);
 
     expect(JobStateTracker.get('emails', 'failed-job-1')?.status).toBe('pending_recovery');
+
+    Env.setSource(null);
+  });
+
+  it('preserves an explicit requested jobId when enqueue fails before the driver accepts the job', async () => {
+    Env.setSource({
+      JOB_TRACKING_ENABLED: 'true',
+    });
+    vi.resetModules();
+    const queueModule = await import('@/tools/queue/Queue');
+    const trackerModule = await import('@/tools/queue/JobStateTracker');
+    const Queue = queueModule.default;
+    const { JobStateTracker } = trackerModule;
+
+    JobStateTracker.reset();
+    Queue.reset();
+
+    Queue.register('failing-driver', {
+      async enqueue(): Promise<string> {
+        throw new Error('driver enqueue failed');
+      },
+      async dequeue() {
+        return undefined;
+      },
+      async ack() {
+        return undefined;
+      },
+      async length() {
+        return 0;
+      },
+      async drain() {
+        return undefined;
+      },
+    });
+
+    await expect(
+      Queue.enqueue(
+        'emails',
+        {
+          jobId: 'explicit-job-id-1',
+          uniqueId: 'legacy-unique-id-1',
+          attempts: 2,
+        },
+        'failing-driver'
+      )
+    ).rejects.toThrow(/driver enqueue failed/);
+
+    expect(JobStateTracker.get('emails', 'explicit-job-id-1')?.status).toBe('pending_recovery');
+
+    Env.setSource(null);
+  });
+
+  it('does not reuse uniqueId as the fallback jobId when jobId is omitted', async () => {
+    Env.setSource({
+      JOB_TRACKING_ENABLED: 'true',
+    });
+    vi.resetModules();
+    const queueModule = await import('@/tools/queue/Queue');
+    const trackerModule = await import('@/tools/queue/JobStateTracker');
+    const Queue = queueModule.default;
+    const { JobStateTracker } = trackerModule;
+
+    JobStateTracker.reset();
+    Queue.reset();
+
+    Queue.register('failing-driver', {
+      async enqueue(): Promise<string> {
+        throw new Error('driver enqueue failed');
+      },
+      async dequeue() {
+        return undefined;
+      },
+      async ack() {
+        return undefined;
+      },
+      async length() {
+        return 0;
+      },
+      async drain() {
+        return undefined;
+      },
+    });
+
+    await expect(
+      Queue.enqueue(
+        'emails',
+        {
+          uniqueId: 'legacy-unique-id-only',
+          attempts: 2,
+        },
+        'failing-driver'
+      )
+    ).rejects.toThrow(/driver enqueue failed/);
+
+    const records = JobStateTracker.list({ queueName: 'emails' });
+    expect(records).toHaveLength(1);
+    expect(records[0]?.jobId).toMatch(/^fallback-/);
+    expect(records[0]?.jobId).not.toBe('legacy-unique-id-only');
 
     Env.setSource(null);
   });

@@ -31,4 +31,19 @@ describe('broadcast config', () => {
     const defaultAlias = broadcastConfig.getDriverConfig('default');
     expect(defaultAlias.driver).toBe(resolved.driver);
   });
+
+  it('exposes the built-in http-bridge driver config', () => {
+    process.env['BROADCAST_BRIDGE_URL'] = 'http://127.0.0.1:7788/apps/internal/events';
+    process.env['BROADCAST_BRIDGE_SECRET'] = 'bridge-secret';
+
+    const bridge = broadcastConfig.getDriverConfig('http-bridge');
+    expect(bridge).toEqual({
+      driver: 'http-bridge',
+      url: 'http://127.0.0.1:7788/apps/internal/events',
+      secret: 'bridge-secret',
+    });
+
+    delete process.env['BROADCAST_BRIDGE_URL'];
+    delete process.env['BROADCAST_BRIDGE_SECRET'];
+  });
 });

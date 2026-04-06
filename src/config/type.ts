@@ -429,7 +429,12 @@ export type CacheConfigInput = {
   drivers: CacheDrivers;
 };
 
-export type KnownBroadcastDriverName = 'inmemory' | 'pusher' | 'redis' | 'redishttps';
+export type KnownBroadcastDriverName =
+  | 'inmemory'
+  | 'pusher'
+  | 'redis'
+  | 'redishttps'
+  | 'http-bridge';
 
 export type InMemoryBroadcastDriverConfig = {
   driver: 'inmemory';
@@ -460,11 +465,18 @@ export type RedisHttpsBroadcastDriverConfig = {
   channelPrefix: string;
 };
 
+export type HttpBridgeBroadcastDriverConfig = {
+  driver: 'http-bridge';
+  url: string;
+  secret: string;
+};
+
 export type KnownBroadcastDriverConfig =
   | InMemoryBroadcastDriverConfig
   | PusherBroadcastDriverConfig
   | RedisBroadcastDriverConfig
-  | RedisHttpsBroadcastDriverConfig;
+  | RedisHttpsBroadcastDriverConfig
+  | HttpBridgeBroadcastDriverConfig;
 
 export type BroadcastDrivers = Record<string, KnownBroadcastDriverConfig>;
 

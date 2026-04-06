@@ -6,6 +6,10 @@ const queueMock = {
 
 const resetBroadcastEnv = (): void => {
   delete process.env['BROADCAST_INTERNAL_URL'];
+  delete process.env['BROADCAST_BRIDGE_URL'];
+  delete process.env['BROADCAST_BRIDGE_SECRET'];
+  delete process.env['BROADCAST_BRIDGE_PATH'];
+  delete process.env['BROADCAST_BRIDGE_PROTOCOL'];
   delete process.env['APP_URL'];
   delete process.env['BASE_URL'];
   delete process.env['PUSHER_APP_ID'];
@@ -13,6 +17,11 @@ const resetBroadcastEnv = (): void => {
   delete process.env['BROADCAST_SECRET'];
   delete process.env['PUSHER_APP_SECRET'];
   delete process.env['BROADCAST_APP_SECRET'];
+  delete process.env['DOCKER_WORKER'];
+  delete process.env['WORKER_ISOLATED'];
+  delete process.env['ZINTRUST_SOCKET_HOST'];
+  delete process.env['ZINTRUST_SOCKET_PORT'];
+  delete process.env['X_ZINTRUST_SOCKET_SEC'];
 };
 
 const setBroadcastEnv = (values: Record<string, string>): void => {
@@ -164,6 +173,51 @@ describe('Broadcast (later + now patch coverage)', () => {
     expect(publishSocketEventFromServer).not.toHaveBeenCalled();
   });
 
+  it('automatically bridges isolated inmemory broadcasts over configured HTTP bridge endpoints', async () => {
+    setBroadcastEnv({
+      DOCKER_WORKER: 'true',
+      BROADCAST_BRIDGE_URL: 'http://127.0.0.1:7785/apps/bridge-app/events',
+      BROADCAST_BRIDGE_SECRET: 'bridge-secret',
+    });
+
+    const fetchMock = vi.fn(async () =>
+      createJsonResponse(
+        JSON.stringify({ ok: true, deliveries: 5, event: 'evt', channels: ['private-smart.1'] })
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { publishSocketEventFromServer } = installSocketMock();
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({
+        channel: 'smart.1',
+        channelScope: 'private',
+        event: 'evt',
+        data: { ok: true },
+      })
+    ).resolves.toMatchObject({
+      transport: 'internal-http',
+      endpoint: 'http://127.0.0.1:7785/apps/bridge-app/events',
+      attemptedTransports: ['internal-http'],
+      deliveries: 5,
+      channels: ['private-smart.1'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:7785/apps/bridge-app/events',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'x-zintrust-socket-secret': 'bridge-secret',
+          authorization: 'Bearer bridge-secret',
+        }),
+      })
+    );
+    expect(publishSocketEventFromServer).not.toHaveBeenCalled();
+  });
+
   it('retries the alternate loopback host before falling back to the in-process socket transport', async () => {
     setBroadcastEnv({ BASE_URL: 'http://127.0.0.1:7777', PUSHER_APP_ID: 'app-1' });
 
@@ -277,7 +331,9 @@ describe('Broadcast (later + now patch coverage)', () => {
   it('parses raw internal-http error bodies and falls back to the socket transport', async () => {
     setBroadcastEnv({ BASE_URL: 'http://127.0.0.1:7788', PUSHER_APP_ID: 'internal-app' });
     const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({ Logger: { warn: loggerWarn, error: vi.fn() } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
+    }));
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => createJsonResponse('not-json', 500))
@@ -311,7 +367,9 @@ describe('Broadcast (later + now patch coverage)', () => {
     setBroadcastEnv({ APP_URL: 'http://localhost:7788', PUSHER_APP_ID: 'loopback-app' });
     const fetchMock = vi.fn().mockRejectedValue('boom');
     const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({ Logger: { warn: loggerWarn, error: vi.fn() } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
+    }));
     vi.stubGlobal('fetch', fetchMock);
     vi.doMock('@zintrust/socket', () => ({
       publishSocketEventFromServer: vi.fn(async () => {
@@ -382,6 +440,43 @@ describe('Broadcast (later + now patch coverage)', () => {
     });
   });
 
+  it('supports the explicit http-bridge broadcaster', async () => {
+    vi.doMock('@broadcast/BroadcastRegistry', () => ({
+      BroadcastRegistry: {
+        has: () => true,
+        get: () => ({
+          driver: 'http-bridge',
+          url: 'http://127.0.0.1:7787/apps/bridge-driver/events',
+          secret: 'driver-secret',
+        }),
+      },
+    }));
+
+    const fetchMock = vi.fn(async () =>
+      createJsonResponse(
+        JSON.stringify({ ok: true, deliveries: 2, event: 'evt', channels: ['alpha', 'beta'] })
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.broadcaster('bridge').publish({
+        channels: ['alpha', 'beta'],
+        event: 'evt',
+        data: { ok: true },
+      })
+    ).resolves.toMatchObject({
+      transport: 'driver',
+      driver: 'http-bridge',
+      endpoint: 'http://127.0.0.1:7787/apps/bridge-driver/events',
+      deliveries: 2,
+      channels: ['alpha', 'beta'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('BroadcastLater enqueues with type/attempts and provided timestamp', async () => {
     const { Broadcast } = await import('@broadcast/Broadcast');
 
@@ -432,6 +527,26 @@ describe('Broadcast (later + now patch coverage)', () => {
         socketId: 'socket-1',
         timestamp: 321,
         attempts: 0,
+      })
+    );
+  });
+
+  it('publishLater keeps channels authoritative and stores channel only as derived compatibility metadata', async () => {
+    const { Broadcast } = await import('@broadcast/Broadcast');
+
+    await expect(
+      Broadcast.publishLater({
+        channels: ['private-user.10', 'private-user.11'],
+        event: 'session.revoked',
+        data: { byAdmin: true },
+      })
+    ).resolves.toBe('msg-1');
+
+    expect(queueMock.enqueue).toHaveBeenCalledWith(
+      'broadcasts',
+      expect.objectContaining({
+        channel: 'private-user.10',
+        channels: ['private-user.10', 'private-user.11'],
       })
     );
   });
@@ -520,9 +635,9 @@ describe('Broadcast (later + now patch coverage)', () => {
     }));
 
     const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
-    ).rejects.toBe(validationError);
+    await expect(Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })).rejects.toBe(
+      validationError
+    );
   });
 
   it('rethrows SECURITY_ERROR socket errors in auto delivery mode instead of falling back to driver', async () => {
@@ -537,9 +652,9 @@ describe('Broadcast (later + now patch coverage)', () => {
     }));
 
     const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
-    ).rejects.toBe(securityError);
+    await expect(Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })).rejects.toBe(
+      securityError
+    );
   });
 
   it('falls back to driver for plain socket errors (socket unavailable) in auto delivery mode', async () => {

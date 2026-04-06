@@ -25,6 +25,9 @@ vi.mock('@runtime/StartupConfigFileRegistry', () => ({
 class MockRedis {
   public handlers: Record<string, (err: Error) => void> = {};
   public config?: any;
+  public status = 'ready';
+  public quit = vi.fn(async () => 'OK');
+  public disconnect = vi.fn(() => undefined);
 
   constructor(config?: any) {
     this.config = config;
@@ -48,6 +51,8 @@ describe('workers config', () => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     delete (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule;
+    delete (globalThis as unknown as { __zintrustRedisConnectionRegistry__?: unknown })
+      .__zintrustRedisConnectionRegistry__;
   });
 
   it('handles redis error handler failures', async () => {
@@ -133,5 +138,52 @@ describe('workers config', () => {
     ).resolves.toBe('OK');
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:8791/redis/zin/redis/command');
+  });
+
+  it('reuses subsystem Redis clients in non-production runtimes and recreates them after shutdown', async () => {
+    (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule = {
+      Redis: MockRedis,
+    };
+
+    const { createRedisConnection, shutdownRedisConnections } = await import('@config/workers');
+
+    const first = createRedisConnection(
+      {
+        host: 'localhost',
+        port: 6379,
+        password: 'pass',
+        db: 0,
+      },
+      3,
+      { subsystem: 'queue-bullmq' }
+    );
+
+    const second = createRedisConnection(
+      {
+        host: 'localhost',
+        port: 6379,
+        password: 'pass',
+        db: 0,
+      },
+      3,
+      { subsystem: 'queue-bullmq' }
+    );
+
+    expect(second).toBe(first);
+
+    await shutdownRedisConnections();
+
+    const third = createRedisConnection(
+      {
+        host: 'localhost',
+        port: 6379,
+        password: 'pass',
+        db: 0,
+      },
+      3,
+      { subsystem: 'queue-bullmq' }
+    );
+
+    expect(third).not.toBe(first);
   });
 });

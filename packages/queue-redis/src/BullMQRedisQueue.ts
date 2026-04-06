@@ -319,10 +319,17 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     return Array.from(queues.keys());
   };
 
+  const resolveRequestedJobId = (payloadData: BullMQPayload): string => {
+    if (typeof payloadData?.jobId === 'string' && payloadData.jobId.trim().length > 0) {
+      return payloadData.jobId.trim();
+    }
+    return generateUuid();
+  };
+
   const createJobOptions = (payloadData: BullMQPayload): JobsOptions => {
     return {
-      // Use uniqueId if present, otherwise generated
-      jobId: payloadData?.uniqueId ?? generateUuid(),
+      // Prefer the explicit BullMQ jobId and keep uniqueId as a legacy alias.
+      jobId: resolveRequestedJobId(payloadData),
 
       // CRITICAL: Delay scheduling
       delay: payloadData.delay,

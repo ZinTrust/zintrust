@@ -23,12 +23,21 @@ type QueueRpcError = {
   details?: unknown;
 };
 
-type QueueRpcResponse<T> = {
-  ok: boolean;
+type QueueRpcSuccess<T> = {
+  ok: true;
   requestId?: string;
-  result?: T;
+  result: T;
+  error?: null;
+};
+
+type QueueRpcFailure = {
+  ok: false;
+  requestId?: string;
+  result?: null;
   error?: QueueRpcError | null;
 };
+
+type QueueRpcResponse<T> = QueueRpcSuccess<T> | QueueRpcFailure;
 
 export interface IQueueDriver {
   enqueue(queue: string, payload: BullMQPayload): Promise<string>;
@@ -158,7 +167,7 @@ const ensureSuccessfulResponse = <T>(response: QueueRpcResponse<T>, requestId: s
     throw ErrorFactory.createTryCatchError(message, details);
   }
 
-  return response.result as T;
+  return response.result;
 };
 
 const callGateway = async <T>(
@@ -221,8 +230,8 @@ const callGateway = async <T>(
 };
 
 const resolveFallbackJobId = (payload: BullMQPayload): string => {
-  if (typeof payload.uniqueId === 'string' && payload.uniqueId.trim().length > 0) {
-    return payload.uniqueId.trim();
+  if (typeof payload.jobId === 'string' && payload.jobId.trim().length > 0) {
+    return payload.jobId.trim();
   }
 
   return generateUuid();

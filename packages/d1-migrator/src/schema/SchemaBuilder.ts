@@ -8,6 +8,11 @@ import type { ColumnSchema, TableSchema } from '../types';
 import { DataValidator } from '../utils/DataValidator';
 import { TypeConverter } from './TypeConverter';
 
+const normalizeNullLikeDefaultValue = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value;
+  return value.trim().toLowerCase() === 'null' ? null : value;
+};
+
 /**
  * SchemaBuilder - Sealed namespace for schema building
  * Provides D1 schema generation from source schemas
@@ -108,19 +113,21 @@ export const SchemaBuilder = Object.freeze({
    * Format default value for SQL
    */
   formatDefaultValue(value: unknown): string {
-    if (value === null) {
+    const normalizedValue = normalizeNullLikeDefaultValue(value);
+
+    if (normalizedValue === null) {
       return 'NULL';
     }
 
-    if (typeof value === 'string') {
-      return `'${value.replaceAll("'", "''")}'`;
+    if (typeof normalizedValue === 'string') {
+      return `'${normalizedValue.replaceAll("'", "''")}'`;
     }
 
-    if (typeof value === 'boolean') {
-      return value ? '1' : '0';
+    if (typeof normalizedValue === 'boolean') {
+      return normalizedValue ? '1' : '0';
     }
 
-    return String(value);
+    return String(normalizedValue);
   },
 
   /**

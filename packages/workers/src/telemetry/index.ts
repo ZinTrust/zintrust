@@ -1,5 +1,5 @@
 import type { IRequest, IResponse, IRouter, RouteOptions } from '@zintrust/core';
-import { Router } from '@zintrust/core';
+import { Env, Router } from '@zintrust/core';
 import type { TelemetrySettings } from './api/TelemetryAPI';
 import { createSnapshotBuilder } from './api/TelemetryAPI';
 import { teleStream } from './api/TelemetryMonitoringService';
@@ -78,6 +78,7 @@ function registerDashboardRoute(
           basePath: settings.basePath,
           autoRefresh: settings.autoRefresh,
           refreshIntervalMs: settings.refreshIntervalMs,
+          appName: Env.get('APP_NAME', 'ZinTrust'),
         })
       );
     },

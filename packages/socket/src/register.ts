@@ -1,4 +1,4 @@
-import { socketRouteRegistrar, socketRuntime } from './index.js';
+import { socketRouteRegistrar, socketRuntime, ZintrustSocketHub } from './index.js';
 
 type CoreApi = {
   SocketRuntimeRegistry?: {
@@ -14,6 +14,7 @@ type SocketRuntimeRegistryState = {
 
 type SocketRuntimeRegistryGlobal = typeof globalThis & {
   __zintrustSocketRuntimeRegistry?: SocketRuntimeRegistryState;
+  __zintrustSocketHubClass?: typeof ZintrustSocketHub;
 };
 
 const registerViaGlobalFallback = (): void => {
@@ -25,6 +26,11 @@ const registerViaGlobalFallback = (): void => {
   };
 };
 
+const registerSocketHubClass = (): void => {
+  const globalRegistry = globalThis as SocketRuntimeRegistryGlobal;
+  globalRegistry.__zintrustSocketHubClass = ZintrustSocketHub;
+};
+
 const importCore = async (): Promise<CoreApi> => {
   try {
     return (await import('@zintrust/core')) as CoreApi;
@@ -34,6 +40,7 @@ const importCore = async (): Promise<CoreApi> => {
 };
 
 const core = await importCore();
+registerSocketHubClass();
 if (core.SocketRuntimeRegistry === undefined) {
   registerViaGlobalFallback();
 } else {

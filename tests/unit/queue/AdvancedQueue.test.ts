@@ -6,6 +6,7 @@ import type { AdvancedJobOptions, QueueConfig } from '@/types/Queue';
 import { Logger } from '@config/logger';
 import { createAdvancedQueue } from '@tools/queue/AdvancedQueue';
 import { createMemoryLockProvider, registerLockProvider } from '@tools/queue/LockProvider';
+import { Queue } from '@tools/queue/Queue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock Logger
@@ -90,6 +91,50 @@ describe('AdvancedQueue', () => {
       expect(jobId).toBe('job-123');
     });
 
+    it('forwards jobId and uniqueId from advanced options when payload does not define them', async () => {
+      const options: AdvancedJobOptions = {
+        jobId: 'advanced-job-123',
+        uniqueId: 'advanced-unique-123',
+      };
+
+      await advancedQueue.enqueue('test-queue', { data: 'test' }, options);
+
+      expect(Queue.enqueue).toHaveBeenCalledWith(
+        'test-queue',
+        expect.objectContaining({
+          data: 'test',
+          jobId: 'advanced-job-123',
+          uniqueId: 'advanced-unique-123',
+        })
+      );
+    });
+
+    it('preserves payload jobId and uniqueId when advanced options also provide them', async () => {
+      const options: AdvancedJobOptions = {
+        jobId: 'option-job-123',
+        uniqueId: 'option-unique-123',
+      };
+
+      await advancedQueue.enqueue(
+        'test-queue',
+        {
+          data: 'test',
+          jobId: 'payload-job-123',
+          uniqueId: 'payload-unique-123',
+        },
+        options
+      );
+
+      expect(Queue.enqueue).toHaveBeenCalledWith(
+        'test-queue',
+        expect.objectContaining({
+          data: 'test',
+          jobId: 'payload-job-123',
+          uniqueId: 'payload-unique-123',
+        })
+      );
+    });
+
     it('should validate uniqueId format', async () => {
       const options: AdvancedJobOptions = {
         uniqueId: 'invalid id with spaces',
@@ -146,6 +191,26 @@ describe('AdvancedQueue', () => {
         'releaseAfter condition metadata could not be attached; payload is not an object',
         expect.objectContaining({ queueName: 'test-queue' })
       );
+    });
+
+    it('warns when advanced identifiers cannot be attached to a non-object payload', async () => {
+      const options: AdvancedJobOptions = {
+        jobId: 'advanced-job-123',
+        uniqueId: 'advanced-unique-123',
+      };
+
+      const jobId = await advancedQueue.enqueue('test-queue', 'not-an-object', options);
+
+      expect(jobId).toBe('job-123');
+      expect(Logger.warn).toHaveBeenCalledWith(
+        'Advanced queue identifiers could not be attached; payload is not an object',
+        expect.objectContaining({
+          queueName: 'test-queue',
+          jobId: 'advanced-job-123',
+          uniqueId: 'advanced-unique-123',
+        })
+      );
+      expect(Queue.enqueue).toHaveBeenCalledWith('test-queue', 'not-an-object');
     });
 
     it('should handle deduplication', async () => {

@@ -177,7 +177,6 @@ export default defineConfig({
         'routes/DirectMysqlTestRoutes.ts',
         // Keep most queue internals excluded (noise), but do NOT exclude files that
         // commonly change and are enforced by patch-coverage gates.
-        'src/tools/queue/AdvancedQueue.ts',
         'src/tools/queue/DeduplicationBuilder.ts',
         'src/tools/queue/IdempotencyManager.ts',
         'src/tools/queue/JobHeartbeatStore.ts',

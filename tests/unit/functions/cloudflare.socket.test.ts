@@ -79,4 +79,17 @@ describe('functions/cloudflare socket intercept', () => {
 
     expect(mod.ZintrustSocketHub).toBeTypeOf('function');
   });
+
+  it('returns a safe 503 response when the optional socket package is not registered', async () => {
+    getRuntimeMock.mockReturnValue(undefined);
+
+    const mod = await import('../../../src/functions/cloudflare?socket-durable-object-missing');
+    const hub = new mod.ZintrustSocketHub({}, {});
+    const response = await hub.fetch(new Request('https://example.test/socket'));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'socket_runtime_unavailable',
+    });
+  });
 });

@@ -114,7 +114,7 @@ const REQUEST_LOG_COLOR_THEMES: Readonly<Record<LoggerColorThemeName, RequestLog
         OPTIONS: `${ANSI.bold}${ANSI.brightMagenta}`,
       }),
       methodFallback: `${ANSI.bold}${ANSI.white}`,
-      path: ANSI.white,
+      path: `${ANSI.bold}${ANSI.white}`,
       status: Object.freeze({
         success: `${ANSI.bold}${ANSI.brightGreen}`,
         redirect: `${ANSI.bold}${ANSI.cyan}`,
@@ -130,7 +130,7 @@ const REQUEST_LOG_COLOR_THEMES: Readonly<Record<LoggerColorThemeName, RequestLog
         slow: `${ANSI.bold}${ANSI.yellow}`,
         critical: `${ANSI.bold}${ANSI.brightRed}`,
       }),
-      meta: `${ANSI.dim}${ANSI.cyan}`,
+      meta: `${ANSI.dim}${ANSI.white}`,
     }),
     'sharp-ops': Object.freeze({
       level: Object.freeze({
@@ -317,7 +317,7 @@ const colorize = (value: string, colorCode: string): string => `${colorCode}${va
 const shouldColorizeConsoleText = (): boolean => {
   if (isJsonFormat(getLogFormat())) return false;
 
-  const configured = getEnvString('LOG_COLOR', 'auto').trim().toLowerCase();
+  const configured = getEnvString('LOG_COLOR', 'true').trim().toLowerCase();
   if (
     configured === 'false' ||
     configured === '0' ||
@@ -326,6 +326,9 @@ const shouldColorizeConsoleText = (): boolean => {
   ) {
     return false;
   }
+
+  if (getEnvString('NO_COLOR', '').trim() !== '') return false;
+
   if (
     configured === 'true' ||
     configured === '1' ||
@@ -334,8 +337,6 @@ const shouldColorizeConsoleText = (): boolean => {
   ) {
     return true;
   }
-
-  if (getEnvString('NO_COLOR', '').trim() !== '') return false;
   if (typeof process === 'undefined') return true;
   return process.stdout?.isTTY !== false;
 };
