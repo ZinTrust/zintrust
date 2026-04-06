@@ -158,7 +158,7 @@ const ensureSuccessfulResponse = <T>(response: QueueRpcResponse<T>, requestId: s
     throw ErrorFactory.createTryCatchError(message, details);
   }
 
-  return response.result as T;
+  return response.result;
 };
 
 const callGateway = async <T>(
