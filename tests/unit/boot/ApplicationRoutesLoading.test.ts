@@ -3,22 +3,38 @@ import { Router } from '@core-routes/Router';
 import { mkdir, mkdtemp, rm, writeFile } from '@node-singletons/fs';
 import { tmpdir } from '@node-singletons/os';
 import { join } from '@node-singletons/path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Application route loading', () => {
   let originalCwd: string;
   let tempDir: string | undefined;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn> | undefined;
+  let consoleDebugSpy: ReturnType<typeof vi.spyOn> | undefined;
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn> | undefined;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn> | undefined;
 
   beforeEach(() => {
     originalCwd = process.cwd();
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
   afterEach(async () => {
+    await Promise.resolve();
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
     process.chdir(originalCwd);
     if (tempDir !== undefined) {
       await rm(tempDir, { recursive: true, force: true });
       tempDir = undefined;
     }
+    consoleLogSpy?.mockRestore();
+    consoleDebugSpy?.mockRestore();
+    consoleWarnSpy?.mockRestore();
+    consoleErrorSpy?.mockRestore();
   });
 
   it('prefers app-local routes over framework routes', async () => {
