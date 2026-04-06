@@ -26,6 +26,15 @@ const pushError = (
   errors.push({ key, value: redactValue(key, value), message });
 };
 
+const pushWarning = (
+  warnings: StartupConfigValidationError[],
+  key: string,
+  value: unknown,
+  message: string
+): void => {
+  warnings.push({ key, value: redactValue(key, value), message });
+};
+
 const validateEnum = (
   errors: StartupConfigValidationError[],
   key: string,
@@ -140,6 +149,26 @@ const requireEnvString = (
   return value;
 };
 
+const recommendEnvString = (
+  warnings: StartupConfigValidationError[],
+  key: string,
+  message?: string,
+  aliases?: readonly string[]
+): string | undefined => {
+  const value =
+    getEnvOptionalString(key) ??
+    (aliases ?? []).reduce<string | undefined>((found, alias) => {
+      if (found !== undefined) return found;
+      return getEnvOptionalString(alias);
+    }, undefined);
+
+  if (value === undefined) {
+    pushWarning(warnings, key, value, message ?? `${key} is recommended`);
+  }
+
+  return value;
+};
+
 const validateSqliteDbFileRequired = (
   errors: StartupConfigValidationError[],
   dbConnection: string | undefined
@@ -158,25 +187,32 @@ const validateStrictRequiredEnv = (errors: StartupConfigValidationError[]): void
   if (!requireEnv) return;
 
   requireEnvString(errors, 'NODE_ENV');
-  requireEnvString(errors, 'APP_NAME');
-  requireEnvString(errors, 'HOST');
+  const dbConnection = requireEnvString(errors, 'DB_CONNECTION');
 
-  const portRaw = requireEnvString(errors, 'PORT', {
-    aliases: ['APP_PORT'],
-    requiredMessage: 'PORT (or APP_PORT) is required',
-  });
+  requireEnvString(errors, 'APP_KEY', { minLength: 16 });
+
+  validateSqliteDbFileRequired(errors, dbConnection);
+};
+
+const validateStrictRecommendedEnv = (
+  errors: StartupConfigValidationError[],
+  warnings: StartupConfigValidationError[]
+): void => {
+  const requireEnv = getEnvBoolLoose('STARTUP_REQUIRE_ENV', false);
+  if (!requireEnv) return;
+
+  recommendEnvString(warnings, 'APP_NAME');
+  recommendEnvString(warnings, 'HOST');
+  recommendEnvString(warnings, 'BASE_URL');
+  recommendEnvString(warnings, 'PORT', 'PORT (or APP_PORT) is recommended', ['APP_PORT']);
+  recommendEnvString(warnings, 'LOG_LEVEL');
+  recommendEnvString(warnings, 'LOG_CHANNEL');
+
+  const portRaw = getEnvOptionalString('PORT') ?? getEnvOptionalString('APP_PORT');
   if (portRaw !== undefined) {
     const port = Number.parseInt(portRaw, 10);
     validateIntRange(errors, 'PORT', port, 1, 65535);
   }
-
-  const dbConnection = requireEnvString(errors, 'DB_CONNECTION');
-
-  requireEnvString(errors, 'APP_KEY', { minLength: 16 });
-  requireEnvString(errors, 'LOG_LEVEL');
-  requireEnvString(errors, 'LOG_CHANNEL');
-
-  validateSqliteDbFileRequired(errors, dbConnection);
 };
 
 const validateNodeEnv = (errors: StartupConfigValidationError[]): void => {
@@ -243,8 +279,10 @@ const validateProductionAppKey = (errors: StartupConfigValidationError[]): void 
 export const StartupConfigValidator = Object.freeze({
   validate(): StartupConfigValidationResult {
     const errors: StartupConfigValidationError[] = [];
+    const warnings: StartupConfigValidationError[] = [];
 
     validateStrictRequiredEnv(errors);
+    validateStrictRecommendedEnv(errors, warnings);
 
     validateNodeEnv(errors);
     validatePort(errors);
@@ -252,7 +290,7 @@ export const StartupConfigValidator = Object.freeze({
     validateRotationAndTimeout(errors);
     validateProductionAppKey(errors);
 
-    return { valid: errors.length === 0, errors };
+    return { valid: errors.length === 0, errors, warnings };
   },
 
   assertValid(): void {
@@ -261,6 +299,7 @@ export const StartupConfigValidator = Object.freeze({
 
     throw ErrorFactory.createConfigError('Invalid startup configuration', {
       errors: result.errors,
+      warnings: result.warnings,
     });
   },
 });

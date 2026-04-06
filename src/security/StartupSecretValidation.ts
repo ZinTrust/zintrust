@@ -10,6 +10,7 @@ import { Env } from '@config/env';
 import { securityConfig } from '@config/security';
 import { startupConfig } from '@config/startup';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isNonEmptyString } from '@helper/index';
 
 export type StartupSecretValidationError = {
   key: string;
@@ -70,14 +71,26 @@ const parseBase64KeyBytes = (rawKey: string): number | null => {
   return decoded.length;
 };
 
+const shouldValidateEncryptionInterop = (): boolean => {
+  const cipherRaw = (Env.ENCRYPTION_CIPHER ?? '').trim();
+  const previousKeysRaw = (Env.APP_PREVIOUS_KEYS ?? '').trim();
+
+  return isNonEmptyString(cipherRaw) || isNonEmptyString(previousKeysRaw);
+};
+
 const validateEncryptionInterop = (): StartupSecretValidationError[] => {
   const errors: StartupSecretValidationError[] = [];
+
+  if (!shouldValidateEncryptionInterop()) {
+    return errors;
+  }
 
   const cipherRaw = (Env.ENCRYPTION_CIPHER ?? '').trim();
   if (cipherRaw.length === 0) {
     errors.push({
       key: 'ENCRYPTION_CIPHER',
-      message: 'ENCRYPTION_CIPHER must be set (supported: aes-256-cbc, aes-256-gcm)',
+      message:
+        'ENCRYPTION_CIPHER must be set when encrypted envelope interoperability is enabled (supported: aes-256-cbc, aes-256-gcm)',
     });
     return errors;
   }

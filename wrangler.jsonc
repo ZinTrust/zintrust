@@ -59,6 +59,67 @@
         "not_found_handling": "single-page-application",
       },
 
+      // Runtime vars required for Worker boot.
+      // Secrets such as APP_KEY stay in Cloudflare secrets; non-secret startup
+      // config belongs here so first-request boot does not fail on missing env.
+      "vars": {
+        "ENVIRONMENT": "production",
+        "NODE_ENV": "production",
+        "APP_NAME": "ZinTrust",
+        "HOST": "wk.zintrust.com",
+        "PORT": "443",
+        "BASE_URL": "https://wk.zintrust.com",
+        "DEBUG": "false",
+        "REQUEST_TIMEOUT": "30000",
+        "APP_TIMEZONE": "UTC",
+        "MAX_BODY_SIZE": "10485760",
+        "DB_CONNECTION": "d1",
+        "D1_BINDING": "ZIN_DB",
+        "KV_NAMESPACE": "ZIN_KV",
+        "STARTUP_HEALTH_CHECKS": "true",
+        "STARTUP_VALIDATE_SECRETS": "true",
+        "STARTUP_REQUIRE_ENV": "true",
+        "STARTUP_CHECK_DB": "true",
+        "STARTUP_CHECK_CACHE": "false",
+        "STARTUP_HEALTH_TIMEOUT_MS": "2500",
+        "STARTUP_CONTINUE_ON_FAILURE": "false",
+        "LOG_LEVEL": "info",
+        "LOG_FORMAT": "text",
+        "LOG_CHANNEL": "console",
+        "CORS_ENABLED": "true",
+        "CORS_ORIGINS": "*",
+        "CORS_METHODS": "GET,POST,PUT,PATCH,DELETE",
+        "CORS_ALLOWED_HEADERS": "Content-Type,Authorization",
+        "CORS_CREDENTIALS": "false",
+        "CORS_MAX_AGE": "86400",
+      },
+
+      // Wrangler env blocks do not inherit top-level bindings.
+      "d1_databases": [
+        {
+          "database_name": "d1-proxy-db",
+          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+          "binding": "ZIN_DB",
+          "migrations_dir": "database/migrations/d1",
+        },
+      ],
+
+      "kv_namespaces": [
+        {
+          "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+          "binding": "ZIN_KV",
+        },
+      ],
+
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "ZT_SOCKET_HUB",
+            "class_name": "ZintrustSocketHub",
+          },
+        ],
+      },
+
       // Custom domain routing
       "routes": [
         {

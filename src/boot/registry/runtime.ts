@@ -20,11 +20,11 @@ import { registerMasterRoutes, tryImportOptional } from '@registry/registerRoute
 import type { IShutdownManager } from '@registry/type';
 import { registerWorkerShutdownHook } from '@registry/worker';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
+import { SocketFeature } from '@sockets/SocketRuntime';
+import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 import { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notification/NotificationRuntimeRegistration';
 import { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegistration';
-import { SocketFeature } from '@sockets/SocketRuntime';
-import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 import { registerDisksFromRuntimeConfig } from '@tools/storage/StorageRuntimeRegistration';
 import type { IRouter } from '@zintrust/core';
 
@@ -586,7 +586,17 @@ export const createLifecycle = (params: {
       StartupConfigFileRegistry.clear();
     }
 
-    StartupConfigValidator.assertValid();
+    const startupConfigValidation = StartupConfigValidator.validate();
+    if (startupConfigValidation.warnings.length > 0) {
+      Logger.warn('Startup configuration warnings:', startupConfigValidation.warnings);
+    }
+
+    if (!startupConfigValidation.valid) {
+      throw ErrorFactory.createConfigError('Invalid startup configuration', {
+        errors: startupConfigValidation.errors,
+        warnings: startupConfigValidation.warnings,
+      });
+    }
 
     // Preload project-owned config overrides that must be available synchronously.
     await StartupConfigFileRegistry.preload([

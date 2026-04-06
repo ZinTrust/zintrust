@@ -9,7 +9,7 @@
  * Security keys can be configured per domain:
  * - APP_KEY: Default encryption key for all operations (auto-generated)
  * - API_KEY_SECRET: Optional API key authentication (if API_KEY_ENABLED=true)
- * - ENCRYPTION_CIPHER: Cipher for encrypted envelope interoperability
+ * - ENCRYPTION_CIPHER: Optional cipher for encrypted envelope interoperability
  * - JWT_SECRET: JWT token signing key
  *
  * Developers can use a single APP_KEY or configure separate keys for different
@@ -76,7 +76,7 @@ const securityConfigObj = {
    * Encryption
    */
   encryption: {
-    // Required for framework-compatible encrypted payloads.
+    // Optional until the app opts into framework-compatible encrypted payloads.
     // Supported values: aes-256-cbc | aes-256-gcm (case-insensitive)
     cipher: Env.get('ENCRYPTION_CIPHER', ''),
 

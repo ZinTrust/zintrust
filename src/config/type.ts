@@ -75,6 +75,7 @@ export type StartupConfigValidationError = {
 export type StartupConfigValidationResult = {
   valid: boolean;
   errors: StartupConfigValidationError[];
+  warnings: StartupConfigValidationError[];
 };
 
 export interface CloudflareKV {

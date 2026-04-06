@@ -385,6 +385,12 @@ describe('ServiceScaffolder Scaffolding Files Env and Readme', () => {
         expect(content).toContain(
           '"../zintrust.plugins.wg.js": "../../../../src/zintrust.plugins.wg.ts"'
         );
+        expect(content).toContain('"NODE_ENV": "development"');
+        expect(content).toContain('"HOST": "ecommerce-users.workers.dev"');
+        expect(content).toContain('"BASE_URL": "https://ecommerce-users.workers.dev"');
+        expect(content).toContain('"STARTUP_REQUIRE_ENV": "true"');
+        expect(content).toContain('"LOG_CHANNEL": "console"');
+        expect(content).not.toContain('"ENCRYPTION_CIPHER"');
         expect(content).toContain('"SERVICE_DOMAIN": "ecommerce"');
         expect(content).toContain('"SERVICE_PORT": "3010"');
       }

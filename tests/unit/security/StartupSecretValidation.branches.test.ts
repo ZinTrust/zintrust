@@ -95,11 +95,11 @@ describe('StartupSecretValidation (branches)', () => {
     state.jwtSecret = '';
     state.apiKeyEnabled = true;
     state.apiKeySecret = '';
-    state.cipher = ''; // missing cipher triggers early encryption error
+    state.cipher = '';
     let result = StartupSecretValidation.validate();
     expect(result.valid).toBe(false);
     expect(result.errors.map((e) => e.key)).toEqual(
-      expect.arrayContaining(['JWT_SECRET', 'API_KEY_SECRET', 'ENCRYPTION_CIPHER'])
+      expect.arrayContaining(['JWT_SECRET', 'API_KEY_SECRET'])
     );
 
     state.cipher = 'nope';
@@ -176,7 +176,7 @@ describe('StartupSecretValidation (branches)', () => {
     state.jwtEnabled = true;
     state.jwtSecretThrows = true;
 
-    // Drive nullish-coalescing branches in encryption validation.
+    // Drive nullish-coalescing branches in env access without opting into encryption validation.
     state.cipher = undefined as any;
     state.appKey = undefined as any;
     state.prevKeys = undefined as any;
@@ -184,7 +184,7 @@ describe('StartupSecretValidation (branches)', () => {
     let result = StartupSecretValidation.validate();
     expect(result.valid).toBe(false);
     expect(result.errors.map((e) => e.key)).toEqual(
-      expect.arrayContaining(['API_KEY_SECRET', 'JWT_SECRET', 'ENCRYPTION_CIPHER'])
+      expect.arrayContaining(['API_KEY_SECRET', 'JWT_SECRET'])
     );
 
     // Hit the non-Error catch branch.
@@ -210,13 +210,17 @@ describe('StartupSecretValidation (branches)', () => {
   it('covers Env.* nullish-coalescing fallbacks', async () => {
     const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
 
-    // Cover (Env.APP_KEY ?? '').trim() and (Env.ENCRYPTION_CIPHER ?? '').trim()
+    // Cover env nullish fallbacks without enabling encrypted-envelope startup validation.
     state.jwtEnabled = true;
     state.jwtSecretThrows = false;
     state.jwtSecret = 'jwt';
     state.appKey = undefined as any;
     state.cipher = null as any;
     state.prevKeys = undefined as any;
+    expect(StartupSecretValidation.validate()).toEqual({ valid: true, errors: [] });
+
+    // APP_PREVIOUS_KEYS enables encryption interop validation and therefore requires a cipher.
+    state.prevKeys = '["old-key"]';
     expect(StartupSecretValidation.validate().errors.map((e) => e.key)).toEqual(
       expect.arrayContaining(['ENCRYPTION_CIPHER'])
     );
