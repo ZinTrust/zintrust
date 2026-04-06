@@ -409,4 +409,32 @@ describe('Logger additional branches', () => {
 
     logSpy.mockRestore();
   });
+
+  it('NO_COLOR suppresses ANSI colors even when LOG_COLOR is always', async () => {
+    vi.resetModules();
+    const logSpy = vi.spyOn(globalThis.console, 'log').mockImplementation(() => undefined);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        LOG_LEVEL: 'debug',
+        get: (key: string, fallback?: string) => {
+          if (key === 'LOG_FORMAT') return 'text';
+          if (key === 'LOG_COLOR') return 'always';
+          if (key === 'NO_COLOR') return '1';
+          return fallback ?? '';
+        },
+        getBool: (_key: string, fallback?: boolean) => fallback ?? false,
+      },
+    }));
+
+    const { Logger } = await import('@config/logger');
+
+    Logger.info('[GET] /health 200 OK (5ms) [requestId=req-nc]');
+
+    const rendered = (logSpy.mock.calls[0]?.[0] ?? '') as string;
+    expect(rendered).not.toContain('\u001b[');
+
+    logSpy.mockRestore();
+    vi.doUnmock('@config/env');
+  });
 });
