@@ -1,8 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mailConfig } from '@config/mail';
 
 describe('src/config/mail patch coverage', () => {
+  beforeEach(() => {
+    vi.stubEnv('MAIL_DRIVER', '');
+    vi.stubEnv('MAIL_CONNECTION', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("treats blank selection as 'disabled' (when configured)", () => {
     const cfg = mailConfig.getDriver('' as any);
     expect(cfg).toMatchObject({ driver: 'disabled' });

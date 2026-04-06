@@ -573,12 +573,26 @@ const writeToFile = (line: string): void => {
   if (!shouldLogToFile()) return;
 
   if (fileWriter !== undefined) {
-    fileWriter.write(line);
+    try {
+      if (typeof fileWriter.write === 'function') {
+        fileWriter.write(line);
+      }
+    } catch {
+      // best-effort
+    }
     return;
   }
 
   getFileWriter();
-  fileWriterPromise?.then((mod) => mod.FileLogWriter.write(line));
+  fileWriterPromise?.then((mod) => {
+    try {
+      if (typeof mod.FileLogWriter?.write === 'function') {
+        mod.FileLogWriter.write(line);
+      }
+    } catch {
+      // best-effort
+    }
+  });
 };
 
 const formatLogMessage = (params: {

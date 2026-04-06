@@ -7,7 +7,7 @@ describe('CsrfTokenManager', () => {
   let csrfManager: ICsrfTokenManager;
 
   beforeEach(() => {
-    csrfManager = CsrfTokenManager.create();
+    csrfManager = CsrfTokenManager.create({ store: 'memory' });
   });
 
   it('should generate a token for a session', async () => {

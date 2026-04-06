@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let capturedHandler: ((req: any, res: any) => Promise<void>) | undefined;
@@ -80,18 +81,24 @@ describe('ScheduleHttpGateway (coverage)', () => {
     runOnceMock.mockReset();
     verifyMock.mockReset();
 
-    // Default credentials
-    process.env['SCHEDULE_HTTP_PROXY_KEY_ID'] = 'kid';
-    process.env['SCHEDULE_HTTP_PROXY_KEY'] = 'secret';
-    process.env['SCHEDULE_HTTP_PROXY_PATH'] = '/api/_sys/schedule/rpc';
+    Env.setSource({
+      APP_KEY: ' ',
+      SCHEDULE_HTTP_PROXY_KEY_ID: 'kid',
+      SCHEDULE_HTTP_PROXY_KEY: 'secret',
+      SCHEDULE_HTTP_PROXY_PATH: '/api/_sys/schedule/rpc',
+    });
 
     ScheduleHttpGateway.create().registerRoutes({} as any);
     expect(capturedHandler).toBeTypeOf('function');
   });
 
   it('returns 500 when signing credentials are missing', async () => {
-    process.env['SCHEDULE_HTTP_PROXY_KEY_ID'] = '';
-    process.env['SCHEDULE_HTTP_PROXY_KEY'] = '';
+    Env.setSource({
+      APP_KEY: ' ',
+      SCHEDULE_HTTP_PROXY_KEY_ID: ' ',
+      SCHEDULE_HTTP_PROXY_KEY: ' ',
+      SCHEDULE_HTTP_PROXY_PATH: '/api/_sys/schedule/rpc',
+    });
 
     // re-register to pick up new settings
     ScheduleHttpGateway.create().registerRoutes({} as any);
@@ -101,6 +108,10 @@ describe('ScheduleHttpGateway (coverage)', () => {
 
     expect(res._status).toBe(500);
     expect((res._json as any).ok).toBe(false);
+  });
+
+  afterEach(() => {
+    Env.setSource(null);
   });
 
   it('returns 401/403 based on verify error codes and exercises getSecretForKeyId fallback', async () => {

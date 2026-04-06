@@ -145,7 +145,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: {
@@ -263,7 +265,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: {
@@ -368,7 +372,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: {
@@ -492,7 +498,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
@@ -595,7 +603,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
@@ -704,7 +714,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
@@ -817,7 +829,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
@@ -938,7 +952,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
@@ -1041,7 +1057,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
@@ -1145,7 +1163,9 @@ describe('runtime/registerRoute patch coverage', () => {
       StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
     }));
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
       StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },

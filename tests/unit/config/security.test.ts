@@ -7,13 +7,29 @@ vi.mock('@config/logger', () => ({
 }));
 
 describe('Security Config', () => {
+  const originalEnv = { ...process.env };
+
+  const loadSecurity = async (overrides: Record<string, string>) => {
+    process.env = {
+      ...originalEnv,
+      APP_KEY: '',
+      JWT_SECRET: '',
+      JWT_ENABLED: 'true',
+      NODE_ENV: 'development',
+      ...overrides,
+    };
+    vi.resetModules();
+    return import('@/config/security');
+  };
+
   beforeEach(() => {
     vi.resetModules();
     process.env['JWT_SECRET'] = 'test-secret';
   });
 
   afterEach(() => {
-    delete process.env['JWT_SECRET'];
+    process.env = { ...originalEnv };
+    vi.unstubAllEnvs();
   });
 
   it('should have correct properties', async () => {
@@ -30,33 +46,32 @@ describe('Security Config', () => {
   });
 
   it('should fall back to dev secret when JWT_SECRET is missing in development', async () => {
-    vi.stubEnv('NODE_ENV', 'development');
-    vi.stubEnv('JWT_ENABLED', 'true');
-    vi.stubEnv('JWT_SECRET', '');
-    vi.resetModules();
-
-    const { securityConfig } = await import('@/config/security');
+    const { securityConfig } = await loadSecurity({
+      NODE_ENV: 'development',
+      JWT_ENABLED: 'true',
+      JWT_SECRET: '',
+      APP_KEY: '',
+    });
     expect(securityConfig.jwt.secret).toBe('dev-unsafe-jwt-secret');
   });
 
   it('should throw when JWT_SECRET is missing in production', async () => {
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('JWT_ENABLED', 'true');
-    vi.stubEnv('JWT_SECRET', '');
-    vi.resetModules();
-
-    const { securityConfig } = await import('@/config/security');
+    const { securityConfig } = await loadSecurity({
+      NODE_ENV: 'production',
+      JWT_ENABLED: 'true',
+      JWT_SECRET: '',
+      APP_KEY: '',
+    });
     expect(() => securityConfig.jwt.secret).toThrow('Missing required secret: JWT_SECRET');
   });
 
   it('should return empty string when JWT is disabled', async () => {
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('JWT_ENABLED', 'false');
-    vi.stubEnv('JWT_SECRET', '');
-    vi.stubEnv('APP_KEY', '');
-    vi.resetModules();
-
-    const { securityConfig } = await import('@/config/security');
+    const { securityConfig } = await loadSecurity({
+      NODE_ENV: 'production',
+      JWT_ENABLED: 'false',
+      JWT_SECRET: '',
+      APP_KEY: '',
+    });
     expect(securityConfig.jwt.secret).toBe('');
   });
 });

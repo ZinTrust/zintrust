@@ -85,7 +85,9 @@ describe('patch coverage: runtime + proxy helpers', () => {
     }));
 
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
 
     vi.doMock('@/health/StartupHealthChecks', () => ({
@@ -142,6 +144,12 @@ describe('patch coverage: runtime + proxy helpers', () => {
 
     vi.doMock('@config/features', () => ({
       FeatureFlags: { initialize: vi.fn() },
+    }));
+
+    vi.doMock('@config/StartupConfigValidator', () => ({
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
     }));
 
     vi.doMock('@config/logger', () => ({
