@@ -23,12 +23,21 @@ type QueueRpcError = {
   details?: unknown;
 };
 
-type QueueRpcResponse<T> = {
-  ok: boolean;
+type QueueRpcSuccess<T> = {
+  ok: true;
   requestId?: string;
-  result?: T;
+  result: T;
+  error?: null;
+};
+
+type QueueRpcFailure = {
+  ok: false;
+  requestId?: string;
+  result?: null;
   error?: QueueRpcError | null;
 };
+
+type QueueRpcResponse<T> = QueueRpcSuccess<T> | QueueRpcFailure;
 
 export interface IQueueDriver {
   enqueue(queue: string, payload: BullMQPayload): Promise<string>;

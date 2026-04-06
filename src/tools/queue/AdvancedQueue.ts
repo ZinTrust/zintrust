@@ -342,7 +342,7 @@ async function enqueueWithDeduplication(
       options
     );
 
-    if (!metaAttached && shouldAttachReleaseAfterMeta(options)) {
+    if (shouldAttachReleaseAfterMeta(options) && metaAttached === false) {
       Logger.warn(
         'releaseAfter condition metadata could not be attached; payload is not an object',
         {
@@ -354,7 +354,7 @@ async function enqueueWithDeduplication(
 
     // Plumb options.jobId into payload (takes precedence over payload.jobId)
     const finalPayload: BullMQPayload =
-      options.jobId !== undefined ? { ...payloadToSend, jobId: options.jobId } : payloadToSend;
+      options.jobId === undefined ? payloadToSend : { ...payloadToSend, jobId: options.jobId };
 
     // Enqueue the job using existing queue system
     const jobId = await Queue.enqueue(name, finalPayload);
