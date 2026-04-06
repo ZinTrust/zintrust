@@ -91,7 +91,7 @@ const computeCronDelay = (schedule: ISchedule): number | null => {
   const tz =
     typeof schedule.timezone === 'string' && schedule.timezone.trim().length > 0
       ? schedule.timezone
-      : 'UTC';
+      : undefined;
   const nextAt = Cron.nextRunAtMs(nowMs(), schedule.cron, tz);
   const baseDelay = Math.max(0, nextAt - nowMs());
   const jitter = resolveJitterMs(schedule.jitterMs);

@@ -47,6 +47,18 @@ const readEnvBool = (key: string, defaultValue: boolean = false): boolean => {
   return raw.toLowerCase() === 'true' || raw === '1';
 };
 
+const resolveConfiguredTimezone = (): string => {
+  const raw = readEnvString('APP_TIMEZONE', readEnvString('TIME_ZONE', Env.APP_TIMEZONE)).trim();
+  if (raw === '') return 'UTC';
+
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: raw }).resolvedOptions();
+    return raw;
+  } catch {
+    return 'UTC';
+  }
+};
+
 const readAppPort = (): number => {
   if (typeof anyEnv.getInt === 'function') {
     return anyEnv.getInt('PORT', anyEnv.getInt('APP_PORT', 3000));
@@ -222,7 +234,7 @@ const appConfigObj = {
   /**
    * Application timezone
    */
-  timezone: readEnvString('APP_TIMEZONE', Env.APP_TIMEZONE),
+  timezone: resolveConfiguredTimezone(),
 
   /**
    * Request timeout (milliseconds)

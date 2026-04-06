@@ -1,3 +1,5 @@
+import { resolveAppTimezone } from '@config/env';
+
 type CronFieldRange = Readonly<{ min: number; max: number }>;
 
 type CronAllowed = Readonly<{ any: true }> | Readonly<{ any: false; values: ReadonlySet<number> }>;
@@ -226,9 +228,13 @@ export const Cron = Object.freeze({
     });
   },
 
-  nextRunAtMs(nowMs: number, expr: string, timeZone: string = 'UTC'): number {
+  nextRunAtMs(nowMs: number, expr: string, timeZone?: string): number {
     const spec = this.parse(expr);
     const base = new Date(nowMs);
+    const resolvedTimeZone =
+      typeof timeZone === 'string' && timeZone.trim().length > 0
+        ? timeZone.trim()
+        : resolveAppTimezone();
 
     // Cron is minute-resolution; start from next minute boundary.
     base.setUTCSeconds(0, 0);
@@ -238,7 +244,7 @@ export const Cron = Object.freeze({
     const maxIterations = 366 * 24 * 60;
 
     for (let i = 0; i < maxIterations; i++) {
-      const parts = getZonedParts(base, timeZone);
+      const parts = getZonedParts(base, resolvedTimeZone);
       if (matchesSpec(spec, parts)) return base.getTime();
       base.setTime(base.getTime() + 60_000);
     }

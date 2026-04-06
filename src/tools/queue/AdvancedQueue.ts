@@ -352,12 +352,8 @@ async function enqueueWithDeduplication(
       );
     }
 
-    // Plumb options.jobId into payload (takes precedence over payload.jobId)
-    const finalPayload: BullMQPayload =
-      options.jobId === undefined ? payloadToSend : { ...payloadToSend, jobId: options.jobId };
-
     // Enqueue the job using existing queue system
-    const jobId = await Queue.enqueue(name, finalPayload);
+    const jobId = await Queue.enqueue(name, payloadToSend);
 
     Logger.info('Job enqueued successfully', {
       queueName: name,

@@ -8,6 +8,7 @@ vi.mock('@config/logger', () => ({
   },
 }));
 
+import { Env } from '@/config/env';
 import { create as createRunner } from '@/scheduler/ScheduleRunner';
 import type { ISchedule } from '@/scheduler/types';
 
@@ -18,6 +19,7 @@ describe('ScheduleRunner', () => {
   });
 
   afterEach(() => {
+    Env.setSource(null);
     vi.useRealTimers();
   });
 
@@ -145,6 +147,34 @@ describe('ScheduleRunner', () => {
       name: 'test.cron.everyMinute',
       cron: '* * * * *',
       timezone: 'UTC',
+      handler: async () => {
+        calls++;
+      },
+    } as any);
+
+    runner.start();
+
+    await vi.advanceTimersByTimeAsync(29_000);
+    await Promise.resolve();
+    expect(calls).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    await Promise.resolve();
+    expect(calls).toBeGreaterThanOrEqual(1);
+
+    await runner.stop();
+  });
+
+  it('uses the global app timezone when a cron schedule does not set one', async () => {
+    Env.setSource({ TIME_ZONE: 'America/New_York' });
+    vi.setSystemTime(new Date('2026-01-01T04:59:30.000Z'));
+
+    const runner = createRunner();
+    let calls = 0;
+
+    runner.register({
+      name: 'test.cron.global-timezone',
+      cron: '0 0 * * *',
       handler: async () => {
         calls++;
       },

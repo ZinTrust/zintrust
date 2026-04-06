@@ -25,6 +25,8 @@ let externalEnvSource: EnvSource | null = null;
 const DIRECT_ENV_SOURCE = 'direct-env';
 const PACKED_ENV_ENABLE_KEY = 'USE_PACK';
 const PACKED_ENV_KEYS_KEY = 'PACK_KEYS';
+const APP_TIMEZONE_KEY = 'APP_TIMEZONE';
+const TIME_ZONE_ALIAS_KEY = 'TIME_ZONE';
 const PACKED_ENV_CONTROL_KEYS = new Set([PACKED_ENV_ENABLE_KEY, PACKED_ENV_KEYS_KEY]);
 
 const createPackedEnvError = (message: string, details?: unknown): Error => {
@@ -199,6 +201,34 @@ const getResolvedEnvState = (): ResolvedEnvState => resolvePackedEnvState(getRaw
 
 const getEnvSource = (): Record<string, unknown> => getResolvedEnvState().values;
 
+const getResolvedEnvEntry = (
+  key: string,
+  env: Record<string, unknown>
+): { value: string; resolvedKey?: string } => {
+  const directValue = normalizeEnvValue(env[key]);
+  if (directValue !== '') {
+    return { value: directValue, resolvedKey: key };
+  }
+
+  if (key === APP_TIMEZONE_KEY) {
+    const aliasValue = normalizeEnvValue(env[TIME_ZONE_ALIAS_KEY]);
+    if (aliasValue !== '') {
+      return { value: aliasValue, resolvedKey: TIME_ZONE_ALIAS_KEY };
+    }
+  }
+
+  return { value: '' };
+};
+
+const isValidTimeZone = (value: string): boolean => {
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: value }).resolvedOptions();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const getProcessLike = (): ProcessLike | undefined => processLike;
 
 export const dirnameFromExecPath = (execPath: string, platform?: string): string => {
@@ -210,16 +240,21 @@ export const dirnameFromExecPath = (execPath: string, platform?: string): string
 
 export const getOptional = (key: string): string | undefined => {
   const env = getEnvSource();
-  return Object.prototype.hasOwnProperty.call(env, key) ? normalizeEnvValue(env[key]) : undefined;
+  const resolved = getResolvedEnvEntry(key, env);
+  if (resolved.resolvedKey === undefined) return undefined;
+  return resolved.value;
 };
 
 export const has = (key: string): boolean => {
   const env = getEnvSource();
-  return Object.prototype.hasOwnProperty.call(env, key);
+  return getResolvedEnvEntry(key, env).resolvedKey !== undefined;
 };
 
 export const getSourceOf = (key: string): string | undefined => {
-  return getResolvedEnvState().sources[key];
+  const resolvedState = getResolvedEnvState();
+  const resolved = getResolvedEnvEntry(key, resolvedState.values);
+  if (resolved.resolvedKey === undefined) return undefined;
+  return resolvedState.sources[resolved.resolvedKey];
 };
 
 export const snapshotSources = (): Record<string, string> => {
@@ -231,8 +266,16 @@ export const getResolvedState = (): ResolvedEnvState => getResolvedEnvState();
 // Private helper functions
 export const get = (key: string, defaultValue?: string): string => {
   const env = getEnvSource();
-  const value = normalizeEnvValue(env[key]);
+  const value = getResolvedEnvEntry(key, env).value;
   return value === '' ? (defaultValue ?? '') : value;
+};
+
+export const resolveAppTimezone = (): string => {
+  const raw = get(APP_TIMEZONE_KEY, 'UTC').trim();
+  if (isNonEmptyString(raw)) {
+    return isValidTimeZone(raw) ? raw : 'UTC';
+  }
+  return 'UTC';
 };
 
 export const getInt = (key: string, defaultValue: number): number => {
@@ -520,7 +563,7 @@ export const Env = Object.freeze({
   // Deployment
   ENVIRONMENT: get('ENVIRONMENT', 'development'),
   REQUEST_TIMEOUT: getInt('REQUEST_TIMEOUT', 30000),
-  APP_TIMEZONE: get('APP_TIMEZONE', 'UTC'),
+  APP_TIMEZONE: get(APP_TIMEZONE_KEY, 'UTC'),
   MAX_BODY_SIZE: getInt('MAX_BODY_SIZE', 10485760),
   SHUTDOWN_TIMEOUT: getInt('SHUTDOWN_TIMEOUT', 10000),
 

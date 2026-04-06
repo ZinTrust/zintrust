@@ -31,23 +31,23 @@ For the full workflow, Cloudflare examples, `.env.pack` local development suppor
 
 ## Core application
 
-| Key                 | Default       | Description                                                         |
-| ------------------- | ------------- | ------------------------------------------------------------------- |
-| `NODE_ENV`          | `development` | Runtime mode: development, staging, production.                     |
-| `APP_MODE`          | `NODE_ENV`    | App mode override (defaults to `NODE_ENV`).                         |
-| `APP_PORT`          | `3000`        | Alternate port; `PORT` wins when set.                               |
-| `PORT`              | `3000`        | HTTP server port.                                                   |
-| `HOST`              | `localhost`   | Bind address for server listeners.                                  |
-| `BASE_URL`          | empty         | Base origin used to build fully-qualified URLs.                     |
-| `APP_NAME`          | `ZinTrust`    | Application name (also used for proxy signing fallback).            |
-| `APP_KEY`           | empty         | Primary app secret (base64 or raw) used for encryption and signing. |
-| `APP_PREVIOUS_KEYS` | empty         | Optional rotation keys (comma-separated or JSON array).             |
-| `USE_PACK`          | `false`       | Enables packed env resolution when set to `true`.                   |
-| `PACK_KEYS`         | empty         | Comma-separated list of JSON env bindings to merge into `Env`.      |
-| `APP_TIMEZONE`      | `UTC`         | Default timezone for the app runtime.                               |
-| `CSRF_SKIP_PATHS`   | empty         | Comma-separated paths to bypass CSRF, e.g. `/api/*`.                |
-| `RUNTIME`           | empty         | Optional runtime identifier.                                        |
-| `DOCKER_WORKER`     | `false`       | Marks a dedicated Docker worker container runtime mode.             |
+| Key                 | Default       | Description                                                                             |
+| ------------------- | ------------- | --------------------------------------------------------------------------------------- |
+| `NODE_ENV`          | `development` | Runtime mode: development, staging, production.                                         |
+| `APP_MODE`          | `NODE_ENV`    | App mode override (defaults to `NODE_ENV`).                                             |
+| `APP_PORT`          | `3000`        | Alternate port; `PORT` wins when set.                                                   |
+| `PORT`              | `3000`        | HTTP server port.                                                                       |
+| `HOST`              | `localhost`   | Bind address for server listeners.                                                      |
+| `BASE_URL`          | empty         | Base origin used to build fully-qualified URLs.                                         |
+| `APP_NAME`          | `ZinTrust`    | Application name (also used for proxy signing fallback).                                |
+| `APP_KEY`           | empty         | Primary app secret (base64 or raw) used for encryption and signing.                     |
+| `APP_PREVIOUS_KEYS` | empty         | Optional rotation keys (comma-separated or JSON array).                                 |
+| `USE_PACK`          | `false`       | Enables packed env resolution when set to `true`.                                       |
+| `PACK_KEYS`         | empty         | Comma-separated list of JSON env bindings to merge into `Env`.                          |
+| `APP_TIMEZONE`      | `UTC`         | Default timezone for the app runtime. `TIME_ZONE` is accepted as a compatibility alias. |
+| `CSRF_SKIP_PATHS`   | empty         | Comma-separated paths to bypass CSRF, e.g. `/api/*`.                                    |
+| `RUNTIME`           | empty         | Optional runtime identifier.                                                            |
+| `DOCKER_WORKER`     | `false`       | Marks a dedicated Docker worker container runtime mode.                                 |
 
 ## Database (generic)
 
