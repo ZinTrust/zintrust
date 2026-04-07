@@ -33,7 +33,7 @@ export const TraceConfig = Object.freeze({
     return Object.freeze({
       ...DEFAULTS,
       ...overrides,
-      watchers: { ...DEFAULTS.watchers, ...(overrides.watchers ?? {}) },
+      watchers: { ...DEFAULTS.watchers, ...overrides.watchers },
       redaction: {
         ...DEFAULTS.redaction,
         ...(overrides.redaction ?? {}),

@@ -4,7 +4,7 @@ import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { resolveDeduplicationLockKey } from '@queue/DeduplicationKey';
+
 import { JobStateTracker } from '@queue/JobStateTracker';
 import { QueueTracing } from '@queue/QueueTracing';
 import { RedisKeys } from '@tools/redis/RedisKeyManager';
@@ -105,8 +105,6 @@ const resolveRequestedJobId = (payload: BullMQPayload): string | undefined => {
 const resolveRequestedUniqueId = (payload: BullMQPayload): string | undefined => {
   return normalizeRequestedId(payload?.uniqueId);
 };
-
-export { resolveDeduplicationLockKey };
 
 const resolveMaxAttempts = (payload: BullMQPayload): number | undefined => {
   if (typeof payload?.attempts !== 'number' || !Number.isFinite(payload.attempts)) return undefined;
@@ -319,3 +317,5 @@ export const Queue = Object.freeze({
 });
 
 export default Queue;
+
+export { resolveDeduplicationLockKey } from '@queue/DeduplicationKey';
