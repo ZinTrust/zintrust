@@ -17,6 +17,7 @@ describe('ConfigManager Error and edge branches', () => {
   afterEach(async () => {
     vi.resetModules();
     vi.restoreAllMocks();
+    vi.doUnmock('@node-singletons/fs');
     try {
       const { fsPromises: fs } = await import('@node-singletons/fs');
       await fs.unlink(TEST_CONFIG_PATH);
@@ -25,7 +26,7 @@ describe('ConfigManager Error and edge branches', () => {
 
   it.skip('load throws when readFile errors with non-ENOENT', async () => {
     // Mock fsPromises before importing the module
-    vi.mock('@node-singletons/fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       fsPromises: {
         readFile: vi
           .fn()
@@ -44,7 +45,7 @@ describe('ConfigManager Error and edge branches', () => {
   });
 
   it('save throws when there is no current config and no argument', async () => {
-    vi.mock('@node-singletons/fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       fsPromises: {
         readFile: vi.fn(),
         writeFile: vi.fn(),
@@ -61,7 +62,7 @@ describe('ConfigManager Error and edge branches', () => {
   });
 
   it.skip('save propagates write errors', async () => {
-    vi.mock('@node-singletons/fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       fsPromises: {
         readFile: vi.fn().mockResolvedValue(JSON.stringify({ name: 'x' })),
         writeFile: vi.fn().mockRejectedValue(new Error('disk full')),
@@ -80,7 +81,7 @@ describe('ConfigManager Error and edge branches', () => {
   });
 
   it.skip('exists returns false when access fails', async () => {
-    vi.mock('@node-singletons/fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       fsPromises: {
         readFile: vi.fn(),
         writeFile: vi.fn(),
@@ -98,7 +99,7 @@ describe('ConfigManager Error and edge branches', () => {
   });
 
   it.skip('ensureGlobalConfigDir handles mkdir errors and logs debug', async () => {
-    vi.mock('@node-singletons/fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       fsPromises: {
         readFile: vi.fn(),
         writeFile: vi.fn(),
@@ -120,7 +121,7 @@ describe('ConfigManager Error and edge branches', () => {
   });
 
   it('getGlobalConfig returns a manager even when mkdir fails', async () => {
-    vi.mock('@node-singletons/fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       fsPromises: {
         readFile: vi.fn().mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })),
         writeFile: vi.fn(),

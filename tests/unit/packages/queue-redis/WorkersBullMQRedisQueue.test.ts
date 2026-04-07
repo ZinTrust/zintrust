@@ -169,4 +169,40 @@ describe('BullMQ Redis queue (Workers)', () => {
       expect.objectContaining({ jobId: 'job-id-123' })
     );
   });
+
+  it('allows reuse of the same deduplication id across different queues', async () => {
+    bullMqState.add.mockResolvedValue({ id: 'job-id-123' });
+
+    const first = await BullMQRedisQueue.enqueue('dispatch', {
+      payload: { step: 'dispatch' },
+      uniqueVia: 'memory',
+      deduplication: {
+        id: 'shared-lock-id',
+        ttl: 30000,
+      },
+    } as any);
+
+    const second = await BullMQRedisQueue.enqueue('execute', {
+      payload: { step: 'execute' },
+      uniqueVia: 'memory',
+      deduplication: {
+        id: 'shared-lock-id',
+        ttl: 30000,
+      },
+    } as any);
+
+    const third = await BullMQRedisQueue.enqueue('dispatch', {
+      payload: { step: 'dispatch-again' },
+      uniqueVia: 'memory',
+      deduplication: {
+        id: 'shared-lock-id',
+        ttl: 30000,
+      },
+    } as any);
+
+    expect(first).toBe('job-id-123');
+    expect(second).toBe('job-id-123');
+    expect(third).toBe('shared-lock-id');
+    expect(bullMqState.add).toHaveBeenCalledTimes(2);
+  });
 });

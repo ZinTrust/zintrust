@@ -248,6 +248,35 @@ describe('AdvancedQueue', () => {
       expect(jobId2).toBe('deduplicated');
     });
 
+    it('allows the same deduplication id across different queues', async () => {
+      const options: AdvancedJobOptions = {
+        deduplication: {
+          id: 'shared-business-id',
+          ttl: 30000,
+        },
+      };
+
+      const firstJobId = await advancedQueue.enqueue(
+        'dispatch-queue',
+        { data: 'dispatch' },
+        options
+      );
+      const secondJobId = await advancedQueue.enqueue(
+        'execute-queue',
+        { data: 'execute' },
+        options
+      );
+      const thirdJobId = await advancedQueue.enqueue(
+        'dispatch-queue',
+        { data: 'dispatch-again' },
+        options
+      );
+
+      expect(firstJobId).toBe('job-123');
+      expect(secondJobId).toBe('job-123');
+      expect(thirdJobId).toBe('deduplicated');
+    });
+
     it('should handle replace option', async () => {
       // First job
       const options1: AdvancedJobOptions = {
@@ -485,6 +514,7 @@ describe('AdvancedQueue', () => {
 
     it('logs release-after delay failures', async () => {
       vi.useFakeTimers();
+      vi.mocked(Logger.error).mockClear();
 
       const delayProvider = {
         acquire: vi.fn().mockResolvedValue({
@@ -523,10 +553,13 @@ describe('AdvancedQueue', () => {
 
       await vi.runAllTimersAsync();
 
-      expect(Logger.error).toHaveBeenCalledWith('Failed to release lock after delay', {
-        lockId: 'delay-key',
-        error: expect.any(Error),
-      });
+      expect(Logger.error).toHaveBeenCalledWith(
+        'Failed to release lock after delay',
+        expect.objectContaining({
+          lockId: 'queue:test-queue:delay-key',
+          error: expect.any(Error),
+        })
+      );
 
       vi.useRealTimers();
     });

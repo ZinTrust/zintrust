@@ -185,6 +185,7 @@ async function assertCoreShimHasRequiredExports() {
     'index.d.ts': [
       'export declare function useDatabase(...args: any[]): IDatabase;',
       'export declare function isArray(value: unknown): value is unknown[];',
+      'export declare function resolveDeduplicationLockKey(queueName: string, deduplicationId: string): string;',
       'export declare const NodeSingletons: {',
       'EventEmitter: any;',
       'randomBytes: (size: number) => any;',
@@ -677,6 +678,7 @@ export declare function createLockProvider(...args: any[]): any;
 export declare function getLockProvider(...args: any[]): any;
 export declare function registerLockProvider(...args: any[]): any;
 export declare function useDatabase(...args: any[]): IDatabase;
+export declare function resolveDeduplicationLockKey(queueName: string, deduplicationId: string): string;
 export declare function createRedisConnection(...args: any[]): {
   hgetall: (...args: any[]) => Promise<Record<string, string>>;
   hget: (...args: any[]) => Promise<string | null>;
@@ -1044,6 +1046,10 @@ export function isNonEmptyString(value) {
 
 export function isObject(value) {
   return value !== null && typeof value === 'object';
+}
+
+export function resolveDeduplicationLockKey(queueName, deduplicationId) {
+  return 'queue:' + String(queueName) + ':' + String(deduplicationId);
 }
 
 export const SocketFeature = {

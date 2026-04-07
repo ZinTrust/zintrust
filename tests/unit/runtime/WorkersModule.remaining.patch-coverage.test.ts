@@ -106,8 +106,12 @@ function runFromSourceTrue(): boolean {
 
 const createCommonModule = (
   runFromSourceImpl: () => boolean
-): { runFromSource: ReturnType<typeof vi.fn> } => ({
+): {
+  runFromSource: ReturnType<typeof vi.fn>;
+  esmDirname: ReturnType<typeof vi.fn>;
+} => ({
   runFromSource: vi.fn(runFromSourceImpl),
+  esmDirname: vi.fn(() => '/tmp'),
 });
 
 describe('WorkersModule remaining patch coverage', () => {

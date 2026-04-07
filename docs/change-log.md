@@ -2,6 +2,11 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-07
+
+- Scoped queue deduplication locks by queue name in core and `@zintrust/queue-redis`, so the same logical `deduplication.id` can now be reused safely across different queues while still deduplicating true duplicates inside the same queue. Worker-side `releaseAfter` lock cleanup now uses the same queue-scoped storage key contract.
+- Fixed the release package-publish shim for `@zintrust/core` so package-local publish builds can type-check and run against the new `resolveDeduplicationLockKey(...)` export while publishing affected packages such as `@zintrust/queue-redis`.
+
 ## 2026-04-05
 
 - Updated the Cloudflare Worker scaffold to include the non-secret runtime vars and env-local bindings needed for first-request boot in new deploys, and relaxed startup secret validation so `ENCRYPTION_CIPHER` is no longer treated as universally required in production. ZinTrust now only blocks on `ENCRYPTION_CIPHER` when encrypted-envelope interoperability is actually enabled by encryption-specific env such as `ENCRYPTION_CIPHER` itself or `APP_PREVIOUS_KEYS`.

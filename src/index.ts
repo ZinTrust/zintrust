@@ -394,6 +394,7 @@ export { GcsDriver } from '@tools/storage/drivers/Gcs';
 export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 
 // Queue drivers (for external registration packages)
+export { resolveDeduplicationLockKey } from '@queue/DeduplicationKey';
 export { RedisQueue } from '@queue/drivers/Redis';
 export { IdempotencyManager } from '@queue/IdempotencyManager';
 export { JobHeartbeatStore } from '@queue/JobHeartbeatStore';

@@ -16,6 +16,7 @@ import { Broadcast } from '@broadcast/Broadcast';
 import { Notification } from '@notification/Notification';
 
 import type { IQueueDriver } from '@tools/queue/Queue';
+import { resolveDeduplicationLockKey } from '@tools/queue/Queue';
 
 const makeDriver = (
   messages: Array<{ id: string; payload: Record<string, unknown> }>
@@ -75,7 +76,7 @@ describe('QueueWorkRunner releaseAfter handling', () => {
     });
     registerLockProvider('memory', provider);
 
-    await provider.acquire('job-1', { ttl: 1000 });
+    await provider.acquire(resolveDeduplicationLockKey('test-queue', 'job-1'), { ttl: 1000 });
 
     const messages = [
       {
@@ -113,12 +114,12 @@ describe('QueueWorkRunner releaseAfter handling', () => {
       retry: 0,
     });
 
-    const before = await provider.status('job-1');
+    const before = await provider.status(resolveDeduplicationLockKey('test-queue', 'job-1'));
     expect(before.exists).toBe(true);
 
     await vi.runAllTimersAsync();
 
-    const after = await provider.status('job-1');
+    const after = await provider.status(resolveDeduplicationLockKey('test-queue', 'job-1'));
     expect(after.exists).toBe(false);
 
     vi.useRealTimers();
@@ -136,7 +137,7 @@ describe('QueueWorkRunner releaseAfter handling', () => {
     });
     registerLockProvider('memory', provider);
 
-    await provider.acquire('job-fail', { ttl: 1000 });
+    await provider.acquire(resolveDeduplicationLockKey('test-queue', 'job-fail'), { ttl: 1000 });
 
     const messages = [
       {
@@ -167,7 +168,7 @@ describe('QueueWorkRunner releaseAfter handling', () => {
       retry: 0,
     });
 
-    const after = await provider.status('job-fail');
+    const after = await provider.status(resolveDeduplicationLockKey('test-queue', 'job-fail'));
     expect(after.exists).toBe(false);
   });
 

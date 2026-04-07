@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createAdvancedQueue } from '@queue/AdvancedQueue';
 import { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
+import { resolveDeduplicationLockKey } from '@tools/queue/Queue';
 import { Queue } from '@tools/queue/Queue';
 
 const makeDriver = (capture: Array<unknown>) => ({
@@ -87,12 +88,14 @@ describe('AdvancedQueue', () => {
     const provider = getLockProvider('memory');
     expect(provider).toBeTruthy();
 
-    const before = await provider!.status('job-delay');
+    const deduplicationKey = resolveDeduplicationLockKey('queue', 'job-delay');
+
+    const before = await provider!.status(deduplicationKey);
     expect(before.exists).toBe(true);
 
     await vi.runAllTimersAsync();
 
-    const after = await provider!.status('job-delay');
+    const after = await provider!.status(deduplicationKey);
     expect(after.exists).toBe(false);
 
     vi.useRealTimers();

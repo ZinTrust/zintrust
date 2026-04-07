@@ -18,6 +18,7 @@ import { queueConfig } from '@config/queue';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
 import { Notification } from '@notification/Notification';
+import { resolveDeduplicationLockKey } from '@queue/DeduplicationKey';
 import { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
 import { Queue, resolveLockPrefix } from '@queue/Queue';
 import { registerQueuesFromRuntimeConfig } from '@queue/QueueRuntimeRegistration';
@@ -133,6 +134,7 @@ const QUEUE_META_KEY = '__zintrustQueueMeta';
 
 type QueueMeta = {
   deduplicationId?: string;
+  deduplicationLockKey?: string;
   releaseAfter?: string | number | ReleaseCondition;
   uniqueId?: string;
 };
@@ -223,6 +225,7 @@ const shouldReleaseForOutcome = (
 };
 
 const releaseLockAfterResult = async (
+  queueName: string,
   meta: QueueMeta | undefined,
   outcome: 'success' | 'failed'
 ): Promise<void> => {
@@ -233,16 +236,20 @@ const releaseLockAfterResult = async (
   }
   const deduplicationKey = String(deduplicationId).trim();
   if (deduplicationKey === '') return;
+  const scopedDeduplicationKey =
+    typeof meta.deduplicationLockKey === 'string' && meta.deduplicationLockKey.trim().length > 0
+      ? meta.deduplicationLockKey.trim()
+      : resolveDeduplicationLockKey(queueName, deduplicationKey);
   const releaseAfter = meta.releaseAfter;
   if (releaseAfter === undefined || releaseAfter === null || releaseAfter === '') return;
   if (!shouldReleaseForOutcome(releaseAfter, outcome)) return;
 
   const provider = getLockProviderForQueue();
   const doRelease = async (): Promise<void> => {
-    const status = await provider.status(deduplicationKey);
+    const status = await provider.status(scopedDeduplicationKey);
     if (!status.exists) return;
     await provider.release({
-      key: deduplicationKey,
+      key: scopedDeduplicationKey,
       ttl: status.ttl ?? 0,
       acquired: true,
       expires: status.expires ?? new Date(),
@@ -350,7 +357,7 @@ const processMessage = async (
   try {
     await processKnownJob(kind, options, msg, payloadWithoutMeta);
 
-    await releaseLockAfterResult(meta, 'success');
+    await releaseLockAfterResult(options.queueName, meta, 'success');
 
     await Queue.ack(options.queueName, msg.id, options.driverName);
     result.processed++;
@@ -377,7 +384,7 @@ const processMessage = async (
       );
       result.retried++;
     } else {
-      await releaseLockAfterResult(meta, 'failed');
+      await releaseLockAfterResult(options.queueName, meta, 'failed');
       result.dropped++;
     }
 
