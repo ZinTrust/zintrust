@@ -44,6 +44,18 @@ type TraceMigrationTarget = {
   extension: string;
 };
 
+type TraceConnectionTarget = {
+  name: string;
+  config: ReturnType<typeof databaseConfig.getConnection>;
+};
+
+type TraceCommandConfig = {
+  name: string;
+  description: string;
+  addOptions?: (command: Command) => void;
+  execute: (options: CommandOptions, cmd: IBaseCommand) => Promise<void>;
+};
+
 const loadTraceModule = async (): Promise<TraceStorageModule> => {
   try {
     return (await import('@zintrust/trace')) as unknown as TraceStorageModule;
@@ -55,13 +67,42 @@ const loadTraceModule = async (): Promise<TraceStorageModule> => {
   }
 };
 
+const addD1DatabaseOptions = (command: Command): void => {
+  command
+    .option('--local', 'D1 only: run against local D1 database')
+    .option('--remote', 'D1 only: run against remote D1 database')
+    .option('--database <name>', 'D1 only: Wrangler D1 database binding name');
+};
+
+const createTraceCommand = (config: TraceCommandConfig): IBaseCommand => {
+  const command = BaseCommand.create({
+    name: config.name,
+    description: config.description,
+    addOptions: config.addOptions,
+    execute: async (options: CommandOptions): Promise<void> => config.execute(options, command),
+  });
+
+  return command;
+};
+
+const resolveNamedTraceConnection = (name: string): TraceConnectionTarget => {
+  const connections = databaseConfig.connections as unknown as Record<
+    string,
+    DatabaseConnectionConfig
+  >;
+
+  return {
+    name,
+    config: connections[name] ?? databaseConfig.getConnection(),
+  };
+};
+
 const addPruneOptions = (command: Command): void => {
   command
     .option('--hours <number>', 'Remove entries older than N hours (default: from config)', '')
-    .option('--local', 'D1 only: run against local D1 database')
-    .option('--remote', 'D1 only: run against remote D1 database')
-    .option('--database <name>', 'D1 only: Wrangler D1 database binding name')
     .option('--keep-exceptions', 'Keep exception entries regardless of age', false);
+
+  addD1DatabaseOptions(command);
 };
 
 const addMigrateOptions = (command: Command): void => {
@@ -74,10 +115,9 @@ const addMigrateOptions = (command: Command): void => {
     .option('--force', 'Skip production confirmation (allow unsafe operations in production)')
     .option('--all', 'Run migrations for all configured database connections')
     .option('--connection <name>', 'Use a specific database connection for trace migrations')
-    .option('--local', 'D1 only: run against local D1 database')
-    .option('--remote', 'D1 only: run against remote D1 database')
-    .option('--database <name>', 'D1 only: Wrangler D1 database binding name')
     .option('--no-interactive', 'Disable interactive prompts (useful for CI/CD)');
+
+  addD1DatabaseOptions(command);
 };
 
 const resolveDashboardBasePath = (): string => {
@@ -614,33 +654,18 @@ const runMigrationsForConnection = async (
 
 const executeMigrateTrace = async (options: CommandOptions, cmd: IBaseCommand): Promise<void> => {
   const interactive = getInteractive(options);
-  const targets: Array<{ name: string; config: ReturnType<typeof databaseConfig.getConnection> }> =
-    [];
+  const targets: TraceConnectionTarget[] = [];
 
   if (options['all'] === true) {
     for (const [name, config] of Object.entries(databaseConfig.connections)) {
       targets.push({ name, config });
     }
   } else if (isNonEmptyString(options['connection'])) {
-    const selected = String(options['connection']).trim();
-    const connections = databaseConfig.connections as unknown as Record<
-      string,
-      DatabaseConnectionConfig
-    >;
-    targets.push({
-      name: selected,
-      config: connections[selected] ?? databaseConfig.getConnection(),
-    });
+    targets.push(resolveNamedTraceConnection(String(options['connection']).trim()));
   } else {
-    const selected = readEnvString('TRACE_DB_CONNECTION').trim() || 'default';
-    const connections = databaseConfig.connections as unknown as Record<
-      string,
-      DatabaseConnectionConfig
-    >;
-    targets.push({
-      name: selected,
-      config: connections[selected] ?? databaseConfig.getConnection(),
-    });
+    targets.push(
+      resolveNamedTraceConnection(readEnvString('TRACE_DB_CONNECTION').trim() || 'default')
+    );
   }
 
   let sequence: Promise<void> = Promise.resolve();
@@ -669,52 +694,36 @@ const createProvider = (
 
 export const TraceCommands = Object.freeze({
   createTracePruneCommand: (): IBaseCommand =>
-    BaseCommand.create({
+    createTraceCommand({
       name: 'trace:prune',
       description: 'Prune old entries from the trace storage',
       addOptions: addPruneOptions,
-      execute: executePrune,
+      execute: async (options: CommandOptions): Promise<void> => executePrune(options),
     }),
 
   createTraceClearCommand: (): IBaseCommand =>
-    BaseCommand.create({
+    createTraceCommand({
       name: 'trace:clear',
       description: 'Clear all entries from the trace storage',
-      addOptions: (command: Command): void => {
-        command
-          .option('--local', 'D1 only: run against local D1 database')
-          .option('--remote', 'D1 only: run against remote D1 database')
-          .option('--database <name>', 'D1 only: Wrangler D1 database binding name');
-      },
+      addOptions: addD1DatabaseOptions,
       execute: async (options: CommandOptions): Promise<void> => executeClear(options),
     }),
 
-  createTraceStatusCommand: (): IBaseCommand => {
-    const cmd = BaseCommand.create({
+  createTraceStatusCommand: (): IBaseCommand =>
+    createTraceCommand({
       name: 'trace:status',
       description: 'Show trace storage stats and dashboard location',
-      addOptions: (command: Command): void => {
-        command
-          .option('--local', 'D1 only: run against local D1 database')
-          .option('--remote', 'D1 only: run against remote D1 database')
-          .option('--database <name>', 'D1 only: Wrangler D1 database binding name');
-      },
-      execute: async (options: CommandOptions): Promise<void> => executeStatus(options, cmd),
-    });
+      addOptions: addD1DatabaseOptions,
+      execute: executeStatus,
+    }),
 
-    return cmd;
-  },
-
-  createTraceMigrateCommand: (): IBaseCommand => {
-    const cmd = BaseCommand.create({
+  createTraceMigrateCommand: (): IBaseCommand =>
+    createTraceCommand({
       name: 'migrate:trace',
       description: 'Run trace package migrations',
       addOptions: addMigrateOptions,
-      execute: async (options: CommandOptions): Promise<void> => executeMigrateTrace(options, cmd),
-    });
-
-    return cmd;
-  },
+      execute: executeMigrateTrace,
+    }),
 
   createTracePruneProvider: () =>
     createProvider('trace:prune', TraceCommands.createTracePruneCommand),

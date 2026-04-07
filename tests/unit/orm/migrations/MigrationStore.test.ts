@@ -213,4 +213,72 @@ describe('MigrationStore', () => {
     await MigrationStore.deleteRecord(db, { name: 'm1', scope: 'global' as any, service: '' });
     expect(mocked.qb.delete).toHaveBeenCalledTimes(1);
   });
+
+  it('supports legacy migrations tables that still require the migration column', async () => {
+    const { MigrationStore } = await import('@orm/migrations/MigrationStore');
+
+    const schemaColumns = new Set(['id', 'name', 'migration', 'batch']);
+    const query = vi.fn(async (sql: string, parameters: unknown[]) => {
+      if (sql.includes('information_schema.columns')) {
+        const columnName = String(parameters[1] ?? '');
+        return schemaColumns.has(columnName) ? [{ ok: 1 }] : [];
+      }
+
+      if (sql.startsWith('SELECT id FROM migrations')) {
+        return [];
+      }
+
+      if (sql.startsWith('SELECT name, migration, batch FROM migrations')) {
+        return [{ migration: '20260331000001_create_zin_trace_entries_table', batch: 4 }];
+      }
+
+      return [];
+    });
+    const execute = vi.fn(async () => ({ rows: [], rowCount: 1 }));
+    const db = {
+      execute,
+      getType: () => 'mysql',
+      query,
+      getAdapterInstance: () => ({ ensureMigrationsTable: vi.fn() }),
+    } as any;
+
+    await MigrationStore.insertRunning(db, {
+      name: '20260331000001_create_zin_trace_entries_table',
+      scope: 'global' as any,
+      service: '',
+      batch: 4,
+    });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO migrations (name, migration, batch)'),
+      [
+        '20260331000001_create_zin_trace_entries_table',
+        '20260331000001_create_zin_trace_entries_table',
+        4,
+      ]
+    );
+
+    const appliedMap = await MigrationStore.getAppliedMap(db, 'global' as any, '');
+    expect(appliedMap.get('20260331000001_create_zin_trace_entries_table')).toEqual(
+      expect.objectContaining({ status: 'completed', batch: 4 })
+    );
+  });
+
+  it('rejects service-scoped tracking against legacy migrations tables', async () => {
+    const { MigrationStore } = await import('@orm/migrations/MigrationStore');
+
+    const schemaColumns = new Set(['id', 'migration', 'batch']);
+    const db = {
+      getType: () => 'mysql',
+      query: vi.fn(async (_sql: string, parameters: unknown[]) => {
+        const columnName = String(parameters[1] ?? '');
+        return schemaColumns.has(columnName) ? [{ ok: 1 }] : [];
+      }),
+      getAdapterInstance: () => ({ ensureMigrationsTable: vi.fn() }),
+    } as any;
+
+    await expect(MigrationStore.getAppliedMap(db, 'service' as any, 'trace')).rejects.toThrow(
+      /legacy schema/i
+    );
+  });
 });

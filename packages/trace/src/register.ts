@@ -22,6 +22,7 @@
 import { TraceConfig } from './config';
 import { TraceContext } from './context';
 import { TraceStorage } from './storage';
+import { TraceWriteDiagnostics } from './storage/TraceWriteDiagnostics';
 import type { ITraceWatcherConfig } from './types';
 
 export type {}; // side-effect ESM module
@@ -57,6 +58,9 @@ type CoreApi = {
   useDatabase?: (config?: unknown, connection?: string) => import('@zintrust/core').IDatabase;
   RequestContext?: {
     current(): unknown;
+  };
+  Logger?: {
+    warn(message: string, context?: Record<string, unknown>): void;
   };
 };
 
@@ -127,9 +131,13 @@ if (!traceAlreadyInitialized && Env) {
     });
 
     const db = core.useDatabase?.(undefined, resolveTraceConnectionName(Env, connection));
+    const resolvedConnectionName = resolveTraceConnectionName(Env, connection);
 
     if (db) {
-      const storage = TraceStorage.resolveStorage(db);
+      const storage = TraceWriteDiagnostics.wrapStorage(TraceStorage.resolveStorage(db), {
+        connectionName: resolvedConnectionName,
+        logger: core.Logger,
+      });
 
       if (core.RequestContext) {
         TraceContext.setRequestContextImpl(

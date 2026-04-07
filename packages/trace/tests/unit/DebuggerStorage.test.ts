@@ -4,11 +4,12 @@ import { TraceStorage } from '../../src/storage/TraceStorage';
 
 type MockDb = {
   execute: ReturnType<typeof vi.fn>;
+  getType: ReturnType<typeof vi.fn>;
   query: ReturnType<typeof vi.fn>;
   queryOne: ReturnType<typeof vi.fn>;
 };
 
-const createDb = (): MockDb => {
+const createDb = (driver = 'sqlite'): MockDb => {
   const entryRows = [
     {
       id: 2,
@@ -68,6 +69,7 @@ const createDb = (): MockDb => {
 
   return {
     execute,
+    getType: vi.fn(() => driver),
     query,
     queryOne,
   } as unknown as MockDb;
@@ -162,5 +164,33 @@ describe('TraceStorage', () => {
     await storage.clear();
 
     expect(db.execute).toHaveBeenCalledWith('DELETE FROM zin_trace_entries', []);
+  });
+
+  it('uses MySQL-safe ignore inserts for tags and monitoring', async () => {
+    const db = createDb('mysql');
+    const storage = TraceStorage.resolveStorage(db as never);
+
+    await storage.writeEntry({
+      uuid: 'entry-4',
+      batchId: 'batch-3',
+      familyHash: 'hash-4',
+      type: 'log',
+      content: { message: 'mysql' },
+      tags: ['mysql-tag'],
+      isLatest: true,
+      createdAt: 40,
+    });
+    await storage.addMonitoring('slow');
+
+    expect(db.execute).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('INSERT IGNORE INTO zin_trace_entries_tags'),
+      ['entry-4', 'mysql-tag']
+    );
+    expect(db.execute).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining('INSERT IGNORE INTO zin_trace_monitoring'),
+      ['slow']
+    );
   });
 });

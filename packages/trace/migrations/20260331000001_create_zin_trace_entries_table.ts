@@ -21,7 +21,7 @@ export const migration: Migration = {
       table.string('type');
       table.text('content');
       table.boolean('is_latest').default(true);
-      table.integer('created_at');
+      table.bigInteger('created_at');
 
       table.index('batch_id');
       table.index('family_hash');

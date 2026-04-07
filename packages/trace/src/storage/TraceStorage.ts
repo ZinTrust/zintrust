@@ -26,6 +26,50 @@ type EntryRow = {
 
 type TagRow = { entry_uuid: string; tag: string };
 
+const buildIgnoreInsert = (
+  db: IDatabase,
+  table: string,
+  columns: string[],
+  conflictColumns: string[]
+): string => {
+  const columnList = columns.join(', ');
+  const placeholders = columns.map(() => '?').join(', ');
+  const driver = db.getType();
+
+  if (driver === 'sqlite' || driver === 'd1' || driver === 'd1-remote') {
+    return `INSERT OR IGNORE INTO ${table} (${columnList}) VALUES (${placeholders})`;
+  }
+
+  if (driver === 'mysql') {
+    return `INSERT IGNORE INTO ${table} (${columnList}) VALUES (${placeholders})`;
+  }
+
+  if (driver === 'postgresql') {
+    return `INSERT INTO ${table} (${columnList}) VALUES (${placeholders}) ON CONFLICT (${conflictColumns.join(', ')}) DO NOTHING`;
+  }
+
+  if (driver === 'sqlserver') {
+    const sourceColumns = columns.map((_, index) => `v${index + 1}`);
+    const selectClause = sourceColumns.map((name) => `? AS ${name}`).join(', ');
+    const conflictClause = conflictColumns
+      .map((column) => `target.${column} = source.${column}`)
+      .join(' AND ');
+    const insertValues = columns.map((column) => `source.${column}`).join(', ');
+    const sourceProjection = columns
+      .map((column, index) => `${sourceColumns[index]} AS ${column}`)
+      .join(', ');
+
+    return [
+      `MERGE INTO ${table} WITH (HOLDLOCK) AS target`,
+      `USING (SELECT ${sourceProjection} FROM (SELECT ${selectClause}) seed) AS source`,
+      `ON ${conflictClause}`,
+      `WHEN NOT MATCHED THEN INSERT (${columnList}) VALUES (${insertValues});`,
+    ].join(' ');
+  }
+
+  return `INSERT INTO ${table} (${columnList}) VALUES (${placeholders})`;
+};
+
 const rowToEntry = (row: EntryRow, tags: string[]): ITraceEntry => ({
   uuid: row.uuid,
   batchId: row.batch_id,
@@ -40,12 +84,11 @@ const rowToEntry = (row: EntryRow, tags: string[]): ITraceEntry => ({
 const insertTags = async (db: IDatabase, uuid: string, tags: string[]): Promise<void> => {
   if (tags.length === 0) return;
 
+  const sql = buildIgnoreInsert(db, TABLE_TAGS, ['entry_uuid', 'tag'], ['entry_uuid', 'tag']);
+
   await Promise.all(
     tags.map(async (tag) => {
-      await db.execute(`INSERT OR IGNORE INTO ${TABLE_TAGS} (entry_uuid, tag) VALUES (?, ?)`, [
-        uuid,
-        tag,
-      ]);
+      await db.execute(sql, [uuid, tag]);
     })
   );
 };
@@ -258,7 +301,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
   };
 
   const addMonitoring = async (tag: string): Promise<void> => {
-    await db.execute(`INSERT OR IGNORE INTO ${TABLE_MONITORING} (tag) VALUES (?)`, [tag]);
+    await db.execute(buildIgnoreInsert(db, TABLE_MONITORING, ['tag'], ['tag']), [tag]);
   };
 
   const removeMonitoring = async (tag: string): Promise<void> => {
