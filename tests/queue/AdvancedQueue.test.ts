@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createAdvancedQueue } from '@queue/AdvancedQueue';
 import { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
-import { resolveDeduplicationLockKey } from '@tools/queue/Queue';
-import { Queue } from '@tools/queue/Queue';
+import { Queue, resolveDeduplicationLockKey } from '@tools/queue/Queue';
 
 const makeDriver = (capture: Array<unknown>) => ({
   enqueue: vi.fn(async (_queue: string, payload: unknown) => {

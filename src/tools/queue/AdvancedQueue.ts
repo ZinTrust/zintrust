@@ -19,7 +19,6 @@ import type { QueueDriverName } from '@config/type';
 import { createValidationError } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
 import { type DeduplicationBuilder } from '@queue/DeduplicationBuilder';
-import { resolveDeduplicationLockKey } from '@queue/DeduplicationKey';
 import { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
 import type { BullMQPayload } from '@queue/Queue';
 import { Queue, resolveLockPrefix } from '@queue/Queue';
@@ -151,6 +150,17 @@ function normalizeOptionId(value: unknown): string | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function resolveScopedDeduplicationLockKey(queueName: string, deduplicationId: string): string {
+  const normalizedQueueName = String(queueName).trim();
+  const normalizedDeduplicationId = String(deduplicationId).trim();
+
+  if (normalizedQueueName.length === 0) {
+    return normalizedDeduplicationId;
+  }
+
+  return `queue:${normalizedQueueName}:${normalizedDeduplicationId}`;
+}
+
 function attachAdvancedIdentifiers(
   payload: BullMQPayload,
   options: AdvancedJobOptions
@@ -202,7 +212,7 @@ function attachQueueMeta(
     deduplicationLockKey:
       deduplicationId === undefined
         ? undefined
-        : resolveDeduplicationLockKey(queueName, deduplicationId),
+        : resolveScopedDeduplicationLockKey(queueName, deduplicationId),
     releaseAfter: options.deduplication?.releaseAfter,
     uniqueId: options.uniqueId,
   };
@@ -262,7 +272,7 @@ async function handleDeduplicationLogic(
     // So releaseLock expects 'id' (without prefix).
     // deduplicationResult.lockId is lock.key (WITH prefix).
     // deduplicationResult.id is the original ID.
-    const lockId = resolveDeduplicationLockKey(name, deduplicationId);
+    const lockId = resolveScopedDeduplicationLockKey(name, deduplicationId);
 
     // Create timeout with proper cleanup tracking
     // Using unref() to prevent blocking process exit
@@ -478,7 +488,7 @@ async function handleDeduplication(
   queueName: string
 ): Promise<JobResult> {
   const { id, ttl, replace } = deduplicationOptions;
-  const scopedLockKey = resolveDeduplicationLockKey(queueName, id);
+  const scopedLockKey = resolveScopedDeduplicationLockKey(queueName, id);
 
   try {
     // Check if lock already exists
