@@ -76,7 +76,7 @@ describe('StartupConfigValidator', () => {
 
   it('strict mode: non-critical runtime vars produce warnings without failing validation', async () => {
     vi.resetModules();
-    const env = {
+    const env: NodeJS.ProcessEnv = {
       ...originalEnv,
       STARTUP_REQUIRE_ENV: 'true',
       NODE_ENV: 'production',
@@ -118,7 +118,7 @@ describe('StartupConfigValidator', () => {
       LOG_CHANNEL: 'console',
       DB_DATABASE: '',
       DB_PATH: '',
-      // DB_DATABASE and DB_PATH intentionally omitted
+      // DB_DATABASE and DB_PATH intentionally blank to exercise sqlite validation
     };
 
     const { StartupConfigValidator } = await import('@/config/StartupConfigValidator');

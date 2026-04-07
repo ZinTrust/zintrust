@@ -166,9 +166,9 @@ async function handleCloudflareRequest(
     const err = error as Error;
     Logger.error('Cloudflare handler error', err);
     StartupErrorLogging.logDetails(err, {
-      errors: 'Cloudflare startup configuration errors',
-      warnings: 'Cloudflare startup configuration warnings',
-      report: 'Cloudflare startup health report',
+      errors: 'Cloudflare startup configuration errors:',
+      warnings: 'Cloudflare startup configuration warnings:',
+      report: 'Cloudflare startup health report:',
     });
     if (typeof err?.stack === 'string' && err.stack.trim() !== '') {
       Logger.error('Cloudflare handler stack', err.stack);
