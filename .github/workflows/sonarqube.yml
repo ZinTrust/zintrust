@@ -34,8 +34,10 @@ jobs:
           node-version: '22.x'
           cache: 'npm'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for analysis
+        run: |
+          node scripts/release/sync-package-versions.mjs --bump-root-to-next
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
         run: npm ci

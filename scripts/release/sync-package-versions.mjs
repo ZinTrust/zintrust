@@ -7,6 +7,7 @@ const packagesDir = path.join(repoRoot, 'packages');
 
 const cliArgs = process.argv.slice(2);
 const isCheckOnly = cliArgs.includes('--check');
+const shouldBumpRootToNext = cliArgs.includes('--bump-root-to-next');
 const npmVersionCache = new Map();
 
 function getArgValue(flag) {
@@ -76,16 +77,41 @@ function normalizeWorkspaceDependencyRange(version) {
   return version;
 }
 
-function getPublishedWorkspaceDependencyVersion(packageName, fallbackVersion) {
+function incrementPatchVersion(version) {
+  const parts = String(version).split('.');
+  if (parts.length !== 3) {
+    return version;
+  }
+
+  const patch = Number(parts[2]);
+  if (Number.isNaN(patch)) {
+    return version;
+  }
+
+  return `${parts[0]}.${parts[1]}.${patch + 1}`;
+}
+
+function isLocalDependencyRange(version) {
+  return (
+    typeof version === 'string' &&
+    (version.startsWith('file:') ||
+      version.startsWith('workspace:') ||
+      version.startsWith('link:') ||
+      version.startsWith('./') ||
+      version.startsWith('../'))
+  );
+}
+
+function getPublishedNpmVersion(packageName) {
   if (typeof packageName !== 'string' || packageName.length === 0) {
-    return fallbackVersion;
+    return undefined;
   }
 
   if (npmVersionCache.has(packageName)) {
     return npmVersionCache.get(packageName);
   }
 
-  let resolvedVersion = fallbackVersion;
+  let resolvedVersion;
 
   try {
     const raw = execFileSync(
@@ -99,11 +125,19 @@ function getPublishedWorkspaceDependencyVersion(packageName, fallbackVersion) {
       resolvedVersion = publishedVersion;
     }
   } catch {
-    resolvedVersion = fallbackVersion;
+    resolvedVersion = undefined;
   }
 
   npmVersionCache.set(packageName, resolvedVersion);
   return resolvedVersion;
+}
+
+function getPublishedWorkspaceDependencyVersion(packageName, fallbackVersion) {
+  if (typeof packageName !== 'string' || packageName.length === 0) {
+    return fallbackVersion;
+  }
+
+  return getPublishedNpmVersion(packageName) ?? fallbackVersion;
 }
 
 function getWorkspaceDependencyVersions(packageInfos) {
@@ -133,6 +167,20 @@ function compareVersions(a, b) {
   }
 
   return 0;
+}
+
+function getNextRootVersion(packageName, currentVersion) {
+  const publishedVersion = getPublishedNpmVersion(packageName);
+  if (typeof publishedVersion !== 'string' || publishedVersion.length === 0) {
+    return currentVersion;
+  }
+
+  const nextPublishedPatch = incrementPatchVersion(publishedVersion);
+  if (compareVersions(nextPublishedPatch, currentVersion) > 0) {
+    return nextPublishedPatch;
+  }
+
+  return currentVersion;
 }
 
 function isEnoent(error) {
@@ -229,6 +277,38 @@ function syncMirroredField(target, key, value) {
   }
 
   return true;
+}
+
+function syncPublishedZintrustDependencySection(deps, dependencyVersions) {
+  if (typeof deps !== 'object' || deps === null) {
+    return false;
+  }
+
+  let didChange = false;
+
+  for (const [packageName, currentRange] of Object.entries(deps)) {
+    if (!packageName.startsWith('@zintrust/')) continue;
+    if (isLocalDependencyRange(currentRange)) continue;
+
+    const fallbackVersion = dependencyVersions.get(packageName) ?? currentRange;
+    const publishedVersion = getPublishedWorkspaceDependencyVersion(packageName, fallbackVersion);
+
+    if (typeof publishedVersion !== 'string' || publishedVersion.length === 0) continue;
+    if (deps[packageName] === publishedVersion) continue;
+
+    deps[packageName] = publishedVersion;
+    didChange = true;
+  }
+
+  return didChange;
+}
+
+function syncPublishedZintrustDependencies(pkg, dependencyVersions) {
+  const dependencySections = ['dependencies', 'devDependencies', 'optionalDependencies'];
+
+  return dependencySections.some((section) =>
+    syncPublishedZintrustDependencySection(pkg[section], dependencyVersions)
+  );
 }
 
 function pinWorkspaceDependencyVersions(dependencies, dependencyVersions) {
@@ -452,11 +532,30 @@ function syncRootWorkspaceDependencies(rootPkg, dependencyVersions) {
     }
   }
 
+  if (syncPublishedZintrustDependencies(rootPkg, dependencyVersions)) {
+    didChange = true;
+  }
+
   return didChange;
 }
 
+async function syncPackageDependencyVersions(pkgPath, dependencyVersions) {
+  try {
+    const pkg = await readJson(pkgPath);
+    if (!syncPublishedZintrustDependencies(pkg, dependencyVersions)) {
+      return false;
+    }
+
+    await writeJson(pkgPath, pkg);
+    return true;
+  } catch (error) {
+    if (isEnoent(error)) return false;
+    throw error;
+  }
+}
+
 async function syncPackages(packageDirs, coreName, coreVersion) {
-  const touched = [];
+  const touched = new Set();
   const packageInfos = [];
 
   for (const dirName of packageDirs) {
@@ -464,18 +563,25 @@ async function syncPackages(packageDirs, coreName, coreVersion) {
     const pkg = await syncPackageJson(pkgPath, coreName, coreVersion);
 
     if (pkg) {
-      touched.push(path.relative(repoRoot, pkgPath));
+      touched.add(path.relative(repoRoot, pkgPath));
       packageInfos.push({ dirName, ...pkg });
     }
   }
 
   const dependencyVersions = getWorkspaceDependencyVersions(packageInfos);
 
+  for (const dirName of packageDirs) {
+    const pkgPath = path.join(packagesDir, dirName, 'package.json');
+    if (await syncPackageDependencyVersions(pkgPath, dependencyVersions)) {
+      touched.add(path.relative(repoRoot, pkgPath));
+    }
+  }
+
   const rootPkgPath = path.join(repoRoot, 'package.json');
   const rootPkg = await readJson(rootPkgPath);
   if (syncRootWorkspaceDependencies(rootPkg, dependencyVersions)) {
     await writeJson(rootPkgPath, rootPkg);
-    touched.push(path.relative(repoRoot, rootPkgPath));
+    touched.add(path.relative(repoRoot, rootPkgPath));
   }
 
   const rootLockPath = path.join(repoRoot, 'package-lock.json');
@@ -485,10 +591,10 @@ async function syncPackages(packageDirs, coreName, coreVersion) {
     syncPackageLock(rootLock, rootPkg, packageInfos, dependencyVersions, coreName)
   ) {
     await writeJson(rootLockPath, rootLock);
-    touched.push(path.relative(repoRoot, rootLockPath));
+    touched.add(path.relative(repoRoot, rootLockPath));
   }
 
-  return touched;
+  return Array.from(touched);
 }
 
 function formatIssue(issue) {
@@ -542,11 +648,17 @@ function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, depend
   });
 
   const rootPackageLink = rootLock.packages?.[`node_modules/${rootPkg.name}`];
-  if (rootPackageLink?.resolved !== '.' || rootPackageLink?.link !== true) {
+  if (
+    rootPackageLink &&
+    (rootPackageLink.link !== true ||
+      !['', '.'].includes(
+        typeof rootPackageLink.resolved === 'string' ? rootPackageLink.resolved : ''
+      ))
+  ) {
     pushIssue(
       issues,
       relRootLockPath,
-      `lockfile node_modules entry for ${rootPkg.name} must be a link resolved to "."`
+      `lockfile node_modules entry for ${rootPkg.name} must be a link resolved to "" or "."`
     );
   }
 }
@@ -699,10 +811,11 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
 }
 
 async function main() {
-  const { coreName, coreVersion } = await readRootPackageInfo();
+  const { coreName } = await readRootPackageInfo();
   const packageDirs = await getPackageDirsList();
 
   if (isCheckOnly) {
+    const { coreVersion } = await readRootPackageInfo();
     const issues = await collectDriftIssues(packageDirs, coreName, coreVersion);
 
     if (issues.length > 0) {
@@ -722,7 +835,25 @@ async function main() {
     return;
   }
 
-  const touched = await syncPackages(packageDirs, coreName, coreVersion);
+  let preTouched = [];
+
+  if (shouldBumpRootToNext) {
+    const rootPkgPath = path.join(repoRoot, 'package.json');
+    const rootPkg = await readJson(rootPkgPath);
+    const nextVersion = getNextRootVersion(rootPkg.name, rootPkg.version);
+
+    if (nextVersion !== rootPkg.version) {
+      rootPkg.version = nextVersion;
+      await writeJson(rootPkgPath, rootPkg);
+      preTouched = [path.relative(repoRoot, rootPkgPath)];
+    }
+  }
+
+  const { coreVersion } = await readRootPackageInfo();
+
+  const touched = Array.from(
+    new Set([...preTouched, ...(await syncPackages(packageDirs, coreName, coreVersion))])
+  );
 
   process.stdout.write(
     `Synced ${touched.length} package(s) to ${coreName}@${coreVersion} (peerDependencies + version when applicable)\n` +

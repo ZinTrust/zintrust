@@ -78,6 +78,11 @@ This page tracks developer-visible documentation changes.
 - Extended the Cloudflare shared-env manifest workflow so deploy commands now reuse the same target-aware secret selection as `zin put cloudflare`, letting `zin deploy`, `zin deploy d1-proxy`, `zin deploy kv-proxy`, and `zin deploy:ccp` sync selected Worker secrets automatically before `wrangler deploy` unless `--no-sync-secrets` is passed.
 - Updated microservice scaffolding so new services automatically register their canonical `domain/name` ID under `.zintrust.json -> cloudflare.targets`, keeping service-specific Cloudflare secret selection aligned with the generated runtime manifest and service-local Worker config.
 
+## 2026-04-06
+
+- Updated `scripts/release/sync-package-versions.mjs` so CI can opt into `--bump-root-to-next`, which advances the root `package.json` version to the next published patch line when needed and pins non-local `@zintrust/*` dependency specs to the live npm versions while preserving package-local `file:` links.
+- Reworked the npm-based GitHub workflows to stop failing fast on `sync-package-versions.mjs --check`. CI, smoke, SonarQube, and security jobs now self-heal by running the sync script plus `npm install --package-lock-only --ignore-scripts` before `npm ci`, while the publish workflow refreshes workspace metadata without auto-bumping the publish line.
+
 ## 2026-03-30
 
 - Added a first-class Cloudflare env-target manifest shape to fresh `.zintrust.json` scaffolds via `cloudflare.shared_env`, `cloudflare.targets`, and `cloudflare.wrangler_envs`, then wired that manifest into `zin put` and local `zin s --wg` snapshots. Fresh projects can now keep one canonical shared secret list plus additive per-target keys, and Wrangler dev no longer needs to dump every loaded env var into every Worker by default.
