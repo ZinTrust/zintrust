@@ -49,7 +49,7 @@ let loadPromise: Promise<SystemTraceModule | null> | null = null;
 
 const importSystemTrace = async (): Promise<SystemTraceModule | null> => {
   try {
-    return (await import('packages/trace/src')) as unknown as SystemTraceModule;
+    return (await import('@zintrust/trace')) as unknown as SystemTraceModule;
   } catch {
     return null;
   }

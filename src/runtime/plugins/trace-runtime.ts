@@ -39,7 +39,7 @@ const fallbackRegisterTraceRoutes = (
   _options?: { basePath?: string; middleware?: ReadonlyArray<string> }
 ): void => undefined;
 
-const systemTraceModule: SystemTraceModule | undefined = await import('packages/trace/src')
+const systemTraceModule: SystemTraceModule | undefined = await import('@zintrust/trace')
   .then((module) => module as unknown as SystemTraceModule)
   .catch(() => undefined);
 
@@ -58,5 +58,5 @@ export const registerTraceRoutes =
 
 export const ensureSystemTraceRegistered = async (): Promise<void> => {
   if (!isAvailable()) return;
-  await import('packages/trace/src/register').catch(() => undefined);
+  await import('@zintrust/trace/register').catch(() => undefined);
 };

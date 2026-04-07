@@ -25,10 +25,10 @@ describe('runtime trace plugin shims', () => {
   it('exposes safe fallbacks when the trace runtime module is unavailable', async () => {
     const registerSpy = vi.fn();
 
-    vi.doMock('packages/trace/src', () => {
+    vi.doMock('@zintrust/trace', () => {
       throw new Error('trace unavailable');
     });
-    vi.doMock('packages/trace/src/register', () => {
+    vi.doMock('@zintrust/trace/register', () => {
       registerSpy();
       return {};
     });
@@ -51,13 +51,13 @@ describe('runtime trace plugin shims', () => {
     const registerDashboardSpy = vi.fn();
     const registerRoutesSpy = vi.fn();
 
-    vi.doMock('packages/trace/src', () => ({
+    vi.doMock('@zintrust/trace', () => ({
       TraceConfig: { merge: mergeSpy },
       TraceStorage: { resolveStorage: resolveStorageSpy },
       registerTraceDashboard: registerDashboardSpy,
       registerTraceRoutes: registerRoutesSpy,
     }));
-    vi.doMock('packages/trace/src/register', () => ({}));
+    vi.doMock('@zintrust/trace/register', () => ({}));
 
     const runtimeModule = await import('@runtime/plugins/trace-runtime');
 

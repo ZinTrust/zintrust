@@ -46,7 +46,7 @@ type TraceMigrationTarget = {
 
 const loadTraceModule = async (): Promise<TraceStorageModule> => {
   try {
-    return (await import('packages/trace/src')) as unknown as TraceStorageModule;
+    return (await import('@zintrust/trace')) as unknown as TraceStorageModule;
   } catch (error) {
     Logger.error('Failed to load optional package "@zintrust/trace"', error);
     throw ErrorFactory.createCliError(

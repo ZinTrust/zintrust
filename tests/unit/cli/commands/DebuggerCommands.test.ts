@@ -229,7 +229,7 @@ describe('TraceCommands', () => {
 
   it('reads trace status from Wrangler D1 JSON output', async () => {
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    const { TraceConfig } = await import('packages/trace/src');
+    const { TraceConfig } = await import('@zintrust/trace');
     vi.mocked(TraceConfig.merge).mockReturnValue({
       pruneAfterHours: 24,
       connection: 'd1debug',
@@ -285,7 +285,7 @@ describe('TraceCommands', () => {
 
   it('falls back to Wrangler table parsing and clears entries through D1', async () => {
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    const { TraceConfig } = await import('packages/trace/src');
+    const { TraceConfig } = await import('@zintrust/trace');
     vi.mocked(TraceConfig.merge).mockReturnValue({
       pruneAfterHours: 24,
       connection: 'd1debug',
@@ -354,7 +354,7 @@ describe('TraceCommands', () => {
   it('prunes entries through D1 and keeps exceptions when requested', async () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_800_000);
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    const { TraceConfig } = await import('packages/trace/src');
+    const { TraceConfig } = await import('@zintrust/trace');
     vi.mocked(TraceConfig.merge).mockReturnValue({
       pruneAfterHours: 24,
       connection: 'd1debug',
