@@ -89,6 +89,36 @@ const normalizeProxyTargetArgs = (args: string[]): string[] => {
   return [`proxy:${mappedTarget}`, ...args.slice(2)];
 };
 
+const getPrimaryCommand = (args: string[]): string | undefined => {
+  for (const arg of args) {
+    const normalized = arg.trim().toLowerCase();
+    if (normalized === '' || normalized.startsWith('-')) continue;
+    return normalized;
+  }
+
+  return undefined;
+};
+
+const shouldDeferPluginAutoImportWarnings = (args: string[]): boolean => {
+  const command = getPrimaryCommand(args);
+  return command === 'start' || command === 's';
+};
+
+const logPluginAutoImportFailure = (
+  args: string[],
+  scope: 'Official' | 'Project',
+  details?: string
+): void => {
+  if (shouldDeferPluginAutoImportWarnings(args)) {
+    Logger.debug(`${scope} plugin auto-import advisory deferred to runtime bootstrap`, {
+      details,
+    });
+    return;
+  }
+
+  Logger.warn(`${scope} plugin auto-imports failed:`, details);
+};
+
 const handleCliFatal = async (error: unknown, context: string): Promise<never> => {
   try {
     Logger.error(context, error);
@@ -155,12 +185,12 @@ export async function run(): Promise<void> {
       const officialImports =
         await PluginAutoImports.tryImportRuntimeAutoImports(runtimeImportMode);
       if (!officialImports.ok) {
-        Logger.warn('Official plugin auto-imports failed:', officialImports.errorMessage);
+        logPluginAutoImportFailure(args0, 'Official', officialImports.errorMessage);
       }
 
       const projectImports = await PluginAutoImports.tryImportProjectAutoImports();
       if (!projectImports.ok && projectImports.reason !== 'not-found') {
-        Logger.warn('Project plugin auto-imports failed:', projectImports.errorMessage);
+        logPluginAutoImportFailure(args0, 'Project', projectImports.errorMessage);
       }
     } catch {
       // best-effort; CLI should still run even if plugins file is missing

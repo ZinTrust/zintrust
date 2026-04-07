@@ -2,8 +2,17 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-07
+
+- Added a shared CI install fallback at `scripts/ci/install-deps.sh`. Root workflows now try `npm ci` first and automatically fall back to `npm install` when npm reports lock/package sync drift such as missing internal `@zintrust/core` entries, so CI self-heals instead of stopping on `EUSAGE`.
+- Fixed the release/CI version sync flow so internal `@zintrust/*` peer, dependency, and devDependency ranges stay pinned to currently published npm versions instead of drifting to an unpublished future version such as `0.4.75` before `@zintrust/core` is actually live. CI, smoke, SonarQube, and security workflows no longer auto-bump the root package ahead of `npm ci`.
+- Scoped queue deduplication locks by queue name in core and `@zintrust/queue-redis`, so the same logical `deduplication.id` can now be reused safely across different queues while still deduplicating true duplicates inside the same queue. Worker-side `releaseAfter` lock cleanup now uses the same queue-scoped storage key contract.
+- Fixed the release package-publish shim for `@zintrust/core` so package-local publish builds can type-check and run against the new `resolveDeduplicationLockKey(...)` export while publishing affected packages such as `@zintrust/queue-redis`.
+
 ## 2026-04-05
 
+- Updated the Cloudflare Worker scaffold to include the non-secret runtime vars and env-local bindings needed for first-request boot in new deploys, and relaxed startup secret validation so `ENCRYPTION_CIPHER` is no longer treated as universally required in production. ZinTrust now only blocks on `ENCRYPTION_CIPHER` when encrypted-envelope interoperability is actually enabled by encryption-specific env such as `ENCRYPTION_CIPHER` itself or `APP_PREVIOUS_KEYS`.
+- Relaxed strict startup env validation so non-critical runtime vars such as `APP_NAME`, `HOST`, `PORT`/`APP_PORT`, `BASE_URL`, `LOG_LEVEL`, and `LOG_CHANNEL` now surface as startup warnings instead of fatal config errors when `STARTUP_REQUIRE_ENV=true`. Critical startup requirements such as `NODE_ENV`, `DB_CONNECTION`, and `APP_KEY` remain blocking, and Cloudflare startup failures now log structured config errors, warnings, and startup health report details to make missing Worker runtime env easier to diagnose.
 - Added development-safe Redis lifecycle tracking in core so subsystem-scoped direct Redis clients can be reused across non-production Node reloads, framework shutdown now drains tracked Redis clients before exit, and both app/bootstrap and worker shutdown flows respond to `SIGUSR2` hot-reload restarts to reduce BullMQ/worker Redis zombie connections during local watch mode.
 - Added first-class HTTP bridge broadcast support for isolated worker/container runtimes. Core now supports both automatic `inmemory` bridge forwarding in isolated runtimes and an explicit `http-bridge` broadcaster, so cross-process local socket delivery no longer requires application-level proxy wrappers.
 - Added compatibility fallback from `TIME_ZONE` to `APP_TIMEZONE` and wired scheduler cron defaults to inherit the configured app timezone instead of hardcoded `UTC` when a schedule does not specify its own timezone.
@@ -75,6 +84,11 @@ This page tracks developer-visible documentation changes.
 - Added a packed Cloudflare secret compatibility mode to the core env surface. When `USE_PACK=true`, ZinTrust now expands JSON secret bindings listed in `PACK_KEYS` into the resolved `Env.get(...)` view, keeps direct env values above packed values, tracks the winning source for diagnostics, and auto-loads local `.env.pack` files for Node-side development without overriding the direct control keys.
 - Extended the Cloudflare shared-env manifest workflow so deploy commands now reuse the same target-aware secret selection as `zin put cloudflare`, letting `zin deploy`, `zin deploy d1-proxy`, `zin deploy kv-proxy`, and `zin deploy:ccp` sync selected Worker secrets automatically before `wrangler deploy` unless `--no-sync-secrets` is passed.
 - Updated microservice scaffolding so new services automatically register their canonical `domain/name` ID under `.zintrust.json -> cloudflare.targets`, keeping service-specific Cloudflare secret selection aligned with the generated runtime manifest and service-local Worker config.
+
+## 2026-04-06
+
+- Updated `scripts/release/sync-package-versions.mjs` so CI can opt into `--bump-root-to-next`, which advances the root `package.json` version to the next published patch line when needed and pins non-local `@zintrust/*` dependency specs to the live npm versions while preserving package-local `file:` links.
+- Reworked the npm-based GitHub workflows to stop failing fast on `sync-package-versions.mjs --check`. CI, smoke, SonarQube, and security jobs now self-heal by running the sync script plus `npm install --package-lock-only --ignore-scripts` before `npm ci`, while the publish workflow refreshes workspace metadata without auto-bumping the publish line.
 
 ## 2026-03-30
 

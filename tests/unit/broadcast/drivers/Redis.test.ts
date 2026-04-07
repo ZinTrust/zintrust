@@ -28,6 +28,7 @@ describe('RedisDriver (Broadcast)', () => {
     }));
 
     const { RedisDriver } = await import('@broadcast/drivers/Redis');
+    const { createRedisKey } = await import('@tools/redis/RedisKeyManager');
 
     const res = await RedisDriver.send(
       {
@@ -45,7 +46,7 @@ describe('RedisDriver (Broadcast)', () => {
     expect(res.ok).toBe(true);
     expect(res.published).toBe(1);
     expect(fake._published.length).toBe(1);
-    expect(fake._published[0].channel).toBe('zintrust_zintrust_test:broadcast:broadcast:orders');
+    expect(fake._published[0].channel).toBe(createRedisKey('broadcast:broadcast:orders'));
 
     const payload = JSON.parse(fake._published[0].message);
     expect(payload).toEqual({ event: 'created', data: { id: 123 } });

@@ -65,6 +65,31 @@ async function importRedis(): Promise<{
   };
 }
 
+type CacheAction = 'GET' | 'SET' | 'DEL' | 'FLUSHDB' | 'EXISTS';
+
+type CacheFailureState = {
+  isDisabled: () => boolean;
+  disableAfterFailure: (action: CacheAction, error: unknown) => void;
+};
+
+const logCacheFailure = (action: CacheAction, error: unknown): void => {
+  Logger.error(`Redis cache ${action} failed`, error);
+};
+
+const createCacheFailureState = (): CacheFailureState => {
+  let disabled = false;
+
+  return {
+    isDisabled: () => disabled,
+    disableAfterFailure: (action, error): void => {
+      if (!disabled) {
+        logCacheFailure(action, error);
+      }
+      disabled = true;
+    },
+  };
+};
+
 const createCacheOperations = <TClient>(
   ensureClient: () => Promise<TClient>,
   operations: {
@@ -76,41 +101,65 @@ const createCacheOperations = <TClient>(
   },
   defaultTtl: number
 ): CacheDriver => {
+  const failureState = createCacheFailureState();
+
   return {
     async get<T>(key: string): Promise<T | null> {
+      if (failureState.isDisabled()) return null;
       try {
         const client = await ensureClient();
         const value = await operations.get(client, key);
         if (value === null) return null;
         return safeJsonParse<T>(value);
       } catch (error) {
-        Logger.error('Redis cache GET failed', error);
+        failureState.disableAfterFailure('GET', error);
         return null;
       }
     },
 
     async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-      const client = await ensureClient();
-      const json = JSON.stringify(value);
-      const effectiveTtl = ttl ?? defaultTtl;
+      if (failureState.isDisabled()) return;
+      try {
+        const client = await ensureClient();
+        const json = JSON.stringify(value);
+        const effectiveTtl = ttl ?? defaultTtl;
 
-      await operations.set(client, key, json, effectiveTtl);
+        await operations.set(client, key, json, effectiveTtl);
+      } catch (error) {
+        failureState.disableAfterFailure('SET', error);
+      }
     },
 
     async delete(key: string): Promise<void> {
-      const client = await ensureClient();
-      await operations.del(client, key);
+      if (failureState.isDisabled()) return;
+      try {
+        const client = await ensureClient();
+        await operations.del(client, key);
+      } catch (error) {
+        failureState.disableAfterFailure('DEL', error);
+      }
     },
 
     async clear(): Promise<void> {
-      const client = await ensureClient();
-      await operations.clear(client);
+      if (failureState.isDisabled()) return;
+      try {
+        const client = await ensureClient();
+        await operations.clear(client);
+      } catch (error) {
+        failureState.disableAfterFailure('FLUSHDB', error);
+      }
     },
 
     async has(key: string): Promise<boolean> {
-      const client = await ensureClient();
-      const count = await operations.exists(client, key);
-      return count > 0;
+      if (failureState.isDisabled()) return false;
+      try {
+        const client = await ensureClient();
+        const count = await operations.exists(client, key);
+        return count > 0;
+      } catch (error) {
+        failureState.disableAfterFailure('EXISTS', error);
+        return false;
+      }
     },
   };
 };
@@ -150,9 +199,8 @@ const createWorkersCacheDriver = (config: RedisCacheConfig): CacheDriver => {
           return redisClient.set(key, json) as Promise<void>;
         }
       },
-      del: (redisClient, key) => {
-        redisClient.del(key);
-        return Promise.resolve();
+      del: async (redisClient, key) => {
+        await redisClient.del(key);
       },
       clear: (redisClient) => {
         if (typeof redisClient.flushDb === 'function') {
@@ -175,7 +223,11 @@ const createNodeCacheDriver = (config: RedisCacheConfig): CacheDriver => {
   const ensureClient = async (): Promise<RedisClient> => {
     if (client === undefined) {
       const { createClient } = await importRedis();
-      client = createClient({ socket: { host: config.host, port: config.port } });
+      client = createClient({
+        socket: { host: config.host, port: config.port },
+        password: config.password,
+        database: config.database ?? 0,
+      });
     }
 
     if (!connected) {
@@ -197,14 +249,10 @@ const createNodeCacheDriver = (config: RedisCacheConfig): CacheDriver => {
           return redisClient.set(key, json) as Promise<void>;
         }
       },
-      del: (redisClient, key) => {
-        redisClient.del(key);
-        return Promise.resolve();
+      del: async (redisClient, key) => {
+        await redisClient.del(key);
       },
-      clear: (redisClient) => {
-        redisClient.flushDb();
-        return Promise.resolve();
-      },
+      clear: (redisClient) => redisClient.flushDb() as Promise<void>,
       exists: (redisClient, key) => redisClient.exists(key),
     },
     config.ttl ?? 300

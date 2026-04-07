@@ -1,21 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CloudflareKv } from '../../../../src/toolkit/Secrets/providers/CloudflareKv';
+
+const loadCloudflareKv = async (env: Record<string, string>) => {
+  vi.resetModules();
+  vi.doMock('@common/ExternalServiceUtils', async () => {
+    const actual = await vi.importActual<typeof import('@common/ExternalServiceUtils')>(
+      '@common/ExternalServiceUtils'
+    );
+
+    return {
+      ...actual,
+      readEnvString: vi.fn((key: string, fallback = '') => env[key] ?? fallback),
+    };
+  });
+
+  const { CloudflareKv } = await import('../../../../src/toolkit/Secrets/providers/CloudflareKv');
+  return CloudflareKv;
+};
 
 describe('CloudflareKv extra', () => {
-  const OLD_ENV = { ...process.env };
-
   beforeEach(() => {});
   afterEach(() => {
-    process.env = { ...OLD_ENV };
+    vi.resetModules();
     vi.restoreAllMocks();
     // @ts-ignore
     delete global.fetch;
   });
 
-  it('doctorEnv reports missing vars when env empty', () => {
-    delete process.env['CLOUDFLARE_ACCOUNT_ID'];
-    delete process.env['CLOUDFLARE_API_TOKEN'];
-    delete process.env['CLOUDFLARE_KV_NAMESPACE_ID'];
+  it('doctorEnv reports missing vars when env empty', async () => {
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: '',
+      CLOUDFLARE_API_TOKEN: '',
+      CLOUDFLARE_KV_NAMESPACE_ID: '',
+    });
 
     const missing = CloudflareKv.doctorEnv();
     expect(missing).toContain('CLOUDFLARE_ACCOUNT_ID');
@@ -23,17 +39,22 @@ describe('CloudflareKv extra', () => {
     expect(missing).toContain('CLOUDFLARE_KV_NAMESPACE_ID');
   });
 
-  it('createFromEnv throws when credentials missing', () => {
-    delete process.env['CLOUDFLARE_ACCOUNT_ID'];
-    delete process.env['CLOUDFLARE_API_TOKEN'];
+  it('createFromEnv throws when credentials missing', async () => {
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: '',
+      CLOUDFLARE_API_TOKEN: '',
+      CLOUDFLARE_KV_NAMESPACE_ID: '',
+    });
 
     expect(() => CloudflareKv.createFromEnv()).toThrow();
   });
 
   it('getValue returns null for 404', async () => {
-    process.env['CLOUDFLARE_ACCOUNT_ID'] = 'acc';
-    process.env['CLOUDFLARE_API_TOKEN'] = 'tok';
-    process.env['CLOUDFLARE_KV_NAMESPACE_ID'] = 'ns';
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: 'acc',
+      CLOUDFLARE_API_TOKEN: 'tok',
+      CLOUDFLARE_KV_NAMESPACE_ID: 'ns',
+    });
 
     // @ts-ignore
     global.fetch = vi.fn(async () => ({ status: 404, ok: false, text: async () => 'not found' }));
@@ -44,9 +65,11 @@ describe('CloudflareKv extra', () => {
   });
 
   it('getValue returns text on success', async () => {
-    process.env['CLOUDFLARE_ACCOUNT_ID'] = 'acc';
-    process.env['CLOUDFLARE_API_TOKEN'] = 'tok';
-    process.env['CLOUDFLARE_KV_NAMESPACE_ID'] = 'ns';
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: 'acc',
+      CLOUDFLARE_API_TOKEN: 'tok',
+      CLOUDFLARE_KV_NAMESPACE_ID: 'ns',
+    });
 
     // @ts-ignore
     global.fetch = vi.fn(async () => ({ status: 200, ok: true, text: async () => 'the-value' }));
@@ -57,9 +80,11 @@ describe('CloudflareKv extra', () => {
   });
 
   it('getValue throws on non-ok (not 404)', async () => {
-    process.env['CLOUDFLARE_ACCOUNT_ID'] = 'acc';
-    process.env['CLOUDFLARE_API_TOKEN'] = 'tok';
-    process.env['CLOUDFLARE_KV_NAMESPACE_ID'] = 'ns';
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: 'acc',
+      CLOUDFLARE_API_TOKEN: 'tok',
+      CLOUDFLARE_KV_NAMESPACE_ID: 'ns',
+    });
 
     // @ts-ignore
     global.fetch = vi.fn(async () => ({ status: 500, ok: false, text: async () => 'err' }));
@@ -69,9 +94,11 @@ describe('CloudflareKv extra', () => {
   });
 
   it('putValue succeeds and sends headers/body', async () => {
-    process.env['CLOUDFLARE_ACCOUNT_ID'] = 'acc';
-    process.env['CLOUDFLARE_API_TOKEN'] = 'tok';
-    process.env['CLOUDFLARE_KV_NAMESPACE_ID'] = 'ns';
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: 'acc',
+      CLOUDFLARE_API_TOKEN: 'tok',
+      CLOUDFLARE_KV_NAMESPACE_ID: 'ns',
+    });
 
     let captured: any = null;
     // @ts-ignore
@@ -90,9 +117,11 @@ describe('CloudflareKv extra', () => {
   });
 
   it('putValue throws on non-ok', async () => {
-    process.env['CLOUDFLARE_ACCOUNT_ID'] = 'acc';
-    process.env['CLOUDFLARE_API_TOKEN'] = 'tok';
-    process.env['CLOUDFLARE_KV_NAMESPACE_ID'] = 'ns';
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: 'acc',
+      CLOUDFLARE_API_TOKEN: 'tok',
+      CLOUDFLARE_KV_NAMESPACE_ID: 'ns',
+    });
 
     // @ts-ignore
     global.fetch = vi.fn(async () => ({ status: 403, ok: false, text: async () => 'forbidden' }));
@@ -102,9 +131,11 @@ describe('CloudflareKv extra', () => {
   });
 
   it('getValue accepts explicit namespace when default missing', async () => {
-    process.env['CLOUDFLARE_ACCOUNT_ID'] = 'acc';
-    process.env['CLOUDFLARE_API_TOKEN'] = 'tok';
-    delete process.env['CLOUDFLARE_KV_NAMESPACE_ID'];
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: 'acc',
+      CLOUDFLARE_API_TOKEN: 'tok',
+      CLOUDFLARE_KV_NAMESPACE_ID: '',
+    });
 
     // @ts-ignore
     global.fetch = vi.fn(async () => ({ status: 200, ok: true, text: async () => 'ok' }));
@@ -115,9 +146,11 @@ describe('CloudflareKv extra', () => {
   });
 
   it('getValue throws when namespace missing and not provided', async () => {
-    process.env['CLOUDFLARE_ACCOUNT_ID'] = 'acc';
-    process.env['CLOUDFLARE_API_TOKEN'] = 'tok';
-    delete process.env['CLOUDFLARE_KV_NAMESPACE_ID'];
+    const CloudflareKv = await loadCloudflareKv({
+      CLOUDFLARE_ACCOUNT_ID: 'acc',
+      CLOUDFLARE_API_TOKEN: 'tok',
+      CLOUDFLARE_KV_NAMESPACE_ID: '',
+    });
 
     const inst = CloudflareKv.createFromEnv();
     await expect(inst.getValue('k')).rejects.toThrow(/Cloudflare KV namespace missing/);

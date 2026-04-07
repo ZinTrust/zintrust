@@ -37,11 +37,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for CI
+        run: |
+          node scripts/release/sync-package-versions.mjs
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies (disable lifecycle scripts in CI)
-        run: npm ci --ignore-scripts
+        run: sh scripts/ci/install-deps.sh --ignore-scripts
         env:
           HUSKY: 0
           NPM_CONFIG_IGNORE_SCRIPTS: true

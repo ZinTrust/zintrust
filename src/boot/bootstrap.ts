@@ -14,6 +14,7 @@ import { Logger } from '@config/logger';
 import { shutdownRedisConnections } from '@config/workers';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
+import { StartupErrorLogging } from '@runtime/StartupErrorLogging';
 import { WorkerProjectAutoImports } from '@runtime/WorkerProjectAutoImports';
 import { loadWorkersModule } from '@runtime/WorkersModule';
 
@@ -27,30 +28,11 @@ const shouldSkipProjectPluginAutoImports = (): boolean => {
 };
 
 const logBootstrapErrorDetails = (error: unknown): void => {
-  // Best-effort: surface startup config validation details (already redacted)
-  // so container runs show which env vars are missing/misconfigured.
-  try {
-    const details = (error as { details?: unknown } | undefined)?.details as
-      | { errors?: unknown }
-      | undefined;
-    if (details?.errors !== undefined) {
-      Logger.error('Startup configuration errors:', details.errors);
-    }
-  } catch {
-    // best-effort logging
-  }
-
-  // Best-effort: surface startup health-check report details.
-  try {
-    const details = (error as { details?: unknown } | undefined)?.details as
-      | { report?: unknown }
-      | undefined;
-    if (details?.report !== undefined) {
-      Logger.error('Startup health report:', details.report);
-    }
-  } catch {
-    // best-effort logging
-  }
+  StartupErrorLogging.logDetails(error, {
+    errors: 'Startup configuration errors:',
+    warnings: 'Startup configuration warnings:',
+    report: 'Startup health report:',
+  });
 };
 
 const startSchedulesIfNeeded = async (

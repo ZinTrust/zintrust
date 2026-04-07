@@ -18,6 +18,7 @@ describe('StartupHealthChecks', () => {
     vi.resetModules();
     process.env = {
       ...originalEnv,
+      APP_KEY: '',
       STARTUP_HEALTH_CHECKS: 'true',
       STARTUP_VALIDATE_SECRETS: 'true',
       NODE_ENV: 'production',

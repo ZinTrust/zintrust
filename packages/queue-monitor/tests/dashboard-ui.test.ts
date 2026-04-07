@@ -11,7 +11,8 @@ describe('queue monitor dashboard UI', () => {
     });
 
     expect(html).toContain('<title>ZinTrust App Queue Monitor</title>');
-    expect(html).toContain('<b>ZinTrust App</b>');
+    expect(html).toContain("<b>ZinTrust ZinTrust App's</b>");
+    expect(html).toContain('<span>Queue Monitor</span>');
   });
 
   it('includes SSE recovery that resets the page after the stream stays stale', () => {

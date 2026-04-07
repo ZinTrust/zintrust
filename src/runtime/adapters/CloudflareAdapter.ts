@@ -14,6 +14,7 @@ import type {
   RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
 import { createMockHttpObjects, ErrorResponse, HttpResponse } from '@runtime/RuntimeAdapter';
+import { StartupErrorLogging } from '@runtime/StartupErrorLogging';
 
 /**
  * Cloudflare Workers adapter for Cloudflare's edge compute platform
@@ -164,6 +165,11 @@ async function handleCloudflareRequest(
   } catch (error) {
     const err = error as Error;
     Logger.error('Cloudflare handler error', err);
+    StartupErrorLogging.logDetails(err, {
+      errors: 'Cloudflare startup configuration errors:',
+      warnings: 'Cloudflare startup configuration warnings:',
+      report: 'Cloudflare startup health report:',
+    });
     if (typeof err?.stack === 'string' && err.stack.trim() !== '') {
       Logger.error('Cloudflare handler stack', err.stack);
     }

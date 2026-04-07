@@ -131,6 +131,7 @@ const QUEUE_META_KEY = '__zintrustQueueMeta';
 
 type QueueMeta = {
   deduplicationId?: string;
+  deduplicationLockKey?: string;
   releaseAfter?: AdvancedJobOptions['deduplication'] extends { releaseAfter?: infer T }
     ? T
     : unknown;
@@ -147,6 +148,17 @@ function normalizeOptionId(value: unknown): string | undefined {
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : undefined;
+}
+
+function resolveScopedDeduplicationLockKey(queueName: string, deduplicationId: string): string {
+  const normalizedQueueName = String(queueName).trim();
+  const normalizedDeduplicationId = String(deduplicationId).trim();
+
+  if (normalizedQueueName.length === 0) {
+    return normalizedDeduplicationId;
+  }
+
+  return `queue:${normalizedQueueName}:${normalizedDeduplicationId}`;
 }
 
 function attachAdvancedIdentifiers(
@@ -183,7 +195,8 @@ function attachAdvancedIdentifiers(
 
 function attachQueueMeta(
   payload: BullMQPayload,
-  options: AdvancedJobOptions
+  options: AdvancedJobOptions,
+  queueName: string
 ): { payload: BullMQPayload; metaAttached: boolean } {
   if (!shouldAttachReleaseAfterMeta(options)) {
     return { payload, metaAttached: false };
@@ -193,8 +206,13 @@ function attachQueueMeta(
     return { payload, metaAttached: false };
   }
 
+  const deduplicationId = options.deduplication?.id;
   const meta: QueueMeta = {
-    deduplicationId: options.deduplication?.id,
+    deduplicationId,
+    deduplicationLockKey:
+      deduplicationId === undefined
+        ? undefined
+        : resolveScopedDeduplicationLockKey(queueName, deduplicationId),
     releaseAfter: options.deduplication?.releaseAfter,
     uniqueId: options.uniqueId,
   };
@@ -221,7 +239,7 @@ async function handleDeduplicationLogic(
     return null;
   }
 
-  const deduplicationResult = await handleDeduplication(options.deduplication, lockProvider);
+  const deduplicationResult = await handleDeduplication(options.deduplication, lockProvider, name);
 
   if (deduplicationResult.deduplicated) {
     Logger.info('Job deduplicated', {
@@ -242,6 +260,7 @@ async function handleDeduplicationLogic(
     deduplicationResult.lockId !== ''
   ) {
     const delay = options.deduplication.releaseAfter;
+    const deduplicationId = options.deduplication.id;
     // lockId from handleDeduplication (via acquire) already has prefix?
     // acquire returns lock.key which INCLUDES prefix.
     // releaseLock() calls lockProvider.status(key) which ADDS prefix.
@@ -253,7 +272,7 @@ async function handleDeduplicationLogic(
     // So releaseLock expects 'id' (without prefix).
     // deduplicationResult.lockId is lock.key (WITH prefix).
     // deduplicationResult.id is the original ID.
-    const lockId = options.deduplication.id; // Use the original ID
+    const lockId = resolveScopedDeduplicationLockKey(name, deduplicationId);
 
     // Create timeout with proper cleanup tracking
     // Using unref() to prevent blocking process exit
@@ -339,7 +358,8 @@ async function enqueueWithDeduplication(
 
     const { payload: payloadToSend, metaAttached } = attachQueueMeta(
       payloadWithIdentifiers,
-      options
+      options,
+      name
     );
 
     if (shouldAttachReleaseAfterMeta(options) && metaAttached === false) {
@@ -464,18 +484,20 @@ function validateUniqueId(uniqueId: string): { valid: boolean; reason?: string }
  */
 async function handleDeduplication(
   deduplicationOptions: DeduplicationOptions, // DeduplicationOptions - using any to avoid circular import
-  lockProvider: LockProvider
+  lockProvider: LockProvider,
+  queueName: string
 ): Promise<JobResult> {
   const { id, ttl, replace } = deduplicationOptions;
+  const scopedLockKey = resolveScopedDeduplicationLockKey(queueName, id);
 
   try {
     // Check if lock already exists
-    const lockStatus = await lockProvider.status(id);
+    const lockStatus = await lockProvider.status(scopedLockKey);
 
     if (lockStatus.exists) {
       if (replace === true) {
         // Replace existing lock
-        const newLock = await lockProvider.acquire(id, { ttl });
+        const newLock = await lockProvider.acquire(scopedLockKey, { ttl });
         return {
           id,
           deduplicated: false,
@@ -493,7 +515,7 @@ async function handleDeduplication(
     }
 
     // Acquire new lock
-    const lock = await lockProvider.acquire(id, { ttl });
+    const lock = await lockProvider.acquire(scopedLockKey, { ttl });
 
     return {
       id,

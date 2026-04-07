@@ -11,6 +11,8 @@ const clearDashboardEnv = (): void => {
   Env.unset('JOB_ALERT_STALLED_THRESHOLD');
   Env.unset('JOB_ALERT_QUEUE_DEPTH_THRESHOLD');
   Env.unset('JOB_ALERT_MANUAL_REVIEW_THRESHOLD');
+  Env.unset('QUEUE_CONNECTION');
+  Env.unset('QUEUE_DRIVER');
 };
 
 describe('QueueReliabilityMetrics dashboard snapshot', () => {
@@ -29,6 +31,7 @@ describe('QueueReliabilityMetrics dashboard snapshot', () => {
       drain: async () => undefined,
     };
     Queue.register('inmemory', driver);
+    Queue.register('redis', driver);
 
     await JobStateTracker.enqueued({ queueName: 'emails', jobId: 'job-1' });
     await JobStateTracker.started({ queueName: 'emails', jobId: 'job-1', attempts: 1 });
@@ -52,6 +55,7 @@ describe('QueueReliabilityMetrics dashboard snapshot', () => {
       drain: async () => undefined,
     };
     Queue.register('inmemory', driver);
+    Queue.register('redis', driver);
 
     await JobStateTracker.enqueued({ queueName: 'emails', jobId: 'job-2' });
     await JobStateTracker.setTerminalStatus({

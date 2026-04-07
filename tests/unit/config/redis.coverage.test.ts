@@ -1,10 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Redis Config Coverage', () => {
+  const originalEnv = { ...process.env };
+
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    process.env = { ...originalEnv };
   });
+
+  const loadRedisConfig = async (overrides: Record<string, string> = {}) => {
+    process.env = {
+      ...originalEnv,
+      REDIS_HOST: 'localhost',
+      REDIS_PORT: '6379',
+      REDIS_PASSWORD: '',
+      REDIS_QUEUE_DB: '1',
+      REDIS_URL: '',
+      ...overrides,
+    };
+    vi.resetModules();
+    return import('@config/redis');
+  };
 
   describe('buildRedisUrl', () => {
     it('builds URL with all components', async () => {
@@ -56,7 +73,7 @@ describe('Redis Config Coverage', () => {
     });
 
     it('uses defaults when config is undefined', async () => {
-      const { buildRedisUrl } = await import('@config/redis');
+      const { buildRedisUrl } = await loadRedisConfig();
 
       const url = buildRedisUrl();
       expect(url).toBe('redis://localhost:6379/1');
@@ -65,16 +82,9 @@ describe('Redis Config Coverage', () => {
 
   describe('getRedisUrl', () => {
     it('returns REDIS_URL from environment when available', async () => {
-      // Mock process.env
-      const originalEnv = process.env;
-      process.env = { ...originalEnv, REDIS_URL: 'redis://from-env:6379/0' };
-
-      const { getRedisUrl } = await import('@config/redis');
+      const { getRedisUrl } = await loadRedisConfig({ REDIS_URL: 'redis://from-env:6379/0' });
       const url = getRedisUrl();
       expect(url).toBe('redis://from-env:6379/0');
-
-      // Restore process.env
-      process.env = originalEnv;
     });
 
     it('falls back to buildRedisUrl when REDIS_URL is empty', async () => {
@@ -94,16 +104,9 @@ describe('Redis Config Coverage', () => {
     });
 
     it('handles process.env fallback', async () => {
-      // Mock process.env
-      const originalEnv = process.env;
-      process.env = { ...originalEnv, REDIS_URL: 'redis://process-env:6379/0' };
-
-      const { getRedisUrl } = await import('@config/redis');
+      const { getRedisUrl } = await loadRedisConfig({ REDIS_URL: 'redis://process-env:6379/0' });
       const url = getRedisUrl();
       expect(url).toBe('redis://process-env:6379/0');
-
-      // Restore process.env
-      process.env = originalEnv;
     });
   });
 

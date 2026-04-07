@@ -51,6 +51,7 @@ vi.mock('@config/logger', () => ({
   Logger: {
     info: vi.fn(),
     error: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 
@@ -126,6 +127,43 @@ describe('functions/cloudflare', () => {
 
     const body = await response.text();
     expect(body).toBe('Internal Server Error');
+  });
+
+  it('logs structured startup diagnostics when worker boot fails', async () => {
+    mockHandle.mockRejectedValueOnce(
+      Object.assign(new Error('Startup health checks failed'), {
+        details: {
+          errors: [{ key: 'ENCRYPTION_CIPHER', message: 'ENCRYPTION_CIPHER must be set' }],
+          warnings: [{ key: 'HOST', message: 'HOST is recommended' }],
+          report: { checks: [{ name: 'startup.secrets', ok: false }] },
+        },
+      })
+    );
+
+    const mod = await import('../../../src/functions/cloudflare' + '?v=structured-startup-error');
+    const handler = mod.default.fetch;
+
+    const response = await handler(
+      { url: 'https://example.com/hello', method: 'GET' } as any,
+      {},
+      {}
+    );
+
+    expect(response.status).toBe(500);
+
+    const { Logger } = await import('@config/logger');
+    expect(Logger.error).toHaveBeenCalledWith(
+      'Cloudflare startup configuration errors:',
+      expect.arrayContaining([expect.objectContaining({ key: 'ENCRYPTION_CIPHER' })])
+    );
+    expect(Logger.warn).toHaveBeenCalledWith(
+      'Cloudflare startup configuration warnings:',
+      expect.arrayContaining([expect.objectContaining({ key: 'HOST' })])
+    );
+    expect(Logger.error).toHaveBeenCalledWith(
+      'Cloudflare startup health report:',
+      expect.objectContaining({ checks: expect.any(Array) })
+    );
   });
 
   it('handles fetch requests with proper mocking', async () => {

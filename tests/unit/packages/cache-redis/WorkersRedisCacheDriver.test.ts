@@ -100,4 +100,115 @@ describe('Redis cache driver (Workers)', () => {
       (globalThis as unknown as { env?: unknown }).env = originalEnv;
     }
   });
+
+  it('passes password and database to the Node redis client', async () => {
+    vi.resetModules();
+
+    const createClient = vi.fn(() => ({
+      connect: async () => undefined,
+      quit: async () => undefined,
+      get: async () => null,
+      set: async () => 'OK',
+      del: async () => 0,
+      exists: async () => 0,
+      flushDb: async () => undefined,
+    }));
+
+    vi.doMock('redis', () => ({ createClient }));
+
+    vi.doMock('@zintrust/core', async () => {
+      const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
+      return {
+        ...actual,
+        Env: {
+          ...actual.Env,
+          REDIS_PROXY_URL: '',
+          USE_REDIS_PROXY: false,
+        },
+        Cloudflare: {
+          ...actual.Cloudflare,
+          getWorkersEnv: () => null,
+        },
+      };
+    });
+
+    const { RedisCacheDriver: NodeDriver } =
+      await import('../../../../packages/cache-redis/src/index');
+
+    const cache = NodeDriver.create({
+      driver: 'redis',
+      host: 'redis.internal',
+      port: 6380,
+      password: 'secret-pass',
+      database: 7,
+      ttl: 60,
+    });
+
+    await expect(cache.get('node-auth-key')).resolves.toBeNull();
+
+    expect(createClient).toHaveBeenCalledWith({
+      socket: { host: 'redis.internal', port: 6380 },
+      password: 'secret-pass',
+      database: 7,
+    });
+  });
+
+  it('disables the cache driver after Redis auth is rejected', async () => {
+    vi.resetModules();
+
+    const authError = new Error('NOAUTH Authentication required.');
+    const errorSpy = vi.fn();
+
+    vi.doMock('redis', () => ({
+      createClient: () => ({
+        connect: async () => undefined,
+        quit: async () => undefined,
+        get: async () => {
+          throw authError;
+        },
+        set: async () => {
+          throw authError;
+        },
+        del: async () => {
+          throw authError;
+        },
+        exists: async () => {
+          throw authError;
+        },
+        flushDb: async () => {
+          throw authError;
+        },
+      }),
+    }));
+
+    vi.doMock('@zintrust/core', async () => {
+      const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
+      return {
+        ...actual,
+        Logger: {
+          ...actual.Logger,
+          error: errorSpy,
+        },
+      };
+    });
+
+    const { RedisCacheDriver: AuthFailingDriver } =
+      await import('../../../../packages/cache-redis/src/index');
+
+    const cache = AuthFailingDriver.create({
+      driver: 'redis',
+      host: 'localhost',
+      port: 6379,
+      ttl: 60,
+    });
+
+    await expect(cache.get('auth-key')).resolves.toBeNull();
+    await expect(cache.set('auth-key', { ok: true })).resolves.toBeUndefined();
+    await expect(cache.delete('auth-key')).resolves.toBeUndefined();
+    await expect(cache.clear()).resolves.toBeUndefined();
+    await expect(cache.has('auth-key')).resolves.toBe(false);
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith('Redis cache GET failed', authError);
+  });
 });

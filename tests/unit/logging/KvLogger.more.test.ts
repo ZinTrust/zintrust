@@ -1,5 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const waitForExpectation = async (assertion: () => void, timeout = 2000): Promise<void> => {
+  const end = Date.now() + timeout;
+
+  const attempt = async (): Promise<void> => {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      if (Date.now() >= end) throw error;
+      await new Promise<void>((resolve) => setImmediate(resolve as never));
+      return attempt();
+    }
+  };
+
+  await attempt();
+};
+
 beforeEach(() => {
   vi.resetModules();
   vi.useRealTimers();
@@ -8,6 +25,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.doUnmock('@config/cloudflare');
   delete (globalThis as any).__GET_KV__;
   try {
     // restore crypto if we replaced it
@@ -25,7 +43,7 @@ describe('KvLogger extra branches', () => {
     const putSpy = vi.fn(async () => undefined);
     (globalThis as any).__PUT_SPY__ = putSpy;
 
-    vi.mock('@config/cloudflare', () => ({
+    vi.doMock('@config/cloudflare', () => ({
       Cloudflare: {
         getKVBinding: (name: string) => {
           // only return a KV binding when the expected default name is used
@@ -51,26 +69,8 @@ describe('KvLogger extra branches', () => {
       KvLogger.enqueue({ timestamp: new Date().toISOString(), level: 'info', message: `m${i}` });
     }
 
-    // poll for the putSpy as the flush may be asynchronous
-    const waitFor = async (fn: () => void, timeout = 2000) => {
-      const end = Date.now() + timeout;
-
-      const attempt = async (): Promise<void> => {
-        try {
-          fn();
-          return;
-        } catch (err) {
-          if (Date.now() >= end) throw err;
-          await new Promise<void>((r) => setImmediate(r as any));
-          return attempt();
-        }
-      };
-
-      await attempt();
-    };
-
     try {
-      await waitFor(() => expect((globalThis as any).__PUT_SPY__).toHaveBeenCalled(), 2000);
+      await waitForExpectation(() => expect((globalThis as any).__PUT_SPY__).toHaveBeenCalled());
     } catch {
       // Some environments may not trigger immediate flush, tolerate this for stability
       expect(true).toBe(true);
@@ -96,7 +96,7 @@ describe('KvLogger extra branches', () => {
     const putSpy = vi.fn(async () => undefined);
     (globalThis as any).__PUT_SPY__ = putSpy;
 
-    vi.mock('@config/cloudflare', () => ({
+    vi.doMock('@config/cloudflare', () => ({
       Cloudflare: {
         getKVBinding: () => ({ put: (globalThis as any).__PUT_SPY__ }),
       },
@@ -118,13 +118,10 @@ describe('KvLogger extra branches', () => {
       KvLogger.enqueue({ timestamp: new Date().toISOString(), level: 'info', message: `m${i}` });
     }
 
-    // allow scheduling to settle
-    await new Promise((r) => setImmediate(r as any));
+    await waitForExpectation(() => expect((globalThis as any).__PUT_SPY__).toHaveBeenCalled());
 
     // restore setTimeout
     globalThis.setTimeout = orig;
-
-    expect((globalThis as any).__PUT_SPY__).toHaveBeenCalled();
   });
 
   it('noops when KV binding is missing', async () => {
@@ -132,7 +129,7 @@ describe('KvLogger extra branches', () => {
 
     const putSpy = vi.fn(async () => undefined);
 
-    vi.mock('@config/cloudflare', () => ({
+    vi.doMock('@config/cloudflare', () => ({
       Cloudflare: { getKVBinding: () => null },
     }));
 
@@ -161,7 +158,7 @@ describe('KvLogger extra branches', () => {
     });
 
     (globalThis as any).__PUT_SPY__ = putSpy;
-    vi.mock('@config/cloudflare', () => ({
+    vi.doMock('@config/cloudflare', () => ({
       Cloudflare: { getKVBinding: () => ({ put: (globalThis as any).__PUT_SPY__ }) },
     }));
 
@@ -181,14 +178,10 @@ describe('KvLogger extra branches', () => {
       KvLogger.enqueue({ timestamp: new Date().toISOString(), level: 'info', message: `m${i}` });
     }
 
-    // allow async flush to attempt to run
-    await new Promise((r) => setImmediate(r as any));
+    await waitForExpectation(() => expect((globalThis as any).__PUT_SPY__).toHaveBeenCalled());
 
     // restore
     globalThis.setTimeout = orig;
-
-    // ensure put was attempted but the error was swallowed
-    expect((globalThis as any).__PUT_SPY__).toHaveBeenCalled();
   });
 
   it('noops when KV logging is disabled', async () => {

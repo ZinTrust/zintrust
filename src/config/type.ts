@@ -75,6 +75,7 @@ export type StartupConfigValidationError = {
 export type StartupConfigValidationResult = {
   valid: boolean;
   errors: StartupConfigValidationError[];
+  warnings: StartupConfigValidationError[];
 };
 
 export interface CloudflareKV {
@@ -395,6 +396,8 @@ export type RedisCacheDriverConfig = {
   driver: 'redis';
   host: string;
   port: number;
+  password?: string;
+  database?: number;
   ttl: number;
 };
 

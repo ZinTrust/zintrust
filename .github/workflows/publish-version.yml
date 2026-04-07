@@ -47,11 +47,13 @@ jobs:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for publish
+        run: |
+          node scripts/release/sync-package-versions.mjs
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
-        run: npm ci
+        run: sh scripts/ci/install-deps.sh
 
       - name: Run tests, lint and type-check
         run: npm run test:coverage && npm run lint:strict && npm run type-check

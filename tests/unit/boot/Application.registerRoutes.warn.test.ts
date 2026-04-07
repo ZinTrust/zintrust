@@ -16,13 +16,23 @@ describe('Application.registerRoutes warn branch', () => {
 
     // Prevent heavy startup checks and dynamic imports from failing the boot flow
     vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: () => {} },
+      StartupConfigValidator: {
+        validate: () => ({ valid: true, errors: [], warnings: [] }),
+      },
     }));
     vi.doMock('@/health/StartupHealthChecks', () => ({
       StartupHealthChecks: { assertHealthy: async () => {} },
     }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => undefined),
+      loadQueueMonitorModule: vi.fn(async () => undefined),
+    }));
     vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
-      StartupConfigFileRegistry: { preload: async () => {}, get: () => undefined },
+      StartupConfigFileRegistry: {
+        clear: () => undefined,
+        preload: async () => {},
+        get: () => undefined,
+      },
       StartupConfigFile: {
         Middleware: 0,
         Cache: 1,

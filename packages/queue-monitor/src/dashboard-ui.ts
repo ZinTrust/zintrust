@@ -150,7 +150,7 @@ const getHeaderSection = (appName: string): string => `
                 ${getLogoSvg()}
             </div>
             <div>
-                <b>${appName}</b>
+                <b>ZinTrust ${appName}'s</b>
                 <span>Queue Monitor</span>
             </div>
         </div>

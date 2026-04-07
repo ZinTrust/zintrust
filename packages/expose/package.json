@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/expose",
-  "version": "0.4.70",
+  "version": "0.4.75",
   "description": "ZinTrust local tunnel exposure package",
   "type": "module",
   "main": "dist/index.js",
@@ -21,16 +21,16 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "cloudflared": "^0.3.0",
+    "cloudflared": "^0.7.1",
     "commander": "^14.0.3",
-    "dotenv": "^16.4.5"
+    "dotenv": "^17.4.1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.5.2",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.4.70"
+    "@zintrust/core": "^0.4.74"
   },
   "author": "ZinTrust",
   "license": "MIT"

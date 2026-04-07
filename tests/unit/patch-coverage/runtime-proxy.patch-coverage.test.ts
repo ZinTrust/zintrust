@@ -2,6 +2,26 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const nextTick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
+const createSuccessfulStartupValidation = () => ({ valid: true, errors: [], warnings: [] });
+
+const createStartupConfigValidatorMock = () => ({
+  StartupConfigValidator: {
+    validate: vi.fn(createSuccessfulStartupValidation),
+  },
+});
+
+const createClosedPromise = (): {
+  closed: Promise<void>;
+  rejectClosed: (error: Error) => void;
+} => {
+  let rejectClosed: (error: Error) => void = () => undefined;
+  const closed = new Promise<void>((_, reject) => {
+    rejectClosed = reject as (error: Error) => void;
+  });
+
+  return { closed, rejectClosed };
+};
+
 describe('patch coverage: runtime + proxy helpers', () => {
   afterEach(() => {
     vi.resetModules();
@@ -84,9 +104,7 @@ describe('patch coverage: runtime + proxy helpers', () => {
       },
     }));
 
-    vi.doMock('@config/StartupConfigValidator', () => ({
-      StartupConfigValidator: { assertValid: vi.fn() },
-    }));
+    vi.doMock('@config/StartupConfigValidator', createStartupConfigValidatorMock);
 
     vi.doMock('@/health/StartupHealthChecks', () => ({
       StartupHealthChecks: { assertHealthy: vi.fn().mockResolvedValue(undefined) },
@@ -144,6 +162,8 @@ describe('patch coverage: runtime + proxy helpers', () => {
       FeatureFlags: { initialize: vi.fn() },
     }));
 
+    vi.doMock('@config/StartupConfigValidator', createStartupConfigValidatorMock);
+
     vi.doMock('@config/logger', () => ({
       Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
@@ -184,10 +204,7 @@ describe('patch coverage: runtime + proxy helpers', () => {
       ready: Promise.resolve(),
     };
 
-    let rejectClosed: (error: Error) => void = () => undefined;
-    const closed = new Promise<void>((_, reject) => {
-      rejectClosed = reject as (error: Error) => void;
-    });
+    const { closed, rejectClosed } = createClosedPromise();
 
     const socket = {
       opened: Promise.resolve(),

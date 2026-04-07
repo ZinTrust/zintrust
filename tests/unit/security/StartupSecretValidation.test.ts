@@ -58,7 +58,6 @@ describe('StartupSecretValidation', () => {
     process.env = {
       ...originalEnv,
       NODE_ENV: 'production',
-      ENCRYPTION_CIPHER: 'aes-256-cbc',
       APP_KEY: validAppKey,
       JWT_ENABLED: 'true',
       JWT_SECRET: '',
@@ -143,6 +142,25 @@ describe('StartupSecretValidation', () => {
 
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.key === 'APP_KEY')).toBe(true);
+  });
+
+  it('passes in production when encryption interop is not configured', async () => {
+    vi.resetModules();
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      ENCRYPTION_CIPHER: '',
+      APP_KEY: '',
+      APP_PREVIOUS_KEYS: '',
+      JWT_ENABLED: 'false',
+      API_KEY_ENABLED: 'false',
+    };
+
+    const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
+    const result = StartupSecretValidation.validate();
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
   });
 
   it('fails when APP_KEY is not valid base64 in production', async () => {

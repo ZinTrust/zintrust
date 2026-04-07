@@ -32,6 +32,13 @@ describe('Cache Config', () => {
     expect(driver.driver).toBe('redis');
   });
 
+  it('includes Redis auth and cache-db wiring in the redis driver config', () => {
+    const redisDriver = cacheConfig.drivers.redis;
+    expect(redisDriver.driver).toBe('redis');
+    expect(redisDriver).toHaveProperty('password');
+    expect(redisDriver).toHaveProperty('database');
+  });
+
   it('throws when explicitly selecting an unknown store', () => {
     expect(() => cacheConfig.getDriver('nope' as any)).toThrow(/Cache store not configured/);
   });

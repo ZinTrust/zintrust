@@ -9,6 +9,8 @@ const clearReplayEnv = (): void => {
   Env.unset('DLQ_REPLAY_MAX_BATCH_SIZE');
   Env.unset('DLQ_REPLAY_MAX_QPS');
   Env.unset('DLQ_REPLAY_MIN_AGE_MS');
+  Env.unset('QUEUE_CONNECTION');
+  Env.unset('QUEUE_DRIVER');
 };
 
 describe('JobRecoveryDaemon DLQ replay governance', () => {
@@ -35,6 +37,7 @@ describe('JobRecoveryDaemon DLQ replay governance', () => {
     };
 
     Queue.register('inmemory', driver);
+    Queue.register('redis', driver);
 
     await JobStateTracker.enqueued({
       queueName: 'emails',
@@ -96,6 +99,13 @@ describe('JobRecoveryDaemon DLQ replay governance', () => {
       length: async () => 0,
       drain: async () => undefined,
     });
+    Queue.register('redis', {
+      enqueue: async () => 'replay-1',
+      dequeue: async () => undefined,
+      ack: async () => undefined,
+      length: async () => 0,
+      drain: async () => undefined,
+    });
 
     await JobStateTracker.enqueued({
       queueName: 'emails',
@@ -125,6 +135,16 @@ describe('JobRecoveryDaemon DLQ replay governance', () => {
   it('respects replay batch ceiling', async () => {
     let sequence = 0;
     Queue.register('inmemory', {
+      enqueue: async () => {
+        sequence += 1;
+        return `replay-${sequence}`;
+      },
+      dequeue: async () => undefined,
+      ack: async () => undefined,
+      length: async () => 0,
+      drain: async () => undefined,
+    });
+    Queue.register('redis', {
       enqueue: async () => {
         sequence += 1;
         return `replay-${sequence}`;

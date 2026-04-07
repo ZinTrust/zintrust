@@ -10,8 +10,8 @@ describe('workers telemetry dashboard UI', () => {
       appName: 'ZinTrust App',
     });
 
-    expect(html).toContain('<title>ZinTrust App Telemetry Dashboard</title>');
-    expect(html).toContain('<p class="zt-kicker">ZinTrust App</p>');
+    expect(html).toContain("<title>ZinTrust ZinTrust App's Telemetry Dashboard</title>");
+    expect(html).toContain('<p class="zt-kicker">ZinTrust</p>');
     expect(html).toContain('<h1 class="zt-title">ZinTrust App Telemetry Dashboard</h1>');
   });
 });

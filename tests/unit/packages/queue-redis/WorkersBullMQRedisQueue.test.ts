@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const bullMqState = {
   add: vi.fn(async () => ({ id: '1' })),
@@ -57,6 +57,27 @@ import { Env } from '@zintrust/core';
 import { BullMQRedisQueue } from '../../../../packages/queue-redis/src/BullMQRedisQueue';
 
 describe('BullMQ Redis queue (Workers)', () => {
+  beforeEach(() => {
+    bullMqState.add.mockClear();
+    bullMqState.getJobs.mockClear();
+    bullMqState.getJob.mockClear();
+    bullMqState.close.mockClear();
+    Env.setSource({
+      QUEUE_HTTP_PROXY_ENABLED: 'false',
+      USE_REDIS_PROXY: 'false',
+      REDIS_PROXY_URL: '',
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: '6379',
+      REDIS_PASSWORD: '',
+      REDIS_QUEUE_DB: '0',
+    });
+  });
+
+  afterEach(async () => {
+    await BullMQRedisQueue.shutdown();
+    Env.setSource(null);
+  });
+
   it('acks pulled jobs by finalizing them as completed instead of removing them', async () => {
     const moveToCompleted = vi.fn(async () => undefined);
 
@@ -74,9 +95,13 @@ describe('BullMQ Redis queue (Workers)', () => {
   it('uses the direct BullMQ driver when HTTP proxy mode is disabled', async () => {
     try {
       Env.setSource({
-        USE_REDIS_PROXY: 'true',
-        REDIS_PROXY_URL: 'http://127.0.0.1:8791/redis',
+        USE_REDIS_PROXY: 'false',
+        REDIS_PROXY_URL: '',
         QUEUE_HTTP_PROXY_ENABLED: 'false',
+        REDIS_HOST: '127.0.0.1',
+        REDIS_PORT: '6379',
+        REDIS_PASSWORD: '',
+        REDIS_QUEUE_DB: '0',
       });
 
       await expect(
@@ -127,6 +152,8 @@ describe('BullMQ Redis queue (Workers)', () => {
   });
 
   it('prefers explicit payload jobId over legacy uniqueId when enqueueing BullMQ jobs', async () => {
+    bullMqState.add.mockResolvedValueOnce({ id: 'job-id-123' });
+
     await BullMQRedisQueue.enqueue('jobs', {
       jobId: 'job-id-123',
       uniqueId: 'legacy-unique-id',
@@ -141,5 +168,41 @@ describe('BullMQ Redis queue (Workers)', () => {
       }),
       expect.objectContaining({ jobId: 'job-id-123' })
     );
+  });
+
+  it('allows reuse of the same deduplication id across different queues', async () => {
+    bullMqState.add.mockResolvedValue({ id: 'job-id-123' });
+
+    const first = await BullMQRedisQueue.enqueue('dispatch', {
+      payload: { step: 'dispatch' },
+      uniqueVia: 'memory',
+      deduplication: {
+        id: 'shared-lock-id',
+        ttl: 30000,
+      },
+    } as any);
+
+    const second = await BullMQRedisQueue.enqueue('execute', {
+      payload: { step: 'execute' },
+      uniqueVia: 'memory',
+      deduplication: {
+        id: 'shared-lock-id',
+        ttl: 30000,
+      },
+    } as any);
+
+    const third = await BullMQRedisQueue.enqueue('dispatch', {
+      payload: { step: 'dispatch-again' },
+      uniqueVia: 'memory',
+      deduplication: {
+        id: 'shared-lock-id',
+        ttl: 30000,
+      },
+    } as any);
+
+    expect(first).toBe('job-id-123');
+    expect(second).toBe('job-id-123');
+    expect(third).toBe('shared-lock-id');
+    expect(bullMqState.add).toHaveBeenCalledTimes(2);
   });
 });

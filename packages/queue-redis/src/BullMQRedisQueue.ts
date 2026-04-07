@@ -11,6 +11,7 @@ import {
   Logger,
   queueConfig,
   registerLockProvider,
+  resolveDeduplicationLockKey,
   resolveLockPrefix,
   ZintrustLang,
 } from '@zintrust/core';
@@ -367,13 +368,14 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   };
 
   const checkExistingLock = async (
+    scopedDeduplicationKey: string,
     deduplicationId: string,
     provider: ReturnType<typeof getLockProviderForQueue>,
     replace: boolean,
     queue: string,
     jobId: string
   ): Promise<boolean> => {
-    const status = await provider.status(deduplicationId);
+    const status = await provider.status(scopedDeduplicationKey);
     if (status.exists && !replace) {
       Logger.info('BullMQ: Job deduplicated', {
         queue,
@@ -386,6 +388,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   };
 
   const acquireDeduplicationLock = async (
+    scopedDeduplicationKey: string,
     deduplicationId: string,
     provider: ReturnType<typeof getLockProviderForQueue>,
     ttl: number | undefined,
@@ -393,7 +396,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     jobId: string
   ): Promise<boolean> => {
     const lockOptions = ttl ? { ttl } : {};
-    const lock = await provider.acquire(deduplicationId, lockOptions);
+    const lock = await provider.acquire(scopedDeduplicationKey, lockOptions);
     if (!lock.acquired) {
       Logger.info('BullMQ: Job deduplicated (lock collision)', {
         queue,
@@ -412,14 +415,14 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   };
 
   const scheduleLockRelease = (
-    deduplicationId: string,
+    scopedDeduplicationKey: string,
     provider: ReturnType<typeof getLockProviderForQueue>,
     ttl: number | undefined,
     releaseAfter: number
   ): void => {
     const timeoutId = globalThis.setTimeout(() => {
       provider.release({
-        key: deduplicationId,
+        key: scopedDeduplicationKey,
         ttl: ttl ?? 0,
         acquired: true,
         expires: new Date(Date.now() + (ttl ?? 0)),
@@ -459,6 +462,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       return { payloadToSend: payloadData, shouldReturn: false };
     }
     const provider = getLockProviderForQueue(payloadData.uniqueVia);
+    const scopedDeduplicationKey = resolveDeduplicationLockKey(queue, deduplicationId);
     const ttl =
       typeof deduplication.ttl === 'number' && deduplication.ttl > 0
         ? deduplication.ttl
@@ -469,6 +473,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
     // Check existing lock
     const hasExistingLock = await checkExistingLock(
+      scopedDeduplicationKey,
       deduplicationId,
       provider,
       replace,
@@ -481,6 +486,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
     // Acquire lock
     const lockAcquired = await acquireDeduplicationLock(
+      scopedDeduplicationKey,
       deduplicationId,
       provider,
       ttl,
@@ -499,7 +505,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
     // Handle releaseAfter numeric
     if (typeof deduplication.releaseAfter === 'number' && deduplication.releaseAfter > 0) {
-      scheduleLockRelease(deduplicationId, provider, ttl, deduplication.releaseAfter);
+      scheduleLockRelease(scopedDeduplicationKey, provider, ttl, deduplication.releaseAfter);
     }
 
     // Handle releaseAfter non-numeric

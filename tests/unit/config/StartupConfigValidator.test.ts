@@ -11,6 +11,7 @@ describe('StartupConfigValidator', () => {
     const result = StartupConfigValidator.validate();
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
   });
 
   it('fails for invalid LOG_FORMAT', async () => {
@@ -64,12 +65,42 @@ describe('StartupConfigValidator', () => {
     const result = StartupConfigValidator.validate();
 
     expect(result.valid).toBe(false);
-    // Whitespace-only APP_NAME is treated as missing
-    expect(result.errors.some((e) => e.key === 'APP_NAME')).toBe(true);
+    // Whitespace-only APP_NAME is advisory, not fatal.
+    expect(result.errors.some((e) => e.key === 'APP_NAME')).toBe(false);
+    expect(result.warnings.some((e) => e.key === 'APP_NAME')).toBe(true);
     // Strict mode APP_KEY min length
     expect(result.errors.some((e) => e.key === 'APP_KEY')).toBe(true);
     // Non-sqlite should not require DB_DATABASE / DB_PATH
     expect(result.errors.some((e) => e.key === 'DB_DATABASE')).toBe(false);
+  });
+
+  it('strict mode: non-critical runtime vars produce warnings without failing validation', async () => {
+    vi.resetModules();
+    const env: NodeJS.ProcessEnv = {
+      ...originalEnv,
+      STARTUP_REQUIRE_ENV: 'true',
+      NODE_ENV: 'production',
+      DB_CONNECTION: 'd1',
+      APP_KEY: 'base64:MzIxMDk4NzY1NDMyMTA5ODc2NTQzMjEwOTg3NjU0MzIxMA==',
+    };
+    Reflect.deleteProperty(env, 'APP_NAME');
+    Reflect.deleteProperty(env, 'HOST');
+    Reflect.deleteProperty(env, 'PORT');
+    Reflect.deleteProperty(env, 'APP_PORT');
+    Reflect.deleteProperty(env, 'BASE_URL');
+    Reflect.deleteProperty(env, 'LOG_LEVEL');
+    Reflect.deleteProperty(env, 'LOG_CHANNEL');
+    process.env = env;
+
+    const { StartupConfigValidator } = await import('@/config/StartupConfigValidator');
+    const result = StartupConfigValidator.validate();
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings.map((warning) => warning.key)).toEqual(
+      expect.arrayContaining(['APP_NAME', 'HOST', 'PORT', 'BASE_URL', 'LOG_LEVEL', 'LOG_CHANNEL'])
+    );
+    expect(() => StartupConfigValidator.assertValid()).not.toThrow();
   });
 
   it('strict mode sqlite: requires DB_DATABASE or DB_PATH', async () => {
@@ -85,7 +116,9 @@ describe('StartupConfigValidator', () => {
       APP_KEY: 'this-is-a-long-enough-key',
       LOG_LEVEL: 'debug',
       LOG_CHANNEL: 'console',
-      // DB_DATABASE and DB_PATH intentionally omitted
+      DB_DATABASE: '',
+      DB_PATH: '',
+      // DB_DATABASE and DB_PATH intentionally blank to exercise sqlite validation
     };
 
     const { StartupConfigValidator } = await import('@/config/StartupConfigValidator');

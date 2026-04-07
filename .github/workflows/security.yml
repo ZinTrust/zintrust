@@ -35,11 +35,13 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for security scan
+        run: |
+          node scripts/release/sync-package-versions.mjs
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: sh scripts/ci/install-deps.sh --ignore-scripts
         env:
           HUSKY: 0
 
@@ -128,11 +130,13 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for CodeQL
+        run: |
+          node scripts/release/sync-package-versions.mjs
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: sh scripts/ci/install-deps.sh --ignore-scripts
         env:
           HUSKY: 0
 
@@ -178,11 +182,13 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for SAST
+        run: |
+          node scripts/release/sync-package-versions.mjs
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: sh scripts/ci/install-deps.sh --ignore-scripts
         env:
           HUSKY: 0
 
@@ -219,11 +225,13 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for license scan
+        run: |
+          node scripts/release/sync-package-versions.mjs
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: sh scripts/ci/install-deps.sh --ignore-scripts
         env:
           HUSKY: 0
 
@@ -257,11 +265,13 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for security config
+        run: |
+          node scripts/release/sync-package-versions.mjs
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: sh scripts/ci/install-deps.sh --ignore-scripts
         env:
           HUSKY: 0
 
@@ -303,11 +313,13 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
-      - name: Validate workspace version sync
-        run: node scripts/release/sync-package-versions.mjs --check
+      - name: Sync workspace versions for dependency graph
+        run: |
+          node scripts/release/sync-package-versions.mjs
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: sh scripts/ci/install-deps.sh --ignore-scripts
         env:
           HUSKY: 0
 

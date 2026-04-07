@@ -42,6 +42,23 @@ const appendFileSafe = (logFile: string, content: string): void => {
   }
 };
 
+const ensureDirSafeBestEffort = (dirPath: string): void => {
+  try {
+    if (typeof ensureDirSafe === 'function') {
+      ensureDirSafe(dirPath);
+      return;
+    }
+  } catch {
+    // Fall back below when tests partially mock @common/index.
+  }
+
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+  } catch {
+    // best-effort
+  }
+};
+
 const getCwdSafe = (): string => {
   try {
     if (typeof process === 'undefined' || typeof process.cwd !== 'function') return '';
@@ -83,7 +100,8 @@ const safeUnlink = (fullPath: string): void => {
 
 const readDirSafe = (dirPath: string): string[] => {
   try {
-    return fs.readdirSync(dirPath);
+    const entries = fs.readdirSync(dirPath);
+    return Array.isArray(entries) ? entries : [];
   } catch {
     return [];
   }
@@ -307,7 +325,7 @@ export const FileLogWriter = Object.freeze({
     if (cwd === '') return;
 
     const logsDir = path.join(cwd, 'logs');
-    ensureDirSafe(logsDir);
+    ensureDirSafeBestEffort(logsDir);
 
     const dateStr = getDateStr(new Date());
     const logFile = path.join(logsDir, `app-${dateStr}.log`);

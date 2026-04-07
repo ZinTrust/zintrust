@@ -53,7 +53,9 @@ vi.mock('@/health/StartupHealthChecks', () => ({
 }));
 vi.mock('@config/features', () => ({ FeatureFlags: { initialize: vi.fn() } }));
 vi.mock('@config/StartupConfigValidator', () => ({
-  StartupConfigValidator: { assertValid: vi.fn() },
+  StartupConfigValidator: {
+    validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+  },
 }));
 vi.mock('@orm/Database', () => ({ useDatabase: vi.fn(), resetDatabase: vi.fn() }));
 

@@ -43,7 +43,18 @@ const originalEnv = process.env;
 describe('VersionChecker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env = { ...originalEnv };
+    process.env = {
+      ...originalEnv,
+      ZINTRUST_VERSION_CHECK: 'true',
+      ZINTRUST_VERSION_CHECK_INTERVAL: '24',
+      ZINTRUST_SKIP_VERSION_CHECK: 'false',
+    };
+    mockLocalStorage.getItem.mockReset();
+    mockLocalStorage.setItem.mockReset();
+    mockLocalStorage.removeItem.mockReset();
+    mockLocalStorage.clear.mockReset();
+    mockLocalStorage.key.mockReset();
+    mockLocalStorage.length = 0;
   });
 
   afterEach(() => {

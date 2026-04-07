@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const originalEnv = process.env;
 
 vi.mock('@security/SignedRequest', () => ({
   SignedRequest: {
@@ -15,6 +17,14 @@ vi.mock('@security/SignedRequest', () => ({
 describe('proxy signing helpers patch coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env = {
+      ...originalEnv,
+      APP_KEY: '',
+    };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   it('resolveSigningPrefix handles invalid/root/path values', async () => {

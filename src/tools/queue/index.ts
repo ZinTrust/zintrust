@@ -5,6 +5,7 @@
 
 export { createAdvancedQueue, type AdvancedQueue } from '@queue/AdvancedQueue';
 export { createDeduplicationBuilder, type DeduplicationBuilder } from '@queue/DeduplicationBuilder';
+export { resolveDeduplicationLockKey } from '@queue/DeduplicationKey';
 export { IdempotencyManager } from '@queue/IdempotencyManager';
 export { JobHeartbeatStore } from '@queue/JobHeartbeatStore';
 export { JobReconciliationRunner } from '@queue/JobReconciliationRunner';

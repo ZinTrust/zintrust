@@ -3,27 +3,44 @@ import { createFetchResponse, createFetchResponseText } from '../../../helpers/h
 
 describe('KVRemoteDriver', () => {
   const originalFetch = globalThis.fetch;
+  const originalEnv = { ...process.env };
+
+  const loadDriver = async (overrides: Record<string, string> = {}) => {
+    process.env = {
+      ...originalEnv,
+      APP_KEY: '',
+      KV_REMOTE_URL: 'https://proxy.example/base',
+      KV_REMOTE_KEY_ID: 'k1',
+      KV_REMOTE_SECRET: 'secret',
+      KV_REMOTE_NAMESPACE: 'CACHE',
+      CLOUDFLARE_ACCOUNT_ID: '',
+      CLOUDFLARE_API_TOKEN: '',
+      CLOUDFLARE_KV_NAMESPACE_ID: '',
+      KV_ACCOUNT_ID: '',
+      KV_API_TOKEN: '',
+      KV_NAMESPACE_ID: '',
+      KV_NAMESPACE: '',
+      ...overrides,
+    };
+    vi.resetModules();
+    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    return KVRemoteDriver;
+  };
 
   beforeEach(() => {
+    process.env = { ...originalEnv };
     vi.resetModules();
-    process.env['KV_REMOTE_URL'] = 'https://proxy.example/base';
-    process.env['KV_REMOTE_KEY_ID'] = 'k1';
-    process.env['KV_REMOTE_SECRET'] = 'secret';
-    process.env['KV_REMOTE_NAMESPACE'] = 'CACHE';
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    delete process.env['KV_REMOTE_URL'];
-    delete process.env['KV_REMOTE_KEY_ID'];
-    delete process.env['KV_REMOTE_SECRET'];
-    delete process.env['KV_REMOTE_NAMESPACE'];
+    process.env = { ...originalEnv };
   });
 
   it('calls /zin/kv/put with namespace', async () => {
     globalThis.fetch = vi.fn(async () => createFetchResponse(200, { ok: true })) as any;
 
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver();
     const driver = KVRemoteDriver.create();
 
     await driver.set('a', { ok: true }, 60);
@@ -38,10 +55,9 @@ describe('KVRemoteDriver', () => {
   });
 
   it('omits namespace when KV_REMOTE_NAMESPACE is blank', async () => {
-    process.env['KV_REMOTE_NAMESPACE'] = '';
     globalThis.fetch = vi.fn(async () => createFetchResponse(200, { value: { ok: true } })) as any;
 
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver({ KV_REMOTE_NAMESPACE: '' });
     const driver = KVRemoteDriver.create();
 
     await driver.get('a');
@@ -52,29 +68,32 @@ describe('KVRemoteDriver', () => {
   });
 
   it('throws a config error when KV_REMOTE_URL missing', async () => {
-    process.env['KV_REMOTE_URL'] = '';
     globalThis.fetch = vi.fn(async () => createFetchResponse(200, { ok: true })) as any;
 
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver({ KV_REMOTE_URL: '' });
     const driver = KVRemoteDriver.create();
 
     await expect(driver.get('a')).rejects.toThrow(/KV remote proxy URL is missing/i);
     expect(globalThis.fetch).toHaveBeenCalledTimes(0);
   });
 
-  it('throws a config error when signing credentials missing', async () => {
-    process.env['KV_REMOTE_KEY_ID'] = '';
+  it('falls back to Cloudflare KV when signing credentials are missing', async () => {
     globalThis.fetch = vi.fn(async () => createFetchResponse(200, { ok: true })) as any;
 
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver({
+      KV_REMOTE_KEY_ID: '',
+      CLOUDFLARE_ACCOUNT_ID: 'cf-account',
+      CLOUDFLARE_API_TOKEN: 'cf-token',
+      CLOUDFLARE_KV_NAMESPACE_ID: 'cf-namespace',
+    });
     const driver = KVRemoteDriver.create();
 
-    await expect(driver.get('a')).resolves.toBeNull();
+    await expect(driver.get('a')).resolves.toEqual({ ok: true });
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('maps 401/403/429/4xx/5xx responses to typed errors', async () => {
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver();
     const driver = KVRemoteDriver.create();
 
     globalThis.fetch = vi.fn(async () => createFetchResponseText(401, 'nope')) as any;
@@ -100,14 +119,14 @@ describe('KVRemoteDriver', () => {
       throw err;
     }) as any;
 
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver();
     const driver = KVRemoteDriver.create();
 
     await expect(driver.get('a')).rejects.toThrow(/timed out/i);
   });
 
   it('has() calls /zin/kv/has and returns boolean', async () => {
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver();
     const driver = KVRemoteDriver.create();
 
     globalThis.fetch = vi
@@ -127,7 +146,7 @@ describe('KVRemoteDriver', () => {
   it('delete() calls /zin/kv/delete', async () => {
     globalThis.fetch = vi.fn(async () => createFetchResponse(200, { ok: true })) as any;
 
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver();
     const driver = KVRemoteDriver.create();
 
     await driver.delete('a');
@@ -137,7 +156,7 @@ describe('KVRemoteDriver', () => {
   });
 
   it('clear() calls /zin/kv/clear', async () => {
-    const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
+    const KVRemoteDriver = await loadDriver();
     const driver = KVRemoteDriver.create();
 
     globalThis.fetch = vi.fn(async () => createFetchResponse(200, { ok: true })) as any;

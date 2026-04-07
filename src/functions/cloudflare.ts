@@ -9,6 +9,7 @@ import {
   StartupConfigFileRegistry,
   type StartupConfigFileTypes,
 } from '@runtime/StartupConfigFileRegistry';
+import { StartupErrorLogging } from '@runtime/StartupErrorLogging';
 import { WorkerAdapterImports } from '@runtime/WorkerAdapterImports';
 
 import { getKernel } from '@runtime/getKernel';
@@ -277,6 +278,11 @@ export default {
     } catch (error) {
       const err = error as Error;
       Logger.error('Cloudflare handler error:', err);
+      StartupErrorLogging.logDetails(err, {
+        errors: 'Cloudflare startup configuration errors:',
+        warnings: 'Cloudflare startup configuration warnings:',
+        report: 'Cloudflare startup health report:',
+      });
       if (typeof err?.stack === 'string' && err.stack.trim() !== '') {
         Logger.error('Cloudflare handler stack:', err.stack);
       }
