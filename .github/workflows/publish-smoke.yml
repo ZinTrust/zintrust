@@ -41,7 +41,7 @@ jobs:
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
-        run: npm ci
+        run: sh scripts/ci/install-deps.sh
 
       - name: Build dist
         run: npm run -s core:build:dist
