@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-07
 
+- Fixed the generated `src/zintrust.plugins.ts` and `src/zintrust.plugins.wg.ts` trace stub handshake so they now publish the same `__zintrust_system_trace_*` globals that core boot checks before auto-mounting the trace dashboard. This restores the stock `TRACE_AUTO_MOUNT=true` path for `/trace` after trace/plugin regeneration instead of silently leaving the dashboard unavailable.
 - Added an explicit stock-bootstrap trace dashboard activation path with `TRACE_AUTO_MOUNT=true`. Core boot now keeps runtime registration and dashboard exposure separate by default, but it can auto-mount `registerTraceDashboard(...)` at `TRACE_BASE_PATH` with optional `TRACE_MIDDLEWARE` when that env flag is enabled, which removes the old partial-success trap where trace storage was active but `/trace` still returned `404`.
 - Added a shared CI install fallback at `scripts/ci/install-deps.sh`. Root workflows now try `npm ci` first and automatically fall back to `npm install` when npm reports lock/package sync drift such as missing internal `@zintrust/core` entries, so CI self-heals instead of stopping on `EUSAGE`.
 - Fixed the release/CI version sync flow so internal `@zintrust/*` peer, dependency, and devDependency ranges stay pinned to currently published npm versions instead of drifting to an unpublished future version such as `0.4.75` before `@zintrust/core` is actually live. CI, smoke, SonarQube, and security workflows no longer auto-bump the root package ahead of `npm ci`.
