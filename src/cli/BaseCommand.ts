@@ -3,7 +3,7 @@
  * All CLI commands extend this class
  */
 
-import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
@@ -81,7 +81,7 @@ export const BaseCommand = Object.freeze({
 
         try {
           await config.execute(options);
-          SystemDebuggerBridge.emitCommand(
+          SystemTraceBridge.emitCommand(
             config.name,
             toCommandArguments(options),
             0,
@@ -89,7 +89,7 @@ export const BaseCommand = Object.freeze({
           );
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
-          SystemDebuggerBridge.emitCommand(
+          SystemTraceBridge.emitCommand(
             config.name,
             toCommandArguments(options),
             1,

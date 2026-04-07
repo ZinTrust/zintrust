@@ -17,8 +17,8 @@ vi.mock('@cli/ErrorHandler', () => ({
   },
 }));
 
-vi.mock('@/debugger/SystemDebuggerBridge', () => ({
-  SystemDebuggerBridge: {
+vi.mock('@/trace/SystemTraceBridge', () => ({
+  SystemTraceBridge: {
     emitCommand: vi.fn(),
   },
 }));

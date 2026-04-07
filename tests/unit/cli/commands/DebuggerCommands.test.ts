@@ -5,9 +5,9 @@ import { existsSync } from '@node-singletons/fs';
 import { createRequire } from '@node-singletons/module';
 
 const envStrings: Record<string, string> = {
-  DEBUGGER_ENABLED: 'true',
-  DEBUGGER_DB_CONNECTION: 'default',
-  DEBUGGER_BASE_PATH: '/debugger',
+  TRACE_ENABLED: 'true',
+  TRACE_DB_CONNECTION: 'default',
+  TRACE_BASE_PATH: '/trace',
   HOST: '127.0.0.1',
   PORT: '7777',
   APP_PORT: '',
@@ -19,12 +19,12 @@ const resolvedStorage = {
   stats: vi.fn(),
 };
 
-const mockDebuggerModule = (connection = 'default'): void => {
-  vi.doMock('@zintrust/system-debugger', () => ({
-    DebuggerConfig: {
+const mockTraceModule = (connection = 'default'): void => {
+  vi.doMock('@zintrust/trace', () => ({
+    TraceConfig: {
       merge: vi.fn(() => ({ pruneAfterHours: 24, connection })),
     },
-    DebuggerStorage: {
+    TraceStorage: {
       resolveStorage: vi.fn(() => resolvedStorage),
     },
   }));
@@ -87,7 +87,7 @@ vi.mock('@config/database', () => ({
       },
       d1debug: {
         driver: 'd1',
-        database: 'debugger.sqlite',
+        database: 'trace.sqlite',
       },
     },
     migrations: { extension: 'ts' },
@@ -121,7 +121,7 @@ vi.mock('@migrations/Migrator', () => ({
 
 vi.mock('@node-singletons/module', () => ({
   createRequire: vi.fn(() => ({
-    resolve: vi.fn(() => '/tmp/node_modules/@zintrust/system-debugger/migrations/index.js'),
+    resolve: vi.fn(() => '/tmp/node_modules/@zintrust/trace/migrations/index.js'),
   })),
 }));
 
@@ -133,19 +133,19 @@ vi.mock('@zintrust/core', () => ({
   useDatabase: vi.fn(() => ({})),
 }));
 
-vi.mock('@zintrust/system-debugger', () => ({
-  DebuggerConfig: {
+vi.mock('@zintrust/trace', () => ({
+  TraceConfig: {
     merge: vi.fn(() => ({ pruneAfterHours: 24, connection: 'default' })),
   },
-  DebuggerStorage: {
+  TraceStorage: {
     resolveStorage: vi.fn(() => resolvedStorage),
   },
 }));
 
-describe('DebuggerCommands', () => {
+describe('TraceCommands', () => {
   afterEach(() => {
-    envStrings['DEBUGGER_DB_CONNECTION'] = 'default';
-    envStrings['DEBUGGER_BASE_PATH'] = '/debugger';
+    envStrings['TRACE_DB_CONNECTION'] = 'default';
+    envStrings['TRACE_BASE_PATH'] = '/trace';
     envStrings['APP_PORT'] = '';
     envStrings['PORT'] = '7777';
     resolvedStorage.prune.mockReset();
@@ -156,54 +156,54 @@ describe('DebuggerCommands', () => {
     vi.mocked(ErrorHandler.success).mockReset();
     vi.mocked(ErrorHandler.debug).mockReset();
     vi.mocked(createRequire).mockReturnValue({
-      resolve: vi.fn(() => '/tmp/node_modules/@zintrust/system-debugger/migrations/index.js'),
+      resolve: vi.fn(() => '/tmp/node_modules/@zintrust/trace/migrations/index.js'),
     } as never);
     vi.mocked(existsSync).mockReturnValue(false);
     vi.resetModules();
     vi.clearAllMocks();
   });
 
-  it('prints debugger status with dashboard URL and entry counts', async () => {
+  it('prints trace status with dashboard URL and entry counts', async () => {
     resolvedStorage.stats.mockResolvedValue({ query: 2, request: 5 });
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
-    const cmd = DebuggerCommands.createDebuggerStatusCommand();
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
+    const cmd = TraceCommands.createTraceStatusCommand();
 
     await cmd.execute({});
 
     expect(ErrorHandler.info).toHaveBeenCalledWith('Connection: analytics');
     expect(ErrorHandler.info).toHaveBeenCalledWith(
-      'Expected dashboard URL (if mounted): http://127.0.0.1:7777/debugger'
+      'Expected dashboard URL (if mounted): http://127.0.0.1:7777/trace'
     );
     expect(ErrorHandler.info).toHaveBeenCalledWith('query: 2');
     expect(ErrorHandler.info).toHaveBeenCalledWith('request: 5');
   });
 
-  it('uses DEBUGGER_DB_CONNECTION for debugger migrations when no explicit connection is provided', async () => {
-    envStrings['DEBUGGER_DB_CONNECTION'] = 'd1debug';
+  it('uses TRACE_DB_CONNECTION for trace migrations when no explicit connection is provided', async () => {
+    envStrings['TRACE_DB_CONNECTION'] = 'd1debug';
 
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
-    await DebuggerCommands.createDebuggerMigrateCommand().execute({
+    await TraceCommands.createTraceMigrateCommand().execute({
       local: true,
-      database: 'debugger',
+      database: 'trace',
     });
 
     expect(WranglerD1.applyMigrations).toHaveBeenCalledWith({
       cmd: expect.any(Object),
-      dbName: 'debugger',
+      dbName: 'trace',
       isLocal: true,
     });
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Debugger D1 migrations applied.');
+    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace D1 migrations applied.');
   });
 
-  it('runs debugger migration status against an explicit connection', async () => {
+  it('runs trace migration status against an explicit connection', async () => {
     const { Migrator } = await import('@migrations/Migrator');
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       status: vi.fn().mockResolvedValue([
         {
-          name: '001_debugger_init',
+          name: '001_trace_init',
           status: 'applied',
           applied: true,
           batch: 1,
@@ -216,21 +216,21 @@ describe('DebuggerCommands', () => {
       rollbackLastBatch: vi.fn(),
     });
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
-    const cmd = DebuggerCommands.createDebuggerMigrateCommand();
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
+    const cmd = TraceCommands.createTraceMigrateCommand();
 
     await cmd.execute({ status: true, connection: 'analytics' });
 
     expect(ErrorHandler.info).toHaveBeenCalledWith(expect.stringContaining('Adapter: sqlite'));
     expect(ErrorHandler.info).toHaveBeenCalledWith(
-      expect.stringContaining('applied: 001_debugger_init')
+      expect.stringContaining('applied: 001_trace_init')
     );
   });
 
-  it('reads debugger status from Wrangler D1 JSON output', async () => {
+  it('reads trace status from Wrangler D1 JSON output', async () => {
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    const { DebuggerConfig } = await import('@zintrust/system-debugger');
-    vi.mocked(DebuggerConfig.merge).mockReturnValue({
+    const { TraceConfig } = await import('packages/trace/src');
+    vi.mocked(TraceConfig.merge).mockReturnValue({
       pruneAfterHours: 24,
       connection: 'd1debug',
       enabled: false,
@@ -269,15 +269,15 @@ describe('DebuggerCommands', () => {
       `\u001b[32m[\n  {\n    "results": [\n      { "type": "query", "cnt": 4 },\n      { "type": "request", "cnt": 2 }\n    ]\n  }\n]\u001b[0m`
     );
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
-    const cmd = DebuggerCommands.createDebuggerStatusCommand();
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
+    const cmd = TraceCommands.createTraceStatusCommand();
 
-    await cmd.execute({ connection: 'd1debug', local: true, database: 'debugger' });
+    await cmd.execute({ connection: 'd1debug', local: true, database: 'trace' });
 
     expect(WranglerD1.executeSql).toHaveBeenCalledWith({
-      dbName: 'debugger',
+      dbName: 'trace',
       isLocal: true,
-      sql: 'SELECT type, COUNT(*) as cnt FROM zin_debugger_entries GROUP BY type ORDER BY type',
+      sql: 'SELECT type, COUNT(*) as cnt FROM zin_trace_entries GROUP BY type ORDER BY type',
     });
     expect(ErrorHandler.info).toHaveBeenCalledWith('query: 4');
     expect(ErrorHandler.info).toHaveBeenCalledWith('request: 2');
@@ -285,8 +285,8 @@ describe('DebuggerCommands', () => {
 
   it('falls back to Wrangler table parsing and clears entries through D1', async () => {
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    const { DebuggerConfig } = await import('@zintrust/system-debugger');
-    vi.mocked(DebuggerConfig.merge).mockReturnValue({
+    const { TraceConfig } = await import('packages/trace/src');
+    vi.mocked(TraceConfig.merge).mockReturnValue({
       pruneAfterHours: 24,
       connection: 'd1debug',
       enabled: false,
@@ -332,11 +332,11 @@ describe('DebuggerCommands', () => {
   }
 ]`);
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
-    const statusCmd = DebuggerCommands.createDebuggerStatusCommand();
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
+    const statusCmd = TraceCommands.createTraceStatusCommand();
     await statusCmd.execute({ connection: 'd1debug', remote: true });
 
-    const clearCmd = DebuggerCommands.createDebuggerClearCommand();
+    const clearCmd = TraceCommands.createTraceClearCommand();
     await clearCmd.execute({ connection: 'd1debug', remote: true });
 
     expect(ErrorHandler.info).toHaveBeenCalledWith('query: 3');
@@ -344,7 +344,7 @@ describe('DebuggerCommands', () => {
     expect(WranglerD1.executeSql).toHaveBeenLastCalledWith({
       dbName: 'zintrust_db',
       isLocal: false,
-      sql: 'DELETE FROM zin_debugger_entries; SELECT changes() as cnt',
+      sql: 'DELETE FROM zin_trace_entries; SELECT changes() as cnt',
     });
     expect((await import('@config/logger')).Logger.info).toHaveBeenCalledWith(
       'Done - all entries cleared.'
@@ -354,8 +354,8 @@ describe('DebuggerCommands', () => {
   it('prunes entries through D1 and keeps exceptions when requested', async () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_800_000);
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    const { DebuggerConfig } = await import('@zintrust/system-debugger');
-    vi.mocked(DebuggerConfig.merge).mockReturnValue({
+    const { TraceConfig } = await import('packages/trace/src');
+    vi.mocked(TraceConfig.merge).mockReturnValue({
       pruneAfterHours: 24,
       connection: 'd1debug',
       enabled: false,
@@ -398,21 +398,21 @@ describe('DebuggerCommands', () => {
   }
 ]`);
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
-    const pruneCmd = DebuggerCommands.createDebuggerPruneCommand();
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
+    const pruneCmd = TraceCommands.createTracePruneCommand();
 
     await pruneCmd.execute({
       connection: 'd1debug',
       local: true,
-      database: 'debugger',
+      database: 'trace',
       hours: '1',
       keepExceptions: true,
     });
 
     expect(WranglerD1.executeSql).toHaveBeenCalledWith({
-      dbName: 'debugger',
+      dbName: 'trace',
       isLocal: true,
-      sql: "DELETE FROM zin_debugger_entries WHERE created_at < -1800000 AND type != 'exception'; SELECT changes() as cnt",
+      sql: "DELETE FROM zin_trace_entries WHERE created_at < -1800000 AND type != 'exception'; SELECT changes() as cnt",
     });
     expect((await import('@config/logger')).Logger.info).toHaveBeenCalledWith(
       'Done - removed 5 entries.'
@@ -421,7 +421,7 @@ describe('DebuggerCommands', () => {
     nowSpy.mockRestore();
   });
 
-  it('runs debugger migrations through Wrangler D1 apply flow', async () => {
+  it('runs trace migrations through Wrangler D1 apply flow', async () => {
     const { D1SqlMigrations } = await import('@cli/d1/D1SqlMigrations');
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
 
@@ -430,35 +430,35 @@ describe('DebuggerCommands', () => {
         throw new Error('package not installed locally');
       }),
     } as never);
-    vi.mocked(WranglerD1.applyMigrations).mockReturnValue('applied debugger migrations');
+    vi.mocked(WranglerD1.applyMigrations).mockReturnValue('applied trace migrations');
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
-    const cmd = DebuggerCommands.createDebuggerMigrateCommand();
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
+    const cmd = TraceCommands.createTraceMigrateCommand();
 
-    await cmd.execute({ connection: 'd1debug', local: true, database: 'debugger' });
+    await cmd.execute({ connection: 'd1debug', local: true, database: 'trace' });
 
     expect(D1SqlMigrations.compileAndWrite).toHaveBeenCalledWith({
       projectRoot: process.cwd(),
-      globalDir: `${process.cwd()}/packages/system-debugger/migrations`,
+      globalDir: `${process.cwd()}/packages/trace/migrations`,
       extension: 'ts',
       includeGlobal: true,
       outputDir: `${process.cwd()}/.wrangler/d1/migrations`,
     });
     expect(WranglerD1.applyMigrations).toHaveBeenCalledWith({
       cmd: expect.any(Object),
-      dbName: 'debugger',
+      dbName: 'trace',
       isLocal: true,
     });
-    expect(ErrorHandler.info).toHaveBeenCalledWith('applied debugger migrations');
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Debugger D1 migrations applied.');
+    expect(ErrorHandler.info).toHaveBeenCalledWith('applied trace migrations');
+    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace D1 migrations applied.');
   });
 
-  it('runs fresh, reset, rollback, and migrate branches for SQL-backed debugger migrations', async () => {
+  it('runs fresh, reset, rollback, and migrate branches for SQL-backed trace migrations', async () => {
     const { Migrator } = await import('@migrations/Migrator');
     const fresh = vi.fn().mockResolvedValue(undefined);
     const resetAll = vi.fn().mockResolvedValue(undefined);
     const rollbackLastBatch = vi.fn().mockResolvedValue({ rolledBack: 2 });
-    const migrate = vi.fn().mockResolvedValue({ appliedNames: ['001_debugger_init'] });
+    const migrate = vi.fn().mockResolvedValue({ appliedNames: ['001_trace_init'] });
 
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       status: vi.fn().mockResolvedValue([]),
@@ -468,121 +468,119 @@ describe('DebuggerCommands', () => {
       rollbackLastBatch,
     });
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
-    await DebuggerCommands.createDebuggerMigrateCommand().execute({ fresh: true });
-    await DebuggerCommands.createDebuggerMigrateCommand().execute({ reset: true });
-    await DebuggerCommands.createDebuggerMigrateCommand().execute({ rollback: true, step: '2' });
-    await DebuggerCommands.createDebuggerMigrateCommand().execute({});
+    await TraceCommands.createTraceMigrateCommand().execute({ fresh: true });
+    await TraceCommands.createTraceMigrateCommand().execute({ reset: true });
+    await TraceCommands.createTraceMigrateCommand().execute({ rollback: true, step: '2' });
+    await TraceCommands.createTraceMigrateCommand().execute({});
 
     expect(fresh).toHaveBeenCalled();
     expect(resetAll).toHaveBeenCalled();
     expect(rollbackLastBatch).toHaveBeenCalledWith(1);
     expect(migrate).toHaveBeenCalled();
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Debugger migrations applied (fresh).');
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Debugger migrations reset.');
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Debugger migrations rolled back (2).');
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Debugger migrations applied.');
+    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace migrations applied (fresh).');
+    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace migrations reset.');
+    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace migrations rolled back (2).');
+    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace migrations applied.');
   });
 
-  it('throws a CLI error when the optional debugger package is unavailable', async () => {
+  it('throws a CLI error when the optional trace package is unavailable', async () => {
     vi.resetModules();
-    vi.doMock('@zintrust/system-debugger', () => {
+    vi.doMock('@zintrust/trace', () => {
       throw new Error('missing package');
     });
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
-    await expect(DebuggerCommands.createDebuggerStatusCommand().execute({})).rejects.toThrow(
-      'Package "@zintrust/system-debugger" is not installed. Add it to your project first.'
+    await expect(TraceCommands.createTraceStatusCommand().execute({})).rejects.toThrow(
+      'Package "@zintrust/trace" is not installed. Add it to your project first.'
     );
   });
 
-  it('prints stored entries as zero when debugger storage is empty', async () => {
+  it('prints stored entries as zero when trace storage is empty', async () => {
     resolvedStorage.stats.mockResolvedValue({});
-    envStrings['DEBUGGER_BASE_PATH'] = 'debugger';
-    mockDebuggerModule();
+    envStrings['TRACE_BASE_PATH'] = 'trace';
+    mockTraceModule();
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
-    await DebuggerCommands.createDebuggerStatusCommand().execute({});
+    await TraceCommands.createTraceStatusCommand().execute({});
 
     expect(ErrorHandler.info).toHaveBeenCalledWith(
-      'Expected dashboard URL (if mounted): http://127.0.0.1:7777/debugger'
+      'Expected dashboard URL (if mounted): http://127.0.0.1:7777/trace'
     );
     expect(ErrorHandler.info).toHaveBeenCalledWith('Stored entries: 0');
   });
 
   it('falls back to APP_PORT and exposes provider command wiring', async () => {
     resolvedStorage.stats.mockResolvedValue({});
-    envStrings['DEBUGGER_BASE_PATH'] = 'internal-tools';
+    envStrings['TRACE_BASE_PATH'] = 'internal-tools';
     envStrings['PORT'] = '';
     envStrings['APP_PORT'] = '8787';
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
-    await DebuggerCommands.createDebuggerStatusCommand().execute({});
+    await TraceCommands.createTraceStatusCommand().execute({});
 
     expect(ErrorHandler.info).toHaveBeenCalledWith(
       'Expected dashboard URL (if mounted): http://127.0.0.1:8787/internal-tools'
     );
 
-    const statusCommand = DebuggerCommands.createDebuggerStatusCommand().getCommand();
+    const statusCommand = TraceCommands.createTraceStatusCommand().getCommand();
     expect(statusCommand.options.map((option) => option.long)).toEqual(
       expect.arrayContaining(['--local', '--remote', '--database'])
     );
 
     const providers = [
-      DebuggerCommands.createDebuggerPruneProvider(),
-      DebuggerCommands.createDebuggerClearProvider(),
-      DebuggerCommands.createDebuggerStatusProvider(),
-      DebuggerCommands.createDebuggerMigrateProvider(),
+      TraceCommands.createTracePruneProvider(),
+      TraceCommands.createTraceClearProvider(),
+      TraceCommands.createTraceStatusProvider(),
+      TraceCommands.createTraceMigrateProvider(),
     ];
 
     expect(providers.map((provider) => provider.name)).toEqual([
-      'debugger:prune',
-      'debugger:clear',
-      'debugger:status',
-      'migrate:debugger',
+      'trace:prune',
+      'trace:clear',
+      'trace:status',
+      'migrate:trace',
     ]);
     expect(providers.map((provider) => provider.getCommand().name())).toEqual([
-      'debugger:prune',
-      'debugger:clear',
-      'debugger:status',
-      'migrate:debugger',
+      'trace:prune',
+      'trace:clear',
+      'trace:status',
+      'migrate:trace',
     ]);
   });
 
-  it('throws a packaging error when an installed debugger package exposes TS-only migrations', async () => {
+  it('throws a packaging error when an installed trace package exposes TS-only migrations', async () => {
     vi.mocked(createRequire).mockReturnValue({
-      resolve: vi.fn(() => '/tmp/node_modules/@zintrust/system-debugger/migrations/index.ts'),
+      resolve: vi.fn(() => '/tmp/node_modules/@zintrust/trace/migrations/index.ts'),
     } as never);
     vi.mocked(existsSync).mockReturnValue(false);
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
     await expect(
-      DebuggerCommands.createDebuggerMigrateCommand().execute({
+      TraceCommands.createTraceMigrateCommand().execute({
         connection: 'analytics',
         status: true,
       })
-    ).rejects.toThrow(
-      'Installed package "@zintrust/system-debugger" exposes TypeScript-only migrations.'
-    );
+    ).rejects.toThrow('Installed package "@zintrust/trace" exposes TypeScript-only migrations.');
   });
 
   it('prunes and clears entries through SQL storage for non-D1 connections', async () => {
     resolvedStorage.prune.mockResolvedValue(4);
     resolvedStorage.clear.mockResolvedValue(undefined);
-    mockDebuggerModule();
+    mockTraceModule();
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
-    await DebuggerCommands.createDebuggerPruneCommand().execute({
+    await TraceCommands.createTracePruneCommand().execute({
       connection: 'analytics',
       hours: '2',
     });
-    await DebuggerCommands.createDebuggerClearCommand().execute({ connection: 'analytics' });
+    await TraceCommands.createTraceClearCommand().execute({ connection: 'analytics' });
 
     expect(resolvedStorage.prune).toHaveBeenCalledWith(7_200_000, false);
     expect(resolvedStorage.clear).toHaveBeenCalled();
@@ -597,14 +595,14 @@ describe('DebuggerCommands', () => {
   it('uses resolved Wrangler D1 database names and rejects ambiguous targets', async () => {
     const { WranglerConfig } = await import('@cli/d1/WranglerConfig');
     const { WranglerD1 } = await import('@cli/d1/WranglerD1');
-    mockDebuggerModule('d1debug');
+    mockTraceModule('d1debug');
     vi.mocked(WranglerConfig.resolveD1Database).mockReturnValue({ status: 'resolved' } as never);
     vi.mocked(WranglerConfig.getDefaultD1DatabaseName).mockReturnValue('bound_db');
     vi.mocked(WranglerD1.executeSql).mockReturnValue('[]');
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
-    await DebuggerCommands.createDebuggerStatusCommand().execute({
+    await TraceCommands.createTraceStatusCommand().execute({
       connection: 'd1debug',
       local: true,
     });
@@ -612,20 +610,20 @@ describe('DebuggerCommands', () => {
     expect(WranglerD1.executeSql).toHaveBeenCalledWith({
       dbName: 'bound_db',
       isLocal: true,
-      sql: 'SELECT type, COUNT(*) as cnt FROM zin_debugger_entries GROUP BY type ORDER BY type',
+      sql: 'SELECT type, COUNT(*) as cnt FROM zin_trace_entries GROUP BY type ORDER BY type',
     });
 
     vi.mocked(WranglerConfig.resolveD1Database).mockReturnValue({ status: 'ambiguous' } as never);
 
     await expect(
-      DebuggerCommands.createDebuggerStatusCommand().execute({
+      TraceCommands.createTraceStatusCommand().execute({
         connection: 'd1debug',
         local: true,
       })
     ).rejects.toThrow('Multiple D1 targets are configured.');
   });
 
-  it('prints no debugger migrations found when migration status is empty', async () => {
+  it('prints no trace migrations found when migration status is empty', async () => {
     const { Migrator } = await import('@migrations/Migrator');
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       status: vi.fn().mockResolvedValue([]),
@@ -635,13 +633,13 @@ describe('DebuggerCommands', () => {
       rollbackLastBatch: vi.fn(),
     });
 
-    const { DebuggerCommands } = await import('@cli/commands/DebuggerCommands');
+    const { TraceCommands } = await import('@cli/commands/TraceCommands');
 
-    await DebuggerCommands.createDebuggerMigrateCommand().execute({
+    await TraceCommands.createTraceMigrateCommand().execute({
       status: true,
       connection: 'analytics',
     });
 
-    expect(ErrorHandler.info).toHaveBeenCalledWith('No debugger migrations found.');
+    expect(ErrorHandler.info).toHaveBeenCalledWith('No trace migrations found.');
   });
 });

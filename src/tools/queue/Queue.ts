@@ -1,6 +1,6 @@
 import { generateUuid } from '@/common/utility';
-import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { ZintrustLang } from '@/lang/lang';
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -233,7 +233,7 @@ export const Queue = Object.freeze({
         requestedUniqueId,
       });
 
-      SystemDebuggerBridge.emitJobDispatch(queue, queue, resolvedDriver, payload);
+      SystemTraceBridge.emitJobDispatch(queue, queue, resolvedDriver, payload);
 
       return jobId;
     } catch (error) {

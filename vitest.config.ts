@@ -51,18 +51,9 @@ export default defineConfig({
       '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
       '@zintrust/socket': path.resolve(__dirname, './packages/socket/src/index.ts'),
       '@zintrust/socket/register': path.resolve(__dirname, './packages/socket/src/register.ts'),
-      '@zintrust/system-debugger': path.resolve(
-        __dirname,
-        './packages/system-debugger/src/index.ts'
-      ),
-      '@zintrust/system-debugger/ui': path.resolve(
-        __dirname,
-        './packages/system-debugger/src/ui.ts'
-      ),
-      '@zintrust/system-debugger/register': path.resolve(
-        __dirname,
-        './packages/system-debugger/src/register.ts'
-      ),
+      '@zintrust/trace': path.resolve(__dirname, './packages/trace/src/index.ts'),
+      '@zintrust/trace/ui': path.resolve(__dirname, './packages/trace/src/ui.ts'),
+      '@zintrust/trace/register': path.resolve(__dirname, './packages/trace/src/register.ts'),
       '@cli': path.resolve(__dirname, './src/cli'),
       '@registry': path.resolve(__dirname, './src/boot/registry'),
       '@boot': path.resolve(__dirname, './src/boot'),

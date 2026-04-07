@@ -208,7 +208,7 @@ export {
 } from '@runtime/RuntimeServices';
 
 // Events
-export { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
+export { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 export { EventDispatcher } from '@events/EventDispatcher';
 export type { EventListener, EventMap, IEventDispatcher } from '@events/EventDispatcher';
 

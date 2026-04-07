@@ -1,5 +1,5 @@
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { mailConfig } from '@config/mail';
-import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 import type { MailAddress } from '@mail/drivers/SendGrid';
@@ -171,7 +171,7 @@ const createMailer = (
         attachments,
       });
 
-      SystemDebuggerBridge.emitMail(normalizeMailRecipients(input.to), input.subject);
+      SystemTraceBridge.emitMail(normalizeMailRecipients(input.to), input.subject);
       return result;
     },
   });

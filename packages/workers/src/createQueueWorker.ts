@@ -41,9 +41,9 @@ const getTimeoutManager = (): unknown => {
   }
 };
 
-const getSystemDebuggerBridge = (): unknown => {
+const getSystemTraceBridge = (): unknown => {
   try {
-    return (Core as Record<string, unknown>)['SystemDebuggerBridge'];
+    return (Core as Record<string, unknown>)['SystemTraceBridge'];
   } catch {
     return undefined;
   }
@@ -238,7 +238,7 @@ const getHeartbeatStoreApi = (): HeartbeatStoreApi => {
 };
 
 const emitJobProcessed = (name: string): void => {
-  const bridge = (getSystemDebuggerBridge() ?? {}) as {
+  const bridge = (getSystemTraceBridge() ?? {}) as {
     emitJobProcessed?: (jobName: string) => void;
   };
 
@@ -246,7 +246,7 @@ const emitJobProcessed = (name: string): void => {
 };
 
 const emitJobFailed = (name: string, error: Error): void => {
-  const bridge = (getSystemDebuggerBridge() ?? {}) as {
+  const bridge = (getSystemTraceBridge() ?? {}) as {
     emitJobFailed?: (jobName: string, failure: Error) => void;
   };
 
