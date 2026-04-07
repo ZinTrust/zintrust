@@ -157,7 +157,7 @@ const getDashboardHead = (appName: string): string => `
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${appName} Telemetry Dashboard</title>
+    <title>ZinTrust ${appName}'s Telemetry Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     ${getDashboardStyles()}
   </head>`;
@@ -169,7 +169,7 @@ const getDashboardHeader = (appName: string): string => `
               ${getLogo()}
             </div>
             <div>
-              <p class="zt-kicker">${appName}</p>
+              <p class="zt-kicker">ZinTrust</p>
               <h1 class="zt-title">${appName} Telemetry Dashboard</h1>
               <p class="zt-subtitle">Unified view of worker health and performance</p>
             </div>

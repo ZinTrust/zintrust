@@ -71,8 +71,8 @@ const injectIndexAppName = (html: string): string => {
   const appName = Env.get('APP_NAME', 'ZinTrust').trim() || 'ZinTrust';
 
   return html
-    .replaceAll('__ZINTRUST_WORKERS_TITLE__', escapeHtml(`${appName} Workers Dashboard`))
-    .replaceAll('__ZINTRUST_WORKERS_HEADING__', escapeHtml(`${appName}'s Workers`));
+    .replaceAll('__ZINTRUST_WORKERS_TITLE__', escapeHtml(`ZinTrust ${appName} Workers Dashboard`))
+    .replaceAll('__ZINTRUST_WORKERS_HEADING__', escapeHtml(`ZinTrust ${appName}'s Workers`));
 };
 
 const resolveEmbeddedAssetText = (assetPath: string): string | null => {

@@ -39,7 +39,7 @@ jobs:
 
       - name: Sync workspace versions for CI
         run: |
-          node scripts/release/sync-package-versions.mjs --bump-root-to-next
+          node scripts/release/sync-package-versions.mjs
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies (disable lifecycle scripts in CI)

@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-07
 
+- Fixed the release/CI version sync flow so internal `@zintrust/*` peer, dependency, and devDependency ranges stay pinned to currently published npm versions instead of drifting to an unpublished future version such as `0.4.75` before `@zintrust/core` is actually live. CI, smoke, SonarQube, and security workflows no longer auto-bump the root package ahead of `npm ci`.
 - Scoped queue deduplication locks by queue name in core and `@zintrust/queue-redis`, so the same logical `deduplication.id` can now be reused safely across different queues while still deduplicating true duplicates inside the same queue. Worker-side `releaseAfter` lock cleanup now uses the same queue-scoped storage key contract.
 - Fixed the release package-publish shim for `@zintrust/core` so package-local publish builds can type-check and run against the new `resolveDeduplicationLockKey(...)` export while publishing affected packages such as `@zintrust/queue-redis`.
 
