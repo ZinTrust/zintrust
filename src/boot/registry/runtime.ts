@@ -708,7 +708,6 @@ export const createLifecycle = (params: {
     }
 
     params.setBooted(false);
-    Logger.info('✅ Application shut down successfully');
   };
 
   return { boot, shutdown };
