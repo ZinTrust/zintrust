@@ -29,6 +29,7 @@ You can still import the package migrations manually if you prefer to keep them 
 ```env
 TRACE_ENABLED=true
 TRACE_DB_CONNECTION=d1        # optional — omit to inherit DB_CONNECTION
+TRACE_QUERY_CONNECTION=main   # optional — app DB to observe for SQL traces
 TRACE_PRUNE_HOURS=24          # how long entries are kept (default: 24)
 TRACE_SLOW_QUERY_MS=100       # slow-query threshold in ms (default: 100)
 TRACE_LOG_LEVEL=info          # minimum log level captured (default: info)
@@ -77,6 +78,7 @@ import type { TraceConfigOverrides } from '@zintrust/trace';
 export default {
   enabled: Env.getBool('TRACE_ENABLED', false),
   connection: Env.get('TRACE_DB_CONNECTION', '') || undefined,
+  observeConnection: Env.get('TRACE_QUERY_CONNECTION', '') || undefined,
   pruneAfterHours: Env.getInt('TRACE_PRUNE_HOURS', 24),
   slowQueryThreshold: Env.getInt('TRACE_SLOW_QUERY_MS', 100),
   logMinLevel: Env.get('TRACE_LOG_LEVEL', 'info') as TraceConfigOverrides['logMinLevel'],
@@ -101,6 +103,8 @@ export default {
 ```
 
 All include/exclude matching is contains-based, so a term like `report` matches `/reports/daily`, `monthly-report`, or any other trace content containing that fragment.
+
+When trace storage lives on a different connection than your application data, keep `TRACE_DB_CONNECTION` pointed at the trace tables and set `TRACE_QUERY_CONNECTION` to the app connection you want SQL traces to observe. If you omit `TRACE_QUERY_CONNECTION`, trace automatically falls back to the main `DB_CONNECTION` whenever the storage connection is different.
 
 ### 3. Mount the dashboard
 

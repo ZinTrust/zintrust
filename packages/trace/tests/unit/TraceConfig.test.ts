@@ -68,9 +68,11 @@ describe('TraceConfig', () => {
     const config = TraceConfig.merge({
       captureCachePayloads: true,
       captureQueryBindings: false,
+      observeConnection: 'primary',
     });
 
     expect(config.captureCachePayloads).toBe(true);
     expect(config.captureQueryBindings).toBe(false);
+    expect(config.observeConnection).toBe('primary');
   });
 });

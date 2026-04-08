@@ -113,6 +113,26 @@ const resolveTraceConnectionName = (
   return resolveDefaultConnection();
 };
 
+const resolveObservedConnectionName = (
+  env: Pick<NonNullable<CoreApi['Env']>, 'get'> | undefined,
+  configuredObservedConnection: string | undefined,
+  storageConnectionName: string
+): string => {
+  if (
+    typeof configuredObservedConnection === 'string' &&
+    configuredObservedConnection.trim() !== ''
+  ) {
+    return resolveTraceConnectionName(env, configuredObservedConnection);
+  }
+
+  const defaultConnectionName = resolveTraceConnectionName(env, undefined);
+  if (storageConnectionName !== defaultConnectionName) {
+    return defaultConnectionName;
+  }
+
+  return storageConnectionName;
+};
+
 const isObjectValue = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 };
@@ -206,6 +226,7 @@ if (!traceAlreadyInitialized && Env) {
 
   if (enabled) {
     const connectionRaw = Env.get('TRACE_DB_CONNECTION', '').trim();
+    const observeConnectionRaw = Env.get('TRACE_QUERY_CONNECTION', '').trim();
     const pruneAfterHoursRaw = Env.get('TRACE_PRUNE_HOURS', '').trim();
     const slowQueryThresholdRaw = Env.get('TRACE_SLOW_QUERY_MS', '').trim();
     const logMinLevelRaw = Env.get('TRACE_LOG_LEVEL', '').trim();
@@ -217,6 +238,8 @@ if (!traceAlreadyInitialized && Env) {
     const redactionQuery = parseEnvList(Env.get('TRACE_REDACT_QUERY', ''));
 
     const connection = connectionRaw === '' ? startupOverrides?.connection : connectionRaw;
+    const observeConnection =
+      observeConnectionRaw === '' ? startupOverrides?.observeConnection : observeConnectionRaw;
     const pruneAfterHours =
       pruneAfterHoursRaw === ''
         ? startupOverrides?.pruneAfterHours
@@ -247,6 +270,7 @@ if (!traceAlreadyInitialized && Env) {
       ...startupOverrides,
       enabled,
       connection,
+      observeConnection,
       ...(typeof pruneAfterHours === 'number' && Number.isFinite(pruneAfterHours)
         ? { pruneAfterHours }
         : {}),
@@ -260,12 +284,18 @@ if (!traceAlreadyInitialized && Env) {
     });
 
     const resolvedConnectionName = resolveTraceConnectionName(Env, config.connection);
-    const db = core.useDatabase?.(undefined, resolvedConnectionName);
+    const resolvedObservedConnectionName = resolveObservedConnectionName(
+      Env,
+      config.observeConnection,
+      resolvedConnectionName
+    );
+    const storageDb = core.useDatabase?.(undefined, resolvedConnectionName);
+    const observedDb = core.useDatabase?.(undefined, resolvedObservedConnectionName);
 
-    if (db) {
+    if (storageDb && observedDb) {
       const storage = TraceWriteDiagnostics.wrapStorage(
         TraceContentRedaction.wrapStorage(
-          TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(db), config),
+          TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(storageDb), config),
           config.redaction
         ),
         {
@@ -327,7 +357,7 @@ if (!traceAlreadyInitialized && Env) {
         import('./watchers/HttpClientWatcher'),
       ]);
 
-      const watcherArgs = { storage, config, db };
+      const watcherArgs = { storage, config, db: observedDb };
 
       HttpWatcher.register({ ...watcherArgs, registerMiddleware: resolveRegisterMiddleware() });
 

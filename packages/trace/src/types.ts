@@ -353,6 +353,7 @@ export type WatcherToggles = {
 export interface ITraceConfig {
   enabled: boolean;
   connection?: string;
+  observeConnection?: string;
   pruneAfterHours: number;
   ignoreRoutes: string[];
   slowQueryThreshold: number;

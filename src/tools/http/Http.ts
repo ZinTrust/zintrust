@@ -46,7 +46,13 @@ interface RequestState {
 }
 
 const headersToRecord = (
-  headers: Headers | Map<string, string> | null | undefined
+  headers:
+    | Headers
+    | Map<string, string>
+    | { entries?: () => IterableIterator<[string, string]> }
+    | Record<string, string>
+    | null
+    | undefined
 ): Record<string, string> => {
   if (!headers) return {};
 
@@ -56,6 +62,18 @@ const headersToRecord = (
 
   if (headers instanceof Map) {
     return Object.fromEntries(headers.entries());
+  }
+
+  if (typeof headers === 'object' && typeof headers.entries === 'function') {
+    return Object.fromEntries(headers.entries());
+  }
+
+  if (typeof headers === 'object') {
+    return Object.fromEntries(
+      Object.entries(headers).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string'
+      )
+    );
   }
 
   return {};
@@ -99,6 +117,14 @@ const emitHttpClientTrace = (input: {
     responseBody,
     error,
   });
+};
+
+const captureTraceResponseBody = async (response: Response): Promise<string | undefined> => {
+  try {
+    return await response.clone().text();
+  } catch {
+    return undefined;
+  }
 };
 
 /**
@@ -255,13 +281,15 @@ function createRequestBuilder(
 
     async sendRaw(): Promise<Response> {
       const { response, durationMs } = await performFetch(state);
-      emitHttpClientTrace({ state, response, durationMs });
+      const responseBody = await captureTraceResponseBody(response);
+      emitHttpClientTrace({ state, response, responseBody, durationMs });
       return response;
     },
 
     async sendStream(): Promise<{ response: Response; stream: ReadableStream<Uint8Array> | null }> {
       const { response, durationMs } = await performFetch(state);
-      emitHttpClientTrace({ state, response, durationMs });
+      const responseBody = await captureTraceResponseBody(response);
+      emitHttpClientTrace({ state, response, responseBody, durationMs });
       return { response, stream: response.body };
     },
   };

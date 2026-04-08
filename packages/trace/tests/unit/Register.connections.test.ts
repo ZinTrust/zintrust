@@ -1,0 +1,136 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  useDatabase,
+  queryWatcherRegister,
+  noopRegister,
+  resolveStorage,
+  wrapFiltering,
+  wrapRedaction,
+  wrapDiagnostics,
+} = vi.hoisted(() => ({
+  useDatabase: vi.fn((_: unknown, connection?: string) => ({
+    name: connection ?? 'default',
+    onAfterQuery: vi.fn(),
+    offAfterQuery: vi.fn(),
+  })),
+  queryWatcherRegister: vi.fn(),
+  noopRegister: vi.fn(),
+  resolveStorage: vi.fn((db: unknown) => ({ db })),
+  wrapFiltering: vi.fn((storage: unknown) => storage),
+  wrapRedaction: vi.fn((storage: unknown) => storage),
+  wrapDiagnostics: vi.fn((storage: unknown) => storage),
+}));
+
+vi.mock('@zintrust/core', () => ({
+  Env: {
+    getBool: (key: string, fallback: boolean) => (key === 'TRACE_ENABLED' ? true : fallback),
+    get: (key: string, fallback: string) => {
+      if (key === 'TRACE_DB_CONNECTION') return 'trace';
+      if (key === 'TRACE_QUERY_CONNECTION') return '';
+      if (key === 'DB_CONNECTION') return 'primary';
+      return fallback;
+    },
+    getInt: (_key: string, fallback: number) => fallback,
+  },
+  useDatabase,
+  Logger: {
+    warn: vi.fn(),
+  },
+  RequestContext: undefined,
+  StartupConfigFile: {},
+  StartupConfigFileRegistry: {
+    get: vi.fn(() => undefined),
+  },
+}));
+
+vi.mock('../../src/storage', () => ({
+  TraceStorage: {
+    resolveStorage,
+  },
+}));
+
+vi.mock('../../src/storage/TraceEntryFiltering', () => ({
+  TraceEntryFiltering: {
+    wrapStorage: wrapFiltering,
+  },
+}));
+
+vi.mock('../../src/storage/TraceContentRedaction', () => ({
+  TraceContentRedaction: {
+    wrapStorage: wrapRedaction,
+  },
+}));
+
+vi.mock('../../src/storage/TraceWriteDiagnostics', () => ({
+  TraceWriteDiagnostics: {
+    wrapStorage: wrapDiagnostics,
+  },
+}));
+
+vi.mock('../../src/watchers/HttpWatcher', () => ({ HttpWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/QueryWatcher', () => ({
+  QueryWatcher: { register: queryWatcherRegister },
+}));
+vi.mock('../../src/watchers/LogWatcher', () => ({ LogWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/ExceptionWatcher', () => ({
+  ExceptionWatcher: { register: noopRegister },
+}));
+vi.mock('../../src/watchers/JobWatcher', () => ({ JobWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/CacheWatcher', () => ({ CacheWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/ScheduleWatcher', () => ({
+  ScheduleWatcher: { register: noopRegister },
+}));
+vi.mock('../../src/watchers/MailWatcher', () => ({ MailWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/AuthWatcher', () => ({ AuthWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/EventWatcher', () => ({ EventWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/ModelWatcher', () => ({ ModelWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/NotificationWatcher', () => ({
+  NotificationWatcher: { register: noopRegister },
+}));
+vi.mock('../../src/watchers/RedisWatcher', () => ({ RedisWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/GateWatcher', () => ({ GateWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/MiddlewareWatcher', () => ({
+  MiddlewareWatcher: { register: noopRegister },
+}));
+vi.mock('../../src/watchers/CommandWatcher', () => ({
+  CommandWatcher: { register: noopRegister },
+}));
+vi.mock('../../src/watchers/BatchWatcher', () => ({ BatchWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/DumpWatcher', () => ({ DumpWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/ViewWatcher', () => ({ ViewWatcher: { register: noopRegister } }));
+vi.mock('../../src/watchers/HttpClientWatcher', () => ({
+  HttpClientWatcher: { register: noopRegister },
+}));
+
+describe('trace register connection wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    delete (globalThis as Record<string, unknown>).__zintrust_system_trace_register_initialized__;
+    delete (globalThis as Record<string, unknown>).__zintrust_system_trace_plugin_requested__;
+  });
+
+  it('uses the trace connection for storage and the app connection for SQL observation', async () => {
+    await import('../../src/register');
+
+    expect(useDatabase).toHaveBeenNthCalledWith(1, undefined, 'trace');
+    expect(useDatabase).toHaveBeenNthCalledWith(2, undefined, 'primary');
+    expect(resolveStorage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'trace',
+      })
+    );
+    expect(wrapDiagnostics).toHaveBeenCalledWith(expect.anything(), {
+      connectionName: 'trace',
+      logger: expect.any(Object),
+    });
+    expect(queryWatcherRegister).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: expect.objectContaining({
+          name: 'primary',
+        }),
+      })
+    );
+  });
+});

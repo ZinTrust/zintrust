@@ -106,6 +106,7 @@ const mergeWatchers = (
 const DEFAULTS: ITraceConfig = Object.freeze({
   enabled: false,
   connection: undefined,
+  observeConnection: undefined,
   pruneAfterHours: 24,
   ignoreRoutes: ['/trace', '/health', '/ping'],
   slowQueryThreshold: 100,
