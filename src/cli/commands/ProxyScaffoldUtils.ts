@@ -22,6 +22,7 @@ type EnsureWranglerConfigOptions<TValues, TOptions> = {
 type EnsureWranglerConfigResult<TValues> = {
   createdFile: boolean;
   insertedEnv: boolean;
+  content: string;
   values: TValues;
 };
 
@@ -71,6 +72,182 @@ const findEnvObjectStart = (content: string): number => {
   const valueStart = findJsonKeyValueStart(content, 'env');
   if (valueStart < 0 || content[valueStart] !== '{') return -1;
   return valueStart;
+};
+
+type JsonScanState = {
+  inString: boolean;
+  isEscaped: boolean;
+  inLineComment: boolean;
+  inBlockComment: boolean;
+};
+
+const createJsonScanState = (): JsonScanState => ({
+  inString: false,
+  isEscaped: false,
+  inLineComment: false,
+  inBlockComment: false,
+});
+
+const advanceWithinLineComment = (state: JsonScanState, current: string): number => {
+  if (!state.inLineComment) return 0;
+  if (current === '\n') state.inLineComment = false;
+  return 1;
+};
+
+const advanceWithinBlockComment = (state: JsonScanState, current: string, next: string): number => {
+  if (!state.inBlockComment) return 0;
+  if (current === '*' && next === '/') {
+    state.inBlockComment = false;
+    return 2;
+  }
+
+  return 1;
+};
+
+const advanceWithinString = (state: JsonScanState, current: string): number => {
+  if (!state.inString) return 0;
+
+  if (state.isEscaped) {
+    state.isEscaped = false;
+  } else if (current === '\\') {
+    state.isEscaped = true;
+  } else if (current === '"') {
+    state.inString = false;
+  }
+
+  return 1;
+};
+
+const startJsonScanContext = (state: JsonScanState, current: string, next: string): number => {
+  if (current === '/' && next === '/') {
+    state.inLineComment = true;
+    return 2;
+  }
+
+  if (current === '/' && next === '*') {
+    state.inBlockComment = true;
+    return 2;
+  }
+
+  if (current === '"') {
+    state.inString = true;
+    return 1;
+  }
+
+  return 0;
+};
+
+const advanceJsonScanState = (state: JsonScanState, current: string, next: string): number => {
+  return (
+    advanceWithinLineComment(state, current) ||
+    advanceWithinBlockComment(state, current, next) ||
+    advanceWithinString(state, current) ||
+    startJsonScanContext(state, current, next)
+  );
+};
+
+const rewriteRelativeWranglerPaths = (content: string): string => {
+  return content.replaceAll('": "./', '": "../../');
+};
+
+const findQuotedKeyFrom = (content: string, key: string, startIndex: number): number => {
+  let cursor = Math.max(0, startIndex);
+  const state = createJsonScanState();
+  const candidate = `"${key}"`;
+
+  while (cursor < content.length) {
+    const current = content[cursor];
+    const next = content[cursor + 1];
+
+    if (!state.inString && !state.inLineComment && !state.inBlockComment) {
+      if (content.startsWith(candidate, cursor)) return cursor;
+    }
+
+    const advanced = advanceJsonScanState(state, current, next);
+    cursor += advanced > 0 ? advanced : 1;
+  }
+
+  return -1;
+};
+
+const findJsonKeyValueStartFrom = (content: string, key: string, startIndex: number): number => {
+  const keyPosition = findQuotedKeyFrom(content, key, startIndex);
+  if (keyPosition < 0) return -1;
+
+  let cursor = keyPosition + key.length + 2;
+  while (isJsonWhitespace(content[cursor])) cursor += 1;
+  if (content[cursor] !== ':') return -1;
+
+  cursor += 1;
+  while (isJsonWhitespace(content[cursor])) cursor += 1;
+  return cursor;
+};
+
+const findMatchingObjectBrace = (content: string, objectStart: number): number => {
+  let depth = 0;
+  const state = createJsonScanState();
+
+  for (let index = objectStart; index < content.length; index += 1) {
+    const current = content[index];
+    const next = content[index + 1];
+
+    if (!state.inString && !state.inLineComment && !state.inBlockComment) {
+      if (current === '{') {
+        depth += 1;
+      } else if (current === '}') {
+        depth -= 1;
+        if (depth === 0) return index;
+      }
+    }
+
+    const advanced = advanceJsonScanState(state, current, next);
+    if (advanced > 1) index += advanced - 1;
+  }
+
+  return -1;
+};
+
+const extractObjectBlock = (
+  content: string,
+  key: string,
+  startIndex: number = 0
+): string | undefined => {
+  const valueStart = findJsonKeyValueStartFrom(content, key, startIndex);
+  if (valueStart < 0 || content[valueStart] !== '{') return undefined;
+
+  const valueEnd = findMatchingObjectBrace(content, valueStart);
+  if (valueEnd < 0) return undefined;
+
+  return content.slice(valueStart, valueEnd + 1);
+};
+
+const indentBlock = (content: string, spaces: number): string => {
+  const prefix = ' '.repeat(spaces);
+  return content
+    .split('\n')
+    .map((line) => (line.trim().length === 0 ? line : `${prefix}${line}`))
+    .join('\n');
+};
+
+export const renderProxyWranglerDevConfig = (
+  content: string,
+  envName: string
+): string | undefined => {
+  const envObjectStart = findEnvObjectStart(content);
+  if (envObjectStart < 0) return undefined;
+
+  const envBlock = extractObjectBlock(content, envName, envObjectStart);
+  if (envBlock === undefined) return undefined;
+
+  const aliasBlock = extractObjectBlock(content, 'alias');
+  const envBody = envBlock.slice(1, -1).trim();
+  if (envBody.length === 0) return undefined;
+
+  const aliasLine = aliasBlock === undefined ? [] : [`  "alias": ${aliasBlock},`];
+
+  return rewriteRelativeWranglerPaths(
+    ['{', ...aliasLine, indentBlock(envBody, 2), '}', ''].join('\n')
+  );
 };
 
 const isObjectEffectivelyEmpty = (content: string, objectStart: number): boolean => {
@@ -150,12 +327,12 @@ export const ensureWranglerConfig = <TValues, TOptions>(
 ): EnsureWranglerConfigResult<TValues> => {
   if (!existsSync(options.configPath)) {
     const values = options.resolveValues(undefined, options.options);
-    writeFileSync(
-      options.configPath,
-      renderDefaultWranglerConfig(options.renderEnvBlock(values), options.compatibilityDate),
-      'utf-8'
+    const content = renderDefaultWranglerConfig(
+      options.renderEnvBlock(values),
+      options.compatibilityDate
     );
-    return { createdFile: true, insertedEnv: true, values };
+    writeFileSync(options.configPath, content, 'utf-8');
+    return { createdFile: true, insertedEnv: true, content, values };
   }
 
   const content = readFileSync(options.configPath, 'utf-8');
@@ -164,8 +341,8 @@ export const ensureWranglerConfig = <TValues, TOptions>(
 
   if (next !== content) {
     writeFileSync(options.configPath, next, 'utf-8');
-    return { createdFile: false, insertedEnv: true, values };
+    return { createdFile: false, insertedEnv: true, content: next, values };
   }
 
-  return { createdFile: false, insertedEnv: false, values };
+  return { createdFile: false, insertedEnv: false, content, values };
 };

@@ -222,7 +222,7 @@ describe('OptionalCliCommandRegistry patch coverage', () => {
       globalThis as { __zintrust_cli_command_registry__?: Map<string, unknown> }
     ).__zintrust_cli_command_registry__ = new Map<string, unknown>();
 
-    await import('../../../packages/workers/src/register.ts');
+    await import('../../../packages/workers/src/register');
 
     expect(OptionalCliCommandRegistry.has('worker:list')).toBe(true);
     expect(OptionalCliCommandRegistry.has('worker:doctor')).toBe(true);

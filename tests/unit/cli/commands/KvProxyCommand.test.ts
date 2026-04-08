@@ -77,8 +77,13 @@ describe('KvProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/wrangler.jsonc', '--env', 'kv-proxy'],
+        args: ['dev', '--config', '/repo/.wrangler/tmp/zin.proxy.kv-proxy.jsonc'],
       })
+    );
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/.wrangler/tmp/zin.proxy.kv-proxy.jsonc',
+      expect.stringContaining('"main": "../../src/proxy/kv/ZintrustKvProxy.ts"'),
+      'utf-8'
     );
 
     cwdSpy.mockRestore();
@@ -125,7 +130,7 @@ describe('KvProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/wrangler.jsonc', '--env', 'kv-proxy', '--port', '8787'],
+        args: ['dev', '--config', '/repo/.wrangler/tmp/zin.proxy.kv-proxy.jsonc', '--port', '8787'],
       })
     );
 

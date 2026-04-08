@@ -76,9 +76,10 @@ const createResponse = () => {
   return { response, raw, headers };
 };
 
-const createRequest = (path: string) => ({
+const createRequest = (path: string, body: unknown = {}) => ({
   headers: {},
   body: {},
+  getBody: vi.fn(() => body),
   getMethod: vi.fn(() => 'GET'),
   getPath: vi.fn(() => path),
 });
@@ -105,7 +106,9 @@ describe('HttpWatcher', () => {
     HttpWatcher.register({
       storage,
       config,
-      registerMiddleware(middleware) {
+      registerMiddleware(
+        middleware: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
+      ) {
         registeredMiddleware = middleware;
       },
     } as any);
@@ -150,7 +153,9 @@ describe('HttpWatcher', () => {
     HttpWatcher.register({
       storage,
       config,
-      registerMiddleware(middleware) {
+      registerMiddleware(
+        middleware: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
+      ) {
         registeredMiddleware = middleware;
       },
     } as any);
@@ -177,6 +182,48 @@ describe('HttpWatcher', () => {
           uri: '/boom',
           responseStatus: 500,
           responseBody: { message: 'failed' },
+        }),
+      })
+    );
+  });
+
+  it('captures payloads from getBody even when req.body is empty', async () => {
+    vi.resetModules();
+
+    const { HttpWatcher } = await import('../../src/watchers/HttpWatcher');
+    const storage = createStorage();
+    const config = {
+      watchers: { request: true },
+      ignoreRoutes: ['/trace'],
+      redaction: { keys: [], headers: [], body: [], query: [] },
+    } as any;
+
+    let registeredMiddleware:
+      | ((req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>)
+      | undefined;
+    HttpWatcher.register({
+      storage,
+      config,
+      registerMiddleware(
+        middleware: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
+      ) {
+        registeredMiddleware = middleware;
+      },
+    } as any);
+
+    const { response } = createResponse();
+    const request = createRequest('/login', { email: 'user@example.com', password: 'secret' });
+
+    await registeredMiddleware?.(request, response, async () => {
+      response.setStatus(500);
+      response.json({ error: 'Login failed' });
+    });
+    await flushAsync();
+
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          payload: { email: 'user@example.com', password: 'secret' },
         }),
       })
     );

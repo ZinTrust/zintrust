@@ -9,7 +9,15 @@ type TraceStorageApi = {
 type SystemTraceModule = {
   TraceConfig: TraceConfigApi;
   TraceStorage: TraceStorageApi;
-  captureTraceException?: (error: unknown) => void;
+  captureTraceException?: (
+    error: unknown,
+    context?: {
+      batchId?: string;
+      hostname?: string;
+      path?: string;
+      userId?: string;
+    }
+  ) => void;
   registerTraceDashboard: (
     router: unknown,
     options?: { basePath?: string; middleware?: ReadonlyArray<string> }
@@ -40,7 +48,10 @@ const fallbackRegisterTraceRoutes = (
   _options?: { basePath?: string; middleware?: ReadonlyArray<string> }
 ): void => undefined;
 
-const fallbackCaptureTraceException = (_error: unknown): void => undefined;
+const fallbackCaptureTraceException = (
+  _error: unknown,
+  _context?: { batchId?: string; hostname?: string; path?: string; userId?: string }
+): void => undefined;
 
 let systemTraceModule: SystemTraceModule | undefined;
 let didAttemptSystemTraceLoad = false;
@@ -94,14 +105,17 @@ export const registerTraceRoutes = (
   (systemTraceModule?.registerTraceRoutes ?? fallbackRegisterTraceRoutes)(router, storage, options);
 };
 
-export const captureTraceException = (error: unknown): void => {
+export const captureTraceException = (
+  error: unknown,
+  context?: { batchId?: string; hostname?: string; path?: string; userId?: string }
+): void => {
   if (systemTraceModule?.captureTraceException !== undefined) {
-    systemTraceModule.captureTraceException(error);
+    systemTraceModule.captureTraceException(error, context);
     return;
   }
 
   void loadSystemTraceModule().then((module) => {
-    (module?.captureTraceException ?? fallbackCaptureTraceException)(error);
+    (module?.captureTraceException ?? fallbackCaptureTraceException)(error, context);
   });
 };
 

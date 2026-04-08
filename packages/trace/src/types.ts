@@ -41,7 +41,7 @@ export interface RequestContent {
   method: string;
   uri: string;
   headers: Record<string, string>;
-  payload: Record<string, unknown>;
+  payload: unknown;
   responseStatus: number;
   responseHeaders: Record<string, string>;
   responseBody?: unknown;

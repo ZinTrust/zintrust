@@ -55,8 +55,11 @@ export { RedisWatcher } from './watchers/RedisWatcher';
 export { ScheduleWatcher } from './watchers/ScheduleWatcher';
 export { ViewWatcher } from './watchers/ViewWatcher';
 
-export const captureTraceException = (error: unknown): void => {
-  ExceptionWatcherApi.capture(error);
+export const captureTraceException = (
+  error: unknown,
+  context?: { batchId?: string; hostname?: string; path?: string; userId?: string }
+): void => {
+  ExceptionWatcherApi.capture(error, context);
 };
 
 // ---------------------------------------------------------------------------

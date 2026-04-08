@@ -43,6 +43,37 @@ describe('system trace watcher lifecycle', () => {
     expect(offSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('captures exceptions with explicit request batch context', async () => {
+    vi.resetModules();
+
+    const { ExceptionWatcher } = await import('../../src/watchers/ExceptionWatcher');
+    const storage = createStorage();
+    const config = { watchers: { exception: true }, ignoreRoutes: [] } as any;
+
+    const unregister = ExceptionWatcher.register({ storage, config });
+
+    ExceptionWatcher.capture(new Error('login boom'), {
+      batchId: 'trace-batch-123',
+      hostname: 'node-test',
+      path: '/api/login',
+      userId: '42',
+    });
+    await flushAsync();
+
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: 'trace-batch-123',
+        content: expect.objectContaining({
+          hostname: 'node-test',
+          userId: '42',
+          message: 'login boom',
+        }),
+      })
+    );
+
+    unregister();
+  });
+
   it('updates pending jobs and clears pending state across unregister cycles', async () => {
     vi.resetModules();
 

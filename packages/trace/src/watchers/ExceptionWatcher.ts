@@ -12,11 +12,18 @@ import { familyHash } from '../utils/familyHash';
 import { RequestFilter } from '../utils/requestFilter';
 import { parseStackFrameLine } from '../utils/stackFrame';
 
+type ExceptionCaptureContext = {
+  batchId?: string;
+  hostname?: string;
+  path?: string;
+  userId?: string;
+};
+
 const getLinePreview = (_file: string, _line: number): Record<string, string> => {
   return {};
 };
 
-const buildContent = (err: Error): ExceptionContent => {
+const buildContent = (err: Error, context?: ExceptionCaptureContext): ExceptionContent => {
   const stack = err.stack ?? '';
   const trace: ExceptionContent['trace'] = stack
     .split('\n')
@@ -35,8 +42,8 @@ const buildContent = (err: Error): ExceptionContent => {
     trace,
     linePreview: firstFrame ? getLinePreview(firstFrame.file, firstFrame.line) : {},
     occurrences: 1,
-    hostname: TraceContext.getHostname(),
-    userId: TraceContext.getUserId(),
+    hostname: context?.hostname ?? TraceContext.getHostname(),
+    userId: context?.userId ?? TraceContext.getUserId(),
   };
 };
 
@@ -64,20 +71,24 @@ const unregisterProcessListeners = (): void => {
   process.off('unhandledRejection', handleUnhandledRejection);
 };
 
-const captureException = (err: unknown): void => {
+const captureException = (err: unknown, context?: ExceptionCaptureContext): void => {
   const storage = _storage;
   if (!storage) return;
   if (!(err instanceof Error)) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
+  if (context?.path !== undefined) {
+    if (RequestFilter.matchesIgnoredPath(context.path, _ignoreRoutes)) return;
+  } else if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) {
+    return;
+  }
 
-  const content = buildContent(err);
+  const content = buildContent(err, context);
   const hash = familyHash(`${content.class}:${content.file}:${content.line}`);
   const uuid = crypto.randomUUID();
 
   storage
     .writeEntry({
       uuid,
-      batchId: TraceContext.getBatchId(),
+      batchId: context?.batchId ?? TraceContext.getBatchId(),
       familyHash: hash,
       type: EntryType.EXCEPTION,
       content,
@@ -89,7 +100,9 @@ const captureException = (err: unknown): void => {
     .catch(() => undefined);
 };
 
-export const ExceptionWatcher: ITraceWatcher & { capture: (err: unknown) => void } = Object.freeze({
+export const ExceptionWatcher: ITraceWatcher & {
+  capture: (err: unknown, context?: ExceptionCaptureContext) => void;
+} = Object.freeze({
   capture: captureException,
 
   register({ storage, config }: ITraceWatcherConfig): () => void {

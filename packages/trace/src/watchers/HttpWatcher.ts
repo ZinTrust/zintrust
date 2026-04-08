@@ -26,6 +26,18 @@ const normalizeHeaderValue = (value: string | string[]): string => {
   return Array.isArray(value) ? value.join(', ') : value;
 };
 
+const resolveRequestPayload = (req: IRequest, config: ITraceConfig): unknown => {
+  const redactFields = [...config.redaction.keys, ...config.redaction.body];
+  const requestBody = typeof req.getBody === 'function' ? req.getBody() : req.body;
+
+  if (requestBody === undefined || requestBody === null) return {};
+  if (typeof requestBody === 'object') {
+    return redactObject(requestBody as Record<string, unknown>, redactFields);
+  }
+
+  return redactUnknown(requestBody, redactFields);
+};
+
 type ResponseCapture = {
   headers: Record<string, string>;
   body?: unknown;
@@ -125,15 +137,11 @@ const buildEntry = (
     ...config.redaction.headers,
   ]);
 
-  const payload = req.body
-    ? redactObject(req.body, [...config.redaction.keys, ...config.redaction.body])
-    : {};
-
   return {
     method: req.getMethod(),
     uri: req.getPath(),
     headers,
-    payload,
+    payload: resolveRequestPayload(req, config),
     responseStatus: res.getStatus(),
     responseHeaders: redactHeaders(responseCapture.headers, [
       ...config.redaction.keys,

@@ -341,7 +341,7 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       ].join('');
     };
 
-    const highlightJson = (value) => {
+    const highlightJson = (value, label = 'JSON') => {
       const source = prettyJson(value);
       let output = '';
       let lastIndex = 0;
@@ -360,7 +360,7 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       }
 
       output += escapeHtml(source.slice(lastIndex));
-      return renderCodeCard('JSON', source, output, 'language-json');
+      return renderCodeCard(label, source, output, 'language-json');
     };
 
     const highlightSql = (sql) => {
@@ -390,11 +390,11 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       return renderCodeCard('SQL', source, output, 'language-sql');
     };
 
-    const detailJson = (value) => highlightJson(value ?? {});
+    const detailJson = (value, label = 'JSON') => highlightJson(value ?? {}, label);
 
     const entrySummaryText = (entry) => {
       const content = entry && entry.content ? entry.content : {};
-      if (entry.type === 'request') return [content.method || '', content.uri || ''].filter(Boolean).join(' ');
+      if (entry.type === 'request') return [content.responseStatus || '', content.method || '', content.uri || ''].filter(Boolean).join(' ');
       if (entry.type === 'query') return String(content.sql || '').slice(0, 160);
       if (entry.type === 'exception') return [content.class || '', content.message || ''].filter(Boolean).join(': ');
       if (entry.type === 'log') return '[' + String(content.level || 'log') + '] ' + String(content.message || '').slice(0, 160);
@@ -573,9 +573,9 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
           ]),
           '</div>'
         ].join(''),
-        payload: detailJson(content.payload || {}),
-        headers: '<div class="detail-stack">' + detailJson(content.headers || {}) + detailJson(content.responseHeaders || {}) + '</div>',
-        response: '<div class="detail-stack"><div class="detail-grid">' + renderMetricBox('Status', [{ label: 'Response status', value: escapeHtml(content.responseStatus || '') }, { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }]) + '</div>' + (content.responseBody === undefined ? '<p class="trace-note">No response body was captured for this request.</p>' : detailJson(content.responseBody)) + detailJson(content.responseHeaders || {}) + '</div>',
+        payload: detailJson(content.payload || {}, 'Payload Json'),
+        headers: '<div class="detail-stack">' + detailJson(content.headers || {}, 'Request Header Json') + detailJson(content.responseHeaders || {}, 'Response Header Json') + '</div>',
+        response: '<div class="detail-stack"><div class="detail-grid">' + renderMetricBox('Status', [{ label: 'Response status', value: escapeHtml(content.responseStatus || '') }, { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }]) + '</div>' + (content.responseBody === undefined ? '<p class="trace-note">No response body was captured for this request.</p>' : detailJson(content.responseBody, 'Response Body Json')) + detailJson(content.responseHeaders || {}, 'Response Header Json') + '</div>',
         queries: renderTraceItems(batchEntriesByType('query')),
         logs: renderTraceItems(batchEntriesByType('log')),
         exceptions: renderTraceItems(batchEntriesByType('exception')),
@@ -587,7 +587,9 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       main.innerHTML = [
         '<span class="back-link" data-action="close-detail"><- Back to entries</span>',
         '<section class="panel detail-card">',
-        '<div><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags) + '</div>',
+        '<div>' + (entry.type === 'request'
+          ? '<span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> <span class="' + typeClass(entry) + '">' + escapeHtml(content.responseStatus || '') + '</span> <span class="mono">' + escapeHtml(content.uri || '') + '</span> ' + tagsHtml(entry.tags)
+          : '<span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags)) + '</div>',
         '<div class="detail-meta"><span>UUID <span class="mono">' + escapeHtml(entry.uuid) + '</span></span><span>Batch <span class="mono">' + escapeHtml(entry.batchId || '-') + '</span></span><span>' + durationHtml(entry) + '</span><span>' + escapeHtml(new Date(Number(entry.createdAt)).toISOString()) + '</span></div>',
         '<div class="trace-tabs">',
         traceTabs.map((tab) => '<button type="button" class="trace-tab' + (tab.id === currentTab ? ' active' : '') + '" data-action="detail-tab" data-tab="' + escapeHtml(tab.id) + '">' + escapeHtml(tab.label) + (tab.count !== undefined ? ' (' + escapeHtml(tab.count) + ')' : '') + '</button>').join(''),

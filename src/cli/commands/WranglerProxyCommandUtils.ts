@@ -4,10 +4,12 @@ import { maybeRunProxyWatchMode, parseIntOption } from '@cli/commands/ProxyComma
 import {
   ensureProxyEntrypoint,
   ensureWranglerConfig,
+  renderProxyWranglerDevConfig,
   resolveConfigPath,
 } from '@cli/commands/ProxyScaffoldUtils';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Logger } from '@config/logger';
+import { mkdirSync, writeFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
@@ -82,7 +84,20 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
 
       input.afterConfigResolved?.(result.values);
 
-      const args = ['dev', '--config', configPath, '--env', input.envName];
+      const proxyConfigContent = renderProxyWranglerDevConfig(result.content, input.envName);
+      const proxyConfigDir = join(cwd, '.wrangler', 'tmp');
+      const proxyConfigPath = join(proxyConfigDir, `zin.proxy.${input.envName}.jsonc`);
+
+      if (proxyConfigContent !== undefined) {
+        mkdirSync(proxyConfigDir, { recursive: true });
+        writeFileSync(proxyConfigPath, proxyConfigContent, 'utf-8');
+      }
+
+      const args = [
+        'dev',
+        '--config',
+        proxyConfigContent === undefined ? configPath : proxyConfigPath,
+      ];
       if (port !== undefined) {
         args.push('--port', String(port));
       }

@@ -72,8 +72,13 @@ describe('D1ProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/wrangler.jsonc', '--env', 'd1-proxy'],
+        args: ['dev', '--config', '/repo/.wrangler/tmp/zin.proxy.d1-proxy.jsonc'],
       })
+    );
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/.wrangler/tmp/zin.proxy.d1-proxy.jsonc',
+      expect.stringContaining('"main": "../../src/proxy/d1/ZintrustD1Proxy.ts"'),
+      'utf-8'
     );
 
     cwdSpy.mockRestore();
@@ -115,7 +120,7 @@ describe('D1ProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/wrangler.jsonc', '--env', 'd1-proxy', '--port', '8787'],
+        args: ['dev', '--config', '/repo/.wrangler/tmp/zin.proxy.d1-proxy.jsonc', '--port', '8787'],
       })
     );
 

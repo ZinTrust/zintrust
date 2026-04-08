@@ -127,6 +127,17 @@ const clearTableLayoutCache = (db: IDatabase): void => {
   tableLayoutCache.delete(db);
 };
 
+type MigrationsTableProbeResult = {
+  hasAppliedAt: boolean;
+  hasCreatedAt: boolean;
+  hasMigration: boolean;
+  hasName: boolean;
+  hasScope: boolean;
+  hasService: boolean;
+  hasStatus: boolean;
+  hasTable: boolean;
+};
+
 const ensureTrackingTable = async (db: IDatabase): Promise<void> => {
   assertDbSupportsMigrations(db);
 
@@ -146,6 +157,90 @@ const ensureTrackingTable = async (db: IDatabase): Promise<void> => {
   clearTableLayoutCache(db);
 };
 
+const probeTableLayout = async (db: IDatabase): Promise<MigrationsTableProbeResult> => {
+  const [
+    hasTable,
+    hasName,
+    hasMigration,
+    hasScope,
+    hasService,
+    hasStatus,
+    hasAppliedAt,
+    hasCreatedAt,
+  ] = await Promise.all([
+    schemaHasTable(db, 'migrations'),
+    schemaHasColumn(db, 'migrations', 'name'),
+    schemaHasColumn(db, 'migrations', 'migration'),
+    schemaHasColumn(db, 'migrations', 'scope'),
+    schemaHasColumn(db, 'migrations', 'service'),
+    schemaHasColumn(db, 'migrations', 'status'),
+    schemaHasColumn(db, 'migrations', 'applied_at'),
+    schemaHasColumn(db, 'migrations', 'created_at'),
+  ]);
+
+  return {
+    hasAppliedAt,
+    hasCreatedAt,
+    hasMigration,
+    hasName,
+    hasScope,
+    hasService,
+    hasStatus,
+    hasTable,
+  };
+};
+
+const ensureProbeTableExists = async (
+  db: IDatabase,
+  probe: MigrationsTableProbeResult,
+  allowEnsure: boolean
+): Promise<MigrationsTableLayout | null> => {
+  if (probe.hasTable || !allowEnsure) return null;
+
+  await ensureTrackingTable(db);
+  return resolveTableLayout(db, false);
+};
+
+const assertProbeHasIdentityColumns = (probe: MigrationsTableProbeResult): void => {
+  if (probe.hasName || probe.hasMigration) return;
+
+  throw ErrorFactory.createCliError(
+    'The migrations table is missing both `name` and `migration` columns. Update the tracking table before running migrations.'
+  );
+};
+
+const toTableLayout = (probe: MigrationsTableProbeResult): MigrationsTableLayout => {
+  return {
+    hasAppliedAt: probe.hasAppliedAt,
+    hasCreatedAt: probe.hasCreatedAt,
+    hasMigration: probe.hasMigration,
+    hasName: probe.hasName,
+    hasScope: probe.hasScope,
+    hasService: probe.hasService,
+    hasStatus: probe.hasStatus,
+    requiresCompatibilityMode:
+      probe.hasMigration ||
+      !probe.hasName ||
+      !probe.hasScope ||
+      !probe.hasService ||
+      !probe.hasStatus,
+  };
+};
+
+const loadTableLayout = async (
+  db: IDatabase,
+  allowEnsure: boolean
+): Promise<MigrationsTableLayout> => {
+  if (typeof db.query !== 'function') return DEFAULT_LAYOUT;
+
+  const probe = await probeTableLayout(db);
+  const ensuredLayout = await ensureProbeTableExists(db, probe, allowEnsure);
+  if (ensuredLayout !== null) return ensuredLayout;
+
+  assertProbeHasIdentityColumns(probe);
+  return toTableLayout(probe);
+};
+
 const resolveTableLayout = async (
   db: IDatabase,
   allowEnsure: boolean = true
@@ -153,51 +248,7 @@ const resolveTableLayout = async (
   const cached = tableLayoutCache.get(db);
   if (cached !== undefined) return cached;
 
-  const layoutPromise = (async (): Promise<MigrationsTableLayout> => {
-    if (typeof db.query !== 'function') return DEFAULT_LAYOUT;
-
-    const [
-      hasTable,
-      hasName,
-      hasMigration,
-      hasScope,
-      hasService,
-      hasStatus,
-      hasAppliedAt,
-      hasCreatedAt,
-    ] = await Promise.all([
-      schemaHasTable(db, 'migrations'),
-      schemaHasColumn(db, 'migrations', 'name'),
-      schemaHasColumn(db, 'migrations', 'migration'),
-      schemaHasColumn(db, 'migrations', 'scope'),
-      schemaHasColumn(db, 'migrations', 'service'),
-      schemaHasColumn(db, 'migrations', 'status'),
-      schemaHasColumn(db, 'migrations', 'applied_at'),
-      schemaHasColumn(db, 'migrations', 'created_at'),
-    ]);
-
-    if (!hasTable && allowEnsure) {
-      await ensureTrackingTable(db);
-      return resolveTableLayout(db, false);
-    }
-
-    if (!hasName && !hasMigration) {
-      throw ErrorFactory.createCliError(
-        'The migrations table is missing both `name` and `migration` columns. Update the tracking table before running migrations.'
-      );
-    }
-
-    return {
-      hasAppliedAt,
-      hasCreatedAt,
-      hasMigration,
-      hasName,
-      hasScope,
-      hasService,
-      hasStatus,
-      requiresCompatibilityMode: hasMigration || !hasName || !hasScope || !hasService || !hasStatus,
-    };
-  })();
+  const layoutPromise = loadTableLayout(db, allowEnsure);
 
   tableLayoutCache.set(db, layoutPromise);
   return layoutPromise.catch((error) => {

@@ -58,7 +58,7 @@ describe('ErrorHandlerMiddleware', () => {
     await middleware(req, res, next);
 
     expect(Logger.error).toHaveBeenCalled();
-    expect(captureTraceException).toHaveBeenCalledWith(expect.any(Error));
+    expect(captureTraceException).toHaveBeenCalledWith(expect.any(Error), undefined);
     expect(setStatusSpy).toHaveBeenCalledWith(500);
     expect(jsonSpy).toHaveBeenCalled();
 

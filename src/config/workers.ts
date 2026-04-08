@@ -60,6 +60,69 @@ const unregisterRedisConnection = (client: ManagedRedisConnection): void => {
   }
 };
 
+const awaitRedisQuitWithin = async (
+  client: ManagedRedisConnection,
+  timeoutMs: number
+): Promise<boolean> => {
+  if (typeof client.quit !== 'function') return true;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    await client.quit();
+    return true;
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    await Promise.race([
+      client.quit(),
+      new Promise<never>((_, reject) => {
+        timeoutId = globalThis.setTimeout(() => {
+          reject(
+            ErrorFactory.createGeneralError('Redis graceful shutdown timed out', { timeoutMs })
+          );
+        }, timeoutMs);
+      }),
+    ]);
+
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (timeoutId !== undefined) {
+      globalThis.clearTimeout(timeoutId);
+    }
+  }
+};
+
+const forceDisconnectRedisClient = (client: ManagedRedisConnection, error?: unknown): void => {
+  if (error !== undefined) {
+    Logger.warn('Tracked Redis graceful shutdown failed, forcing disconnect', error as Error);
+  }
+
+  try {
+    client.disconnect();
+  } catch (disconnectError) {
+    Logger.error('Tracked Redis forced disconnect failed', disconnectError as Error);
+  }
+};
+
+const shutdownTrackedRedisConnection = async (
+  client: ManagedRedisConnection,
+  timeoutMs: number
+): Promise<void> => {
+  try {
+    const quitCompleted = await awaitRedisQuitWithin(client, timeoutMs);
+    if (!quitCompleted) {
+      forceDisconnectRedisClient(
+        client,
+        ErrorFactory.createGeneralError('Redis graceful shutdown timed out', { timeoutMs })
+      );
+    }
+  } catch (error) {
+    forceDisconnectRedisClient(client, error);
+  }
+};
+
 const hasReusableRedisStatus = (client: ManagedRedisConnection): boolean => {
   return client.status !== 'end' && client.status !== 'close';
 };
@@ -381,6 +444,7 @@ export const createRedisConnection = (
 export const shutdownRedisConnections = async (): Promise<void> => {
   const registry = getRedisConnectionRegistry();
   const trackedConnections = Array.from(registry.activeConnections);
+  const perConnectionTimeoutMs = 750;
 
   if (trackedConnections.length === 0) return;
 
@@ -393,17 +457,7 @@ export const shutdownRedisConnections = async (): Promise<void> => {
 
   await Promise.allSettled(
     trackedConnections.map(async (client) => {
-      try {
-        await client.quit();
-      } catch (error) {
-        Logger.warn('Tracked Redis graceful shutdown failed, forcing disconnect', error as Error);
-
-        try {
-          client.disconnect();
-        } catch (disconnectError) {
-          Logger.error('Tracked Redis forced disconnect failed', disconnectError as Error);
-        }
-      }
+      await shutdownTrackedRedisConnection(client, perConnectionTimeoutMs);
     })
   );
 };
