@@ -6,7 +6,7 @@
  */
 
 import { Logger } from '@config/logger';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -85,8 +85,17 @@ const resolveProjectLocalCliHandoff = (
   return target;
 };
 
-const handoffToProjectLocalCli = (target: ProjectLocalCliTarget, rawArgs: string[]): never => {
-  const result = spawnSync(process.execPath, [target.binPath, ...rawArgs], {
+const getHandoffExitCode = (exitCode: number | null, signal: NodeJS.Signals | null): number => {
+  if (typeof exitCode === 'number') return exitCode;
+  if (signal === 'SIGINT' || signal === 'SIGTERM') return 0;
+  return 1;
+};
+
+const handoffToProjectLocalCli = async (
+  target: ProjectLocalCliTarget,
+  rawArgs: string[]
+): Promise<never> => {
+  const child = spawn(process.execPath, [target.binPath, ...rawArgs], {
     stdio: 'inherit',
     env: {
       ...process.env,
@@ -94,18 +103,45 @@ const handoffToProjectLocalCli = (target: ProjectLocalCliTarget, rawArgs: string
     },
   });
 
-  if (result.error !== undefined) {
-    throw result.error;
-  }
+  const forwardSignals = !process.stdin.isTTY;
+  const forwardSignal = (signal: NodeJS.Signals): void => {
+    if (!forwardSignals) return;
 
-  process.exit(typeof result.status === 'number' ? result.status : 1);
+    try {
+      child.kill(signal);
+    } catch {
+      // best-effort forwarding during CLI handoff
+    }
+  };
+
+  const onSigint = (): void => forwardSignal('SIGINT');
+  const onSigterm = (): void => forwardSignal('SIGTERM');
+
+  process.on('SIGINT', onSigint);
+  process.on('SIGTERM', onSigterm);
+
+  try {
+    const result = await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
+      (resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (exitCode: number | null, signal: NodeJS.Signals | null) => {
+          resolve({ exitCode, signal });
+        });
+      }
+    );
+
+    process.exit(getHandoffExitCode(result.exitCode, result.signal));
+  } finally {
+    process.off('SIGINT', onSigint);
+    process.off('SIGTERM', onSigterm);
+  }
 };
 
-const maybeHandoffToProjectLocalCli = (rawArgs: string[]): boolean => {
+const maybeHandoffToProjectLocalCli = async (rawArgs: string[]): Promise<boolean> => {
   const localCliTarget = resolveProjectLocalCliHandoff(process.cwd(), getCurrentPackageRoot());
   if (localCliTarget === undefined) return false;
 
-  handoffToProjectLocalCli(localCliTarget, rawArgs);
+  await handoffToProjectLocalCli(localCliTarget, rawArgs);
   return true;
 };
 
@@ -244,7 +280,7 @@ const handleCliFatal = async (error: unknown, context: string): Promise<never> =
 
 const runCliInternal = async (): Promise<void> => {
   const { rawArgs: rawArgs0, args: args0 } = getArgsFromProcess();
-  if (maybeHandoffToProjectLocalCli(rawArgs0)) {
+  if (await maybeHandoffToProjectLocalCli(rawArgs0)) {
     return;
   }
 
@@ -332,9 +368,12 @@ export async function run(): Promise<void> {
 export const CliLauncherInternal = Object.freeze({
   CLI_HANDOFF_ENV_KEY,
   findProjectLocalCliTarget,
+  getHandoffExitCode,
   getCurrentPackageRoot,
   getRealPath,
+  handoffToProjectLocalCli,
   isWithinDirectory,
+  maybeHandoffToProjectLocalCli,
   resolveProjectLocalCliHandoff,
 });
 

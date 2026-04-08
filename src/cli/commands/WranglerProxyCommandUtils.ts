@@ -1,5 +1,6 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
+import { withWranglerDevVarsSnapshot } from '@cli/cloudflare/CloudflareWranglerDevEnv';
 import { maybeRunProxyWatchMode, parseIntOption } from '@cli/commands/ProxyCommandUtils';
 import {
   ensureProxyEntrypoint,
@@ -7,10 +8,11 @@ import {
   renderProxyWranglerDevConfig,
   resolveConfigPath,
 } from '@cli/commands/ProxyScaffoldUtils';
+import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Logger } from '@config/logger';
-import { mkdirSync, writeFileSync } from '@node-singletons/fs';
-import { join } from '@node-singletons/path';
+import { existsSync, mkdirSync, writeFileSync } from '@node-singletons/fs';
+import { dirname, join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
 export type WranglerProxyCommandOptions = CommandOptions & {
@@ -41,6 +43,30 @@ export const addWranglerProxyBaseOptions = (command: Command, defaultConfig: str
   command.option('--watch', 'Auto-restart proxy on file changes');
 };
 
+const findNearestPackageJsonDir = (cwd: string): string | undefined => {
+  let current = cwd;
+
+  while (true) {
+    if (existsSync(join(current, 'package.json'))) return current;
+
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+};
+
+const resolveProxyProjectRoot = (cwd: string): string => {
+  return findNearestPackageJsonDir(cwd) ?? cwd;
+};
+
+const ensureProxyEnvLoaded = (cwd: string, projectRoot: string): void => {
+  EnvFileLoader.ensureLoaded({
+    cwd: projectRoot,
+    includeCwd: true,
+    ...(cwd === projectRoot ? {} : { extraCwds: [cwd] }),
+  });
+};
+
 export const createWranglerProxyCommand = <TValues, TOptions extends WranglerProxyCommandOptions>(
   input: CreateWranglerProxyCommandInput<TValues, TOptions>
 ): IBaseCommand => {
@@ -56,6 +82,10 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
 
       const port = parseIntOption(typedOptions.port, 'port');
       const cwd = process.cwd();
+      const projectRoot = resolveProxyProjectRoot(cwd);
+
+      ensureProxyEnvLoaded(cwd, projectRoot);
+
       const entrypoint = ensureProxyEntrypoint({
         cwd,
         entryFile: input.entryFile,
@@ -102,12 +132,23 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
         args.push('--port', String(port));
       }
 
-      const exitCode = await SpawnUtil.spawnAndWait({
-        command: 'wrangler',
-        args,
-        env: process.env,
-        forwardSignals: false,
-      });
+      const exitCode = await withWranglerDevVarsSnapshot(
+        {
+          cwd,
+          projectRoot,
+          envName: input.envName,
+          configPath,
+          runtimeEnv: process.env,
+        },
+        async () => {
+          return SpawnUtil.spawnAndWait({
+            command: 'wrangler',
+            args,
+            env: process.env,
+            forwardSignals: false,
+          });
+        }
+      );
 
       if (exitCode !== 0) {
         process.exit(exitCode);

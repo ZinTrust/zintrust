@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -242,5 +243,49 @@ describe('zintrust-main local CLI handoff helpers', () => {
         }
       )
     ).toBeUndefined();
+  });
+
+  it('waits for the handed-off local CLI child to close before exiting', async () => {
+    vi.resetModules();
+
+    const fixture = createLocalCliFixture();
+    const child = new EventEmitter() as EventEmitter & {
+      kill: ReturnType<typeof vi.fn>;
+      once: EventEmitter['once'];
+    };
+    child.kill = vi.fn(() => true);
+
+    const spawnMock = vi.fn(() => child);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((
+      code?: string | number | null
+    ) => {
+      throw new Error(`EXIT:${String(code)}`);
+    }) as never);
+
+    vi.doMock('node:child_process', () => ({
+      spawn: spawnMock,
+    }));
+
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fixture.workDir);
+    const { CliLauncherInternal } = await import('../../../bin/zintrust-main');
+    const pending = CliLauncherInternal.maybeHandoffToProjectLocalCli(['s']);
+    await Promise.resolve();
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      process.execPath,
+      [join(fixture.packageRoot, 'bin', 'zin.js'), 's'],
+      expect.objectContaining({
+        stdio: 'inherit',
+        env: expect.objectContaining({ ZINTRUST_CLI_HANDOFF: '1' }),
+      })
+    );
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    child.emit('close', 0, null);
+
+    await expect(pending).rejects.toThrow('EXIT:0');
+
+    cwdSpy.mockRestore();
+    exitSpy.mockRestore();
   });
 });

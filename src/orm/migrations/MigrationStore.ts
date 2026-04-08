@@ -319,6 +319,59 @@ const getLegacyAppliedAt = (row: Record<string, unknown>): string | null => {
   return typeof row['applied_at'] === 'string' ? row['applied_at'] : null;
 };
 
+const toLegacyMigrationRecord = (
+  row: Record<string, unknown>,
+  layout: MigrationsTableLayout,
+  scope: MigrationScope,
+  normalizedService: string
+): MigrationRecord | undefined => {
+  const name = normalizeLegacyName(row);
+  const batch = getLegacyBatch(row);
+  if (name === '' || !Number.isFinite(batch)) return undefined;
+
+  return {
+    name,
+    scope: layout.hasScope ? scope : 'global',
+    service: layout.hasService ? normalizedService : '',
+    batch,
+    status:
+      typeof row['status'] === 'string' ? (row['status'] as MigrationRecordStatus) : 'completed',
+    appliedAt: getLegacyAppliedAt(row),
+  };
+};
+
+const buildLegacyAppliedMap = (
+  rows: Record<string, unknown>[],
+  layout: MigrationsTableLayout,
+  scope: MigrationScope,
+  normalizedService: string
+): Map<string, MigrationRecord> => {
+  const map = new Map<string, MigrationRecord>();
+
+  for (const row of rows) {
+    const record = toLegacyMigrationRecord(row, layout, scope, normalizedService);
+    if (record === undefined) continue;
+    map.set(record.name, record);
+  }
+
+  return map;
+};
+
+const buildAppliedMap = (rows: MigrationRecord[]): Map<string, MigrationRecord> => {
+  const map = new Map<string, MigrationRecord>();
+
+  for (const row of rows) {
+    if (typeof row.name !== 'string' || row.name.length === 0) continue;
+
+    map.set(row.name, {
+      ...row,
+      service: toSafeService(row.service),
+    });
+  }
+
+  return map;
+};
+
 const getLegacyAppliedRows = async (
   db: IDatabase,
   layout: MigrationsTableLayout,
@@ -529,27 +582,7 @@ export const MigrationStore = Object.freeze({
     const layout = await resolveTableLayout(db);
     if (layout.requiresCompatibilityMode) {
       const rows = await getLegacyAppliedRows(db, layout, scope, normalizedService);
-      const map = new Map<string, MigrationRecord>();
-
-      for (const row of rows) {
-        const name = normalizeLegacyName(row);
-        const batch = getLegacyBatch(row);
-        if (name === '' || !Number.isFinite(batch)) continue;
-
-        map.set(name, {
-          name,
-          scope: layout.hasScope ? scope : 'global',
-          service: layout.hasService ? normalizedService : '',
-          batch,
-          status:
-            typeof row['status'] === 'string'
-              ? (row['status'] as MigrationRecordStatus)
-              : 'completed',
-          appliedAt: getLegacyAppliedAt(row),
-        });
-      }
-
-      return map;
+      return buildLegacyAppliedMap(rows, layout, scope, normalizedService);
     }
 
     const rows = await QueryBuilder.create('migrations', db)
@@ -559,16 +592,7 @@ export const MigrationStore = Object.freeze({
       .andWhere('service', '=', normalizedService)
       .get<MigrationRecord>();
 
-    const map = new Map<string, MigrationRecord>();
-    for (const r of rows) {
-      if (typeof r.name === 'string' && r.name.length > 0) {
-        map.set(r.name, {
-          ...r,
-          service: toSafeService(r.service),
-        });
-      }
-    }
-    return map;
+    return buildAppliedMap(rows);
   },
 
   async insertRunning(

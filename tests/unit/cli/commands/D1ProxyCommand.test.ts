@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocked = vi.hoisted(() => ({
   spawnAndWait: vi.fn(),
+  withWranglerDevVarsSnapshot: vi.fn(),
+  ensureLoaded: vi.fn(),
   existsSync: vi.fn(),
   mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
@@ -19,6 +21,16 @@ const mocked = vi.hoisted(() => ({
 vi.mock('@cli/utils/spawn', () => ({
   SpawnUtil: {
     spawnAndWait: (...args: unknown[]) => mocked.spawnAndWait(...args),
+  },
+}));
+
+vi.mock('@cli/cloudflare/CloudflareWranglerDevEnv', () => ({
+  withWranglerDevVarsSnapshot: (...args: unknown[]) => mocked.withWranglerDevVarsSnapshot(...args),
+}));
+
+vi.mock('@cli/utils/EnvFileLoader', () => ({
+  EnvFileLoader: {
+    ensureLoaded: (...args: unknown[]) => mocked.ensureLoaded(...args),
   },
 }));
 
@@ -45,6 +57,9 @@ describe('D1ProxyCommand', () => {
     mocked.existsSync.mockImplementation((value: string) => value === '/repo/wrangler.jsonc');
     mocked.readFileSync.mockReturnValue('{\n  "name": "zintrust-api",\n  "env": {}\n}\n');
     mocked.spawnAndWait.mockResolvedValue(0);
+    mocked.withWranglerDevVarsSnapshot.mockImplementation(
+      async (_args: unknown, fn: () => Promise<unknown>) => fn()
+    );
   });
 
   it('adds env.d1-proxy when missing and starts wrangler dev', async () => {
@@ -79,6 +94,20 @@ describe('D1ProxyCommand', () => {
       '/repo/.wrangler/tmp/zin.proxy.d1-proxy.jsonc',
       expect.stringContaining('"main": "../../src/proxy/d1/ZintrustD1Proxy.ts"'),
       'utf-8'
+    );
+    expect(mocked.ensureLoaded).toHaveBeenCalledWith({
+      cwd: '/repo',
+      includeCwd: true,
+    });
+    expect(mocked.withWranglerDevVarsSnapshot).toHaveBeenCalledWith(
+      {
+        cwd: '/repo',
+        projectRoot: '/repo',
+        envName: 'd1-proxy',
+        configPath: '/repo/wrangler.jsonc',
+        runtimeEnv: process.env,
+      },
+      expect.any(Function)
     );
 
     cwdSpy.mockRestore();
