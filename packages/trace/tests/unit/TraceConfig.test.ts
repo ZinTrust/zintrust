@@ -63,4 +63,14 @@ describe('TraceConfig', () => {
       })
     );
   });
+
+  it('supports cache payload and SQL binding capture toggles', () => {
+    const config = TraceConfig.merge({
+      captureCachePayloads: true,
+      captureQueryBindings: false,
+    });
+
+    expect(config.captureCachePayloads).toBe(true);
+    expect(config.captureQueryBindings).toBe(false);
+  });
 });

@@ -35,15 +35,55 @@ type QueueMonitoringCallback = (data: QueueSnapshotData) => void;
 type QueueMonitoringSubscription = {
   callback: QueueMonitoringCallback;
   config: QueueMonitoringConfig;
-  interval: ReturnType<typeof setInterval> | null;
+  channelKey: string;
 };
 
 const subscriptions = new Map<QueueMonitoringCallback, QueueMonitoringSubscription>();
+
+type QueueMonitoringChannel = {
+  key: string;
+  config: QueueMonitoringConfig;
+  callbacks: Set<QueueMonitoringCallback>;
+  interval: ReturnType<typeof setInterval> | null;
+  lastPayload: QueueSnapshotData | null;
+  pending: Promise<QueueSnapshotData> | null;
+};
+
+const channels = new Map<string, QueueMonitoringChannel>();
+const objectIds = new WeakMap<object, number>();
+let nextObjectId = 0;
 
 const isAllQueuesSelection = (queue: string | null | undefined): boolean => queue === ALL_QUEUES;
 
 const sortJobsByTimestamp = (jobs: JobSummary[]): JobSummary[] =>
   jobs.toSorted((left, right) => right.timestamp - left.timestamp);
+
+const getObjectId = (value: object): number => {
+  const existing = objectIds.get(value);
+  if (existing !== undefined) return existing;
+
+  nextObjectId += 1;
+  objectIds.set(value, nextObjectId);
+  return nextObjectId;
+};
+
+const buildChannelKey = (config: QueueMonitoringConfig): string => {
+  const snapshotId = getObjectId(config.getSnapshot as unknown as object);
+  const locksId = getObjectId(config.getLocks as unknown as object);
+  const jobsId = getObjectId(config.getRecentJobsForQueue as unknown as object);
+  const metricsId = getObjectId(config.metrics as unknown as object);
+  const driverId = getObjectId(config.driver as unknown as object);
+  return [
+    config.queue,
+    config.pattern,
+    String(config.intervalMs),
+    String(snapshotId),
+    String(locksId),
+    String(jobsId),
+    String(metricsId),
+    String(driverId),
+  ].join('::');
+};
 
 export async function getRecentJobsForSelection(
   queueName: string,
@@ -95,52 +135,97 @@ const buildSnapshotPayload = async (config: QueueMonitoringConfig): Promise<Queu
   };
 };
 
-const pushSnapshot = async (subscription: QueueMonitoringSubscription): Promise<void> => {
+const pushSnapshot = async (channel: QueueMonitoringChannel): Promise<void> => {
   try {
-    subscription.callback(await buildSnapshotPayload(subscription.config));
+    channel.pending ??= buildSnapshotPayload(channel.config);
+    const payload = await channel.pending;
+    channel.lastPayload = payload;
+    channel.callbacks.forEach((callback) => {
+      try {
+        callback(payload);
+      } catch (err) {
+        Logger.error('QueueMonitoringService.pushSnapshot callback failed', err);
+      }
+    });
   } catch (err) {
     Logger.error('QueueMonitoringService.pushSnapshot failed', err);
+  } finally {
+    channel.pending = null;
   }
 };
 
-const startPolling = (subscription: QueueMonitoringSubscription): void => {
-  if (subscription.interval) return;
+const startPolling = (channel: QueueMonitoringChannel): void => {
+  if (channel.interval) return;
 
-  void pushSnapshot(subscription);
-  subscription.interval = setInterval(() => {
-    void pushSnapshot(subscription);
-  }, subscription.config.intervalMs);
+  void pushSnapshot(channel);
+  channel.interval = setInterval(() => {
+    void pushSnapshot(channel);
+  }, channel.config.intervalMs);
 };
 
-const stopPolling = (subscription: QueueMonitoringSubscription): void => {
-  if (!subscription.interval) return;
-  clearInterval(subscription.interval);
-  subscription.interval = null;
+const stopPolling = (channel: QueueMonitoringChannel): void => {
+  if (!channel.interval) return;
+  clearInterval(channel.interval);
+  channel.interval = null;
+};
+
+const getOrCreateChannel = (config: QueueMonitoringConfig): QueueMonitoringChannel => {
+  const key = buildChannelKey(config);
+  const existing = channels.get(key);
+  if (existing) return existing;
+
+  const channel: QueueMonitoringChannel = {
+    key,
+    config,
+    callbacks: new Set(),
+    interval: null,
+    lastPayload: null,
+    pending: null,
+  };
+
+  channels.set(key, channel);
+  return channel;
 };
 
 export const QueueMonitoringService = Object.freeze({
   subscribe(callback: QueueMonitoringCallback, config: QueueMonitoringConfig): void {
     const existing = subscriptions.get(callback);
     if (existing) {
-      stopPolling(existing);
+      const existingChannel = channels.get(existing.channelKey);
+      existingChannel?.callbacks.delete(callback);
+      if (existingChannel?.callbacks.size === 0) {
+        stopPolling(existingChannel);
+        channels.delete(existingChannel.key);
+      }
       subscriptions.delete(callback);
     }
+
+    const channel = getOrCreateChannel(config);
+    channel.callbacks.add(callback);
 
     const subscription: QueueMonitoringSubscription = {
       callback,
       config,
-      interval: null,
+      channelKey: channel.key,
     };
 
     subscriptions.set(callback, subscription);
-    startPolling(subscription);
+    if (channel.lastPayload) {
+      callback(channel.lastPayload);
+    }
+    startPolling(channel);
   },
 
   unsubscribe(callback: QueueMonitoringCallback): void {
     const subscription = subscriptions.get(callback);
     if (!subscription) return;
 
-    stopPolling(subscription);
+    const channel = channels.get(subscription.channelKey);
+    channel?.callbacks.delete(callback);
+    if (channel?.callbacks.size === 0) {
+      stopPolling(channel);
+      channels.delete(channel.key);
+    }
     subscriptions.delete(callback);
   },
 });

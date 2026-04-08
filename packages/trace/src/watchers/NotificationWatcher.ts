@@ -2,18 +2,30 @@ import { TraceContext } from '../context';
 import type { ITraceWatcher, ITraceWatcherConfig, NotificationContent } from '../types';
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
+import { redactUnknown } from '../utils/redact';
 import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
+let _redactionFields: string[] = [];
 let _ignoreRoutes: string[] = [];
 
-const emit = (notification: string, channels: string[], notifiable?: string): void => {
+const emit = (
+  notification: string,
+  channels: string[],
+  notifiable?: string,
+  message?: string,
+  payload?: unknown
+): void => {
   if (!_storage) return;
   if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
   const content: NotificationContent = {
     notification,
     channels,
     notifiable,
+    ...(typeof message === 'string' && message !== ''
+      ? { message: redactUnknown(message, _redactionFields) as string }
+      : {}),
+    ...(payload === undefined ? {} : { payload: redactUnknown(payload, _redactionFields) }),
     hostname: TraceContext.getHostname(),
   };
   _storage
@@ -34,9 +46,11 @@ export const NotificationWatcher: ITraceWatcher & { emit: typeof emit } = Object
   register({ storage, config }: ITraceWatcherConfig): () => void {
     if (config.watchers.notification === false) return () => undefined;
     _storage = storage;
+    _redactionFields = [...config.redaction.keys, ...config.redaction.body];
     _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;
+      _redactionFields = [];
       _ignoreRoutes = [];
     };
   },

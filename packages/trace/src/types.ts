@@ -55,6 +55,9 @@ export interface RequestContent {
 export interface QueryContent {
   connection: string;
   sql: string;
+  statement?: string;
+  bindings?: unknown[];
+  bindingsIncluded?: boolean;
   time: number;
   duration: number;
   slow: boolean;
@@ -97,6 +100,10 @@ export interface CacheContent {
   operation: 'get' | 'set' | 'delete' | 'clear' | 'has';
   key: string;
   hit?: boolean;
+  store?: string;
+  payload?: unknown;
+  payloadLogged?: boolean;
+  ttl?: number;
   duration: number;
   hostname: string;
 }
@@ -114,6 +121,8 @@ export interface MailContent {
   to: string;
   subject: string;
   template?: string;
+  text?: string;
+  html?: string;
   hostname: string;
 }
 
@@ -142,6 +151,8 @@ export interface NotificationContent {
   channels: string[];
   notifiable?: string;
   notification: string;
+  message?: string;
+  payload?: unknown;
   hostname: string;
 }
 
@@ -201,9 +212,25 @@ export interface ClientRequestContent {
   method: string;
   url: string;
   requestHeaders: Record<string, string>;
-  responseStatus: number;
+  requestBody?: unknown;
+  responseStatus?: number;
+  responseHeaders?: Record<string, string>;
+  responseBody?: unknown;
+  error?: string;
   duration: number;
   hostname: string;
+}
+
+export interface ClientRequestTraceInput {
+  method: string;
+  url: string;
+  requestHeaders: Record<string, string>;
+  responseStatus?: number;
+  duration: number;
+  requestBody?: unknown;
+  responseHeaders?: Record<string, string>;
+  responseBody?: unknown;
+  error?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +356,8 @@ export interface ITraceConfig {
   pruneAfterHours: number;
   ignoreRoutes: string[];
   slowQueryThreshold: number;
+  captureCachePayloads: boolean;
+  captureQueryBindings: boolean;
   logMinLevel: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
   watchers: WatcherToggles;
   redaction: RedactionConfig;

@@ -141,6 +141,14 @@ const parseEnvList = (rawValue: string): string[] | undefined => {
     .filter((entry) => entry !== '');
 };
 
+const parseEnvBool = (rawValue: string): boolean | undefined => {
+  const value = rawValue.trim().toLowerCase();
+  if (value === '') return undefined;
+  if (['1', 'true', 'yes', 'on'].includes(value)) return true;
+  if (['0', 'false', 'no', 'off'].includes(value)) return false;
+  return undefined;
+};
+
 const resolveTraceStartupOverrides = (core: CoreApi): TraceConfigOverrides | undefined => {
   const traceConfigFile = core.StartupConfigFile?.Trace;
   if (typeof traceConfigFile !== 'string' || traceConfigFile.trim() === '') return undefined;
@@ -201,6 +209,8 @@ if (!traceAlreadyInitialized && Env) {
     const pruneAfterHoursRaw = Env.get('TRACE_PRUNE_HOURS', '').trim();
     const slowQueryThresholdRaw = Env.get('TRACE_SLOW_QUERY_MS', '').trim();
     const logMinLevelRaw = Env.get('TRACE_LOG_LEVEL', '').trim();
+    const captureCachePayloadsRaw = Env.get('TRACE_CACHE_PAYLOADS', '').trim();
+    const captureQueryBindingsRaw = Env.get('TRACE_QUERY_BINDINGS', '').trim();
     const redactionKeys = parseEnvList(Env.get('TRACE_REDACT_KEYS', ''));
     const redactionHeaders = parseEnvList(Env.get('TRACE_REDACT_HEADERS', ''));
     const redactionBody = parseEnvList(Env.get('TRACE_REDACT_BODY', ''));
@@ -221,6 +231,10 @@ if (!traceAlreadyInitialized && Env) {
       | 'warn'
       | 'error'
       | 'fatal';
+    const captureCachePayloads =
+      parseEnvBool(captureCachePayloadsRaw) ?? startupOverrides?.captureCachePayloads;
+    const captureQueryBindings =
+      parseEnvBool(captureQueryBindingsRaw) ?? startupOverrides?.captureQueryBindings;
     const redaction = buildTraceRedactionOverrides({
       startupOverrides,
       redactionBody,
@@ -239,6 +253,8 @@ if (!traceAlreadyInitialized && Env) {
       ...(typeof slowQueryThreshold === 'number' && Number.isFinite(slowQueryThreshold)
         ? { slowQueryThreshold }
         : {}),
+      ...(typeof captureCachePayloads === 'boolean' ? { captureCachePayloads } : {}),
+      ...(typeof captureQueryBindings === 'boolean' ? { captureQueryBindings } : {}),
       logMinLevel,
       ...(redaction === undefined ? {} : { redaction }),
     });

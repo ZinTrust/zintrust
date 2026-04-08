@@ -4,7 +4,10 @@ type SystemTraceModule = Partial<{
       operation: 'get' | 'set' | 'delete' | 'clear' | 'has',
       key: string,
       duration: number,
-      hit?: boolean
+      hit?: boolean,
+      payload?: unknown,
+      store?: string,
+      ttl?: number
     ) => void;
   };
   JobWatcher: {
@@ -13,19 +16,29 @@ type SystemTraceModule = Partial<{
     onFailed: (name: string, error: Error) => void;
   };
   NotificationWatcher: {
-    emit: (notification: string, channels: string[], notifiable?: string) => void;
+    emit: (
+      notification: string,
+      channels: string[],
+      notifiable?: string,
+      message?: string,
+      payload?: unknown
+    ) => void;
   };
   MailWatcher: {
-    emit: (to: string, subject: string, template?: string) => void;
+    emit: (to: string, subject: string, template?: string, text?: string, html?: string) => void;
   };
   HttpClientWatcher: {
-    emit: (
-      method: string,
-      url: string,
-      requestHeaders: Record<string, string>,
-      responseStatus: number,
-      duration: number
-    ) => void;
+    emit: (payload: {
+      method: string;
+      url: string;
+      requestHeaders: Record<string, string>;
+      responseStatus?: number;
+      duration: number;
+      requestBody?: unknown;
+      responseHeaders?: Record<string, string>;
+      responseBody?: unknown;
+      error?: string;
+    }) => void;
   };
   EventWatcher: {
     emit: (name: string, listenerCount: number, payload?: unknown) => void;
@@ -93,10 +106,13 @@ const emitCache = (
   operation: 'get' | 'set' | 'delete' | 'clear' | 'has',
   key: string,
   duration: number,
-  hit?: boolean
+  hit?: boolean,
+  payload?: unknown,
+  store?: string,
+  ttl?: number
 ): void => {
   withSystemTrace((module) => {
-    module.CacheWatcher?.emit(operation, key, duration, hit);
+    module.CacheWatcher?.emit(operation, key, duration, hit, payload, store, ttl);
   });
 };
 
@@ -118,27 +134,43 @@ const emitJobFailed = (name: string, error: Error): void => {
   });
 };
 
-const emitNotification = (notification: string, channels: string[], notifiable?: string): void => {
-  withSystemTrace((module) => {
-    module.NotificationWatcher?.emit(notification, channels, notifiable);
-  });
-};
-
-const emitMail = (to: string, subject: string, template?: string): void => {
-  withSystemTrace((module) => {
-    module.MailWatcher?.emit(to, subject, template);
-  });
-};
-
-const emitHttpClient = (
-  method: string,
-  url: string,
-  requestHeaders: Record<string, string>,
-  responseStatus: number,
-  duration: number
+const emitNotification = (
+  notification: string,
+  channels: string[],
+  notifiable?: string,
+  message?: string,
+  payload?: unknown
 ): void => {
   withSystemTrace((module) => {
-    module.HttpClientWatcher?.emit(method, url, requestHeaders, responseStatus, duration);
+    module.NotificationWatcher?.emit(notification, channels, notifiable, message, payload);
+  });
+};
+
+const emitMail = (
+  to: string,
+  subject: string,
+  template?: string,
+  text?: string,
+  html?: string
+): void => {
+  withSystemTrace((module) => {
+    module.MailWatcher?.emit(to, subject, template, text, html);
+  });
+};
+
+const emitHttpClient = (payload: {
+  method: string;
+  url: string;
+  requestHeaders: Record<string, string>;
+  responseStatus?: number;
+  duration: number;
+  requestBody?: unknown;
+  responseHeaders?: Record<string, string>;
+  responseBody?: unknown;
+  error?: string;
+}): void => {
+  withSystemTrace((module) => {
+    module.HttpClientWatcher?.emit(payload);
   });
 };
 

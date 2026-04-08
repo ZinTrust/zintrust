@@ -37,7 +37,15 @@ describe('SystemTraceBridge', () => {
     SystemTraceBridge.emitEvent('user.created', 2, { id: 1 });
 
     expect(loadCount).toBe(1);
-    expect(cacheEmit).toHaveBeenCalledWith('has', 'zt:users:1', 7, true);
+    expect(cacheEmit).toHaveBeenCalledWith(
+      'has',
+      'zt:users:1',
+      7,
+      true,
+      undefined,
+      undefined,
+      undefined
+    );
     expect(eventEmit).toHaveBeenCalledWith('user.created', 2, { id: 1 });
   });
 

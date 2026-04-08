@@ -171,7 +171,13 @@ const createMailer = (
         attachments,
       });
 
-      SystemTraceBridge.emitMail(normalizeMailRecipients(input.to), input.subject);
+      SystemTraceBridge.emitMail(
+        normalizeMailRecipients(input.to),
+        input.subject,
+        undefined,
+        input.text,
+        input.html
+      );
       return result;
     },
   });

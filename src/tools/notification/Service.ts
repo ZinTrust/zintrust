@@ -74,7 +74,7 @@ export const NotificationService = Object.freeze({
     const driverName = NotificationConfig.getDriver();
     const driver = NotificationRegistry.get(driverName);
     const result = await driver.send(recipient, message, options);
-    SystemTraceBridge.emitNotification(driverName, [driverName], recipient);
+    SystemTraceBridge.emitNotification(driverName, [driverName], recipient, message, options);
     return result;
   },
 
@@ -91,7 +91,7 @@ export const NotificationService = Object.freeze({
     switch (cfg.driver) {
       case 'console': {
         const result = await ConsoleDriver.send(recipient, message, options);
-        SystemTraceBridge.emitNotification(channelName, ['console'], recipient);
+        SystemTraceBridge.emitNotification(channelName, ['console'], recipient, message, options);
         return result;
       }
 
@@ -99,7 +99,7 @@ export const NotificationService = Object.freeze({
         const slackCfg = cfg as { webhookUrl: string };
         const payload: Record<string, unknown> = { text: message, ...options };
         const result = await SlackDriver.send({ webhookUrl: slackCfg.webhookUrl }, payload);
-        SystemTraceBridge.emitNotification(channelName, ['slack'], recipient);
+        SystemTraceBridge.emitNotification(channelName, ['slack'], recipient, message, payload);
         return result;
       }
 
@@ -117,7 +117,10 @@ export const NotificationService = Object.freeze({
           },
           { to: recipient, body: message }
         );
-        SystemTraceBridge.emitNotification(channelName, ['twilio'], recipient);
+        SystemTraceBridge.emitNotification(channelName, ['twilio'], recipient, message, {
+          to: recipient,
+          body: message,
+        });
         return result;
       }
 
@@ -128,7 +131,7 @@ export const NotificationService = Object.freeze({
           message,
           options
         );
-        SystemTraceBridge.emitNotification(channelName, ['termii'], recipient);
+        SystemTraceBridge.emitNotification(channelName, ['termii'], recipient, message, options);
         return result;
       }
 

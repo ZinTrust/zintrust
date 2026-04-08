@@ -47,7 +47,7 @@ const encodeSvgDataUri = (svg: string): string => {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(compactSvg)}`;
 };
 
-const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
+const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -80,7 +80,7 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
     .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:.78rem;font-weight:800;margin:0 6px 6px 0;border:1px solid rgba(56,189,248,.18);text-decoration:none}button.tag{cursor:pointer}html[data-theme='light'] .tag{color:#075985}.tag.failed{background:rgba(239,68,68,.14);color:#fecaca;border-color:rgba(239,68,68,.2)}html[data-theme='light'] .tag.failed{color:#b91c1c}.tag.slow{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.slow{color:#92400e}.type-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border:1px solid transparent}.pill-request{background:rgba(56,189,248,.14);color:#93c5fd}.pill-request.method-get{background:rgba(34,197,94,.16);color:#bbf7d0}.pill-request.method-post{background:rgba(59,130,246,.16);color:#bfdbfe}.pill-request.method-other{background:rgba(245,158,11,.16);color:#fde68a}.pill-query{background:rgba(34,197,94,.12);color:#86efac}.pill-exception{background:rgba(239,68,68,.14);color:#fecaca}.pill-log{background:rgba(168,85,247,.14);color:#ddd6fe}.pill-job,.pill-batch{background:rgba(245,158,11,.14);color:#fde68a}.pill-cache{background:rgba(20,184,166,.12);color:#99f6e4}.pill-schedule,.pill-command{background:rgba(14,165,233,.14);color:#bae6fd}.pill-mail,.pill-notification{background:rgba(236,72,153,.14);color:#fbcfe8}.pill-auth{background:rgba(148,163,184,.16);color:#e2e8f0}.pill-event,.pill-model{background:rgba(74,222,128,.14);color:#bbf7d0}.pill-redis{background:rgba(239,68,68,.12);color:#fecaca}.pill-gate{background:rgba(99,102,241,.14);color:#c7d2fe}.pill-middleware{background:rgba(45,212,191,.12);color:#ccfbf1}.pill-dump,.pill-view{background:rgba(148,163,184,.14);color:#e2e8f0}.pill-client-request{background:rgba(59,130,246,.14);color:#bfdbfe}html[data-theme='light'] .pill-request{color:#1d4ed8}html[data-theme='light'] .pill-request.method-get{color:#166534}html[data-theme='light'] .pill-request.method-post{color:#1d4ed8}html[data-theme='light'] .pill-request.method-other{color:#92400e}html[data-theme='light'] .pill-query{color:#166534}html[data-theme='light'] .pill-exception{color:#b91c1c}html[data-theme='light'] .pill-log{color:#6d28d9}html[data-theme='light'] .pill-job,html[data-theme='light'] .pill-batch{color:#92400e}html[data-theme='light'] .pill-cache{color:#115e59}html[data-theme='light'] .pill-schedule,html[data-theme='light'] .pill-command{color:#0c4a6e}html[data-theme='light'] .pill-mail,html[data-theme='light'] .pill-notification{color:#9d174d}html[data-theme='light'] .pill-auth,html[data-theme='light'] .pill-dump,html[data-theme='light'] .pill-view{color:#334155}html[data-theme='light'] .pill-event,html[data-theme='light'] .pill-model{color:#166534}html[data-theme='light'] .pill-redis{color:#991b1b}html[data-theme='light'] .pill-gate{color:#3730a3}html[data-theme='light'] .pill-middleware{color:#155e75}html[data-theme='light'] .pill-client-request{color:#1d4ed8}
     .monitoring-wrap{padding:0 24px 24px}.tag-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.tag-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface-strong)}.tag-remove{border:none;background:rgba(239,68,68,.14);color:var(--danger);border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:1rem;line-height:1}.helper-text{color:var(--muted);line-height:1.6}
     .duration-chip{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;border:1px solid transparent;font-size:.8rem;font-weight:700;color:var(--text);white-space:nowrap}.duration-chip.vfast{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.28);color:#bbf7d0}.duration-chip.fast{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.24);color:#bae6fd}.duration-chip.slow{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.22);color:#fde68a}.duration-chip.vslow{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.24);color:#fecaca}html[data-theme='light'] .duration-chip.vfast{color:#166534}html[data-theme='light'] .duration-chip.fast{color:#1d4ed8}html[data-theme='light'] .duration-chip.slow{color:#92400e}html[data-theme='light'] .duration-chip.vslow{color:#b91c1c}
-    .code-card{border-radius:16px;border:1px solid var(--code-border);background:var(--surface-soft);overflow:hidden}.code-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}.code-label{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.copy-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer;transition:border-color .16s ease,color .16s ease}.copy-button:hover{border-color:rgba(56,189,248,.35);color:var(--accent)}.copy-button[data-copied='true']{color:var(--success);border-color:rgba(34,197,94,.28)}.copy-button svg{width:16px;height:16px;display:block}.code-block{margin:0;padding:18px 20px;background:var(--code-bg);color:#dbeafe;border:0;overflow:auto;white-space:pre;line-height:1.72;font-family:var(--mono);font-size:.92rem}.code-block code{font-family:inherit}.tok-key{color:#93c5fd}.tok-string{color:#86efac}.tok-number{color:#f9a8d4}.tok-boolean{color:#facc15}.tok-null{color:#fb7185}.tok-punctuation{color:#94a3b8}.tok-sql-keyword{color:#f472b6;font-weight:700}.tok-sql-identifier{color:#93c5fd}.tok-sql-string{color:#86efac}.tok-sql-number{color:#facc15}.tok-sql-comment{color:#64748b;font-style:italic}html[data-theme='light'] .code-block{color:#0f172a}html[data-theme='light'] .tok-key{color:#1d4ed8}html[data-theme='light'] .tok-string{color:#15803d}html[data-theme='light'] .tok-number{color:#c026d3}html[data-theme='light'] .tok-boolean{color:#b45309}html[data-theme='light'] .tok-null{color:#dc2626}html[data-theme='light'] .tok-punctuation{color:#64748b}html[data-theme='light'] .tok-sql-keyword{color:#db2777}html[data-theme='light'] .tok-sql-identifier{color:#2563eb}html[data-theme='light'] .tok-sql-string{color:#15803d}html[data-theme='light'] .tok-sql-number{color:#b45309}html[data-theme='light'] .tok-sql-comment{color:#6b7280}
+    .code-card{border-radius:16px;border:1px solid var(--code-border);background:var(--surface-soft);overflow:hidden}.code-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}.code-label{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.copy-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer;transition:border-color .16s ease,color .16s ease}.copy-button:hover{border-color:rgba(56,189,248,.35);color:var(--accent)}.copy-button[data-copied='true']{color:var(--success);border-color:rgba(34,197,94,.28)}.copy-button svg{width:16px;height:16px;display:block}.code-block{margin:0;padding:18px 20px;background:var(--code-bg);color:#dbeafe;border:0;overflow:auto;white-space:pre;line-height:1.72;font-family:var(--mono);font-size:.92rem}.code-block code{font-family:inherit}.html-preview-wrap{padding:14px;background:var(--surface-strong);border-top:1px solid var(--line)}.html-preview{display:block;width:100%;min-height:320px;border:1px solid var(--line);border-radius:14px;background:#fff}.tok-key{color:#93c5fd}.tok-string{color:#86efac}.tok-number{color:#f9a8d4}.tok-boolean{color:#facc15}.tok-null{color:#fb7185}.tok-punctuation{color:#94a3b8}.tok-sql-keyword{color:#f472b6;font-weight:700}.tok-sql-identifier{color:#93c5fd}.tok-sql-string{color:#86efac}.tok-sql-number{color:#facc15}.tok-sql-comment{color:#64748b;font-style:italic}html[data-theme='light'] .code-block{color:#0f172a}html[data-theme='light'] .tok-key{color:#1d4ed8}html[data-theme='light'] .tok-string{color:#15803d}html[data-theme='light'] .tok-number{color:#c026d3}html[data-theme='light'] .tok-boolean{color:#b45309}html[data-theme='light'] .tok-null{color:#dc2626}html[data-theme='light'] .tok-punctuation{color:#64748b}html[data-theme='light'] .tok-sql-keyword{color:#db2777}html[data-theme='light'] .tok-sql-identifier{color:#2563eb}html[data-theme='light'] .tok-sql-string{color:#15803d}html[data-theme='light'] .tok-sql-number{color:#b45309}html[data-theme='light'] .tok-sql-comment{color:#6b7280}
     @media (max-width:1120px){.content-grid{grid-template-columns:1fr}}@media (max-width:920px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:20px 16px 18px}.brand-row{padding:0 0 16px}.sidebar-status{margin:0 0 16px}.sidebar-group{padding:0}.main{padding:20px}}@media (max-width:640px){.stats-grid{grid-template-columns:1fr}.detail-card{padding:18px}.toolbar,.section-head,.pagination,.activity-list,.monitoring-wrap{padding-left:18px;padding-right:18px}.table-wrap{padding:0 8px 10px}.brand-row{align-items:stretch;gap:14px;padding:0 0 14px}.brand{width:100%;align-items:flex-start}.brand-copy{min-width:0}.brand-copy h1{font-size:1.18rem;line-height:1.12}.brand-copy p{font-size:.82rem;overflow-wrap:anywhere}.icon-button{align-self:flex-end}.sidebar-status{padding:12px}.nav-button{padding:11px 12px}.nav-title{font-size:.95rem}.nav-meta{font-size:.72rem}}@media (max-width:480px){.brand-row{flex-direction:column}.icon-button{align-self:flex-start}.nav-button{align-items:flex-start;flex-direction:column}.nav-meta{font-size:.7rem}}
   </style>
 </head>
@@ -201,6 +201,8 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+
+    const looksLikeHtml = (value) => new RegExp('</?(?:html|body|div|table)\\b|<!doctype\\b', 'i').test(String(value || ''));
 
     const api = async (path, opts) => {
       const response = await fetch(API + path, opts);
@@ -341,6 +343,28 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       ].join('');
     };
 
+    const renderTextCard = (label, value) => {
+      const source = String(value ?? '');
+      return renderCodeCard(label, source, escapeHtml(source), 'language-text');
+    };
+
+    const renderHtmlPreview = (label, html) => {
+      const source = String(html ?? '');
+      const copyId = registerCopyPayload(source);
+      return [
+        '<section class="code-card">',
+        '<div class="code-toolbar">',
+        '<span class="code-label">' + escapeHtml(label) + '</span>',
+        '<button type="button" class="copy-button" data-action="copy-code" data-copy-id="' + escapeHtml(copyId) + '" title="Copy ' + escapeHtml(label) + '">',
+        COPY_ICON,
+        '</button>',
+        '</div>',
+        '<pre class="code-block language-html"><code>' + escapeHtml(source) + '</code></pre>',
+        '<div class="html-preview-wrap"><iframe class="html-preview" sandbox="allow-same-origin" srcdoc="' + escapeHtml(source) + '"></iframe></div>',
+        '</section>'
+      ].join('');
+    };
+
     const highlightJson = (value, label = 'JSON') => {
       const source = prettyJson(value);
       let output = '';
@@ -392,6 +416,14 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
 
     const detailJson = (value, label = 'JSON') => highlightJson(value ?? {}, label);
 
+    const renderPayload = (label, value) => {
+      if (value === undefined) return '<p class="trace-note">No ' + escapeHtml(label.toLowerCase()) + ' was captured.</p>';
+      if (typeof value === 'string') {
+        return looksLikeHtml(value) ? renderHtmlPreview(label, value) : renderTextCard(label, value);
+      }
+      return detailJson(value, label);
+    };
+
     const entrySummaryText = (entry) => {
       const content = entry && entry.content ? entry.content : {};
       if (entry.type === 'request') return [content.responseStatus || '', content.method || '', content.uri || ''].filter(Boolean).join(' ');
@@ -399,20 +431,20 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       if (entry.type === 'exception') return [content.class || '', content.message || ''].filter(Boolean).join(': ');
       if (entry.type === 'log') return '[' + String(content.level || 'log') + '] ' + String(content.message || '').slice(0, 160);
       if (entry.type === 'job') return [content.name || '', content.status || 'queued'].filter(Boolean).join(' · ');
-      if (entry.type === 'cache') return [content.operation || '', content.key || ''].filter(Boolean).join(' ');
+      if (entry.type === 'cache') return [content.operation || '', content.key || '', content.payloadLogged ? '' : '(payload off)'].filter(Boolean).join(' ');
       if (entry.type === 'schedule') return [content.name || '', content.status || 'ran'].filter(Boolean).join(' · ');
       if (entry.type === 'mail') return ['To ' + (content.to || 'unknown'), content.subject || 'No subject'].join(' · ');
       if (entry.type === 'auth') return [content.event || 'auth', content.userId ? '#' + content.userId : ''].filter(Boolean).join(' ');
       if (entry.type === 'event') return String(content.name || 'event');
       if (entry.type === 'model') return [content.action || '', content.model || ''].filter(Boolean).join(' ');
-      if (entry.type === 'notification') return [content.notification || '', (content.channels || []).join(', ')].filter(Boolean).join(' -> ');
+      if (entry.type === 'notification') return [content.notification || '', content.message || (content.channels || []).join(', ')].filter(Boolean).join(' -> ');
       if (entry.type === 'redis') return String(content.command || 'redis');
       if (entry.type === 'gate') return [content.ability || '', content.result || ''].filter(Boolean).join(' · ');
       if (entry.type === 'middleware') return [content.name || '', content.event || ''].filter(Boolean).join(' · ');
       if (entry.type === 'command') return [content.name || '', content.exitCode !== undefined ? 'exit=' + content.exitCode : ''].filter(Boolean).join(' ');
       if (entry.type === 'batch') return [content.name || '', 'processed ' + (content.processed || 0) + '/' + (content.total || 0)].join(' · ');
       if (entry.type === 'view') return String(content.template || 'view');
-      if (entry.type === 'client_request') return [content.method || '', content.url || ''].filter(Boolean).join(' ');
+      if (entry.type === 'client_request') return [content.method || '', content.url || '', content.responseStatus ? '[' + content.responseStatus + ']' : content.error ? '[failed]' : ''].filter(Boolean).join(' ');
       return JSON.stringify(content).slice(0, 160);
     };
 
@@ -448,6 +480,7 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
             { label: 'Connection', value: escapeHtml(content.connection || 'default') },
             { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) },
             { label: 'Slow', value: escapeHtml(content.slow ? 'Yes' : 'No') },
+            { label: 'Bindings', value: escapeHtml(content.bindingsIncluded === false ? 'Hidden' : 'Included') },
             { label: 'Hash', value: '<span class="mono">' + escapeHtml(content.hash || '') + '</span>' }
           ]),
           renderMetricBox('Runtime', [
@@ -455,7 +488,8 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
             { label: 'Batch', value: '<span class="mono">' + escapeHtml(entry.batchId || '-') + '</span>' }
           ]),
           '</div>',
-          highlightSql(content.sql || '')
+          highlightSql(content.sql || ''),
+          content.bindingsIncluded === false ? '<p class="trace-note">SQL bindings were hidden for this entry.</p>' : (Array.isArray(content.bindings) ? detailJson(content.bindings, 'Bindings Json') : '')
         ].join('');
       }
 
@@ -499,7 +533,34 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
           renderMetricBox('Request', [
             { label: 'Method', value: escapeHtml(content.method || '') },
             { label: 'URL', value: '<span class="mono">' + escapeHtml(content.url || '') + '</span>' },
-            { label: 'Status', value: escapeHtml(content.responseStatus || '') },
+            { label: 'Status', value: escapeHtml(content.responseStatus || (content.error ? 'Failed' : 'Pending')) },
+            { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }
+          ]),
+          renderMetricBox('Runtime', [
+            { label: 'Hostname', value: escapeHtml(content.hostname || '') },
+            { label: 'Batch', value: '<span class="mono">' + escapeHtml(entry.batchId || '-') + '</span>' },
+            { label: 'Error', value: escapeHtml(content.error || '-') }
+          ]),
+          '</div>',
+          '<div class="detail-stack">',
+          detailJson(content.requestHeaders || {}, 'Request Header Json'),
+          renderPayload('Request Body', content.requestBody),
+          detailJson(content.responseHeaders || {}, 'Response Header Json'),
+          renderPayload('Response Body', content.responseBody),
+          '</div>'
+        ].join('');
+      }
+
+      if (entry.type === 'cache') {
+        return [
+          '<div class="detail-grid">',
+          renderMetricBox('Cache', [
+            { label: 'Operation', value: escapeHtml(content.operation || '') },
+            { label: 'Key', value: '<span class="mono">' + escapeHtml(content.key || '') + '</span>' },
+            { label: 'Store', value: escapeHtml(content.store || 'default') },
+            { label: 'Hit', value: escapeHtml(content.hit === undefined ? '-' : (content.hit ? 'Yes' : 'No')) },
+            { label: 'Payload', value: escapeHtml(content.payloadLogged ? 'Captured' : 'Disabled') },
+            { label: 'TTL', value: escapeHtml(content.ttl === undefined ? '-' : String(content.ttl)) },
             { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }
           ]),
           renderMetricBox('Runtime', [
@@ -507,7 +568,41 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
             { label: 'Batch', value: '<span class="mono">' + escapeHtml(entry.batchId || '-') + '</span>' }
           ]),
           '</div>',
-          detailJson(content.requestHeaders || {})
+          content.payloadLogged ? renderPayload('Cache Payload', content.payload) : '<p class="trace-note">Cache payload logging is disabled. Set TRACE_CACHE_PAYLOADS=true to include values.</p>'
+        ].join('');
+      }
+
+      if (entry.type === 'mail') {
+        return [
+          '<div class="detail-grid">',
+          renderMetricBox('Mail', [
+            { label: 'To', value: escapeHtml(content.to || '') },
+            { label: 'Subject', value: escapeHtml(content.subject || '') },
+            { label: 'Template', value: escapeHtml(content.template || '-') },
+            { label: 'Hostname', value: escapeHtml(content.hostname || '') }
+          ]),
+          '</div>',
+          '<div class="detail-stack">',
+          renderPayload('Mail Text', content.text),
+          renderPayload('Mail Html', content.html),
+          '</div>'
+        ].join('');
+      }
+
+      if (entry.type === 'notification') {
+        return [
+          '<div class="detail-grid">',
+          renderMetricBox('Notification', [
+            { label: 'Notification', value: escapeHtml(content.notification || '') },
+            { label: 'Channels', value: escapeHtml((content.channels || []).join(', ') || '-') },
+            { label: 'Recipient', value: escapeHtml(content.notifiable || '-') },
+            { label: 'Hostname', value: escapeHtml(content.hostname || '') }
+          ]),
+          '</div>',
+          '<div class="detail-stack">',
+          renderPayload('Message', content.message),
+          content.payload === undefined ? '<p class="trace-note">No additional notification payload was captured.</p>' : detailJson(content.payload, 'Notification Payload Json'),
+          '</div>'
         ].join('');
       }
 

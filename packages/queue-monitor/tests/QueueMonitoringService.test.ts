@@ -189,4 +189,69 @@ describe('QueueMonitoringService', () => {
 
     expect(Logger.debug).not.toHaveBeenCalled();
   });
+
+  it('shares polling work across subscribers with the same monitor selection', async () => {
+    const metrics: Metrics = {
+      recordJob: vi.fn(async () => undefined),
+      getStats: vi.fn(async () => []),
+      getRecentJobs: vi.fn(async () => []),
+      getFailedJobs: vi.fn(async () => []),
+      close: vi.fn(async () => undefined),
+    };
+
+    const driver: QueueDriver = {
+      enqueue: vi.fn(async () => '1'),
+      getJob: vi.fn(async () => undefined),
+      getJobCounts: vi.fn(async () => ({
+        waiting: 0,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+        paused: 0,
+      })),
+      getRecentJobs: vi.fn(async () => []),
+      retryJob: vi.fn(async () => true),
+      getQueues: vi.fn(async () => ['alpha']),
+      close: vi.fn(async () => undefined),
+    };
+
+    const getSnapshot = vi.fn(async () => ({
+      status: 'ok' as const,
+      startedAt: new Date(0).toISOString(),
+      queues: [
+        { name: 'alpha', waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, paused: 0 },
+      ],
+    }));
+
+    const config = {
+      getSnapshot,
+      getLocks: vi.fn(async () => ({
+        locks: [],
+        metrics: { active: 0, attempts: 0, acquired: 0, collisions: 0, collisionRate: 0 },
+        histogram: [],
+      })),
+      getRecentJobsForQueue: vi.fn(async () => []),
+      metrics,
+      driver,
+      queue: 'alpha',
+      pattern: '*',
+      intervalMs: 1000,
+    };
+
+    const callbackA = vi.fn();
+    const callbackB = vi.fn();
+
+    QueueMonitoringService.subscribe(callbackA, config);
+    QueueMonitoringService.subscribe(callbackB, config);
+
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(getSnapshot).toHaveBeenCalledTimes(1);
+    expect(callbackA).toHaveBeenCalledTimes(1);
+    expect(callbackB).toHaveBeenCalledTimes(1);
+
+    QueueMonitoringService.unsubscribe(callbackA);
+    QueueMonitoringService.unsubscribe(callbackB);
+  });
 });

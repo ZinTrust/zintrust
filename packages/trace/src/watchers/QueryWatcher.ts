@@ -36,7 +36,8 @@ export const QueryWatcher: ITraceWatcher = Object.freeze({
       if (isTraceStorageQuery(query)) return;
 
       const batchId = TraceContext.getBatchId();
-      const sql = bindingsInterpolated(query, params);
+      const includeBindings = config.captureQueryBindings !== false;
+      const sql = includeBindings ? bindingsInterpolated(query, params) : query;
       const roundedDuration = Math.round(duration * 100) / 100;
       const hash = TraceStorage.familyHash(query);
       const slow = roundedDuration >= config.slowQueryThreshold;
@@ -44,6 +45,9 @@ export const QueryWatcher: ITraceWatcher = Object.freeze({
       const content: QueryContent = {
         connection: 'default',
         sql,
+        statement: query,
+        ...(includeBindings ? { bindings: [...params] } : {}),
+        bindingsIncluded: includeBindings,
         time: roundedDuration,
         duration: roundedDuration,
         slow,

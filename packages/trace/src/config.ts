@@ -109,6 +109,8 @@ const DEFAULTS: ITraceConfig = Object.freeze({
   pruneAfterHours: 24,
   ignoreRoutes: ['/trace', '/health', '/ping'],
   slowQueryThreshold: 100,
+  captureCachePayloads: false,
+  captureQueryBindings: true,
   logMinLevel: 'info',
   watchers: {},
   redaction: {
