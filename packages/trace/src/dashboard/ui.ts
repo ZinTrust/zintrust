@@ -76,11 +76,11 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
     .panel{border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);backdrop-filter:blur(16px)}.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:18px}.stat-card{padding:20px;position:relative;overflow:hidden}.stat-card::after{content:'';position:absolute;right:-18px;bottom:-26px;width:92px;height:92px;border-radius:28px;background:linear-gradient(135deg,rgba(56,189,248,.16),rgba(34,197,94,.08));transform:rotate(18deg)}.stat-label{font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:12px}.stat-value{font-size:2.25rem;font-weight:800;line-height:1}.stat-meta{margin-top:10px;color:var(--muted);font-size:.9rem}.content-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,.95fr);gap:18px}.side-stack{display:grid;gap:18px}
     .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:22px 24px 16px}.section-head h3{margin:0;font-size:1.04rem}.section-head p{margin:6px 0 0;color:var(--muted);font-size:.92rem}.toolbar{display:flex;flex-wrap:wrap;gap:10px;padding:0 24px 18px}.control,.toolbar input,.toolbar select{height:44px;border-radius:13px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);padding:0 14px;min-width:0}.toolbar input,.toolbar select{flex:1 1 180px}.toolbar input::placeholder{color:var(--muted)}.btn{height:44px;border:none;border-radius:13px;padding:0 16px;cursor:pointer;font-weight:800}.btn-primary{background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff}.btn-danger{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.18)}.btn-ghost{background:var(--surface-soft);color:var(--text);border:1px solid var(--line)}
     .table-wrap{overflow:auto;padding:0 12px 12px}table{width:100%;border-collapse:separate;border-spacing:0;min-width:880px}th{padding:14px;color:var(--muted);font-size:.74rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--line)}td{padding:15px 14px;border-bottom:1px solid var(--line);vertical-align:top}.row-button{cursor:pointer}.row-button:hover td{background:rgba(56,189,248,.05)}.summary{font-size:.93rem;font-weight:700;line-height:1.4;color:var(--text)}.summary-sub{margin-top:6px;color:var(--muted);font-size:.82rem;line-height:1.4}.mono{font-family:var(--mono)}.empty{padding:44px 24px;color:var(--muted);line-height:1.65;text-align:center}.pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px 24px;color:var(--muted);flex-wrap:wrap}.pagination-controls{display:flex;gap:8px}.pagination button{height:40px;min-width:92px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer}.pagination button:disabled{opacity:.45;cursor:not-allowed}
-    .activity-list{list-style:none;margin:0;padding:0 24px 24px}.activity-item{padding:14px 0;border-top:1px solid var(--line)}.activity-item:first-child{border-top:none}.activity-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.activity-time{color:var(--muted);font-size:.85rem}.activity-summary{margin-top:8px;color:var(--text);line-height:1.48}.back-link{display:inline-flex;align-items:center;gap:8px;margin:0 0 14px;color:var(--accent);font-weight:800;cursor:pointer}.detail-card{padding:24px}.detail-meta{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 20px;color:var(--muted);font-size:.9rem}.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.detail-stack{display:grid;gap:16px;margin-top:18px}.detail-box{padding:16px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.detail-box h4{margin:0 0 10px;font-size:.92rem}.detail-box dl{margin:0;display:grid;gap:8px}.detail-box dt{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-box dd{margin:0;color:var(--text);line-height:1.45}.trace-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 16px}.trace-tab{border:none;border-radius:12px;padding:10px 12px;background:transparent;color:var(--muted);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);font-weight:800}.trace-tab.active{background:rgba(56,189,248,.12);color:var(--text);box-shadow:inset 0 0 0 1px rgba(56,189,248,.28)}.trace-panel{display:grid;gap:14px}.trace-item{padding:18px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.trace-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.trace-item-summary{margin-top:10px;display:grid;gap:10px}.trace-note{color:var(--muted);line-height:1.6}
+    .activity-list{list-style:none;margin:0;padding:0 24px 24px}.activity-item{padding:14px 0;border-top:1px solid var(--line)}.activity-item:first-child{border-top:none}.activity-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.activity-time{color:var(--muted);font-size:.85rem}.activity-summary{margin-top:8px;color:var(--text);line-height:1.48}.back-link{display:inline-flex;align-items:center;gap:8px;margin:0 0 14px;color:var(--accent);font-weight:800;cursor:pointer}.detail-card{padding:24px}.detail-meta{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 20px;color:var(--muted);font-size:.9rem;overflow-wrap:anywhere}.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.detail-stack{display:grid;gap:16px;margin-top:18px}.detail-box{padding:16px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.detail-box h4{margin:0 0 10px;font-size:.92rem}.detail-box dl{margin:0;display:grid;gap:8px}.detail-box dt{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-box dd{margin:0;color:var(--text);line-height:1.45;overflow-wrap:anywhere}.trace-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 16px}.trace-tab{border:none;border-radius:12px;padding:10px 12px;background:transparent;color:var(--muted);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);font-weight:800}.trace-tab.active{background:rgba(56,189,248,.12);color:var(--text);box-shadow:inset 0 0 0 1px rgba(56,189,248,.28)}.trace-panel{display:grid;gap:14px}.trace-item{padding:18px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.trace-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.trace-item-summary{margin-top:10px;display:grid;gap:10px}.trace-note{color:var(--muted);line-height:1.6}.trace-disclosure{padding:0;overflow:hidden}.trace-disclosure[open]{padding-bottom:18px}.trace-disclosure .trace-item-summary{margin-top:0}.trace-disclosure-body{display:grid;gap:12px;padding:0 18px}.trace-summary{list-style:none;cursor:pointer;padding:18px}.trace-summary::-webkit-details-marker{display:none}.trace-summary-main{display:grid;gap:10px;min-width:0;flex:1}.trace-summary-copy{display:grid;gap:6px;min-width:0}.trace-summary-copy .summary,.trace-summary-copy .summary-sub{display:block;overflow-wrap:anywhere}.trace-disclosure-body .summary-sub{overflow-wrap:anywhere}
     .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:.78rem;font-weight:800;margin:0 6px 6px 0;border:1px solid rgba(56,189,248,.18);text-decoration:none}button.tag{cursor:pointer}html[data-theme='light'] .tag{color:#075985}.tag.failed{background:rgba(239,68,68,.14);color:#fecaca;border-color:rgba(239,68,68,.2)}html[data-theme='light'] .tag.failed{color:#b91c1c}.tag.slow{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.slow{color:#92400e}.type-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border:1px solid transparent}.pill-request{background:rgba(56,189,248,.14);color:#93c5fd}.pill-request.method-get{background:rgba(34,197,94,.16);color:#bbf7d0}.pill-request.method-post{background:rgba(59,130,246,.16);color:#bfdbfe}.pill-request.method-other{background:rgba(245,158,11,.16);color:#fde68a}.pill-query{background:rgba(34,197,94,.12);color:#86efac}.pill-exception{background:rgba(239,68,68,.14);color:#fecaca}.pill-log{background:rgba(168,85,247,.14);color:#ddd6fe}.pill-job,.pill-batch{background:rgba(245,158,11,.14);color:#fde68a}.pill-cache{background:rgba(20,184,166,.12);color:#99f6e4}.pill-schedule,.pill-command{background:rgba(14,165,233,.14);color:#bae6fd}.pill-mail,.pill-notification{background:rgba(236,72,153,.14);color:#fbcfe8}.pill-auth{background:rgba(148,163,184,.16);color:#e2e8f0}.pill-event,.pill-model{background:rgba(74,222,128,.14);color:#bbf7d0}.pill-redis{background:rgba(239,68,68,.12);color:#fecaca}.pill-gate{background:rgba(99,102,241,.14);color:#c7d2fe}.pill-middleware{background:rgba(45,212,191,.12);color:#ccfbf1}.pill-dump,.pill-view{background:rgba(148,163,184,.14);color:#e2e8f0}.pill-client-request{background:rgba(59,130,246,.14);color:#bfdbfe}html[data-theme='light'] .pill-request{color:#1d4ed8}html[data-theme='light'] .pill-request.method-get{color:#166534}html[data-theme='light'] .pill-request.method-post{color:#1d4ed8}html[data-theme='light'] .pill-request.method-other{color:#92400e}html[data-theme='light'] .pill-query{color:#166534}html[data-theme='light'] .pill-exception{color:#b91c1c}html[data-theme='light'] .pill-log{color:#6d28d9}html[data-theme='light'] .pill-job,html[data-theme='light'] .pill-batch{color:#92400e}html[data-theme='light'] .pill-cache{color:#115e59}html[data-theme='light'] .pill-schedule,html[data-theme='light'] .pill-command{color:#0c4a6e}html[data-theme='light'] .pill-mail,html[data-theme='light'] .pill-notification{color:#9d174d}html[data-theme='light'] .pill-auth,html[data-theme='light'] .pill-dump,html[data-theme='light'] .pill-view{color:#334155}html[data-theme='light'] .pill-event,html[data-theme='light'] .pill-model{color:#166534}html[data-theme='light'] .pill-redis{color:#991b1b}html[data-theme='light'] .pill-gate{color:#3730a3}html[data-theme='light'] .pill-middleware{color:#155e75}html[data-theme='light'] .pill-client-request{color:#1d4ed8}
     .monitoring-wrap{padding:0 24px 24px}.tag-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.tag-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface-strong)}.tag-remove{border:none;background:rgba(239,68,68,.14);color:var(--danger);border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:1rem;line-height:1}.helper-text{color:var(--muted);line-height:1.6}
     .duration-chip{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;border:1px solid transparent;font-size:.8rem;font-weight:700;color:var(--text);white-space:nowrap}.duration-chip.vfast{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.28);color:#bbf7d0}.duration-chip.fast{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.24);color:#bae6fd}.duration-chip.slow{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.22);color:#fde68a}.duration-chip.vslow{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.24);color:#fecaca}html[data-theme='light'] .duration-chip.vfast{color:#166534}html[data-theme='light'] .duration-chip.fast{color:#1d4ed8}html[data-theme='light'] .duration-chip.slow{color:#92400e}html[data-theme='light'] .duration-chip.vslow{color:#b91c1c}
-    .code-card{border-radius:16px;border:1px solid var(--code-border);background:var(--surface-soft);overflow:hidden}.code-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}.code-label{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.copy-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer;transition:border-color .16s ease,color .16s ease}.copy-button:hover{border-color:rgba(56,189,248,.35);color:var(--accent)}.copy-button[data-copied='true']{color:var(--success);border-color:rgba(34,197,94,.28)}.copy-button svg{width:16px;height:16px;display:block}.code-block{margin:0;padding:18px 20px;background:var(--code-bg);color:#dbeafe;border:0;overflow:auto;white-space:pre;line-height:1.72;font-family:var(--mono);font-size:.92rem}.code-block code{font-family:inherit}.html-preview-wrap{padding:14px;background:var(--surface-strong);border-top:1px solid var(--line)}.html-preview{display:block;width:100%;min-height:320px;border:1px solid var(--line);border-radius:14px;background:#fff}.tok-key{color:#93c5fd}.tok-string{color:#86efac}.tok-number{color:#f9a8d4}.tok-boolean{color:#facc15}.tok-null{color:#fb7185}.tok-punctuation{color:#94a3b8}.tok-sql-keyword{color:#f472b6;font-weight:700}.tok-sql-identifier{color:#93c5fd}.tok-sql-string{color:#86efac}.tok-sql-number{color:#facc15}.tok-sql-comment{color:#64748b;font-style:italic}html[data-theme='light'] .code-block{color:#0f172a}html[data-theme='light'] .tok-key{color:#1d4ed8}html[data-theme='light'] .tok-string{color:#15803d}html[data-theme='light'] .tok-number{color:#c026d3}html[data-theme='light'] .tok-boolean{color:#b45309}html[data-theme='light'] .tok-null{color:#dc2626}html[data-theme='light'] .tok-punctuation{color:#64748b}html[data-theme='light'] .tok-sql-keyword{color:#db2777}html[data-theme='light'] .tok-sql-identifier{color:#2563eb}html[data-theme='light'] .tok-sql-string{color:#15803d}html[data-theme='light'] .tok-sql-number{color:#b45309}html[data-theme='light'] .tok-sql-comment{color:#6b7280}
+    .code-card{border-radius:16px;border:1px solid var(--code-border);background:var(--surface-soft);overflow:hidden}.code-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}.code-label{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.copy-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer;transition:border-color .16s ease,color .16s ease}.copy-button:hover{border-color:rgba(56,189,248,.35);color:var(--accent)}.copy-button[data-copied='true']{color:var(--success);border-color:rgba(34,197,94,.28)}.copy-button svg{width:16px;height:16px;display:block}.code-block{margin:0;padding:18px 20px;background:var(--code-bg);color:#dbeafe;border:0;overflow:auto;white-space:pre;line-height:1.72;font-family:var(--mono);font-size:.92rem}.code-block.wrap{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.code-block code{font-family:inherit}.html-preview-wrap{padding:14px;background:var(--surface-strong);border-top:1px solid var(--line)}.html-preview{display:block;width:100%;min-height:320px;border:1px solid var(--line);border-radius:14px;background:#fff}.inline-collapse{margin:0;border-top:1px solid var(--line);background:var(--surface-strong)}.inline-collapse summary{cursor:pointer;list-style:none;padding:14px 16px;font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.inline-collapse summary::-webkit-details-marker{display:none}.inline-collapse[open] summary{border-bottom:1px solid var(--line)}.inline-collapse .code-block{border-top:none}.tok-key{color:#93c5fd}.tok-string{color:#86efac}.tok-number{color:#f9a8d4}.tok-boolean{color:#facc15}.tok-null{color:#fb7185}.tok-punctuation{color:#94a3b8}.tok-sql-keyword{color:#f472b6;font-weight:700}.tok-sql-identifier{color:#93c5fd}.tok-sql-string{color:#86efac}.tok-sql-number{color:#facc15}.tok-sql-comment{color:#64748b;font-style:italic}html[data-theme='light'] .code-block{color:#0f172a}html[data-theme='light'] .tok-key{color:#1d4ed8}html[data-theme='light'] .tok-string{color:#15803d}html[data-theme='light'] .tok-number{color:#c026d3}html[data-theme='light'] .tok-boolean{color:#b45309}html[data-theme='light'] .tok-null{color:#dc2626}html[data-theme='light'] .tok-punctuation{color:#64748b}html[data-theme='light'] .tok-sql-keyword{color:#db2777}html[data-theme='light'] .tok-sql-identifier{color:#2563eb}html[data-theme='light'] .tok-sql-string{color:#15803d}html[data-theme='light'] .tok-sql-number{color:#b45309}html[data-theme='light'] .tok-sql-comment{color:#6b7280}
     @media (max-width:1120px){.content-grid{grid-template-columns:1fr}}@media (max-width:920px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:20px 16px 18px}.brand-row{padding:0 0 16px}.sidebar-status{margin:0 0 16px}.sidebar-group{padding:0}.main{padding:20px}}@media (max-width:640px){.stats-grid{grid-template-columns:1fr}.detail-card{padding:18px}.toolbar,.section-head,.pagination,.activity-list,.monitoring-wrap{padding-left:18px;padding-right:18px}.table-wrap{padding:0 8px 10px}.brand-row{align-items:stretch;gap:14px;padding:0 0 14px}.brand{width:100%;align-items:flex-start}.brand-copy{min-width:0}.brand-copy h1{font-size:1.18rem;line-height:1.12}.brand-copy p{font-size:.82rem;overflow-wrap:anywhere}.icon-button{align-self:flex-end}.sidebar-status{padding:12px}.nav-button{padding:11px 12px}.nav-title{font-size:.95rem}.nav-meta{font-size:.72rem}}@media (max-width:480px){.brand-row{flex-direction:column}.icon-button{align-self:flex-start}.nav-button{align-items:flex-start;flex-direction:column}.nav-meta{font-size:.7rem}}
   </style>
 </head>
@@ -328,8 +328,9 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       return id;
     };
 
-    const renderCodeCard = (label, rawText, highlightedHtml, languageClass) => {
+    const renderCodeCard = (label, rawText, highlightedHtml, languageClass, options = {}) => {
       const copyId = registerCopyPayload(rawText);
+      const wrapClass = options.wrap === true ? ' wrap' : '';
       return [
         '<section class="code-card">',
         '<div class="code-toolbar">',
@@ -338,19 +339,23 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         COPY_ICON,
         '</button>',
         '</div>',
-        '<pre class="code-block ' + escapeHtml(languageClass) + '"><code>' + highlightedHtml + '</code></pre>',
+        '<pre class="code-block ' + escapeHtml(languageClass) + wrapClass + '"><code>' + highlightedHtml + '</code></pre>',
         '</section>'
       ].join('');
     };
 
     const renderTextCard = (label, value) => {
       const source = String(value ?? '');
-      return renderCodeCard(label, source, escapeHtml(source), 'language-text');
+      return renderCodeCard(label, source, escapeHtml(source), 'language-text', { wrap: true });
     };
 
-    const renderHtmlPreview = (label, html) => {
+    const renderHtmlPreview = (label, html, options = {}) => {
       const source = String(html ?? '');
       const copyId = registerCopyPayload(source);
+      const rawHtmlBlock = '<pre class="code-block language-html wrap"><code>' + escapeHtml(source) + '</code></pre>';
+      const rawHtmlSection = options.collapseSource === true
+        ? '<details class="inline-collapse"><summary>View raw HTML source</summary>' + rawHtmlBlock + '</details>'
+        : rawHtmlBlock;
       return [
         '<section class="code-card">',
         '<div class="code-toolbar">',
@@ -359,8 +364,8 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         COPY_ICON,
         '</button>',
         '</div>',
-        '<pre class="code-block language-html"><code>' + escapeHtml(source) + '</code></pre>',
         '<div class="html-preview-wrap"><iframe class="html-preview" sandbox="allow-same-origin" srcdoc="' + escapeHtml(source) + '"></iframe></div>',
+        rawHtmlSection,
         '</section>'
       ].join('');
     };
@@ -384,7 +389,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       }
 
       output += escapeHtml(source.slice(lastIndex));
-      return renderCodeCard(label, source, output, 'language-json');
+      return renderCodeCard(label, source, output, 'language-json', { wrap: true });
     };
 
     const highlightSql = (sql) => {
@@ -419,7 +424,9 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
     const renderPayload = (label, value) => {
       if (value === undefined) return '<p class="trace-note">No ' + escapeHtml(label.toLowerCase()) + ' was captured.</p>';
       if (typeof value === 'string') {
-        return looksLikeHtml(value) ? renderHtmlPreview(label, value) : renderTextCard(label, value);
+        return looksLikeHtml(value)
+          ? renderHtmlPreview(label, value, { collapseSource: true })
+          : renderTextCard(label, value);
       }
       return detailJson(value, label);
     };
@@ -457,6 +464,17 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         entry.type === 'client_request' ? 'Outbound HTTP call' : ''
       ].find(Boolean) || 'Trace record';
       return '<div class="summary">' + summary + '</div><div class="summary-sub">' + escapeHtml(secondary) + '</div>';
+    };
+
+    const entrySummaryInlineHtml = (entry) => {
+      const summary = escapeHtml(entrySummaryText(entry) || 'No summary available');
+      const secondary = [
+        entry.type === 'request' ? 'Incoming request' : '',
+        entry.type === 'query' ? 'Database query' : '',
+        entry.type === 'exception' ? 'Unhandled error' : '',
+        entry.type === 'client_request' ? 'Outbound HTTP call' : ''
+      ].find(Boolean) || 'Trace record';
+      return '<span class="summary">' + summary + '</span><span class="summary-sub">' + escapeHtml(secondary) + '</span>';
     };
 
     const renderMetricBox = (title, items) => {
@@ -583,8 +601,8 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           ]),
           '</div>',
           '<div class="detail-stack">',
-          renderPayload('Mail Text', content.text),
           renderPayload('Mail Html', content.html),
+          renderPayload('Mail Text', content.text),
           '</div>'
         ].join('');
       }
@@ -609,10 +627,31 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       return detailJson(content);
     };
 
-    const renderTraceItems = (entries) => {
+    const renderTraceItems = (entries, options = {}) => {
       if (entries.length === 0) return '<p class="trace-note">No related entries captured.</p>';
 
+      const collapsible = options.collapsible === true;
+      const isInitiallyOpen = options.collapsed !== true;
+
       return '<div class="trace-panel">' + entries.map((entry) => {
+        if (collapsible) {
+          return [
+            '<details class="trace-item trace-disclosure"' + (isInitiallyOpen ? ' open' : '') + '>',
+            '<summary class="trace-item-head trace-summary">',
+            '<span class="trace-summary-main">',
+            '<span><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span></span>',
+            '<span class="trace-summary-copy">' + entrySummaryInlineHtml(entry) + '</span>',
+            '</span>',
+            '<span class="activity-head">' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></span>',
+            '</summary>',
+            '<div class="trace-disclosure-body">',
+            '<div>' + tagsHtml(entry.tags) + '</div>',
+            renderEntryBody(entry),
+            '</div>',
+            '</details>'
+          ].join('');
+        }
+
         return [
           '<section class="trace-item">',
           '<div class="trace-item-head">',
@@ -671,7 +710,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         payload: detailJson(content.payload || {}, 'Payload Json'),
         headers: '<div class="detail-stack">' + detailJson(content.headers || {}, 'Request Header Json') + detailJson(content.responseHeaders || {}, 'Response Header Json') + '</div>',
         response: '<div class="detail-stack"><div class="detail-grid">' + renderMetricBox('Status', [{ label: 'Response status', value: escapeHtml(content.responseStatus || '') }, { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }]) + '</div>' + (content.responseBody === undefined ? '<p class="trace-note">No response body was captured for this request.</p>' : detailJson(content.responseBody, 'Response Body Json')) + detailJson(content.responseHeaders || {}, 'Response Header Json') + '</div>',
-        queries: renderTraceItems(batchEntriesByType('query')),
+        queries: renderTraceItems(batchEntriesByType('query'), { collapsible: true, collapsed: true }),
         logs: renderTraceItems(batchEntriesByType('log')),
         exceptions: renderTraceItems(batchEntriesByType('exception')),
         http: renderTraceItems(batchEntriesByType('client_request')),
