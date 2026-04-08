@@ -1,19 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const proxyExtraMocks = vi.hoisted(() => ({
+  ensureLoaded: vi.fn(),
+  existsSync: vi.fn(),
+}));
+
 vi.mock('@config/logger', () => ({
   Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 vi.mock('@node-singletons/fs', () => ({
-  existsSync: vi.fn(),
+  existsSync: (...args: unknown[]) => proxyExtraMocks.existsSync(...args),
 }));
 
 vi.mock('@node-singletons/path', () => ({
   join: (...parts: string[]) => parts.join('/'),
+  dirname: (value: string) => value.split('/').slice(0, -1).join('/') || '/',
 }));
 
 vi.mock('@cli/utils/spawn', () => ({
   SpawnUtil: { spawnAndWait: vi.fn(async () => 0) },
+}));
+
+vi.mock('@cli/utils/EnvFileLoader', () => ({
+  EnvFileLoader: {
+    ensureLoaded: (...args: unknown[]) => proxyExtraMocks.ensureLoaded(...args),
+  },
 }));
 
 vi.mock('@proxy/mongodb/MongoDBProxyServer', () => ({
@@ -31,8 +43,12 @@ describe('proxy/container extra patch coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.unstubAllEnvs();
     process.argv = ['node', 'bin/zin.ts'];
     process.env = { ...originalEnv };
+    proxyExtraMocks.existsSync.mockImplementation(
+      (value: string) => value === `${process.cwd()}/package.json`
+    );
   });
 
   afterEach(() => {
@@ -46,7 +62,8 @@ describe('proxy/container extra patch coverage', () => {
     const { SpawnUtil } = await import('@cli/utils/spawn');
     const { Logger } = await import('@config/logger');
 
-    vi.mocked(fsMod.existsSync).mockReturnValue(true);
+    expect(fsMod.existsSync).toBeDefined();
+    proxyExtraMocks.existsSync.mockReturnValue(true);
 
     const { resolveComposePath, runComposeWithFallback } =
       await import('@cli/commands/DockerComposeCommandUtils');
@@ -226,5 +243,43 @@ describe('proxy/container extra patch coverage', () => {
     expect(SqlServerProxyServer.start).toHaveBeenCalledWith(
       expect.objectContaining({ host: '127.0.0.1', port: 8793, dbPort: 1433 })
     );
+  });
+
+  it('direct Commander proxies load project env and resolve live defaults during option wiring', async () => {
+    vi.stubEnv('MONGO_URI', 'mongodb://root-env:27017');
+    vi.stubEnv('MONGO_DB', 'rootdb');
+    vi.stubEnv('MONGODB_PROXY_REQUIRE_SIGNING', 'false');
+    vi.stubEnv('SQLSERVER_PROXY_PORT', '9903');
+
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/repo/apps/api');
+    proxyExtraMocks.existsSync.mockImplementation(
+      (value: string) => value === '/repo/package.json'
+    );
+
+    const { MongoDBProxyServer } = await import('@proxy/mongodb/MongoDBProxyServer');
+    const { SqlServerProxyServer } = await import('@proxy/sqlserver/SqlServerProxyServer');
+    const { MongoDBProxyCommand } = await import('@cli/commands/MongoDBProxyCommand');
+    const { SqlServerProxyCommand } = await import('@cli/commands/SqlServerProxyCommand');
+
+    await MongoDBProxyCommand.create().parseAsync(['node', 'proxy:mongodb'], { from: 'node' });
+    await SqlServerProxyCommand.create().parseAsync(['node', 'proxy:sqlserver'], { from: 'node' });
+
+    expect(proxyExtraMocks.ensureLoaded).toHaveBeenCalledWith({
+      cwd: '/repo',
+      includeCwd: true,
+      extraCwds: ['/repo/apps/api'],
+    });
+    expect(MongoDBProxyServer.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mongoUri: 'mongodb://root-env:27017',
+        mongoDb: 'rootdb',
+        requireSigning: false,
+      })
+    );
+    expect(SqlServerProxyServer.start).toHaveBeenCalledWith(
+      expect.objectContaining({ port: 9903 })
+    );
+
+    cwdSpy.mockRestore();
   });
 });

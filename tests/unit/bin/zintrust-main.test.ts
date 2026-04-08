@@ -133,6 +133,55 @@ describe('zintrust-main plugin auto-import warnings', () => {
     );
     expect(loaded.cliRun).toHaveBeenCalledWith(['routes']);
   });
+
+  it('loads env before importing CLI modules that read static Env values', async () => {
+    vi.resetModules();
+
+    process.argv = ['node', 'bin/zin.ts', 'proxy:mysql'];
+    delete process.env['MYSQL_PROXY_KEY_ID'];
+
+    const cliRun = vi.fn(async () => undefined);
+    const ensureLoaded = vi.fn(() => {
+      process.env['MYSQL_PROXY_KEY_ID'] = 'mysql-proxy';
+    });
+    const loadOptionalExtensions = vi.fn(async () => []);
+    const findMissingExtension = vi.fn();
+    const importRuntimeAutoImports = vi.fn(async () => ({ ok: true as const }));
+    const importProjectAutoImports = vi.fn(async () => ({ ok: true as const }));
+    let importedKeyId = '';
+
+    vi.doMock('@cli/utils/EnvFileLoader', () => ({
+      EnvFileLoader: { ensureLoaded },
+    }));
+    vi.doMock('@cli/OptionalCliExtensions', () => ({
+      OptionalCliExtensions: {
+        loadForArgs: loadOptionalExtensions,
+        findMissingExtensionForArgs: findMissingExtension,
+      },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: {
+        tryImportRuntimeAutoImports: importRuntimeAutoImports,
+        tryImportProjectAutoImports: importProjectAutoImports,
+      },
+    }));
+    vi.doMock('@cli/CLI', async () => {
+      const { Env } = await import('@config/env');
+      importedKeyId = Env.MYSQL_PROXY_KEY_ID;
+      return {
+        CLI: {
+          create: () => ({ run: cliRun }),
+        },
+      };
+    });
+
+    const module = await import('../../../bin/zintrust-main');
+    await module.run();
+
+    expect(ensureLoaded).toHaveBeenCalledTimes(1);
+    expect(importedKeyId).toBe('mysql-proxy');
+    expect(cliRun).toHaveBeenCalledWith(['proxy:mysql']);
+  });
 });
 
 describe('zintrust-main local CLI handoff helpers', () => {

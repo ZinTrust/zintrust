@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const proxyCommandMocks = vi.hoisted(() => ({
+  ensureLoaded: vi.fn(),
+  existsSync: vi.fn(),
+}));
+
 vi.mock('@cli/ErrorHandler', () => ({
   ErrorHandler: {
     info: vi.fn(),
@@ -13,6 +18,21 @@ vi.mock('@cli/ErrorHandler', () => ({
 vi.mock('@cli/utils/spawn', () => ({
   SpawnUtil: { spawnAndWait: vi.fn(async () => 0) },
 }));
+
+vi.mock('@cli/utils/EnvFileLoader', () => ({
+  EnvFileLoader: {
+    ensureLoaded: (...args: unknown[]) => proxyCommandMocks.ensureLoaded(...args),
+  },
+}));
+
+vi.mock('@node-singletons/fs', async () => {
+  const actual = await vi.importActual<typeof import('@node-singletons/fs')>('@node-singletons/fs');
+
+  return {
+    ...actual,
+    existsSync: (...args: unknown[]) => proxyCommandMocks.existsSync(...args),
+  };
+});
 
 vi.mock('@proxy/ProxyRegistry', () => ({
   ProxyRegistry: { list: vi.fn(() => []) },
@@ -47,7 +67,11 @@ describe('Proxy command patch coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.unstubAllEnvs();
     process.argv = ['node', 'bin/zin.ts'];
+    proxyCommandMocks.existsSync.mockImplementation(
+      (value: string) => value === `${process.cwd()}/package.json`
+    );
   });
 
   afterEach(() => {
@@ -298,5 +322,57 @@ describe('Proxy command patch coverage', () => {
       })
     );
     exitSpy.mockRestore();
+  });
+
+  it('direct BaseCommand proxies load project env and resolve live defaults during option wiring', async () => {
+    vi.stubEnv('MYSQL_PROXY_KEY_ID', 'mysql-live');
+    vi.stubEnv('POSTGRES_PROXY_PORT', '9900');
+    vi.stubEnv('REDIS_PROXY_REQUIRE_SIGNING', 'false');
+    vi.stubEnv('SMTP_PROXY_SECRET', 'smtp-live');
+
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/repo/apps/api');
+    proxyCommandMocks.existsSync.mockImplementation(
+      (value: string) => value === '/repo/package.json'
+    );
+
+    const { MySqlProxyCommand } = await import('@cli/commands/MySqlProxyCommand');
+    const { PostgresProxyCommand } = await import('@cli/commands/PostgresProxyCommand');
+    const { RedisProxyCommand } = await import('@cli/commands/RedisProxyCommand');
+    const { SmtpProxyCommand } = await import('@cli/commands/SmtpProxyCommand');
+    const { MySqlProxyServer } = await import('@proxy/mysql/MySqlProxyServer');
+    const { PostgresProxyServer } = await import('@proxy/postgres/PostgresProxyServer');
+    const { RedisProxyServer } = await import('@proxy/redis/RedisProxyServer');
+    const { SmtpProxyServer } = await import('@proxy/smtp/SmtpProxyServer');
+
+    await MySqlProxyCommand.create()
+      .getCommand()
+      .parseAsync(['node', 'proxy:mysql'], { from: 'node' });
+    await PostgresProxyCommand.create().getCommand().parseAsync(['node', 'proxy:postgres'], {
+      from: 'node',
+    });
+    await RedisProxyCommand.create()
+      .getCommand()
+      .parseAsync(['node', 'proxy:redis'], { from: 'node' });
+    await SmtpProxyCommand.create()
+      .getCommand()
+      .parseAsync(['node', 'proxy:smtp'], { from: 'node' });
+
+    expect(proxyCommandMocks.ensureLoaded).toHaveBeenCalledWith({
+      cwd: '/repo',
+      includeCwd: true,
+      extraCwds: ['/repo/apps/api'],
+    });
+    expect(MySqlProxyServer.start).toHaveBeenCalledWith(
+      expect.objectContaining({ keyId: 'mysql-live' })
+    );
+    expect(PostgresProxyServer.start).toHaveBeenCalledWith(expect.objectContaining({ port: 9900 }));
+    expect(RedisProxyServer.start).toHaveBeenCalledWith(
+      expect.objectContaining({ requireSigning: false })
+    );
+    expect(SmtpProxyServer.start).toHaveBeenCalledWith(
+      expect.objectContaining({ secret: 'smtp-live' })
+    );
+
+    cwdSpy.mockRestore();
   });
 });

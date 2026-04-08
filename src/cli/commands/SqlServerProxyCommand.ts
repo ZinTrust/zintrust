@@ -1,4 +1,5 @@
 import { Env } from '@config/env';
+import { ensureProxyEnvLoadedForCwd } from '@cli/commands/ProxyCommandUtils';
 import { Logger } from '@config/logger';
 import { Command } from 'commander';
 
@@ -65,6 +66,8 @@ export const SqlServerProxyCommand = Object.freeze({
     cmd.description('Start SQL Server HTTP proxy server');
 
     const configureOptions = (): void => {
+      ensureProxyEnvLoadedForCwd();
+
       cmd.option('--host <host>', 'Proxy host', Env.get('SQLSERVER_PROXY_HOST', '127.0.0.1'));
       cmd.option('--port <port>', 'Proxy port', String(Env.getInt('SQLSERVER_PROXY_PORT', 8793)));
       cmd.option('--db-host <host>', 'SQL Server host', Env.get('DB_HOST_MSSQL', '127.0.0.1'));
@@ -86,7 +89,7 @@ export const SqlServerProxyCommand = Object.freeze({
       cmd.option(
         '--require-signing',
         'Require request signing',
-        Env.SQLSERVER_PROXY_REQUIRE_SIGNING
+        Env.getBool('SQLSERVER_PROXY_REQUIRE_SIGNING', true)
       );
       cmd.option(
         '--signing-window-ms <ms>',

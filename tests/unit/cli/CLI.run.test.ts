@@ -15,6 +15,12 @@ vi.mock('@node-singletons/fs', async (importOriginal) => {
   };
 });
 
+vi.mock('@cli/utils/EnvFileLoader', () => ({
+  EnvFileLoader: {
+    ensureLoaded: vi.fn(),
+  },
+}));
+
 vi.mock('@cli/ErrorHandler', () => ({
   ErrorHandler: {
     banner: vi.fn(),

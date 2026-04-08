@@ -1,17 +1,20 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { withWranglerDevVarsSnapshot } from '@cli/cloudflare/CloudflareWranglerDevEnv';
-import { maybeRunProxyWatchMode, parseIntOption } from '@cli/commands/ProxyCommandUtils';
+import {
+  ensureProxyEnvLoadedForCwd,
+  maybeRunProxyWatchMode,
+  parseIntOption,
+} from '@cli/commands/ProxyCommandUtils';
 import {
   ensureProxyEntrypoint,
   ensureWranglerConfig,
   renderProxyWranglerDevConfig,
   resolveConfigPath,
 } from '@cli/commands/ProxyScaffoldUtils';
-import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Logger } from '@config/logger';
-import { existsSync, mkdirSync, writeFileSync } from '@node-singletons/fs';
+import { mkdirSync, writeFileSync } from '@node-singletons/fs';
 import { dirname, join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
@@ -43,28 +46,8 @@ export const addWranglerProxyBaseOptions = (command: Command, defaultConfig: str
   command.option('--watch', 'Auto-restart proxy on file changes');
 };
 
-const findNearestPackageJsonDir = (cwd: string): string | undefined => {
-  let current = cwd;
-
-  while (true) {
-    if (existsSync(join(current, 'package.json'))) return current;
-
-    const parent = dirname(current);
-    if (parent === current) return undefined;
-    current = parent;
-  }
-};
-
-const resolveProxyProjectRoot = (cwd: string): string => {
-  return findNearestPackageJsonDir(cwd) ?? cwd;
-};
-
-const ensureProxyEnvLoaded = (cwd: string, projectRoot: string): void => {
-  EnvFileLoader.ensureLoaded({
-    cwd: projectRoot,
-    includeCwd: true,
-    ...(cwd === projectRoot ? {} : { extraCwds: [cwd] }),
-  });
+const toRootedProxyConfigContent = (content: string): string => {
+  return content.replaceAll('": "../../', '": "./');
 };
 
 export const createWranglerProxyCommand = <TValues, TOptions extends WranglerProxyCommandOptions>(
@@ -82,9 +65,7 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
 
       const port = parseIntOption(typedOptions.port, 'port');
       const cwd = process.cwd();
-      const projectRoot = resolveProxyProjectRoot(cwd);
-
-      ensureProxyEnvLoaded(cwd, projectRoot);
+      const projectRoot = ensureProxyEnvLoadedForCwd(cwd);
 
       const entrypoint = ensureProxyEntrypoint({
         cwd,
@@ -115,28 +96,28 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
       input.afterConfigResolved?.(result.values);
 
       const proxyConfigContent = renderProxyWranglerDevConfig(result.content, input.envName);
-      const proxyConfigDir = join(cwd, '.wrangler', 'tmp');
-      const proxyConfigPath = join(proxyConfigDir, `zin.proxy.${input.envName}.jsonc`);
+      const proxyConfigDir = cwd;
+      const proxyConfigPath = join(proxyConfigDir, `.zin.proxy.${input.envName}.jsonc`);
 
       if (proxyConfigContent !== undefined) {
         mkdirSync(proxyConfigDir, { recursive: true });
-        writeFileSync(proxyConfigPath, proxyConfigContent, 'utf-8');
+        writeFileSync(proxyConfigPath, toRootedProxyConfigContent(proxyConfigContent), 'utf-8');
       }
 
-      const args = [
-        'dev',
-        '--config',
-        proxyConfigContent === undefined ? configPath : proxyConfigPath,
-      ];
+      const wranglerRunConfigPath = proxyConfigContent === undefined ? configPath : proxyConfigPath;
+      const wranglerDevVarsCwd = proxyConfigContent === undefined ? cwd : dirname(proxyConfigPath);
+      const wranglerDevVarsEnvName = proxyConfigContent === undefined ? input.envName : '';
+
+      const args = ['dev', '--config', wranglerRunConfigPath];
       if (port !== undefined) {
         args.push('--port', String(port));
       }
 
       const exitCode = await withWranglerDevVarsSnapshot(
         {
-          cwd,
+          cwd: wranglerDevVarsCwd,
           projectRoot,
-          envName: input.envName,
+          envName: wranglerDevVarsEnvName,
           configPath,
           runtimeEnv: process.env,
         },

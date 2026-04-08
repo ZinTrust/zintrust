@@ -5,7 +5,6 @@
  * be imported by other bin shortcuts (zin/z/zt) without parse errors.
  */
 
-import { Logger } from '@config/logger';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +15,22 @@ type ProjectLocalCliTarget = {
   packageRoot: string;
 };
 
+type LoggerLike = {
+  warn: (message: string, details?: unknown) => void;
+  debug: (message: string, details?: unknown) => void;
+  error: (message: string, details?: unknown) => void;
+};
+
 const CLI_HANDOFF_ENV_KEY = 'ZINTRUST_CLI_HANDOFF';
+
+const loadLogger = async (): Promise<LoggerLike | undefined> => {
+  try {
+    const { Logger } = await import('@config/logger');
+    return Logger;
+  } catch {
+    return undefined;
+  }
+};
 
 const getCurrentPackageRoot = (): string => {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -246,24 +260,28 @@ const shouldDeferPluginAutoImportWarnings = (args: string[]): boolean => {
   return command === 'start' || command === 's';
 };
 
-const logPluginAutoImportFailure = (
+const logPluginAutoImportFailure = async (
   args: string[],
   scope: 'Official' | 'Project',
   details?: string
-): void => {
+): Promise<void> => {
+  const logger = await loadLogger();
+  if (logger === undefined) return;
+
   if (shouldDeferPluginAutoImportWarnings(args)) {
-    Logger.debug(`${scope} plugin auto-import advisory deferred to runtime bootstrap`, {
+    logger.debug(`${scope} plugin auto-import advisory deferred to runtime bootstrap`, {
       details,
     });
     return;
   }
 
-  Logger.warn(`${scope} plugin auto-imports failed:`, details);
+  logger.warn(`${scope} plugin auto-imports failed:`, details);
 };
 
 const handleCliFatal = async (error: unknown, context: string): Promise<never> => {
   try {
-    Logger.error(context, error);
+    const logger = await loadLogger();
+    logger?.error(context, error);
   } catch {
     // best-effort logging
   }
@@ -327,12 +345,12 @@ const runCliInternal = async (): Promise<void> => {
     const runtimeImportMode = process.env['DOCKER_WORKER'] === 'true' ? 'worker' : 'base';
     const officialImports = await PluginAutoImports.tryImportRuntimeAutoImports(runtimeImportMode);
     if (!officialImports.ok) {
-      logPluginAutoImportFailure(args0, 'Official', officialImports.errorMessage);
+      await logPluginAutoImportFailure(args0, 'Official', officialImports.errorMessage);
     }
 
     const projectImports = await PluginAutoImports.tryImportProjectAutoImports();
     if (!projectImports.ok && projectImports.reason !== 'not-found') {
-      logPluginAutoImportFailure(args0, 'Project', projectImports.errorMessage);
+      await logPluginAutoImportFailure(args0, 'Project', projectImports.errorMessage);
     }
   } catch {
     // best-effort; CLI should still run even if plugins file is missing

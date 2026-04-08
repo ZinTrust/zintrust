@@ -92,12 +92,12 @@ describe('KvProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/.wrangler/tmp/zin.proxy.kv-proxy.jsonc'],
+        args: ['dev', '--config', '/repo/.zin.proxy.kv-proxy.jsonc'],
       })
     );
     expect(mocked.writeFileSync).toHaveBeenCalledWith(
-      '/repo/.wrangler/tmp/zin.proxy.kv-proxy.jsonc',
-      expect.stringContaining('"main": "../../src/proxy/kv/ZintrustKvProxy.ts"'),
+      '/repo/.zin.proxy.kv-proxy.jsonc',
+      expect.stringContaining('"main": "./src/proxy/kv/ZintrustKvProxy.ts"'),
       'utf-8'
     );
     expect(mocked.ensureLoaded).toHaveBeenCalledWith({
@@ -108,7 +108,7 @@ describe('KvProxyCommand', () => {
       {
         cwd: '/repo',
         projectRoot: '/repo',
-        envName: 'kv-proxy',
+        envName: '',
         configPath: '/repo/wrangler.jsonc',
         runtimeEnv: process.env,
       },
@@ -159,7 +159,7 @@ describe('KvProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/.wrangler/tmp/zin.proxy.kv-proxy.jsonc', '--port', '8787'],
+        args: ['dev', '--config', '/repo/.zin.proxy.kv-proxy.jsonc', '--port', '8787'],
       })
     );
 

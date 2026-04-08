@@ -16,6 +16,15 @@ const LEVEL_PRIORITY: Record<string, number> = {
   fatal: 4,
 };
 
+const TRACE_INFRASTRUCTURE_LOG_MESSAGES = new Set<string>([
+  '[MySQLProxyAdapter] Proxy request failed',
+  '[trace] Trace storage write degraded',
+]);
+
+const shouldSkipTraceInfrastructureLog = (message: string): boolean => {
+  return TRACE_INFRASTRUCTURE_LOG_MESSAGES.has(message.trim());
+};
+
 export const LogWatcher: ITraceWatcher = Object.freeze({
   register({ storage, config }: ITraceWatcherConfig): () => void {
     if (config.watchers.log === false) return () => undefined;
@@ -32,6 +41,7 @@ export const LogWatcher: ITraceWatcher = Object.freeze({
       (level: string, message: string, context?: Record<string, unknown>) => {
         if ((LEVEL_PRIORITY[level] ?? 0) < minPriority) return;
         if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes)) return;
+        if (shouldSkipTraceInfrastructureLog(message)) return;
 
         const content: LogContent = {
           level,

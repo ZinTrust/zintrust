@@ -54,6 +54,7 @@ describe('D1ProxyCommand', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     mocked.existsSync.mockImplementation((value: string) => value === '/repo/wrangler.jsonc');
     mocked.readFileSync.mockReturnValue('{\n  "name": "zintrust-api",\n  "env": {}\n}\n');
     mocked.spawnAndWait.mockResolvedValue(0);
@@ -87,12 +88,12 @@ describe('D1ProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/.wrangler/tmp/zin.proxy.d1-proxy.jsonc'],
+        args: ['dev', '--config', '/repo/.zin.proxy.d1-proxy.jsonc'],
       })
     );
     expect(mocked.writeFileSync).toHaveBeenCalledWith(
-      '/repo/.wrangler/tmp/zin.proxy.d1-proxy.jsonc',
-      expect.stringContaining('"main": "../../src/proxy/d1/ZintrustD1Proxy.ts"'),
+      '/repo/.zin.proxy.d1-proxy.jsonc',
+      expect.stringContaining('"main": "./src/proxy/d1/ZintrustD1Proxy.ts"'),
       'utf-8'
     );
     expect(mocked.ensureLoaded).toHaveBeenCalledWith({
@@ -103,7 +104,7 @@ describe('D1ProxyCommand', () => {
       {
         cwd: '/repo',
         projectRoot: '/repo',
-        envName: 'd1-proxy',
+        envName: '',
         configPath: '/repo/wrangler.jsonc',
         runtimeEnv: process.env,
       },
@@ -149,8 +150,23 @@ describe('D1ProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/.wrangler/tmp/zin.proxy.d1-proxy.jsonc', '--port', '8787'],
+        args: ['dev', '--config', '/repo/.zin.proxy.d1-proxy.jsonc', '--port', '8787'],
       })
+    );
+
+    cwdSpy.mockRestore();
+  });
+
+  it('warns when the resolved project env does not provide a D1 signing secret fallback', async () => {
+    vi.stubEnv('APP_KEY', '');
+    vi.stubEnv('D1_REMOTE_SECRET', '');
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/repo');
+
+    const { D1ProxyCommand } = await import('@cli/commands/D1ProxyCommand');
+    await D1ProxyCommand.create().execute({});
+
+    expect(mocked.logger.warn).toHaveBeenCalledWith(
+      'D1 proxy signing will fail: the resolved project env does not expose D1_REMOTE_SECRET or APP_KEY to the Worker runtime. Signed requests will be rejected with 401 CONFIG_ERROR until one of those keys is set.'
     );
 
     cwdSpy.mockRestore();

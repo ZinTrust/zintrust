@@ -101,6 +101,21 @@ const warnOnPlaceholderDatabaseId = (values: D1ProxyConfigValues): void => {
   );
 };
 
+const warnOnMissingSigningSecret = (): void => {
+  const directSecret = trimNonEmptyOption(Env.get('D1_REMOTE_SECRET', ''));
+  const fallbackSecret = trimNonEmptyOption(Env.get('APP_KEY', ''));
+  if (directSecret !== undefined || fallbackSecret !== undefined) return;
+
+  Logger.warn(
+    'D1 proxy signing will fail: the resolved project env does not expose D1_REMOTE_SECRET or APP_KEY to the Worker runtime. Signed requests will be rejected with 401 CONFIG_ERROR until one of those keys is set.'
+  );
+};
+
+const runD1ProxyDiagnostics = (values: D1ProxyConfigValues): void => {
+  warnOnPlaceholderDatabaseId(values);
+  warnOnMissingSigningSecret();
+};
+
 const addOptions = (command: Command): void => {
   addWranglerProxyBaseOptions(command, DEFAULT_CONFIG);
   command.option('--binding <name>', 'D1 binding name', DEFAULT_BINDING);
@@ -129,7 +144,7 @@ export const D1ProxyCommand = Object.freeze({
       addOptions,
       resolveValues: resolveConfigValues,
       renderEnvBlock: renderD1ProxyEnvBlock,
-      afterConfigResolved: warnOnPlaceholderDatabaseId,
+      afterConfigResolved: runD1ProxyDiagnostics,
     });
   },
 });

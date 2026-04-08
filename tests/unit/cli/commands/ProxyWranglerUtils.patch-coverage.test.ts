@@ -89,7 +89,10 @@ describe('proxy wrangler utils patch coverage', () => {
       moduleSpecifier: '@zintrust/core/proxy',
       addOptions: () => {},
       resolveValues: () => ({ binding: 'X' }),
-      renderEnvBlock: () => '    "test-proxy": {}',
+      renderEnvBlock: () =>
+        ['    "test-proxy": {', '      "main": "./src/proxy/test/TestProxy.ts"', '    }'].join(
+          '\n'
+        ),
     });
 
     await expect(command.execute({})).rejects.toThrow('exit:5');
@@ -97,6 +100,21 @@ describe('proxy wrangler utils patch coverage', () => {
       cwd: '/repo',
       includeCwd: true,
     });
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/.zin.proxy.test-proxy.jsonc',
+      expect.stringContaining('"main": "./src/proxy/test/TestProxy.ts"'),
+      'utf-8'
+    );
+    expect(mocked.withWranglerDevVarsSnapshot).toHaveBeenCalledWith(
+      {
+        cwd: '/repo',
+        projectRoot: '/repo',
+        envName: '',
+        configPath: '/repo/wrangler.jsonc',
+        runtimeEnv: process.env,
+      },
+      expect.any(Function)
+    );
 
     cwdSpy.mockRestore();
     exitSpy.mockRestore();

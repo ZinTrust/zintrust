@@ -1,6 +1,7 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import {
+  ensureProxyEnvLoadedForCwd,
   maybeRunProxyWatchMode,
   parseIntOption,
   trimOption,
@@ -25,6 +26,8 @@ type RedisProxyOptions = CommandOptions & {
 };
 
 const addOptions = (command: Command): void => {
+  ensureProxyEnvLoadedForCwd();
+
   command.option('--host <host>', 'Host to bind', Env.get('REDIS_PROXY_HOST', '127.0.0.1'));
   command.option('--port <port>', 'Port to bind', String(Env.getInt('REDIS_PROXY_PORT', 8791)));
   command.option(
@@ -39,7 +42,11 @@ const addOptions = (command: Command): void => {
   command.option('--redis-password <password>', 'Redis password');
   command.option('--redis-db <db>', 'Redis database');
 
-  command.option('--require-signing', 'Require signed requests', Env.REDIS_PROXY_REQUIRE_SIGNING);
+  command.option(
+    '--require-signing',
+    'Require signed requests',
+    Env.getBool('REDIS_PROXY_REQUIRE_SIGNING', true)
+  );
   command.option('--key-id <id>', 'Signing key id', Env.get('REDIS_PROXY_KEY_ID', ''));
   command.option('--secret <secret>', 'Signing secret', Env.get('REDIS_PROXY_SECRET', ''));
   command.option(
