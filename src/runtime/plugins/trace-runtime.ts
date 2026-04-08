@@ -9,6 +9,7 @@ type TraceStorageApi = {
 type SystemTraceModule = {
   TraceConfig: TraceConfigApi;
   TraceStorage: TraceStorageApi;
+  captureTraceException?: (error: unknown) => void;
   registerTraceDashboard: (
     router: unknown,
     options?: { basePath?: string; middleware?: ReadonlyArray<string> }
@@ -39,24 +40,73 @@ const fallbackRegisterTraceRoutes = (
   _options?: { basePath?: string; middleware?: ReadonlyArray<string> }
 ): void => undefined;
 
-const systemTraceModule: SystemTraceModule | undefined = await import('@zintrust/trace')
-  .then((module) => module as unknown as SystemTraceModule)
-  .catch(() => undefined);
+const fallbackCaptureTraceException = (_error: unknown): void => undefined;
+
+let systemTraceModule: SystemTraceModule | undefined;
+let didAttemptSystemTraceLoad = false;
+let pendingSystemTraceLoad: Promise<SystemTraceModule | undefined> | undefined;
+
+const loadSystemTraceModule = async (): Promise<SystemTraceModule | undefined> => {
+  if (systemTraceModule !== undefined) return systemTraceModule;
+  if (didAttemptSystemTraceLoad && pendingSystemTraceLoad === undefined) return undefined;
+  if (pendingSystemTraceLoad !== undefined) return pendingSystemTraceLoad;
+
+  pendingSystemTraceLoad = import('@zintrust/trace')
+    .then((module) => {
+      systemTraceModule = module as unknown as SystemTraceModule;
+      return systemTraceModule;
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      didAttemptSystemTraceLoad = true;
+      pendingSystemTraceLoad = undefined;
+    });
+
+  return pendingSystemTraceLoad;
+};
 
 export const isAvailable = (): boolean => systemTraceModule !== undefined;
 
-export const TraceConfig: TraceConfigApi = systemTraceModule?.TraceConfig ?? fallbackTraceConfig;
+export const TraceConfig: TraceConfigApi = Object.freeze({
+  merge(overrides?: unknown): { enabled?: boolean; connection?: string } {
+    return (systemTraceModule?.TraceConfig ?? fallbackTraceConfig).merge(overrides);
+  },
+});
 
-export const TraceStorage: TraceStorageApi =
-  systemTraceModule?.TraceStorage ?? fallbackTraceStorage;
+export const TraceStorage: TraceStorageApi = Object.freeze({
+  resolveStorage(db: unknown): unknown {
+    return (systemTraceModule?.TraceStorage ?? fallbackTraceStorage).resolveStorage(db);
+  },
+});
 
-export const registerTraceDashboard =
-  systemTraceModule?.registerTraceDashboard ?? fallbackRegisterTraceDashboard;
+export const registerTraceDashboard = (
+  router: unknown,
+  options?: { basePath?: string; middleware?: ReadonlyArray<string> }
+): void => {
+  (systemTraceModule?.registerTraceDashboard ?? fallbackRegisterTraceDashboard)(router, options);
+};
 
-export const registerTraceRoutes =
-  systemTraceModule?.registerTraceRoutes ?? fallbackRegisterTraceRoutes;
+export const registerTraceRoutes = (
+  router: unknown,
+  storage: unknown,
+  options?: { basePath?: string; middleware?: ReadonlyArray<string> }
+): void => {
+  (systemTraceModule?.registerTraceRoutes ?? fallbackRegisterTraceRoutes)(router, storage, options);
+};
+
+export const captureTraceException = (error: unknown): void => {
+  if (systemTraceModule?.captureTraceException !== undefined) {
+    systemTraceModule.captureTraceException(error);
+    return;
+  }
+
+  void loadSystemTraceModule().then((module) => {
+    (module?.captureTraceException ?? fallbackCaptureTraceException)(error);
+  });
+};
 
 export const ensureSystemTraceRegistered = async (): Promise<void> => {
-  if (!isAvailable()) return;
+  const module = await loadSystemTraceModule();
+  if (module === undefined) return;
   await import('@zintrust/trace/register').catch(() => undefined);
 };

@@ -9,8 +9,12 @@ export interface Migration {
   down(db: IDatabase): Promise<void>;
 }
 
+type DatabaseWithDriver = IDatabase & {
+  getType?: () => string;
+};
+
 const alterCreatedAt = async (db: IDatabase): Promise<void> => {
-  const driver = db.getType();
+  const driver = (db as DatabaseWithDriver).getType?.() ?? 'sqlite';
   if (driver === 'sqlite' || driver === 'd1' || driver === 'd1-remote') return;
 
   const schema = MigrationSchema.create(db);

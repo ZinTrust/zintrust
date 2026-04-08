@@ -40,4 +40,27 @@ describe('TraceConfig', () => {
       expect.arrayContaining(['pin', 'password', 'cardPin'])
     );
   });
+
+  it('accepts request watcher include and exclude filters', () => {
+    const config = TraceConfig.merge({
+      watchers: {
+        request: {
+          get: { include: ['auth'], exclude: ['report'] },
+          post: { include: ['checkout'] },
+        },
+      },
+    });
+
+    expect(config.watchers.request).toEqual(
+      expect.objectContaining({
+        get: expect.objectContaining({
+          include: expect.arrayContaining(['auth']),
+          exclude: expect.arrayContaining(['report']),
+        }),
+        post: expect.objectContaining({
+          include: expect.arrayContaining(['checkout']),
+        }),
+      })
+    );
+  });
 });

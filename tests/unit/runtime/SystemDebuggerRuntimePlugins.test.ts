@@ -61,6 +61,8 @@ describe('runtime trace plugin shims', () => {
 
     const runtimeModule = await import('@runtime/plugins/trace-runtime');
 
+    await runtimeModule.ensureSystemTraceRegistered();
+
     expect(runtimeModule.isAvailable()).toBe(true);
     expect(runtimeModule.TraceConfig.merge({ env: 'test' })).toEqual({
       enabled: true,
@@ -83,7 +85,5 @@ describe('runtime trace plugin shims', () => {
     expect(registerRoutesSpy).toHaveBeenCalledWith('router', 'storage', {
       basePath: '/trace',
     });
-
-    await runtimeModule.ensureSystemTraceRegistered();
   });
 });

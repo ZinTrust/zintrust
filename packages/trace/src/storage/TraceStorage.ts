@@ -26,6 +26,10 @@ type EntryRow = {
 
 type TagRow = { entry_uuid: string; tag: string };
 
+type DatabaseWithDriver = IDatabase & {
+  getType?: () => string;
+};
+
 const buildIgnoreInsert = (
   db: IDatabase,
   table: string,
@@ -34,7 +38,7 @@ const buildIgnoreInsert = (
 ): string => {
   const columnList = columns.join(', ');
   const placeholders = columns.map(() => '?').join(', ');
-  const driver = db.getType();
+  const driver = (db as DatabaseWithDriver).getType?.() ?? 'sqlite';
 
   if (driver === 'sqlite' || driver === 'd1' || driver === 'd1-remote') {
     return `INSERT OR IGNORE INTO ${table} (${columnList}) VALUES (${placeholders})`;

@@ -32,6 +32,10 @@ describe('ErrorHandlerMiddleware', () => {
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
+    const captureTraceException = vi.fn();
+    vi.doMock('@runtime/plugins/trace-runtime', () => ({
+      captureTraceException,
+    }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
     const { Logger } = await import('@config/logger');
@@ -54,6 +58,7 @@ describe('ErrorHandlerMiddleware', () => {
     await middleware(req, res, next);
 
     expect(Logger.error).toHaveBeenCalled();
+    expect(captureTraceException).toHaveBeenCalledWith(expect.any(Error));
     expect(setStatusSpy).toHaveBeenCalledWith(500);
     expect(jsonSpy).toHaveBeenCalled();
 
@@ -84,6 +89,9 @@ describe('ErrorHandlerMiddleware', () => {
     }));
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@runtime/plugins/trace-runtime', () => ({
+      captureTraceException: vi.fn(),
     }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
@@ -138,6 +146,9 @@ describe('ErrorHandlerMiddleware', () => {
 
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@runtime/plugins/trace-runtime', () => ({
+      captureTraceException: vi.fn(),
     }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
@@ -194,6 +205,9 @@ describe('ErrorHandlerMiddleware', () => {
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
+    vi.doMock('@runtime/plugins/trace-runtime', () => ({
+      captureTraceException: vi.fn(),
+    }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
 
@@ -235,6 +249,9 @@ describe('ErrorHandlerMiddleware', () => {
     }));
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@runtime/plugins/trace-runtime', () => ({
+      captureTraceException: vi.fn(),
     }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');

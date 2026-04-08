@@ -540,13 +540,17 @@ const initializeSystemTrace = async (router: IRouter): Promise<void> => {
   const traceModule =
     (await tryImportOptional<ILocalSystemTraceModule>('@runtime/plugins/trace-runtime')) ??
     (await loadLocalSystemTraceModule());
-  if (traceModule === undefined || traceModule.isAvailable?.() === false) {
+  if (traceModule === undefined) {
     Logger.debug('System Trace is enabled but the optional package is unavailable.');
     return;
   }
 
   try {
     await traceModule.ensureSystemTraceRegistered();
+    if (traceModule.isAvailable?.() === false) {
+      Logger.debug('System Trace is enabled but the optional package is unavailable.');
+      return;
+    }
 
     if (!isTraceDashboardAutoMountEnabled()) {
       Logger.info(

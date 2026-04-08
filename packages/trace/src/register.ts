@@ -23,6 +23,7 @@ import { TraceConfig } from './config';
 import { TraceContext } from './context';
 import { TraceStorage } from './storage';
 import { TraceContentRedaction } from './storage/TraceContentRedaction';
+import { TraceEntryFiltering } from './storage/TraceEntryFiltering';
 import { TraceWriteDiagnostics } from './storage/TraceWriteDiagnostics';
 import type { ITraceWatcherConfig, TraceConfigOverrides } from './types';
 
@@ -247,7 +248,10 @@ if (!traceAlreadyInitialized && Env) {
 
     if (db) {
       const storage = TraceWriteDiagnostics.wrapStorage(
-        TraceContentRedaction.wrapStorage(TraceStorage.resolveStorage(db), config.redaction),
+        TraceContentRedaction.wrapStorage(
+          TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(db), config),
+          config.redaction
+        ),
         {
           connectionName: resolvedConnectionName,
           logger: core.Logger,

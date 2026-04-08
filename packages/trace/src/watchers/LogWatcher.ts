@@ -8,7 +8,7 @@ import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 import { RequestFilter } from '../utils/requestFilter';
 
-type LoggerSink = (level: string, message: string, context?: Record<string, unknown>) => void;
+// type LoggerSink = (level: string, message: string, context?: Record<string, unknown>) => void;
 
 const LEVEL_PRIORITY: Record<string, number> = {
   debug: 0,
@@ -24,37 +24,37 @@ export const LogWatcher: ITraceWatcher = Object.freeze({
 
     const minPriority = LEVEL_PRIORITY[config.logMinLevel] ?? 1;
 
-    const loggerWithSink = Logger as typeof Logger & {
-      addSink?: (fn: LoggerSink) => () => void;
-    };
+    const loggerWithSink = Logger;
 
     if (typeof loggerWithSink.addSink !== 'function') {
       return () => undefined;
     }
 
-    const unsubscribe = loggerWithSink.addSink((level, message, context) => {
-      if ((LEVEL_PRIORITY[level] ?? 0) < minPriority) return;
-      if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes)) return;
+    const unsubscribe = loggerWithSink.addSink(
+      (level: string, message: string, context?: Record<string, unknown>) => {
+        if ((LEVEL_PRIORITY[level] ?? 0) < minPriority) return;
+        if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes)) return;
 
-      const content: LogContent = {
-        level,
-        message,
-        context: context ?? undefined,
-        hostname: TraceContext.getHostname(),
-      };
+        const content: LogContent = {
+          level,
+          message,
+          context: context ?? undefined,
+          hostname: TraceContext.getHostname(),
+        };
 
-      storage
-        .writeEntry({
-          uuid: crypto.randomUUID(),
-          batchId: TraceContext.getBatchId(),
-          type: EntryType.LOG,
-          content,
-          tags: AuthTag.append([]),
-          isLatest: true,
-          createdAt: TraceContext.now(),
-        })
-        .catch(() => undefined);
-    });
+        storage
+          .writeEntry({
+            uuid: crypto.randomUUID(),
+            batchId: TraceContext.getBatchId(),
+            type: EntryType.LOG,
+            content,
+            tags: AuthTag.append([]),
+            isLatest: true,
+            createdAt: TraceContext.now(),
+          })
+          .catch(() => undefined);
+      }
+    );
 
     return unsubscribe;
   },

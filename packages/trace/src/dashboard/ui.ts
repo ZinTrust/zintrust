@@ -77,7 +77,7 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
     .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:22px 24px 16px}.section-head h3{margin:0;font-size:1.04rem}.section-head p{margin:6px 0 0;color:var(--muted);font-size:.92rem}.toolbar{display:flex;flex-wrap:wrap;gap:10px;padding:0 24px 18px}.control,.toolbar input,.toolbar select{height:44px;border-radius:13px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);padding:0 14px;min-width:0}.toolbar input,.toolbar select{flex:1 1 180px}.toolbar input::placeholder{color:var(--muted)}.btn{height:44px;border:none;border-radius:13px;padding:0 16px;cursor:pointer;font-weight:800}.btn-primary{background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff}.btn-danger{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.18)}.btn-ghost{background:var(--surface-soft);color:var(--text);border:1px solid var(--line)}
     .table-wrap{overflow:auto;padding:0 12px 12px}table{width:100%;border-collapse:separate;border-spacing:0;min-width:880px}th{padding:14px;color:var(--muted);font-size:.74rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--line)}td{padding:15px 14px;border-bottom:1px solid var(--line);vertical-align:top}.row-button{cursor:pointer}.row-button:hover td{background:rgba(56,189,248,.05)}.summary{font-size:.93rem;font-weight:700;line-height:1.4;color:var(--text)}.summary-sub{margin-top:6px;color:var(--muted);font-size:.82rem;line-height:1.4}.mono{font-family:var(--mono)}.empty{padding:44px 24px;color:var(--muted);line-height:1.65;text-align:center}.pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px 24px;color:var(--muted);flex-wrap:wrap}.pagination-controls{display:flex;gap:8px}.pagination button{height:40px;min-width:92px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer}.pagination button:disabled{opacity:.45;cursor:not-allowed}
     .activity-list{list-style:none;margin:0;padding:0 24px 24px}.activity-item{padding:14px 0;border-top:1px solid var(--line)}.activity-item:first-child{border-top:none}.activity-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.activity-time{color:var(--muted);font-size:.85rem}.activity-summary{margin-top:8px;color:var(--text);line-height:1.48}.back-link{display:inline-flex;align-items:center;gap:8px;margin:0 0 14px;color:var(--accent);font-weight:800;cursor:pointer}.detail-card{padding:24px}.detail-meta{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 20px;color:var(--muted);font-size:.9rem}.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.detail-stack{display:grid;gap:16px;margin-top:18px}.detail-box{padding:16px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.detail-box h4{margin:0 0 10px;font-size:.92rem}.detail-box dl{margin:0;display:grid;gap:8px}.detail-box dt{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-box dd{margin:0;color:var(--text);line-height:1.45}.trace-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 16px}.trace-tab{border:none;border-radius:12px;padding:10px 12px;background:transparent;color:var(--muted);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);font-weight:800}.trace-tab.active{background:rgba(56,189,248,.12);color:var(--text);box-shadow:inset 0 0 0 1px rgba(56,189,248,.28)}.trace-panel{display:grid;gap:14px}.trace-item{padding:18px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.trace-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.trace-item-summary{margin-top:10px;display:grid;gap:10px}.trace-note{color:var(--muted);line-height:1.6}
-    .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:.78rem;font-weight:800;margin:0 6px 6px 0;border:1px solid rgba(56,189,248,.18)}button.tag{cursor:pointer}html[data-theme='light'] .tag{color:#075985}.tag.failed{background:rgba(239,68,68,.14);color:#fecaca;border-color:rgba(239,68,68,.2)}html[data-theme='light'] .tag.failed{color:#b91c1c}.tag.slow{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.slow{color:#92400e}.type-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border:1px solid transparent}.pill-request{background:rgba(56,189,248,.14);color:#93c5fd}.pill-query{background:rgba(34,197,94,.12);color:#86efac}.pill-exception{background:rgba(239,68,68,.14);color:#fecaca}.pill-log{background:rgba(168,85,247,.14);color:#ddd6fe}.pill-job,.pill-batch{background:rgba(245,158,11,.14);color:#fde68a}.pill-cache{background:rgba(20,184,166,.12);color:#99f6e4}.pill-schedule,.pill-command{background:rgba(14,165,233,.14);color:#bae6fd}.pill-mail,.pill-notification{background:rgba(236,72,153,.14);color:#fbcfe8}.pill-auth{background:rgba(148,163,184,.16);color:#e2e8f0}.pill-event,.pill-model{background:rgba(74,222,128,.14);color:#bbf7d0}.pill-redis{background:rgba(239,68,68,.12);color:#fecaca}.pill-gate{background:rgba(99,102,241,.14);color:#c7d2fe}.pill-middleware{background:rgba(45,212,191,.12);color:#ccfbf1}.pill-dump,.pill-view{background:rgba(148,163,184,.14);color:#e2e8f0}.pill-client-request{background:rgba(59,130,246,.14);color:#bfdbfe}html[data-theme='light'] .pill-request{color:#1d4ed8}html[data-theme='light'] .pill-query{color:#166534}html[data-theme='light'] .pill-exception{color:#b91c1c}html[data-theme='light'] .pill-log{color:#6d28d9}html[data-theme='light'] .pill-job,html[data-theme='light'] .pill-batch{color:#92400e}html[data-theme='light'] .pill-cache{color:#115e59}html[data-theme='light'] .pill-schedule,html[data-theme='light'] .pill-command{color:#0c4a6e}html[data-theme='light'] .pill-mail,html[data-theme='light'] .pill-notification{color:#9d174d}html[data-theme='light'] .pill-auth,html[data-theme='light'] .pill-dump,html[data-theme='light'] .pill-view{color:#334155}html[data-theme='light'] .pill-event,html[data-theme='light'] .pill-model{color:#166534}html[data-theme='light'] .pill-redis{color:#991b1b}html[data-theme='light'] .pill-gate{color:#3730a3}html[data-theme='light'] .pill-middleware{color:#155e75}html[data-theme='light'] .pill-client-request{color:#1d4ed8}
+    .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:.78rem;font-weight:800;margin:0 6px 6px 0;border:1px solid rgba(56,189,248,.18);text-decoration:none}button.tag{cursor:pointer}html[data-theme='light'] .tag{color:#075985}.tag.failed{background:rgba(239,68,68,.14);color:#fecaca;border-color:rgba(239,68,68,.2)}html[data-theme='light'] .tag.failed{color:#b91c1c}.tag.slow{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.slow{color:#92400e}.type-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border:1px solid transparent}.pill-request{background:rgba(56,189,248,.14);color:#93c5fd}.pill-request.method-get{background:rgba(34,197,94,.16);color:#bbf7d0}.pill-request.method-post{background:rgba(59,130,246,.16);color:#bfdbfe}.pill-request.method-other{background:rgba(245,158,11,.16);color:#fde68a}.pill-query{background:rgba(34,197,94,.12);color:#86efac}.pill-exception{background:rgba(239,68,68,.14);color:#fecaca}.pill-log{background:rgba(168,85,247,.14);color:#ddd6fe}.pill-job,.pill-batch{background:rgba(245,158,11,.14);color:#fde68a}.pill-cache{background:rgba(20,184,166,.12);color:#99f6e4}.pill-schedule,.pill-command{background:rgba(14,165,233,.14);color:#bae6fd}.pill-mail,.pill-notification{background:rgba(236,72,153,.14);color:#fbcfe8}.pill-auth{background:rgba(148,163,184,.16);color:#e2e8f0}.pill-event,.pill-model{background:rgba(74,222,128,.14);color:#bbf7d0}.pill-redis{background:rgba(239,68,68,.12);color:#fecaca}.pill-gate{background:rgba(99,102,241,.14);color:#c7d2fe}.pill-middleware{background:rgba(45,212,191,.12);color:#ccfbf1}.pill-dump,.pill-view{background:rgba(148,163,184,.14);color:#e2e8f0}.pill-client-request{background:rgba(59,130,246,.14);color:#bfdbfe}html[data-theme='light'] .pill-request{color:#1d4ed8}html[data-theme='light'] .pill-request.method-get{color:#166534}html[data-theme='light'] .pill-request.method-post{color:#1d4ed8}html[data-theme='light'] .pill-request.method-other{color:#92400e}html[data-theme='light'] .pill-query{color:#166534}html[data-theme='light'] .pill-exception{color:#b91c1c}html[data-theme='light'] .pill-log{color:#6d28d9}html[data-theme='light'] .pill-job,html[data-theme='light'] .pill-batch{color:#92400e}html[data-theme='light'] .pill-cache{color:#115e59}html[data-theme='light'] .pill-schedule,html[data-theme='light'] .pill-command{color:#0c4a6e}html[data-theme='light'] .pill-mail,html[data-theme='light'] .pill-notification{color:#9d174d}html[data-theme='light'] .pill-auth,html[data-theme='light'] .pill-dump,html[data-theme='light'] .pill-view{color:#334155}html[data-theme='light'] .pill-event,html[data-theme='light'] .pill-model{color:#166534}html[data-theme='light'] .pill-redis{color:#991b1b}html[data-theme='light'] .pill-gate{color:#3730a3}html[data-theme='light'] .pill-middleware{color:#155e75}html[data-theme='light'] .pill-client-request{color:#1d4ed8}
     .monitoring-wrap{padding:0 24px 24px}.tag-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.tag-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface-strong)}.tag-remove{border:none;background:rgba(239,68,68,.14);color:var(--danger);border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:1rem;line-height:1}.helper-text{color:var(--muted);line-height:1.6}
     .duration-chip{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;border:1px solid transparent;font-size:.8rem;font-weight:700;color:var(--text);white-space:nowrap}.duration-chip.vfast{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.28);color:#bbf7d0}.duration-chip.fast{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.24);color:#bae6fd}.duration-chip.slow{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.22);color:#fde68a}.duration-chip.vslow{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.24);color:#fecaca}html[data-theme='light'] .duration-chip.vfast{color:#166534}html[data-theme='light'] .duration-chip.fast{color:#1d4ed8}html[data-theme='light'] .duration-chip.slow{color:#92400e}html[data-theme='light'] .duration-chip.vslow{color:#b91c1c}
     .code-card{border-radius:16px;border:1px solid var(--code-border);background:var(--surface-soft);overflow:hidden}.code-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}.code-label{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.copy-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer;transition:border-color .16s ease,color .16s ease}.copy-button:hover{border-color:rgba(56,189,248,.35);color:var(--accent)}.copy-button[data-copied='true']{color:var(--success);border-color:rgba(34,197,94,.28)}.copy-button svg{width:16px;height:16px;display:block}.code-block{margin:0;padding:18px 20px;background:var(--code-bg);color:#dbeafe;border:0;overflow:auto;white-space:pre;line-height:1.72;font-family:var(--mono);font-size:.92rem}.code-block code{font-family:inherit}.tok-key{color:#93c5fd}.tok-string{color:#86efac}.tok-number{color:#f9a8d4}.tok-boolean{color:#facc15}.tok-null{color:#fb7185}.tok-punctuation{color:#94a3b8}.tok-sql-keyword{color:#f472b6;font-weight:700}.tok-sql-identifier{color:#93c5fd}.tok-sql-string{color:#86efac}.tok-sql-number{color:#facc15}.tok-sql-comment{color:#64748b;font-style:italic}html[data-theme='light'] .code-block{color:#0f172a}html[data-theme='light'] .tok-key{color:#1d4ed8}html[data-theme='light'] .tok-string{color:#15803d}html[data-theme='light'] .tok-number{color:#c026d3}html[data-theme='light'] .tok-boolean{color:#b45309}html[data-theme='light'] .tok-null{color:#dc2626}html[data-theme='light'] .tok-punctuation{color:#64748b}html[data-theme='light'] .tok-sql-keyword{color:#db2777}html[data-theme='light'] .tok-sql-identifier{color:#2563eb}html[data-theme='light'] .tok-sql-string{color:#15803d}html[data-theme='light'] .tok-sql-number{color:#b45309}html[data-theme='light'] .tok-sql-comment{color:#6b7280}
@@ -146,14 +146,26 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       monitoring: { title: 'Monitoring tags', subtitle: 'Pinned tags for trace pivots.' }
     };
 
-    let state = {
-      page: 'overview',
-      entriesPage: 1,
-      entriesFilter: { type: '', tag: '', batchId: '' },
-      detail: null,
-      detailBatch: null,
-      detailTab: 'summary'
+    const createInitialState = () => {
+      const search = new URLSearchParams(window.location.search);
+      const page = search.get('page');
+      const entriesPage = Number.parseInt(search.get('entriesPage') || '1', 10);
+
+      return {
+        page: page && Object.prototype.hasOwnProperty.call(PAGE_COPY, page) ? page : 'overview',
+        entriesPage: Number.isFinite(entriesPage) && entriesPage > 0 ? entriesPage : 1,
+        entriesFilter: {
+          type: search.get('type') || '',
+          tag: search.get('tag') || '',
+          batchId: search.get('batchId') || ''
+        },
+        detail: null,
+        detailBatch: null,
+        detailTab: 'summary'
+      };
     };
+
+    let state = createInitialState();
 
     let copySequence = 0;
     const copyPayloads = new Map();
@@ -199,7 +211,19 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       return response.json();
     };
 
-    const typeClass = (type) => 'type-pill pill-' + String(type || '').replace(/_/g, '-');
+    const requestMethodClass = (entry) => {
+      if (!entry || entry.type !== 'request') return '';
+      const method = String(entry.content && entry.content.method || '').toUpperCase();
+      if (method === 'GET') return ' method-get';
+      if (method === 'POST') return ' method-post';
+      return ' method-other';
+    };
+
+    const typeClass = (entryOrType, maybeEntry) => {
+      const entry = maybeEntry || (typeof entryOrType === 'object' ? entryOrType : null);
+      const type = entry && entry.type ? entry.type : entryOrType;
+      return 'type-pill pill-' + String(type || '').replace(/_/g, '-') + requestMethodClass(entry);
+    };
 
     const timeSince = (value) => {
       const createdAt = Number(value);
@@ -251,10 +275,33 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       return '<span class="duration-chip ' + tone + '" title="' + toneLabel + '">' + escapeHtml(formatDuration(duration)) + '</span>';
     };
 
+    const buildEntriesHref = (params) => {
+      const search = new URLSearchParams();
+      search.set('page', 'entries');
+      if (params.type) search.set('type', String(params.type));
+      if (params.tag) search.set('tag', String(params.tag));
+      if (params.batchId) search.set('batchId', String(params.batchId));
+      return BASE + '?' + search.toString();
+    };
+
     const tagsHtml = (tags) => (tags || []).map((tag) => {
       const css = tag === 'failed' ? 'tag failed' : tag === 'slow' ? 'tag slow' : 'tag';
-      return '<button type="button" class="' + css + '" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</button>';
+      const href = buildEntriesHref({ tag });
+      return '<a class="' + css + '" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '" href="' + escapeHtml(href) + '">' + escapeHtml(tag) + '</a>';
     }).join('');
+
+    const syncUrl = () => {
+      const search = new URLSearchParams();
+      if (state.page !== 'overview') search.set('page', state.page);
+      if (state.page === 'entries' || state.entriesFilter.type || state.entriesFilter.tag || state.entriesFilter.batchId) {
+        if (state.entriesFilter.type) search.set('type', state.entriesFilter.type);
+        if (state.entriesFilter.tag) search.set('tag', state.entriesFilter.tag);
+        if (state.entriesFilter.batchId) search.set('batchId', state.entriesFilter.batchId);
+        if (state.entriesPage > 1) search.set('entriesPage', String(state.entriesPage));
+      }
+      const nextUrl = search.toString() === '' ? BASE : BASE + '?' + search.toString();
+      window.history.replaceState(null, '', nextUrl);
+    };
 
     const batchSnippet = (batchId) => {
       const raw = String(batchId || '');
@@ -475,7 +522,7 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
           '<section class="trace-item">',
           '<div class="trace-item-head">',
           '<div>',
-          '<span class="' + typeClass(entry.type) + '">' + escapeHtml(entry.type) + '</span>',
+          '<span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span>',
           '</div>',
           '<div class="activity-head">' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></div>',
           '</div>',
@@ -501,10 +548,11 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
         { id: 'logs', label: 'Logs', count: batchEntriesByType('log').length },
         { id: 'exceptions', label: 'Exceptions', count: batchEntriesByType('exception').length },
         { id: 'http', label: 'HTTP', count: batchEntriesByType('client_request').length },
-        { id: 'other', label: 'Other', count: batchEntries().filter((item) => !['request','query','log','exception','client_request'].includes(item.type)).length }
+        { id: 'cache', label: 'Cache', count: batchEntriesByType('cache').length },
+        { id: 'other', label: 'Other', count: batchEntries().filter((item) => !['request','query','log','exception','client_request','cache'].includes(item.type)).length }
       ];
       const currentTab = traceTabs.some((tab) => tab.id === state.detailTab) ? state.detailTab : 'summary';
-      const otherEntries = batchEntries().filter((item) => !['request','query','log','exception','client_request'].includes(item.type));
+      const otherEntries = batchEntries().filter((item) => !['request','query','log','exception','client_request','cache'].includes(item.type));
       const panels = {
         summary: [
           '<div class="detail-grid">',
@@ -527,18 +575,19 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
         ].join(''),
         payload: detailJson(content.payload || {}),
         headers: '<div class="detail-stack">' + detailJson(content.headers || {}) + detailJson(content.responseHeaders || {}) + '</div>',
-        response: '<div class="detail-stack"><div class="detail-grid">' + renderMetricBox('Status', [{ label: 'Response status', value: escapeHtml(content.responseStatus || '') }, { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }]) + '</div><p class="trace-note">Response body capture is not wired yet. Status and headers are available.</p>' + detailJson(content.responseHeaders || {}) + '</div>',
+        response: '<div class="detail-stack"><div class="detail-grid">' + renderMetricBox('Status', [{ label: 'Response status', value: escapeHtml(content.responseStatus || '') }, { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }]) + '</div>' + (content.responseBody === undefined ? '<p class="trace-note">No response body was captured for this request.</p>' : detailJson(content.responseBody)) + detailJson(content.responseHeaders || {}) + '</div>',
         queries: renderTraceItems(batchEntriesByType('query')),
         logs: renderTraceItems(batchEntriesByType('log')),
         exceptions: renderTraceItems(batchEntriesByType('exception')),
         http: renderTraceItems(batchEntriesByType('client_request')),
+        cache: renderTraceItems(batchEntriesByType('cache')),
         other: renderTraceItems(otherEntries)
       };
 
       main.innerHTML = [
         '<span class="back-link" data-action="close-detail"><- Back to entries</span>',
         '<section class="panel detail-card">',
-        '<div><span class="' + typeClass(entry.type) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags) + '</div>',
+        '<div><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags) + '</div>',
         '<div class="detail-meta"><span>UUID <span class="mono">' + escapeHtml(entry.uuid) + '</span></span><span>Batch <span class="mono">' + escapeHtml(entry.batchId || '-') + '</span></span><span>' + durationHtml(entry) + '</span><span>' + escapeHtml(new Date(Number(entry.createdAt)).toISOString()) + '</span></div>',
         '<div class="trace-tabs">',
         traceTabs.map((tab) => '<button type="button" class="trace-tab' + (tab.id === currentTab ? ' active' : '') + '" data-action="detail-tab" data-tab="' + escapeHtml(tab.id) + '">' + escapeHtml(tab.label) + (tab.count !== undefined ? ' (' + escapeHtml(tab.count) + ')' : '') + '</button>').join(''),
@@ -564,10 +613,10 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
         const recentRows = recent.data || [];
         const recentTable = recentRows.length === 0
           ? '<div class="empty">No trace entries recorded.</div>'
-          : '<div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Duration</th><th>Happened</th></tr></thead><tbody>' + recentRows.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td><span class="' + typeClass(entry.type) + '">' + escapeHtml(entry.type) + '</span></td><td>' + entrySummaryHtml(entry) + '</td><td>' + tagsHtml(entry.tags) + '</td><td>' + durationHtml(entry) + '</td><td class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('') + '</tbody></table></div>';
+          : '<div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Duration</th><th>Happened</th></tr></thead><tbody>' + recentRows.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span></td><td>' + entrySummaryHtml(entry) + '</td><td>' + tagsHtml(entry.tags) + '</td><td>' + durationHtml(entry) + '</td><td class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('') + '</tbody></table></div>';
         const activityList = recentRows.length === 0
           ? '<div class="empty">No recent activity.</div>'
-          : '<ul class="activity-list">' + recentRows.slice(0, 5).map((entry) => '<li class="activity-item"><div class="activity-head"><span class="' + typeClass(entry.type) + '">' + escapeHtml(entry.type) + '</span>' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></div><div class="activity-summary">' + escapeHtml(entrySummaryText(entry)) + '</div></li>').join('') + '</ul>';
+          : '<ul class="activity-list">' + recentRows.slice(0, 5).map((entry) => '<li class="activity-item"><div class="activity-head"><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span>' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></div><div class="activity-summary">' + escapeHtml(entrySummaryText(entry)) + '</div></li>').join('') + '</ul>';
 
         main.innerHTML = [
           statsCardsHtml(stats),
@@ -611,7 +660,7 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
         const total = Number(response.total || 0);
         const perPage = Number(response.perPage || 50);
         const totalPages = Math.max(1, Math.ceil(total / perPage));
-        const rows = data.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td><span class="' + typeClass(entry.type) + '">' + escapeHtml(entry.type) + '</span></td><td>' + entrySummaryHtml(entry) + '</td><td>' + tagsHtml(entry.tags) + '</td><td>' + durationHtml(entry) + '</td><td class="mono">' + batchSnippet(entry.batchId) + '</td><td class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('');
+        const rows = data.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span></td><td>' + entrySummaryHtml(entry) + '</td><td>' + tagsHtml(entry.tags) + '</td><td>' + durationHtml(entry) + '</td><td class="mono">' + batchSnippet(entry.batchId) + '</td><td class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('');
 
         main.innerHTML = [
           '<section class="panel">',
@@ -647,7 +696,7 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       main.innerHTML = [
         '<span class="back-link" data-action="close-detail"><- Back to entries</span>',
         '<section class="panel detail-card">',
-        '<div><span class="' + typeClass(entry.type) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags) + '</div>',
+        '<div><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags) + '</div>',
         '<div class="detail-meta"><span>UUID <span class="mono">' + escapeHtml(entry.uuid) + '</span></span><span>Batch <span class="mono">' + escapeHtml(entry.batchId || '-') + '</span></span><span>' + durationHtml(entry) + '</span><span>' + escapeHtml(new Date(Number(entry.createdAt)).toISOString()) + '</span></div>',
         '<div class="detail-stack">',
         renderEntryBody(entry),
@@ -666,9 +715,9 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
           '<div class="section-head"><div><h3>Monitoring tags</h3><p>Save the tags you filter by often so they stay one click away.</p></div></div>',
           '<div class="monitoring-wrap">',
           '<div class="tag-list">',
-          tags.length === 0 ? '<span class="helper-text">No tags monitored yet. Add tags like auth, checkout, queue:emails, or nightly-sync to pin them here.</span>' : tags.map((tag) => '<span class="tag-item"><button type="button" class="tag mono" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</button><button type="button" class="tag-remove" data-action="remove-tag" data-tag="' + escapeHtml(tag) + '">x</button></span>').join(''),
+          tags.length === 0 ? '<span class="helper-text">No tags monitored yet. Add tags like auth, checkout, queue:emails, or nightly-sync to pin them here.</span>' : tags.map((tag) => '<span class="tag-item"><a class="tag mono" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '" href="' + escapeHtml(buildEntriesHref({ tag })) + '">' + escapeHtml(tag) + '</a><button type="button" class="tag-remove" data-action="remove-tag" data-tag="' + escapeHtml(tag) + '">x</button></span>').join(''),
           '</div>',
-          '<p class="helper-text">Click a saved tag to filter the entries list by that exact tag. Removing a saved tag only removes the shortcut here; it does not delete any trace entries.</p>',
+          '<p class="helper-text">Click a saved tag to filter the entries list by that exact tag. Because each tag is a real link, you can also open it in a new tab. Removing a saved tag only removes the shortcut here; it does not delete any trace entries.</p>',
           '<div class="toolbar" style="padding:0;margin-top:8px">',
           '<input id="new-tag" class="control" type="text" placeholder="Add tag, for example checkout">',
           '<button type="button" class="btn btn-primary" data-action="add-tag">Add tag</button>',
@@ -694,6 +743,8 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       document.querySelectorAll('[data-action="type-shortcut"]').forEach((button) => {
         button.classList.toggle('active', button.getAttribute('data-type') === activeShortcut);
       });
+
+      syncUrl();
 
       if (state.page === 'overview') await renderOverview(main);
       if (state.page === 'entries') await renderEntries(main);
@@ -829,7 +880,12 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
       const action = target.getAttribute('data-action');
       if (action === 'go-page') { setPage(String(target.getAttribute('data-page') || 'overview')); return; }
       if (action === 'type-shortcut') { setTypeShortcut(String(target.getAttribute('data-type') || '')); return; }
-      if (action === 'filter-tag') { filterByTag(String(target.getAttribute('data-tag') || '')); return; }
+      if (action === 'filter-tag') {
+        if (target instanceof HTMLAnchorElement && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)) return;
+        event.preventDefault();
+        filterByTag(String(target.getAttribute('data-tag') || ''));
+        return;
+      }
       if (action === 'detail-tab') { state = { ...state, detailTab: String(target.getAttribute('data-tab') || 'summary') }; render(); return; }
       if (action === 'clear-all') { clearAll(); return; }
       if (action === 'show-detail') { showDetail(String(target.getAttribute('data-uuid') || '')); return; }

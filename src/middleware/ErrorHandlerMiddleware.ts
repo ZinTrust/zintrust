@@ -10,6 +10,7 @@ import {
   type MiddlewareFailureResponder,
 } from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
+import { captureTraceException } from '@runtime/plugins/trace-runtime';
 
 export interface ErrorHandlerOptions {
   onFailure?: MiddlewareFailureResponder;
@@ -45,6 +46,7 @@ export const ErrorHandlerMiddleware = Object.freeze({
       try {
         await next();
       } catch (error) {
+        captureTraceException(error);
         Logger.error('Unhandled request error:', error as Error);
 
         const requestId =

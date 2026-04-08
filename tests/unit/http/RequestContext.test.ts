@@ -38,6 +38,14 @@ describe('RequestContext', () => {
     expect(req.context['traceId']).toBe('trace-abc');
   });
 
+  it('create() falls back to the requestId when no trace header is present', () => {
+    const req = makeReq();
+    const ctx = RequestContext.create(req);
+
+    expect(ctx.traceId).toBe(ctx.requestId);
+    expect(req.context['traceId']).toBe(ctx.requestId);
+  });
+
   it('attach and get work as expected', () => {
     const req = makeReq();
     const ctx = { requestId: 'a', startTime: Date.now(), method: 'GET', path: '/a' } as any;

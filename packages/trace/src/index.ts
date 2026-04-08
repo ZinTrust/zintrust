@@ -6,6 +6,8 @@
  *   import '@zintrust/trace/register';
  */
 
+import { ExceptionWatcher as ExceptionWatcherApi } from './watchers/ExceptionWatcher';
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -52,6 +54,10 @@ export { QueryWatcher } from './watchers/QueryWatcher';
 export { RedisWatcher } from './watchers/RedisWatcher';
 export { ScheduleWatcher } from './watchers/ScheduleWatcher';
 export { ViewWatcher } from './watchers/ViewWatcher';
+
+export const captureTraceException = (error: unknown): void => {
+  ExceptionWatcherApi.capture(error);
+};
 
 // ---------------------------------------------------------------------------
 // Types

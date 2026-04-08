@@ -31,6 +31,16 @@ export default {
   watchers: {
     // Set a watcher to false to disable it entirely.
     // All watchers are enabled by default when trace is enabled.
+    // Include/exclude filters are contains-based and can be applied per watcher.
+    // request: {
+    //   get: { exclude: ['report'] },
+    //   post: { include: ['auth'] },
+    //   patch: { include: ['profile'] },
+    //   delete: { exclude: ['internal'] },
+    // },
+    // log: { exclude: ['healthcheck'] },
+    // exception: { include: ['trace'] },
+    // cache: { include: ['session:'] },
     // dump: false,  // DumpWatcher is opt-in — enable explicitly if needed
   },
 

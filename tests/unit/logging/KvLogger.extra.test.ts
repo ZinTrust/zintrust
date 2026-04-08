@@ -364,7 +364,7 @@ test('flushes immediately when buffer reaches maxBatch', async () => {
   vi.useRealTimers();
 
   // First enqueue a single event to start the scheduled flush (sets flushTimer)
-  await KvLogger.enqueue({ timestamp: new Date().toISOString(), level: 'info', message: `start` });
+  void KvLogger.enqueue({ timestamp: new Date().toISOString(), level: 'info', message: `start` });
 
   // allow microtasks to run and ensure flushTimer is scheduled
   await Promise.resolve();

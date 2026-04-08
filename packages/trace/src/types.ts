@@ -44,6 +44,7 @@ export interface RequestContent {
   payload: Record<string, unknown>;
   responseStatus: number;
   responseHeaders: Record<string, string>;
+  responseBody?: unknown;
   duration: number;
   memory: number | null;
   middleware: string[];
@@ -281,27 +282,45 @@ export type RedactionConfig = {
   query: string[];
 };
 
+export type TraceFilterRule = {
+  enabled?: boolean;
+  include?: string[];
+  exclude?: string[];
+};
+
+export type TraceRequestWatcherConfig = TraceFilterRule & {
+  all?: TraceFilterRule;
+  get?: TraceFilterRule;
+  post?: TraceFilterRule;
+  put?: TraceFilterRule;
+  patch?: TraceFilterRule;
+  delete?: TraceFilterRule;
+};
+
+export type TraceWatcherToggle = boolean | TraceFilterRule;
+export type TraceRequestWatcherToggle = boolean | TraceRequestWatcherConfig;
+
 export type WatcherToggles = {
-  request?: boolean;
-  query?: boolean;
-  exception?: boolean;
-  log?: boolean;
-  job?: boolean;
-  cache?: boolean;
-  schedule?: boolean;
-  mail?: boolean;
-  auth?: boolean;
-  event?: boolean;
-  model?: boolean;
-  notification?: boolean;
-  redis?: boolean;
-  gate?: boolean;
-  middleware?: boolean;
-  command?: boolean;
-  batch?: boolean;
-  dump?: boolean;
-  view?: boolean;
-  clientRequest?: boolean;
+  request?: TraceRequestWatcherToggle;
+  query?: TraceWatcherToggle;
+  exception?: TraceWatcherToggle;
+  log?: TraceWatcherToggle;
+  job?: TraceWatcherToggle;
+  cache?: TraceWatcherToggle;
+  schedule?: TraceWatcherToggle;
+  mail?: TraceWatcherToggle;
+  auth?: TraceWatcherToggle;
+  event?: TraceWatcherToggle;
+  model?: TraceWatcherToggle;
+  notification?: TraceWatcherToggle;
+  redis?: TraceWatcherToggle;
+  gate?: TraceWatcherToggle;
+  middleware?: TraceWatcherToggle;
+  command?: TraceWatcherToggle;
+  batch?: TraceWatcherToggle;
+  dump?: TraceWatcherToggle;
+  view?: TraceWatcherToggle;
+  clientRequest?: TraceWatcherToggle;
 };
 
 export interface ITraceConfig {

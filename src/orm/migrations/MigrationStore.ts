@@ -50,6 +50,38 @@ const queryExists = async (db: IDatabase, sql: string, parameters: unknown[]): P
   return rows.length > 0;
 };
 
+const schemaHasTable = async (db: IDatabase, tableName: string): Promise<boolean> => {
+  const driver = db.getType();
+
+  if (driver === 'sqlite' || driver === 'd1' || driver === 'd1-remote') {
+    return queryExists(db, "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1", [
+      tableName,
+    ]);
+  }
+
+  if (driver === 'postgresql') {
+    return queryExists(
+      db,
+      "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=? LIMIT 1",
+      [tableName]
+    );
+  }
+
+  if (driver === 'mysql') {
+    return queryExists(
+      db,
+      'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1',
+      [tableName]
+    );
+  }
+
+  if (driver === 'sqlserver') {
+    return queryExists(db, 'SELECT 1 FROM sys.tables WHERE name=? LIMIT 1', [tableName]);
+  }
+
+  throw ErrorFactory.createCliError(`Unsupported DB driver: ${driver}`);
+};
+
 const schemaHasColumn = async (
   db: IDatabase,
   tableName: string,
@@ -91,23 +123,63 @@ const schemaHasColumn = async (
   throw ErrorFactory.createCliError(`Unsupported DB driver: ${driver}`);
 };
 
-const resolveTableLayout = async (db: IDatabase): Promise<MigrationsTableLayout> => {
+const clearTableLayoutCache = (db: IDatabase): void => {
+  tableLayoutCache.delete(db);
+};
+
+const ensureTrackingTable = async (db: IDatabase): Promise<void> => {
+  assertDbSupportsMigrations(db);
+
+  const adapter = db.getAdapterInstance(false);
+  const ensure = requireMigrationsTableSupport(adapter);
+
+  // getAdapterInstance(false) returns a raw adapter without going through Database.query()
+  // which auto-connects; ensure we're connected before creating the migrations table.
+  if (typeof (db as unknown as { connect?: unknown }).connect === 'function') {
+    await (db as unknown as { connect: () => Promise<void> }).connect();
+  } else if (typeof (adapter as unknown as { connect?: unknown }).connect === 'function') {
+    await (adapter as unknown as { connect: () => Promise<void> }).connect();
+  }
+
+  clearTableLayoutCache(db);
+  await ensure();
+  clearTableLayoutCache(db);
+};
+
+const resolveTableLayout = async (
+  db: IDatabase,
+  allowEnsure: boolean = true
+): Promise<MigrationsTableLayout> => {
   const cached = tableLayoutCache.get(db);
   if (cached !== undefined) return cached;
 
   const layoutPromise = (async (): Promise<MigrationsTableLayout> => {
     if (typeof db.query !== 'function') return DEFAULT_LAYOUT;
 
-    const [hasName, hasMigration, hasScope, hasService, hasStatus, hasAppliedAt, hasCreatedAt] =
-      await Promise.all([
-        schemaHasColumn(db, 'migrations', 'name'),
-        schemaHasColumn(db, 'migrations', 'migration'),
-        schemaHasColumn(db, 'migrations', 'scope'),
-        schemaHasColumn(db, 'migrations', 'service'),
-        schemaHasColumn(db, 'migrations', 'status'),
-        schemaHasColumn(db, 'migrations', 'applied_at'),
-        schemaHasColumn(db, 'migrations', 'created_at'),
-      ]);
+    const [
+      hasTable,
+      hasName,
+      hasMigration,
+      hasScope,
+      hasService,
+      hasStatus,
+      hasAppliedAt,
+      hasCreatedAt,
+    ] = await Promise.all([
+      schemaHasTable(db, 'migrations'),
+      schemaHasColumn(db, 'migrations', 'name'),
+      schemaHasColumn(db, 'migrations', 'migration'),
+      schemaHasColumn(db, 'migrations', 'scope'),
+      schemaHasColumn(db, 'migrations', 'service'),
+      schemaHasColumn(db, 'migrations', 'status'),
+      schemaHasColumn(db, 'migrations', 'applied_at'),
+      schemaHasColumn(db, 'migrations', 'created_at'),
+    ]);
+
+    if (!hasTable && allowEnsure) {
+      await ensureTrackingTable(db);
+      return resolveTableLayout(db, false);
+    }
 
     if (!hasName && !hasMigration) {
       throw ErrorFactory.createCliError(
@@ -128,7 +200,12 @@ const resolveTableLayout = async (db: IDatabase): Promise<MigrationsTableLayout>
   })();
 
   tableLayoutCache.set(db, layoutPromise);
-  return layoutPromise;
+  return layoutPromise.catch((error) => {
+    if (tableLayoutCache.get(db) === layoutPromise) {
+      clearTableLayoutCache(db);
+    }
+    throw error;
+  });
 };
 
 const assertCompatibleTrackingTarget = (
@@ -355,20 +432,7 @@ const requireMigrationsTableSupport = (adapter: IDatabaseAdapter): (() => Promis
 
 export const MigrationStore = Object.freeze({
   async ensureTable(db: IDatabase): Promise<void> {
-    assertDbSupportsMigrations(db);
-
-    const adapter = db.getAdapterInstance(false);
-    const ensure = requireMigrationsTableSupport(adapter);
-
-    // getAdapterInstance(false) returns a raw adapter without going through Database.query()
-    // which auto-connects; ensure we're connected before creating the migrations table.
-    if (typeof (db as unknown as { connect?: unknown }).connect === 'function') {
-      await (db as unknown as { connect: () => Promise<void> }).connect();
-    } else if (typeof (adapter as unknown as { connect?: unknown }).connect === 'function') {
-      await (adapter as unknown as { connect: () => Promise<void> }).connect();
-    }
-
-    await ensure();
+    await ensureTrackingTable(db);
   },
 
   async getLastCompletedBatch(

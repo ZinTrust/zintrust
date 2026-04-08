@@ -20,6 +20,10 @@ import {
 } from './handlers';
 import { buildDashboardHtml } from './ui';
 
+type HtmlResponse = {
+  html(body: string): void;
+};
+
 export type TraceDashboardOptions = {
   /** Base path for the dashboard, e.g. '/trace'. Defaults to '/trace'. */
   basePath?: string;
@@ -61,7 +65,7 @@ export const registerTraceRoutes = (
   Router.get(
     router,
     base,
-    (_req, res) => {
+    (_req: unknown, res: HtmlResponse) => {
       res.html(buildDashboardHtml(base, appConfig.name));
     },
     routeOptions
@@ -70,7 +74,7 @@ export const registerTraceRoutes = (
   Router.get(
     router,
     `${base}/*`,
-    (_req, res) => {
+    (_req: unknown, res: HtmlResponse) => {
       res.html(buildDashboardHtml(base, appConfig.name));
     },
     routeOptions

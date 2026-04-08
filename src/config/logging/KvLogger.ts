@@ -65,6 +65,7 @@ const buildKey = (timestampIso: string): string => {
 let buffer: KvLogEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let flushPromise: Promise<void> | undefined;
+let resolveScheduledFlush: (() => void) | undefined;
 
 const scheduleFlush = async (): Promise<void> => {
   if (flushPromise !== undefined) return flushPromise;
@@ -77,6 +78,7 @@ const scheduleFlush = async (): Promise<void> => {
       try {
         await flushNow();
       } finally {
+        resolveScheduledFlush = undefined;
         resolve(undefined);
       }
     };
@@ -87,6 +89,7 @@ const scheduleFlush = async (): Promise<void> => {
       return;
     }
 
+    resolveScheduledFlush = resolve;
     flushTimer = globalThis.setTimeout(() => {
       flushTimer = undefined;
       void run();
@@ -157,6 +160,25 @@ const flushSoon = async (): Promise<void> => {
   return flushPromise;
 };
 
+const flushImmediately = async (): Promise<void> => {
+  const pendingResolve = resolveScheduledFlush;
+
+  if (flushTimer !== undefined) {
+    globalThis.clearTimeout(flushTimer);
+    flushTimer = undefined;
+    resolveScheduledFlush = undefined;
+    flushPromise = undefined;
+  }
+
+  const immediatePromise = flushSoon();
+
+  if (pendingResolve !== undefined) {
+    void immediatePromise.finally(() => pendingResolve());
+  }
+
+  return immediatePromise;
+};
+
 export const KvLogger = Object.freeze({
   async enqueue(event: KvLogEvent): Promise<void> {
     if (!isEnabled()) return;
@@ -166,12 +188,7 @@ export const KvLogger = Object.freeze({
     // Basic size guard: flush if it gets too large
     const maxBatch = 100;
     if (buffer.length >= maxBatch) {
-      // Cancel scheduled flush and flush immediately
-      if (flushTimer !== undefined) {
-        globalThis.clearTimeout(flushTimer);
-        flushTimer = undefined;
-      }
-      return flushSoon();
+      return flushImmediately();
     }
 
     return scheduleFlush();

@@ -9,7 +9,7 @@ Works with both `zin s` (Node.js) and `zin s --wg` (Cloudflare Workers).
 ## Installation
 
 ```bash
-yarn add @zintrust/trace
+npm install @zintrust/trace
 ```
 
 Run the provided migrations to create the three required tables (`zin_trace_entries`, `zin_trace_entries_tags`, `zin_trace_monitoring`):
@@ -64,6 +64,43 @@ Why this is the preferred path:
 - The plugin activates trace runtime logic only; the dashboard route stays inactive until you register it yourself.
 
 With the stock ZinTrust bootstrap, `TRACE_ENABLED=true` plus the plugin import above activates the watchers and storage integration. Dashboard UI/routes are still a separate opt-in unless you also set `TRACE_AUTO_MOUNT=true`.
+
+### Optional: configure filters in `config/trace.ts`
+
+If you prefer project-owned trace configuration over env-only setup, put the filter rules directly in `config/trace.ts`.
+
+```ts
+// config/trace.ts
+import { Env } from '@config/env';
+import type { TraceConfigOverrides } from '@zintrust/trace';
+
+export default {
+  enabled: Env.getBool('TRACE_ENABLED', false),
+  connection: Env.get('TRACE_DB_CONNECTION', '') || undefined,
+  pruneAfterHours: Env.getInt('TRACE_PRUNE_HOURS', 24),
+  slowQueryThreshold: Env.getInt('TRACE_SLOW_QUERY_MS', 100),
+  logMinLevel: Env.get('TRACE_LOG_LEVEL', 'info') as TraceConfigOverrides['logMinLevel'],
+  watchers: {
+    request: {
+      get: { exclude: ['report'] },
+      post: { include: ['auth'] },
+      patch: { include: ['profile'] },
+      delete: { exclude: ['internal'] },
+    },
+    log: { exclude: ['healthcheck'] },
+    exception: { include: ['trace'] },
+    cache: { include: ['session:'] },
+  },
+  redaction: {
+    keys: ['password', 'token', 'secret'],
+    headers: ['authorization', 'cookie'],
+    body: ['password', 'token', 'secret'],
+    query: [],
+  },
+} satisfies TraceConfigOverrides;
+```
+
+All include/exclude matching is contains-based, so a term like `report` matches `/reports/daily`, `monthly-report`, or any other trace content containing that fragment.
 
 ### 3. Mount the dashboard
 
@@ -185,6 +222,16 @@ const config = TraceConfig.merge({
     // disable specific watchers
     redis: false,
     view: false,
+    request: {
+      get: { exclude: ['report'] },
+      post: { include: ['auth'] },
+    },
+    log: {
+      exclude: ['healthcheck'],
+    },
+    exception: {
+      include: ['trace'],
+    },
   },
   redaction: {
     body: ['password', 'secret', 'token'],
@@ -205,19 +252,36 @@ ExceptionWatcher.register({ storage, config, db });
 
 `TraceConfig.merge(overrides?)` accepts the following options:
 
-| Option               | Type                                                | Default                            | Description                                                          |
-| -------------------- | --------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------- |
-| `enabled`            | `boolean`                                           | `false`                            | Master switch — no watchers activate when `false`                    |
-| `connection`         | `string \| undefined`                               | `undefined`                        | Named DB connection for storing entries; uses `'default'` if omitted |
-| `pruneAfterHours`    | `number`                                            | `24`                               | Entries older than this are pruned                                   |
-| `slowQueryThreshold` | `number`                                            | `100`                              | Queries taking longer (ms) are flagged as slow                       |
-| `logMinLevel`        | `'debug' \| 'info' \| 'warn' \| 'error' \| 'fatal'` | `'info'`                           | Minimum log severity captured                                        |
-| `ignoreRoutes`       | `string[]`                                          | `['/trace', '/health', '/ping']`   | Routes excluded from HTTP watcher                                    |
-| `watchers`           | `Record<string, boolean>`                           | `{}`                               | Per-watcher enable/disable flags (`false` = disabled)                |
-| `redaction.keys`     | `string[]`                                          | common auth/card/session keys      | Extra sensitive keys redacted recursively before trace persistence   |
-| `redaction.headers`  | `string[]`                                          | `['authorization', 'cookie', ...]` | Request header names to redact                                       |
-| `redaction.body`     | `string[]`                                          | `['password', 'token', ...]`       | Request body keys to redact                                          |
-| `redaction.query`    | `string[]`                                          | `[]`                               | Query-string keys to redact                                          |
+| Option               | Type                                                | Default                            | Description                                                                  |
+| -------------------- | --------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
+| `enabled`            | `boolean`                                           | `false`                            | Master switch — no watchers activate when `false`                            |
+| `connection`         | `string \| undefined`                               | `undefined`                        | Named DB connection for storing entries; uses `'default'` if omitted         |
+| `pruneAfterHours`    | `number`                                            | `24`                               | Entries older than this are pruned                                           |
+| `slowQueryThreshold` | `number`                                            | `100`                              | Queries taking longer (ms) are flagged as slow                               |
+| `logMinLevel`        | `'debug' \| 'info' \| 'warn' \| 'error' \| 'fatal'` | `'info'`                           | Minimum log severity captured                                                |
+| `ignoreRoutes`       | `string[]`                                          | `['/trace', '/health', '/ping']`   | Routes excluded from HTTP watcher                                            |
+| `watchers`           | `Record<string, boolean \| { include?, exclude? }>` | `{}`                               | Per-watcher enable/disable flags plus contains-based include/exclude filters |
+| `redaction.keys`     | `string[]`                                          | common auth/card/session keys      | Extra sensitive keys redacted recursively before trace persistence           |
+| `redaction.headers`  | `string[]`                                          | `['authorization', 'cookie', ...]` | Request header names to redact                                               |
+| `redaction.body`     | `string[]`                                          | `['password', 'token', ...]`       | Request body keys to redact                                                  |
+| `redaction.query`    | `string[]`                                          | `[]`                               | Query-string keys to redact                                                  |
+
+Request watcher filters can also be scoped per method. Matching is contains-based against the stored trace content, so values like `report`, `auth`, or `trace` match any request or entry whose content includes those fragments.
+
+```ts
+const config = TraceConfig.merge({
+  watchers: {
+    request: {
+      get: { exclude: ['report'] },
+      post: { include: ['auth'] },
+      patch: { include: ['profile'] },
+    },
+    log: { exclude: ['healthcheck'] },
+    exception: { include: ['trace'] },
+    cache: { include: ['session:'] },
+  },
+});
+```
 
 ---
 
