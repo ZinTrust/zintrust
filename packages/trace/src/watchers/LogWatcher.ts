@@ -8,8 +8,6 @@ import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 import { RequestFilter } from '../utils/requestFilter';
 
-// type LoggerSink = (level: string, message: string, context?: Record<string, unknown>) => void;
-
 const LEVEL_PRIORITY: Record<string, number> = {
   debug: 0,
   info: 1,

@@ -38,7 +38,7 @@ type RawResponseWithLifecycle = ReturnType<IResponse['getRaw']> & {
 };
 
 const registerCompletionHandler = (response: IResponse, onComplete: () => void): (() => void) => {
-  const raw = response.getRaw() as RawResponseWithLifecycle;
+  const raw: RawResponseWithLifecycle = response.getRaw();
   if (typeof raw.once !== 'function') return () => undefined;
 
   let completed = false;

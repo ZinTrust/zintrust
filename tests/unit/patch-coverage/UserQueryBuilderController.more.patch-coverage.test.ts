@@ -24,8 +24,6 @@ const createCoreMock = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-vi.mock('@zintrust/core', () => createCoreMock());
-
 const makeReqRes = () => {
   const resCalls: any = {};
   const res = {
