@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/client-rds-data",
-  "version": "0.4.78",
+  "version": "0.4.79",
   "description": "AWS RDS Data API and Secrets Manager helpers for ZinTrust.",
   "private": false,
   "type": "module",
