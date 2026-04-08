@@ -2,13 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requestSignedProxyMock = vi.fn();
 const ensureSignedSettingsMock = vi.fn();
+const { loggerError, loggerInfo, loggerWarn, loggerDebug } = vi.hoisted(() => ({
+  loggerError: vi.fn(),
+  loggerInfo: vi.fn(),
+  loggerWarn: vi.fn(),
+  loggerDebug: vi.fn(),
+}));
 
 vi.mock('@config/logger', () => ({
   Logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
+    info: loggerInfo,
+    warn: loggerWarn,
+    error: loggerError,
+    debug: loggerDebug,
   },
 }));
 
@@ -131,13 +137,44 @@ describe('MySQLProxyAdapter', () => {
   });
 
   it('logs and rethrows when proxy request fails', async () => {
-    requestSignedProxyMock.mockRejectedValue(new Error('network down'));
+    const error = new Error('MySQL proxy error');
+    Object.assign(error, {
+      code: 'CONNECTION_ERROR',
+      statusCode: 500,
+      details: {
+        status: 500,
+        details: {
+          body: {
+            code: 'MYSQL_ERROR',
+            message: 'Access denied for user trace_writer',
+          },
+        },
+      },
+    });
+    requestSignedProxyMock.mockRejectedValue(error);
 
     const adapter = MySQLProxyAdapter.create({} as any);
     await adapter.connect();
 
-    await expect(adapter.query('select 1', [])).rejects.toThrow('network down');
+    await expect(adapter.query('select 1', [])).rejects.toThrow('MySQL proxy error');
     expect(ensureSignedSettingsMock).toHaveBeenCalled();
+    expect(loggerError).toHaveBeenCalledWith(
+      '[MySQLProxyAdapter] Proxy request failed',
+      expect.objectContaining({
+        error: 'MySQL proxy error (MYSQL_ERROR: Access denied for user trace_writer)',
+        errorCode: 'CONNECTION_ERROR',
+        errorStatusCode: 500,
+        errorDetails: {
+          status: 500,
+          details: {
+            body: {
+              code: 'MYSQL_ERROR',
+              message: 'Access denied for user trace_writer',
+            },
+          },
+        },
+      })
+    );
   });
 
   it('ensureMigrationsTable succeeds and throws a CLI error when unreachable', async () => {

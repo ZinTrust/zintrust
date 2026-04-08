@@ -33,7 +33,20 @@ describe('TraceWriteDiagnostics', () => {
     const nowSpy = vi.spyOn(Date, 'now');
     nowSpy.mockReturnValue(1_000);
 
-    const storage = TraceWriteDiagnostics.wrapStorage(createStorage(new Error('db down')), {
+    const error = new Error('MySQL proxy error');
+    Object.assign(error, {
+      details: {
+        status: 500,
+        details: {
+          body: {
+            code: 'MYSQL_ERROR',
+            message: 'Access denied for user trace_writer',
+          },
+        },
+      },
+    });
+
+    const storage = TraceWriteDiagnostics.wrapStorage(createStorage(error), {
       connectionName: 'mysql-trace',
       logger,
     });
@@ -48,7 +61,7 @@ describe('TraceWriteDiagnostics', () => {
         isLatest: true,
         createdAt: 1,
       })
-    ).rejects.toThrow('db down');
+    ).rejects.toThrow('MySQL proxy error');
 
     await expect(
       storage.writeEntry({
@@ -60,12 +73,21 @@ describe('TraceWriteDiagnostics', () => {
         isLatest: true,
         createdAt: 2,
       })
-    ).rejects.toThrow('db down');
+    ).rejects.toThrow('MySQL proxy error');
 
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith('[trace] Trace storage write degraded', {
       connectionName: 'mysql-trace',
-      error: 'db down',
+      error: 'MySQL proxy error (MYSQL_ERROR: Access denied for user trace_writer)',
+      errorDetails: {
+        status: 500,
+        details: {
+          body: {
+            code: 'MYSQL_ERROR',
+            message: 'Access denied for user trace_writer',
+          },
+        },
+      },
       lastFailureAt: 1000,
       operation: 'writeEntry',
       totalFailures: 1,
@@ -74,19 +96,28 @@ describe('TraceWriteDiagnostics', () => {
 
     expect(TraceWriteDiagnostics.getSnapshot()).toEqual({
       degraded: true,
-      lastErrorMessage: 'db down',
+      lastErrorMessage: 'MySQL proxy error (MYSQL_ERROR: Access denied for user trace_writer)',
       lastFailureAt: 1000,
       totalFailures: 2,
     });
 
     nowSpy.mockReturnValue(32_000);
 
-    await expect(storage.addMonitoring('slow')).rejects.toThrow('db down');
+    await expect(storage.addMonitoring('slow')).rejects.toThrow('MySQL proxy error');
 
     expect(logger.warn).toHaveBeenCalledTimes(2);
     expect(logger.warn).toHaveBeenLastCalledWith('[trace] Trace storage write degraded', {
       connectionName: 'mysql-trace',
-      error: 'db down',
+      error: 'MySQL proxy error (MYSQL_ERROR: Access denied for user trace_writer)',
+      errorDetails: {
+        status: 500,
+        details: {
+          body: {
+            code: 'MYSQL_ERROR',
+            message: 'Access denied for user trace_writer',
+          },
+        },
+      },
       lastFailureAt: 32000,
       operation: 'addMonitoring',
       totalFailures: 3,

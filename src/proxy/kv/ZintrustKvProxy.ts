@@ -1,4 +1,4 @@
-import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
+import { SystemTraceWorkerBridge } from '@/trace/SystemTraceWorkerBridge';
 import { isObject, isString } from '@helper/index';
 import {
   getEnvInt,
@@ -142,7 +142,7 @@ const handleGet = async (request: Request, env: KvEnv): Promise<Response> => {
 
   if (parsed.type === 'json') {
     const value = await resolved.cache.get(storageKey, 'json');
-    SystemTraceBridge.emitCache(
+    SystemTraceWorkerBridge.emitCache(
       'get',
       storageKey,
       Date.now() - startedAt,
@@ -155,7 +155,7 @@ const handleGet = async (request: Request, env: KvEnv): Promise<Response> => {
 
   if (parsed.type === 'arrayBuffer') {
     const value = await resolved.cache.get(storageKey, 'arrayBuffer');
-    SystemTraceBridge.emitCache(
+    SystemTraceWorkerBridge.emitCache(
       'get',
       storageKey,
       Date.now() - startedAt,
@@ -167,7 +167,7 @@ const handleGet = async (request: Request, env: KvEnv): Promise<Response> => {
   }
 
   const value = await resolved.cache.get(storageKey);
-  SystemTraceBridge.emitCache(
+  SystemTraceWorkerBridge.emitCache(
     'get',
     storageKey,
     Date.now() - startedAt,
@@ -224,7 +224,7 @@ const handlePut = async (request: Request, env: KvEnv): Promise<Response> => {
   }
 
   await resolved.cache.put(storageKey, value, options);
-  SystemTraceBridge.emitCache(
+  SystemTraceWorkerBridge.emitCache(
     'set',
     storageKey,
     Date.now() - startedAt,
@@ -261,7 +261,7 @@ const handleDelete = async (request: Request, env: KvEnv): Promise<Response> => 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
   const startedAt = Date.now();
   await resolved.cache.delete(storageKey);
-  SystemTraceBridge.emitCache(
+  SystemTraceWorkerBridge.emitCache(
     'delete',
     storageKey,
     Date.now() - startedAt,
@@ -312,7 +312,7 @@ const handleList = async (request: Request, env: KvEnv): Promise<Response> => {
     cursor: parsed.params.cursor,
   });
 
-  SystemTraceBridge.emitEvent('kv-proxy.list', 1, {
+  SystemTraceWorkerBridge.emitEvent('kv-proxy.list', 1, {
     prefix: fullPrefix,
     limit,
     cursor: parsed.params.cursor,

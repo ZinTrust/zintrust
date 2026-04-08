@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/expose",
-  "version": "0.4.83",
+  "version": "0.4.84",
   "description": "ZinTrust local tunnel exposure package",
   "type": "module",
   "main": "dist/index.js",
@@ -30,7 +30,7 @@
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.4.81"
+    "@zintrust/core": "^0.4.83"
   },
   "author": "ZinTrust",
   "license": "MIT"

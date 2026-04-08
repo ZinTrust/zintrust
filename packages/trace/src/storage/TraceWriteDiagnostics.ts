@@ -32,16 +32,103 @@ const diagnosticsState: TraceWriteDiagnosticsState = {
   totalFailures: 0,
 };
 
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error && error.message.trim() !== '') return error.message;
-  if (typeof error === 'string' && error.trim() !== '') return error;
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (value === null || typeof value !== 'object') return null;
+  return value as Record<string, unknown>;
+};
 
-  try {
-    const serialized = JSON.stringify(error);
-    if (typeof serialized === 'string' && serialized !== '') return serialized;
-  } catch {
-    // ignore serialization failures
+const getAttachedErrorDetails = (error: unknown): unknown => {
+  if (error instanceof Error && 'details' in error) {
+    const details = (error as Error & { details?: unknown }).details;
+    if (details !== undefined) return details;
   }
+
+  const record = asRecord(error);
+  return record?.['details'];
+};
+
+const getTextValue = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const describeBodyDetails = (body: Record<string, unknown>): string | null => {
+  const code = getTextValue(body['code']);
+  const message = getTextValue(body['message']);
+
+  if (code !== null && message !== null) return `${code}: ${message}`;
+  if (code !== null) return code;
+  if (message !== null) return message;
+
+  return null;
+};
+
+const describeRecordDetails = (record: Record<string, unknown>): string | null => {
+  const body = asRecord(record['body']);
+  if (body !== null) {
+    const describedBody = describeBodyDetails(body);
+    if (describedBody !== null) return describedBody;
+  }
+
+  const nested = describeErrorDetails(record['details']);
+  if (nested !== null) return nested;
+
+  const message = getTextValue(record['message']);
+  if (message !== null) return message;
+
+  const code = getTextValue(record['code']);
+  if (code !== null) return code;
+
+  return null;
+};
+
+const describeErrorDetails = (details: unknown): string | null => {
+  const text = getTextValue(details);
+  if (text !== null) return text;
+
+  const record = asRecord(details);
+  if (record === null) return null;
+  return describeRecordDetails(record);
+};
+
+const withOptionalDetail = (
+  context: Record<string, unknown>,
+  errorDetails: unknown
+): Record<string, unknown> => {
+  if (errorDetails === undefined) return context;
+  return { ...context, errorDetails };
+};
+
+const getErrorMessage = (error: unknown): string => {
+  let baseMessage = '';
+  if (error instanceof Error && error.message.trim() !== '') {
+    baseMessage = error.message;
+  } else if (typeof error === 'string' && error.trim() !== '') {
+    baseMessage = error;
+  } else {
+    try {
+      const serialized = JSON.stringify(error);
+      if (typeof serialized === 'string' && serialized !== '') baseMessage = serialized;
+    } catch {
+      // ignore serialization failures
+    }
+  }
+
+  const detailsSummary = describeErrorDetails(getAttachedErrorDetails(error));
+  if (
+    detailsSummary !== null &&
+    detailsSummary !== '' &&
+    baseMessage !== '' &&
+    !baseMessage.includes(detailsSummary)
+  ) {
+    return `${baseMessage} (${detailsSummary})`;
+  }
+
+  if (baseMessage !== '') return baseMessage;
+
+  if (detailsSummary !== null && detailsSummary !== '') return detailsSummary;
 
   return 'Unknown trace storage error';
 };
@@ -61,6 +148,7 @@ const reportFailure = (
 ): void => {
   const now = Date.now();
   const errorMessage = getErrorMessage(context.error);
+  const errorDetails = getAttachedErrorDetails(context.error);
   const fingerprint = buildFingerprint(context);
   const lastLoggedAt = diagnosticsState.lastLoggedAtByFingerprint.get(fingerprint);
 
@@ -69,18 +157,24 @@ const reportFailure = (
   diagnosticsState.lastFailureAt = now;
   diagnosticsState.totalFailures += 1;
 
-  if (!logger) return;
+  if (logger === undefined) return;
   if (typeof lastLoggedAt === 'number' && now - lastLoggedAt < LOG_WINDOW_MS) return;
 
   diagnosticsState.lastLoggedAtByFingerprint.set(fingerprint, now);
-  logger.warn('[trace] Trace storage write degraded', {
-    connectionName: context.connectionName,
-    error: errorMessage,
-    lastFailureAt: now,
-    operation: context.operation,
-    totalFailures: diagnosticsState.totalFailures,
-    watcherType: context.watcherType ?? null,
-  });
+  logger.warn(
+    '[trace] Trace storage write degraded',
+    withOptionalDetail(
+      {
+        connectionName: context.connectionName,
+        error: errorMessage,
+        lastFailureAt: now,
+        operation: context.operation,
+        totalFailures: diagnosticsState.totalFailures,
+        watcherType: context.watcherType ?? null,
+      },
+      errorDetails
+    )
+  );
 };
 
 const wrapStorageMethod = <TArgs extends unknown[], TResult>(

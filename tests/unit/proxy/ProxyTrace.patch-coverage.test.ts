@@ -18,6 +18,14 @@ vi.mock('@/trace/SystemTraceBridge', () => ({
   },
 }));
 
+vi.mock('@/trace/SystemTraceWorkerBridge', () => ({
+  SystemTraceWorkerBridge: {
+    emitCache,
+    emitEvent,
+    emitQuery,
+  },
+}));
+
 describe('proxy trace integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();

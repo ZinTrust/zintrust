@@ -67,6 +67,93 @@ const isQueryResponse = (value: unknown): value is ProxyQueryResponse =>
 const isQueryOneResponse = (value: unknown): value is ProxyQueryOneResponse =>
   isRecord(value) && 'row' in value;
 
+type LoggedError = {
+  message: string;
+  code?: string;
+  statusCode?: number;
+  details?: unknown;
+};
+
+const hasText = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim() !== '';
+
+const describeErrorBody = (body: Record<string, unknown>): string | undefined => {
+  const bodyCode = hasText(body['code']) ? body['code'].trim() : '';
+  const bodyMessage = hasText(body['message']) ? body['message'].trim() : '';
+
+  if (bodyCode !== '' && bodyMessage !== '') return `${bodyCode}: ${bodyMessage}`;
+  if (bodyCode !== '') return bodyCode;
+  if (bodyMessage !== '') return bodyMessage;
+
+  return undefined;
+};
+
+const describeErrorRecord = (record: Record<string, unknown>): string | undefined => {
+  const body = record['body'];
+  if (isRecord(body)) {
+    const describedBody = describeErrorBody(body);
+    if (describedBody !== undefined) return describedBody;
+  }
+
+  const nestedDetails = describeErrorDetails(record['details']);
+  if (nestedDetails !== undefined) return nestedDetails;
+
+  if (hasText(record['message'])) return record['message'].trim();
+  if (hasText(record['code'])) return record['code'].trim();
+
+  return undefined;
+};
+
+const describeErrorDetails = (details: unknown): string | undefined => {
+  if (hasText(details)) return details.trim();
+  if (!isRecord(details)) return undefined;
+  return describeErrorRecord(details);
+};
+
+const withMaybeProperty = <T extends Record<string, unknown>>(
+  target: T,
+  key: string,
+  value: unknown
+): T => {
+  if (value === undefined) return target;
+  return { ...target, [key]: value };
+};
+
+const toLoggedError = (error: unknown): LoggedError => {
+  if (!(error instanceof Error)) {
+    return { message: String(error) };
+  }
+
+  const maybeError = error as Error & {
+    code?: unknown;
+    statusCode?: unknown;
+    details?: unknown;
+  };
+  const detailSummary = describeErrorDetails(maybeError.details);
+  const message =
+    detailSummary !== undefined && !error.message.includes(detailSummary)
+      ? `${error.message} (${detailSummary})`
+      : error.message;
+
+  let loggedError: LoggedError = {
+    message,
+  };
+
+  loggedError = withMaybeProperty(
+    loggedError,
+    'code',
+    hasText(maybeError.code) ? maybeError.code : undefined
+  ) as LoggedError;
+  loggedError = withMaybeProperty(
+    loggedError,
+    'statusCode',
+    typeof maybeError.statusCode === 'number' ? maybeError.statusCode : undefined
+  ) as LoggedError;
+  loggedError = withMaybeProperty(loggedError, 'details', maybeError.details) as LoggedError;
+
+  return loggedError;
+};
+
 const requestProxy = async <T>(
   state: { settings: ProxySettings; signed: SignedProxyConfig },
   path: string,
@@ -75,13 +162,17 @@ const requestProxy = async <T>(
   try {
     return await SqlProxyHttpAdapterShared.requestProxy<T>(state.signed, path, payload);
   } catch (error: unknown) {
+    const loggedError = toLoggedError(error);
     Logger.error('[MySQLProxyAdapter] Proxy request failed', {
       path,
       baseUrl: state.settings.baseUrl,
       timeoutMs: state.settings.timeoutMs,
       hasKeyId: (state.settings.keyId ?? '').trim() !== '',
       hasSecret: (state.settings.secret ?? '').trim() !== '',
-      error: error instanceof Error ? error.message : String(error),
+      error: loggedError.message,
+      ...withMaybeProperty({}, 'errorCode', loggedError.code),
+      ...withMaybeProperty({}, 'errorStatusCode', loggedError.statusCode),
+      ...withMaybeProperty({}, 'errorDetails', loggedError.details),
     });
     throw error;
   }

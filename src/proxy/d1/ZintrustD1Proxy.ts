@@ -1,4 +1,4 @@
-import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
+import { SystemTraceWorkerBridge } from '@/trace/SystemTraceWorkerBridge';
 import {
   getEnvInt,
   json,
@@ -240,7 +240,12 @@ const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
       .prepare(resolved.sql)
       .bind(...resolved.params)
       .all<Record<string, unknown>>();
-    SystemTraceBridge.emitQuery(resolved.sql, resolved.params, Date.now() - startedAt, 'd1-proxy');
+    SystemTraceWorkerBridge.emitQuery(
+      resolved.sql,
+      resolved.params,
+      Date.now() - startedAt,
+      'd1-proxy'
+    );
     const rows = result.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {
@@ -259,7 +264,12 @@ const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> =
       .prepare(resolved.sql)
       .bind(...resolved.params)
       .first<Record<string, unknown>>();
-    SystemTraceBridge.emitQuery(resolved.sql, resolved.params, Date.now() - startedAt, 'd1-proxy');
+    SystemTraceWorkerBridge.emitQuery(
+      resolved.sql,
+      resolved.params,
+      Date.now() - startedAt,
+      'd1-proxy'
+    );
     return json(200, { row: row ?? null });
   } catch (error) {
     logProxyError(env, { op: 'queryOne', path: '/zin/d1/queryOne' }, error);
@@ -277,7 +287,12 @@ const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
       .prepare(resolved.sql)
       .bind(...resolved.params)
       .run();
-    SystemTraceBridge.emitQuery(resolved.sql, resolved.params, Date.now() - startedAt, 'd1-proxy');
+    SystemTraceWorkerBridge.emitQuery(
+      resolved.sql,
+      resolved.params,
+      Date.now() - startedAt,
+      'd1-proxy'
+    );
     return json(200, { ok: true, meta: out.meta });
   } catch (error) {
     logProxyError(env, { op: 'exec', path: '/zin/d1/exec' }, error);
@@ -328,7 +343,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
         .prepare(sql)
         .bind(...parsed.params)
         .run();
-      SystemTraceBridge.emitQuery(sql, parsed.params, Date.now() - startedAt, 'd1-proxy');
+      SystemTraceWorkerBridge.emitQuery(sql, parsed.params, Date.now() - startedAt, 'd1-proxy');
       return json(200, { ok: true, meta: out.meta });
     }
 
@@ -336,7 +351,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
       .prepare(sql)
       .bind(...parsed.params)
       .all<Record<string, unknown>>();
-    SystemTraceBridge.emitQuery(sql, parsed.params, Date.now() - startedAt, 'd1-proxy');
+    SystemTraceWorkerBridge.emitQuery(sql, parsed.params, Date.now() - startedAt, 'd1-proxy');
     const rows = out.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {
