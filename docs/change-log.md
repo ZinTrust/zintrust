@@ -2,8 +2,15 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-08
+
+- Updated the CLI launcher so a global `zin` binary now hands off to the project-local `node_modules/@zintrust/core` install when one exists above the developer's working directory, which keeps normal `zin *` commands aligned with the repo-local runtime and leaves the global install only as a fallback when no local ZinTrust package is present.
+- Clarified `@zintrust/trace` monitoring tags in both the dashboard UI and package README with direct examples such as `auth`, `checkout`, `queue:emails`, and `nightly-sync`, and explained that monitoring tags are saved filter shortcuts rather than stored trace mutations.
+- Fixed the fresh basic-project scaffold so generated `tsconfig.json` files now use a TypeScript-compatible `ignoreDeprecations` setting again, which restores `npm run type-check` in clean starters created with the current CLI template.
+
 ## 2026-04-07
 
+- Hardened `@zintrust/trace` redaction so sensitive values are masked before persistence, not just in selected watchers. Trace content masking is now recursive, masked values are stored as `****`, default sensitive key coverage includes common auth/card/session fields, and developers can extend the masked key lists through `config/trace.ts` or the `TRACE_REDACT_KEYS`, `TRACE_REDACT_HEADERS`, `TRACE_REDACT_BODY`, and `TRACE_REDACT_QUERY` env vars. Worker startup config loading now includes `config/trace.ts` as well.
 - Reduced duplication in the trace CLI command wiring by centralizing shared D1 option registration, trace command construction, and named connection resolution in [src/cli/commands/TraceCommands.ts]. This keeps the trace command surface unchanged while improving Sonar duplication on new code.
 - Fixed `@zintrust/trace` SQL write compatibility and diagnostics for MySQL-backed installs. Fresh trace entry tables now create `created_at` as a 64-bit integer, a new follow-up trace migration widens existing SQL `created_at` columns to `BIGINT` where needed, tag/monitoring inserts now use dialect-safe ignore syntax instead of SQLite-only `INSERT OR IGNORE`, and runtime trace storage writes now emit rate-limited degradation warnings instead of failing silently when the backend rejects trace inserts.
 - Fixed migration tracking compatibility for legacy SQL `migrations` tables during package migrations such as `zin migrate:trace`. Core now detects older schemas that still use a required `migration` column, writes both `name` and `migration` when needed, treats legacy rows as completed-only tracking, and rejects scoped/service-specific tracking cleanly when the old table shape cannot represent it.

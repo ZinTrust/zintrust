@@ -261,10 +261,10 @@ const updateLegacyRunningRecord = async (
     updateParams.push(null);
   }
 
-  await db.execute(
-    `UPDATE migrations SET ${assignments.join(', ')} WHERE ${identity.sql}`,
-    [...updateParams, ...identity.params]
-  );
+  await db.execute(`UPDATE migrations SET ${assignments.join(', ')} WHERE ${identity.sql}`, [
+    ...updateParams,
+    ...identity.params,
+  ]);
 };
 
 const buildLegacyInsertRunningPayload = (

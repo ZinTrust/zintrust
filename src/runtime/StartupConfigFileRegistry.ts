@@ -9,6 +9,7 @@ export const StartupConfigFile = {
   Cache: 'config/cache.ts',
   Database: 'config/database.ts',
   Mail: 'config/mail.ts',
+  Trace: 'config/trace.ts',
   Middleware: 'config/middleware.ts',
   Notification: 'config/notification.ts',
   Queue: 'config/queue.ts',
@@ -21,6 +22,7 @@ export type StartupConfigFileTypes =
   | typeof StartupConfigFile.Cache
   | typeof StartupConfigFile.Database
   | typeof StartupConfigFile.Mail
+  | typeof StartupConfigFile.Trace
   | typeof StartupConfigFile.Middleware
   | typeof StartupConfigFile.Notification
   | typeof StartupConfigFile.Queue

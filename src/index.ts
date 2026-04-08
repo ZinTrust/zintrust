@@ -206,6 +206,7 @@ export {
   type RuntimeServices as RuntimeServicesType,
   type RuntimeTimers,
 } from '@runtime/RuntimeServices';
+export { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 // Events
 export { SystemTraceBridge } from '@/trace/SystemTraceBridge';

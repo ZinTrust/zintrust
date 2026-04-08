@@ -1,6 +1,6 @@
 // @ts-ignore - config templates are excluded from the main TS project in this repo
 import { Env } from '@config/env';
-import type { TraceConfigOverrides } from 'packages/trace/src';
+import type { TraceConfigOverrides } from '@zintrust/trace';
 
 /**
  * SystemTrace Configuration
@@ -35,6 +35,9 @@ export default {
   },
 
   redaction: {
+    // Extra keys to mask recursively before trace entries are persisted.
+    // You can also provide these via TRACE_REDACT_KEYS as JSON or CSV.
+    keys: ['password', 'token', 'secret', 'authorization', 'card', 'cardNumber', 'cvv'],
     headers: ['authorization', 'cookie', 'x-api-key', 'x-auth-token'],
     body: ['password', 'token', 'secret', 'apiKey', 'api_key', 'jwt', 'bearer'],
     query: [],

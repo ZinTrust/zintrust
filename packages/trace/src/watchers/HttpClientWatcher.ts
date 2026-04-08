@@ -46,7 +46,7 @@ export const HttpClientWatcher: ITraceWatcher & { emit: typeof emit } = Object.f
   register({ storage, config }: ITraceWatcherConfig): () => void {
     if (config.watchers.clientRequest === false) return () => undefined;
     _storage = storage;
-    _redactHeaderNames = config.redaction?.headers ?? [];
+    _redactHeaderNames = [...(config.redaction?.keys ?? []), ...(config.redaction?.headers ?? [])];
     _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;

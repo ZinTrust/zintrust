@@ -45,7 +45,7 @@ export const CommandWatcher: ITraceWatcher & { emit: typeof emit } = Object.free
   register({ storage, config }: ITraceWatcherConfig): () => void {
     if (config.watchers.command === false) return () => undefined;
     _storage = storage;
-    _redactKeys = config.redaction?.body ?? [];
+    _redactKeys = [...(config.redaction?.keys ?? []), ...(config.redaction?.body ?? [])];
     _ignoreRoutes = config.ignoreRoutes;
     return () => {
       _storage = null;

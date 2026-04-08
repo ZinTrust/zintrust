@@ -28,9 +28,14 @@ const buildEntry = (
   start: number,
   config: ITraceConfig
 ): RequestContent => {
-  const headers = redactHeaders(normalizeHeaders(req.headers), config.redaction.headers);
+  const headers = redactHeaders(normalizeHeaders(req.headers), [
+    ...config.redaction.keys,
+    ...config.redaction.headers,
+  ]);
 
-  const payload = req.body ? redactObject(req.body, config.redaction.body) : {};
+  const payload = req.body
+    ? redactObject(req.body, [...config.redaction.keys, ...config.redaction.body])
+    : {};
 
   return {
     method: req.getMethod(),

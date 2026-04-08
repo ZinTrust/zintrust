@@ -19,7 +19,7 @@ const createCoreMock = (overrides: Record<string, unknown> = {}) => ({
   Validator: { validate: vi.fn() },
   getValidatedBody: vi.fn(() => undefined),
   nowIso: vi.fn(() => '2026-04-07 00:00:00'),
-  randomBytes: vi.fn(() => Buffer.from('password')), 
+  randomBytes: vi.fn(() => Buffer.from('password')),
   useDatabase: vi.fn().mockReturnValue({}),
   ...overrides,
 });

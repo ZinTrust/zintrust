@@ -439,13 +439,13 @@ describe('MigrationStore', () => {
     const { MigrationStore } = await import('@orm/migrations/MigrationStore');
 
     const missingColumnsDb = createLegacyDb('mysql', ['batch']);
-    await expect(MigrationStore.getAppliedMap(missingColumnsDb, 'global' as any, '')).rejects.toThrow(
-      /missing both `name` and `migration` columns/i
-    );
+    await expect(
+      MigrationStore.getAppliedMap(missingColumnsDb, 'global' as any, '')
+    ).rejects.toThrow(/missing both `name` and `migration` columns/i);
 
     const unsupportedDriverDb = createLegacyDb('oracle', ['name']);
-    await expect(MigrationStore.getAppliedMap(unsupportedDriverDb, 'global' as any, '')).rejects.toThrow(
-      /Unsupported DB driver: oracle/
-    );
+    await expect(
+      MigrationStore.getAppliedMap(unsupportedDriverDb, 'global' as any, '')
+    ).rejects.toThrow(/Unsupported DB driver: oracle/);
   });
 });

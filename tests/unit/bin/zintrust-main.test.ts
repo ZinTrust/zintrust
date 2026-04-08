@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type ImportResult =
@@ -128,5 +131,116 @@ describe('zintrust-main plugin auto-import warnings', () => {
       'Project plugin register import failed'
     );
     expect(loaded.cliRun).toHaveBeenCalledWith(['routes']);
+  });
+});
+
+describe('zintrust-main local CLI handoff helpers', () => {
+  const tempPaths: string[] = [];
+
+  const createLocalCliFixture = (): {
+    projectRoot: string;
+    workDir: string;
+    packageRoot: string;
+  } => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'zintrust-cli-handoff-'));
+    const packageRoot = join(projectRoot, 'node_modules', '@zintrust', 'core');
+    const binDir = join(packageRoot, 'bin');
+    const workDir = join(projectRoot, 'nested', 'deeper');
+
+    mkdirSync(binDir, { recursive: true });
+    mkdirSync(workDir, { recursive: true });
+    writeFileSync(
+      join(packageRoot, 'package.json'),
+      '{"name":"@zintrust/core","version":"0.4.76"}'
+    );
+    writeFileSync(join(binDir, 'zin.js'), 'console.log("fixture");\n');
+
+    tempPaths.push(projectRoot);
+
+    return { projectRoot, workDir, packageRoot };
+  };
+
+  afterEach(() => {
+    while (tempPaths.length > 0) {
+      const target = tempPaths.pop();
+      if (target !== undefined) {
+        rmSync(target, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it('finds the nearest project-local zin install above the working directory', async () => {
+    vi.resetModules();
+
+    const { CliLauncherInternal } = await import('../../../bin/zintrust-main');
+    const fixture = createLocalCliFixture();
+    const target = CliLauncherInternal.findProjectLocalCliTarget(fixture.workDir);
+
+    expect(target).toBeDefined();
+    expect(target?.packageRoot).toBe(fixture.packageRoot);
+    expect(target?.binPath).toBe(join(fixture.packageRoot, 'bin', 'zin.js'));
+  });
+
+  it('does not hand off when already running from the same package root', async () => {
+    vi.resetModules();
+
+    const { CliLauncherInternal } = await import('../../../bin/zintrust-main');
+    const currentPackageRoot = CliLauncherInternal.getCurrentPackageRoot();
+
+    expect(
+      CliLauncherInternal.resolveProjectLocalCliHandoff(process.cwd(), currentPackageRoot, {
+        ...process.env,
+        ZINTRUST_CLI_HANDOFF: undefined,
+      })
+    ).toBeUndefined();
+  });
+
+  it('does not hand off when the working directory is already inside the active package root', async () => {
+    vi.resetModules();
+
+    const { CliLauncherInternal } = await import('../../../bin/zintrust-main');
+
+    expect(
+      CliLauncherInternal.resolveProjectLocalCliHandoff(
+        '/opt/homebrew/var/www/Sites/zintrust/tests/unit',
+        '/opt/homebrew/var/www/Sites/zintrust'
+      )
+    ).toBeUndefined();
+  });
+
+  it('hands off when a different project-local install exists and no handoff guard is set', async () => {
+    vi.resetModules();
+
+    const { CliLauncherInternal } = await import('../../../bin/zintrust-main');
+    const fixture = createLocalCliFixture();
+    const target = CliLauncherInternal.resolveProjectLocalCliHandoff(
+      fixture.workDir,
+      '/tmp/global-zintrust-package',
+      {
+        ...process.env,
+        ZINTRUST_CLI_HANDOFF: undefined,
+      }
+    );
+
+    expect(target).toBeDefined();
+    expect(target?.packageRoot).toBe(fixture.packageRoot);
+  });
+
+  it('does not hand off when the guard env var is already set', async () => {
+    vi.resetModules();
+
+    const { CliLauncherInternal } = await import('../../../bin/zintrust-main');
+    const fixture = createLocalCliFixture();
+
+    expect(
+      CliLauncherInternal.resolveProjectLocalCliHandoff(
+        fixture.workDir,
+        '/tmp/global-zintrust-package',
+        {
+          ...process.env,
+          [CliLauncherInternal.CLI_HANDOFF_ENV_KEY]: '1',
+        }
+      )
+    ).toBeUndefined();
   });
 });

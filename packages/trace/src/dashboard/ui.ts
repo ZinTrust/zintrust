@@ -663,13 +663,14 @@ const DASHBOARD_DOCUMENT = `<!DOCTYPE html>
         const tags = result.tags || [];
         main.innerHTML = [
           '<section class="panel">',
-          '<div class="section-head"><div><h3>Monitoring tags</h3><p>Pinned tags for quick filtering.</p></div></div>',
+          '<div class="section-head"><div><h3>Monitoring tags</h3><p>Save the tags you filter by often so they stay one click away.</p></div></div>',
           '<div class="monitoring-wrap">',
           '<div class="tag-list">',
-          tags.length === 0 ? '<span class="helper-text">No tags monitored.</span>' : tags.map((tag) => '<span class="tag-item"><button type="button" class="tag mono" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</button><button type="button" class="tag-remove" data-action="remove-tag" data-tag="' + escapeHtml(tag) + '">x</button></span>').join(''),
+          tags.length === 0 ? '<span class="helper-text">No tags monitored yet. Add tags like auth, checkout, queue:emails, or nightly-sync to pin them here.</span>' : tags.map((tag) => '<span class="tag-item"><button type="button" class="tag mono" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</button><button type="button" class="tag-remove" data-action="remove-tag" data-tag="' + escapeHtml(tag) + '">x</button></span>').join(''),
           '</div>',
+          '<p class="helper-text">Click a saved tag to filter the entries list by that exact tag. Removing a saved tag only removes the shortcut here; it does not delete any trace entries.</p>',
           '<div class="toolbar" style="padding:0;margin-top:8px">',
-          '<input id="new-tag" class="control" type="text" placeholder="Add tag">',
+          '<input id="new-tag" class="control" type="text" placeholder="Add tag, for example checkout">',
           '<button type="button" class="btn btn-primary" data-action="add-tag">Add tag</button>',
           '</div>',
           '</div>',

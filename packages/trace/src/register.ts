@@ -22,8 +22,9 @@
 import { TraceConfig } from './config';
 import { TraceContext } from './context';
 import { TraceStorage } from './storage';
+import { TraceContentRedaction } from './storage/TraceContentRedaction';
 import { TraceWriteDiagnostics } from './storage/TraceWriteDiagnostics';
-import type { ITraceWatcherConfig } from './types';
+import type { ITraceWatcherConfig, TraceConfigOverrides } from './types';
 
 export type {}; // side-effect ESM module
 
@@ -61,6 +62,12 @@ type CoreApi = {
   };
   Logger?: {
     warn(message: string, context?: Record<string, unknown>): void;
+  };
+  StartupConfigFile?: {
+    Trace?: string;
+  };
+  StartupConfigFileRegistry?: {
+    get<T>(file: string): T | undefined;
   };
 };
 
@@ -105,39 +112,147 @@ const resolveTraceConnectionName = (
   return resolveDefaultConnection();
 };
 
+const isObjectValue = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const parseEnvList = (rawValue: string): string[] | undefined => {
+  const value = rawValue.trim();
+  if (value === '') return undefined;
+
+  if (value.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((entry): entry is string => typeof entry === 'string')
+          .map((entry) => entry.trim())
+          .filter((entry) => entry !== '');
+      }
+    } catch {
+      // fall through to CSV parsing
+    }
+  }
+
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
+};
+
+const resolveTraceStartupOverrides = (core: CoreApi): TraceConfigOverrides | undefined => {
+  const traceConfigFile = core.StartupConfigFile?.Trace;
+  if (typeof traceConfigFile !== 'string' || traceConfigFile.trim() === '') return undefined;
+
+  const overrides = core.StartupConfigFileRegistry?.get<unknown>(traceConfigFile);
+  return isObjectValue(overrides) ? (overrides as TraceConfigOverrides) : undefined;
+};
+
+const buildTraceRedactionOverrides = (input: {
+  startupOverrides?: TraceConfigOverrides;
+  redactionBody?: string[];
+  redactionHeaders?: string[];
+  redactionKeys?: string[];
+  redactionQuery?: string[];
+}): TraceConfigOverrides['redaction'] | undefined => {
+  const redaction: Partial<NonNullable<TraceConfigOverrides['redaction']>> = {
+    ...(isObjectValue(input.startupOverrides?.redaction) ? input.startupOverrides?.redaction : {}),
+  };
+
+  if (input.redactionKeys === undefined) {
+    // no-op
+  } else {
+    redaction.keys = input.redactionKeys;
+  }
+
+  if (input.redactionHeaders === undefined) {
+    // no-op
+  } else {
+    redaction.headers = input.redactionHeaders;
+  }
+
+  if (input.redactionBody === undefined) {
+    // no-op
+  } else {
+    redaction.body = input.redactionBody;
+  }
+
+  if (input.redactionQuery === undefined) {
+    // no-op
+  } else {
+    redaction.query = input.redactionQuery;
+  }
+
+  return Object.keys(redaction).length > 0
+    ? (redaction as NonNullable<TraceConfigOverrides['redaction']>)
+    : undefined;
+};
+
 const core = (await importCore()) as CoreApi;
 const Env = core.Env;
+const startupOverrides = resolveTraceStartupOverrides(core);
 
 if (!traceAlreadyInitialized && Env) {
-  const enabled = Env.getBool('TRACE_ENABLED', false);
+  const enabled = startupOverrides?.enabled === true || Env.getBool('TRACE_ENABLED', false);
 
   if (enabled) {
-    const connection = Env.get('TRACE_DB_CONNECTION', '') || undefined;
-    const pruneAfterHours = Env.getInt('TRACE_PRUNE_HOURS', 24);
-    const slowQueryThreshold = Env.getInt('TRACE_SLOW_QUERY_MS', 100);
-    const logMinLevel = Env.get('TRACE_LOG_LEVEL', 'info') as
+    const connectionRaw = Env.get('TRACE_DB_CONNECTION', '').trim();
+    const pruneAfterHoursRaw = Env.get('TRACE_PRUNE_HOURS', '').trim();
+    const slowQueryThresholdRaw = Env.get('TRACE_SLOW_QUERY_MS', '').trim();
+    const logMinLevelRaw = Env.get('TRACE_LOG_LEVEL', '').trim();
+    const redactionKeys = parseEnvList(Env.get('TRACE_REDACT_KEYS', ''));
+    const redactionHeaders = parseEnvList(Env.get('TRACE_REDACT_HEADERS', ''));
+    const redactionBody = parseEnvList(Env.get('TRACE_REDACT_BODY', ''));
+    const redactionQuery = parseEnvList(Env.get('TRACE_REDACT_QUERY', ''));
+
+    const connection = connectionRaw === '' ? startupOverrides?.connection : connectionRaw;
+    const pruneAfterHours =
+      pruneAfterHoursRaw === ''
+        ? startupOverrides?.pruneAfterHours
+        : Number.parseInt(pruneAfterHoursRaw, 10);
+    const slowQueryThreshold =
+      slowQueryThresholdRaw === ''
+        ? startupOverrides?.slowQueryThreshold
+        : Number.parseInt(slowQueryThresholdRaw, 10);
+    const logMinLevel = (logMinLevelRaw === '' ? startupOverrides?.logMinLevel : logMinLevelRaw) as
       | 'debug'
       | 'info'
       | 'warn'
       | 'error'
       | 'fatal';
-
-    const config = TraceConfig.merge({
-      enabled,
-      connection,
-      pruneAfterHours,
-      slowQueryThreshold,
-      logMinLevel,
+    const redaction = buildTraceRedactionOverrides({
+      startupOverrides,
+      redactionBody,
+      redactionHeaders,
+      redactionKeys,
+      redactionQuery,
     });
 
-    const db = core.useDatabase?.(undefined, resolveTraceConnectionName(Env, connection));
-    const resolvedConnectionName = resolveTraceConnectionName(Env, connection);
+    const config = TraceConfig.merge({
+      ...startupOverrides,
+      enabled,
+      connection,
+      ...(typeof pruneAfterHours === 'number' && Number.isFinite(pruneAfterHours)
+        ? { pruneAfterHours }
+        : {}),
+      ...(typeof slowQueryThreshold === 'number' && Number.isFinite(slowQueryThreshold)
+        ? { slowQueryThreshold }
+        : {}),
+      logMinLevel,
+      ...(redaction === undefined ? {} : { redaction }),
+    });
+
+    const resolvedConnectionName = resolveTraceConnectionName(Env, config.connection);
+    const db = core.useDatabase?.(undefined, resolvedConnectionName);
 
     if (db) {
-      const storage = TraceWriteDiagnostics.wrapStorage(TraceStorage.resolveStorage(db), {
-        connectionName: resolvedConnectionName,
-        logger: core.Logger,
-      });
+      const storage = TraceWriteDiagnostics.wrapStorage(
+        TraceContentRedaction.wrapStorage(TraceStorage.resolveStorage(db), config.redaction),
+        {
+          connectionName: resolvedConnectionName,
+          logger: core.Logger,
+        }
+      );
 
       if (core.RequestContext) {
         TraceContext.setRequestContextImpl(

@@ -124,6 +124,14 @@ zin trace:clear
 
 `zin trace:status` reports the active connection, retention window, current entry counts, and the expected dashboard URL derived from your current env and route choices.
 
+### Monitoring tags
+
+The Monitoring page lets you save a short list of tags that you filter by often.
+
+- Add tags like `auth`, `checkout`, `queue:emails`, or `nightly-sync` once, then click them later to jump straight to matching entries.
+- Monitoring tags are just saved dashboard shortcuts. Removing a monitoring tag does not delete trace entries or strip tags from stored data.
+- Use short, exact tag names. The dashboard filters entries by the exact tag value you click.
+
 ---
 
 ## Watchers
@@ -206,6 +214,7 @@ ExceptionWatcher.register({ storage, config, db });
 | `logMinLevel`        | `'debug' \| 'info' \| 'warn' \| 'error' \| 'fatal'` | `'info'`                           | Minimum log severity captured                                        |
 | `ignoreRoutes`       | `string[]`                                          | `['/trace', '/health', '/ping']`   | Routes excluded from HTTP watcher                                    |
 | `watchers`           | `Record<string, boolean>`                           | `{}`                               | Per-watcher enable/disable flags (`false` = disabled)                |
+| `redaction.keys`     | `string[]`                                          | common auth/card/session keys      | Extra sensitive keys redacted recursively before trace persistence   |
 | `redaction.headers`  | `string[]`                                          | `['authorization', 'cookie', ...]` | Request header names to redact                                       |
 | `redaction.body`     | `string[]`                                          | `['password', 'token', ...]`       | Request body keys to redact                                          |
 | `redaction.query`    | `string[]`                                          | `[]`                               | Query-string keys to redact                                          |
@@ -288,7 +297,7 @@ import {
 ## Security considerations
 
 - **Always** protect the dashboard with middleware (e.g. `middleware: ['admin']`). `@zintrust/trace/ui` exports `registerTraceDashboard(...)` and `registerTraceRoutes(...)`, and neither applies any authentication by default.
-- Sensitive fields in request headers and body are redacted using the `redaction` config before being stored. Review and extend the default redaction lists to match your application's data model.
+- Sensitive fields are redacted using the `redaction` config before they are stored. Review and extend the default `redaction.keys`, `redaction.headers`, `redaction.body`, and `redaction.query` lists to match your application's data model.
 - Use a **dedicated database connection** (`TRACE_DB_CONNECTION`) in production so trace writes cannot impact your primary DB connection pool.
 - Keep `TRACE_ENABLED=false` (or unset) in production unless actively investigating an issue.
 

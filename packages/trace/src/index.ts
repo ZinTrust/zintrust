@@ -16,6 +16,7 @@ export { TraceConfig } from './config';
 // ---------------------------------------------------------------------------
 export { TraceStorage } from './storage';
 export type { ITraceStorage } from './storage';
+export { TraceContentRedaction } from './storage/TraceContentRedaction';
 
 // ---------------------------------------------------------------------------
 // Context

@@ -275,6 +275,7 @@ export interface ITraceWatcher {
 // ---------------------------------------------------------------------------
 
 export type RedactionConfig = {
+  keys: string[];
   headers: string[];
   body: string[];
   query: string[];
