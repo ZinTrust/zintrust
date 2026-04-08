@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-redis",
-  "version": "0.4.82",
+  "version": "0.4.83",
   "description": "Redis queue driver for ZinTrust.",
   "private": false,
   "type": "module",

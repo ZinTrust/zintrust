@@ -40,6 +40,12 @@ type SystemTraceModule = Partial<{
       error?: string;
     }) => void;
   };
+  QueryWatcher: {
+    emit: (query: string, params: unknown[], duration: number, connection?: string) => void;
+  };
+  RedisWatcher: {
+    emit: (command: string, duration: number) => void;
+  };
   EventWatcher: {
     emit: (name: string, listenerCount: number, payload?: unknown) => void;
   };
@@ -174,6 +180,23 @@ const emitHttpClient = (payload: {
   });
 };
 
+const emitQuery = (
+  query: string,
+  params: unknown[],
+  duration: number,
+  connection?: string
+): void => {
+  withSystemTrace((module) => {
+    module.QueryWatcher?.emit(query, params, duration, connection);
+  });
+};
+
+const emitRedis = (command: string, duration: number): void => {
+  withSystemTrace((module) => {
+    module.RedisWatcher?.emit(command, duration);
+  });
+};
+
 const emitEvent = (name: string, listenerCount: number, payload?: unknown): void => {
   withSystemTrace((module) => {
     module.EventWatcher?.emit(name, listenerCount, payload);
@@ -215,6 +238,8 @@ export const SystemTraceBridge = Object.freeze({
   emitJobProcessed,
   emitMail,
   emitNotification,
+  emitQuery,
+  emitRedis,
 });
 
 export default SystemTraceBridge;

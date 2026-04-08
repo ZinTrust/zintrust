@@ -1,3 +1,4 @@
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -223,7 +224,9 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
     try {
       const client = await createClient(config);
       try {
+        const startedAt = Date.now();
         const result = await executeCommand(client, command, validated.args ?? []);
+        SystemTraceBridge.emitRedis(command, Date.now() - startedAt);
         return { status: 200, body: { result } };
       } finally {
         await client.quit();

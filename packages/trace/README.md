@@ -106,6 +106,8 @@ All include/exclude matching is contains-based, so a term like `report` matches 
 
 When trace storage lives on a different connection than your application data, keep `TRACE_DB_CONNECTION` pointed at the trace tables and set `TRACE_QUERY_CONNECTION` to the app connection you want SQL traces to observe. If you omit `TRACE_QUERY_CONNECTION`, trace automatically falls back to the main `DB_CONNECTION` whenever the storage connection is different.
 
+When ZinTrust proxy runtimes also have trace enabled, proxy-executed SQL and SMTP operations are traced at the proxy boundary too. That means MySQL, PostgreSQL, SQL Server, and D1 proxy requests can still record the final SQL plus bound values, and the SMTP proxy can persist rendered mail text and HTML, even when the consumer application is talking to the proxy rather than executing the transport locally.
+
 ### 3. Mount the dashboard
 
 Register the dashboard explicitly in your route file when you want the UI. Restrict access with middleware — the trace does **not** apply auth automatically.

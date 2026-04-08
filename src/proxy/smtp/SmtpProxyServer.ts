@@ -1,3 +1,4 @@
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -332,6 +333,15 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
     try {
       Logger.info('[SmtpProxy] Sending email via SmtpDriver', { to: messageValidation.value.to });
       await SmtpDriver.send(config.smtp, messageValidation.value);
+      SystemTraceBridge.emitMail(
+        Array.isArray(messageValidation.value.to)
+          ? messageValidation.value.to.join(', ')
+          : messageValidation.value.to,
+        messageValidation.value.subject,
+        undefined,
+        messageValidation.value.text,
+        messageValidation.value.html
+      );
       Logger.info('[SmtpProxy] Email sent successfully');
       return { status: 200, body: { ok: true } };
     } catch (error) {

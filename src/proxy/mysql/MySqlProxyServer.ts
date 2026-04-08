@@ -1,3 +1,4 @@
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
@@ -135,7 +136,14 @@ const handleStatementRequest = async (params: {
   if (!resolved.ok) return resolved.response;
 
   try {
+    const startedAt = Date.now();
     const [rows] = await params.pool.query(resolved.value.sql, resolved.value.params);
+    SystemTraceBridge.emitQuery(
+      resolved.value.sql,
+      resolved.value.params,
+      Date.now() - startedAt,
+      'mysql-proxy'
+    );
 
     const normalized = normalizeResult(rows);
     if (!resolved.value.mutating) {
@@ -176,7 +184,14 @@ const handleSqlRequest = async (params: {
   }
 
   try {
+    const startedAt = Date.now();
     const [rows] = await params.pool.query(sqlValidation.sql ?? '', sqlValidation.params ?? []);
+    SystemTraceBridge.emitQuery(
+      sqlValidation.sql ?? '',
+      sqlValidation.params ?? [],
+      Date.now() - startedAt,
+      'mysql-proxy'
+    );
     return handleEndpoint(params.request.path, rows);
   } catch (error) {
     Deps.Logger.error('[MySQLProxyServer] Query execution failed', {

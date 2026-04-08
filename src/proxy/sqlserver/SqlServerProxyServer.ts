@@ -1,3 +1,4 @@
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { type BaseProxyOverrides } from '@proxy/ProxyServerUtils';
@@ -168,7 +169,14 @@ const handleStatementRequest = async (
   if (!resolved.ok) return resolved.response;
 
   try {
+    const startedAt = Date.now();
     const result = await executeQuery(pool, resolved.value.sql, resolved.value.params);
+    SystemTraceBridge.emitQuery(
+      resolved.value.sql,
+      resolved.value.params,
+      Date.now() - startedAt,
+      'sqlserver-proxy'
+    );
     if (!resolved.value.mutating) return handleEndpoint('/zin/sqlserver/statement', result);
     return toMutatingStatementResponse(result);
   } catch (error) {
@@ -198,7 +206,14 @@ const handleSqlRequest = async (
   }
 
   try {
+    const startedAt = Date.now();
     const result = await executeQuery(pool, sqlValidation.sql ?? '', sqlValidation.params ?? []);
+    SystemTraceBridge.emitQuery(
+      sqlValidation.sql ?? '',
+      sqlValidation.params ?? [],
+      Date.now() - startedAt,
+      'sqlserver-proxy'
+    );
     return handleEndpoint(requestPath, result);
   } catch (error) {
     return Deps.ErrorHandler.toProxyError(500, 'SQLSERVER_ERROR', String(error));
