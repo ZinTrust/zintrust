@@ -24,6 +24,8 @@ export const WorkerConfig = Object.freeze({
   getWorkerBaseUrl: resolveWorkerApiUrl,
 });
 
+const LEGACY_REDIS_WORKER_PREFIX = 'zintrust:workers:';
+
 const trimBoundaryUnderscores = (value: string): string => {
   let start = 0;
   let end = value.length;
@@ -48,17 +50,73 @@ const normalizeAppName = (value: string): string => {
   return normalized === '' ? 'zintrust' : normalized;
 };
 
-export const keyPrefix = (): string => {
-  const redisKeyPrefix = (Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '') ?? '').trim();
+const trimBoundaryColons = (value: string): string => {
+  let start = 0;
+  let end = value.length;
 
-  if (redisKeyPrefix !== '') {
-    return redisKeyPrefix;
+  while (start < end && value.charAt(start) === ':') {
+    start += 1;
   }
 
+  while (end > start && value.charAt(end - 1) === ':') {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
+};
+
+const defaultKeyPrefix = (): string => {
   const appName =
     typeof appConfig.name === 'string' && appConfig.name.trim() !== ''
       ? appConfig.name
       : Env.get('APP_NAME', 'zintrust');
 
   return `${normalizeAppName(appName)}_zintrust:workers:`;
+};
+
+const isLegacyWorkerPrefix = (value: string): boolean => {
+  if (value === LEGACY_REDIS_WORKER_PREFIX) return true;
+  if (value.startsWith('worker_')) return true;
+  return value.includes(':workers:_worker_');
+};
+
+const normalizeConfiguredKeyPrefix = (value: string | undefined | null): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+
+  if (isLegacyWorkerPrefix(trimmed)) {
+    return defaultKeyPrefix();
+  }
+
+  return trimmed;
+};
+
+const appendPrefixSegment = (base: string, segment: string): string => {
+  const normalizedSegment = trimBoundaryColons(segment.trim());
+  if (normalizedSegment === '') return base;
+
+  const normalizedBase = trimBoundaryColons(base);
+  if (normalizedBase === '') {
+    return `${normalizedSegment}:`;
+  }
+
+  return `${normalizedBase}:${normalizedSegment}:`;
+};
+
+export const resolveWorkerKeyPrefix = (value?: string | null): string => {
+  return (
+    normalizeConfiguredKeyPrefix(value) ??
+    normalizeConfiguredKeyPrefix(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '')) ??
+    defaultKeyPrefix()
+  );
+};
+
+export const keyPrefix = (): string => {
+  return resolveWorkerKeyPrefix();
+};
+
+export const keyPrefixFor = (...segments: string[]): string => {
+  return segments.reduce((prefix, segment) => appendPrefixSegment(prefix, segment), keyPrefix());
 };
