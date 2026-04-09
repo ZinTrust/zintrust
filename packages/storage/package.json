@@ -39,7 +39,7 @@
     "adapter"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node ../../scripts/fix-dist-esm-imports.mjs dist",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {

@@ -8,7 +8,7 @@ export type {
 export {
   registerStreamingMultipartParser,
   type StreamingMultipartParserOptions,
-} from './registerStreamingMultipartParser';
+} from './registerStreamingMultipartParser.js';
 
 /**
  * Package version and build metadata

@@ -24,10 +24,26 @@ export const WorkerConfig = Object.freeze({
   getWorkerBaseUrl: resolveWorkerApiUrl,
 });
 
+const normalizeAppName = (value: string): string => {
+  const trimmed = value.trim().toLowerCase();
+  const collapsedWhitespace = trimmed.replaceAll(/\s+/g, '_');
+  const sanitized = collapsedWhitespace.replaceAll(/[^a-z0-9_:-]/g, '_');
+  const collapsedUnderscores = sanitized.replaceAll(/_+/g, '_');
+  const normalized = collapsedUnderscores.replaceAll(/^_+|_+$/g, '');
+  return normalized === '' ? 'zintrust' : normalized;
+};
+
 export const keyPrefix = (): string => {
   const redisKeyPrefix = (Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '') ?? '').trim();
 
-  return redisKeyPrefix
-    ? `${redisKeyPrefix}_worker_${appConfig.prefix}`
-    : `worker_${appConfig.prefix}`;
+  if (redisKeyPrefix !== '') {
+    return redisKeyPrefix;
+  }
+
+  const appName =
+    typeof appConfig.name === 'string' && appConfig.name.trim() !== ''
+      ? appConfig.name
+      : Env.get('APP_NAME', 'zintrust');
+
+  return `${normalizeAppName(appName)}_zintrust:workers:`;
 };
