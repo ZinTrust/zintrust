@@ -1,3 +1,4 @@
+import { SpawnUtil } from '@cli/utils/spawn';
 import { mkdtemp, rm, writeFile } from '@node-singletons/fs';
 import { tmpdir } from '@node-singletons/os';
 import { join } from '@node-singletons/path';
@@ -5,12 +6,11 @@ import { PluginManager } from '@runtime/PluginManager';
 import { PluginRegistry } from '@runtime/PluginRegistry';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-const execMock = vi.hoisted(() => ({ execSync: vi.fn() }));
 vi.mock('@node-singletons/child-process', () => ({
-  execSync: execMock.execSync,
   execFileSync: vi.fn(),
   spawn: vi.fn(),
 }));
+vi.mock('@cli/utils/spawn', () => ({ SpawnUtil: { spawnAndWait: vi.fn() } }));
 vi.mock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 describe('PluginManager postInstall', () => {
@@ -45,7 +45,7 @@ describe('PluginManager postInstall', () => {
     } as any;
 
     await expect(PluginManager.install(id)).resolves.toBeUndefined();
-    expect(execMock.execSync).not.toHaveBeenCalled();
+    expect(SpawnUtil.spawnAndWait).not.toHaveBeenCalled();
 
     Reflect.deleteProperty(PluginRegistry, id);
   });
@@ -65,8 +65,15 @@ describe('PluginManager postInstall', () => {
       postInstall: { command: 'echo hello' },
     } as any;
 
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
     await expect(PluginManager.install(id)).resolves.toBeUndefined();
-    expect(execMock.execSync).toHaveBeenCalled();
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith({
+      command: 'echo hello',
+      args: [],
+      cwd: expect.stringContaining('plugin-postinstall-'),
+      shell: true,
+    });
 
     Reflect.deleteProperty(PluginRegistry, id);
   });

@@ -1,15 +1,32 @@
 import { MicroserviceBootstrap } from '@/microservices/MicroserviceBootstrap';
 import { getEnabledServices, isMicroservicesEnabled } from '@/microservices/MicroserviceManager';
 import { Logger } from '@config/logger';
-import { default as fs } from '@node-singletons/fs';
+import fs, { fsPromises } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@node-singletons/fs');
+const fsMock = vi.hoisted(() => ({
+  existsSync: vi.fn(),
+  fsPromises: {
+    readdir: vi.fn(),
+    readFile: vi.fn(),
+  },
+}));
+
+const projectRuntimeMock = vi.hoisted(() => ({
+  tryLoadNodeRuntime: vi.fn().mockResolvedValue(undefined),
+  getServiceManifest: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock('@node-singletons/fs', () => ({
+  default: fsMock,
+  fsPromises: fsMock.fsPromises,
+}));
 vi.mock('@node-singletons/path');
 vi.mock('@config/logger');
 vi.mock('@/config/env');
 vi.mock('@/microservices/MicroserviceManager');
+vi.mock('@runtime/ProjectRuntime', () => ({ ProjectRuntime: projectRuntimeMock }));
 
 describe('MicroserviceBootstrap', () => {
   const mockServicesDir = '/mock/services';
@@ -37,21 +54,17 @@ describe('MicroserviceBootstrap', () => {
     bootstrap.setServicesDir(mockServicesDir);
 
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readdirSync).mockImplementation(((dir: any) => {
+    vi.mocked(fsPromises.readdir).mockImplementation(((dir: any) => {
       if (dir === mockServicesDir) {
-        return ['domain1'] as unknown as fs.Dirent[];
+        return Promise.resolve([{ isDirectory: () => true, name: 'domain1' }]);
       }
       if (dir === path.join(mockServicesDir, 'domain1')) {
-        return ['service1'] as unknown as fs.Dirent[];
+        return Promise.resolve([{ isDirectory: () => true, name: 'service1' }]);
       }
-      return [] as unknown as fs.Dirent[];
+      return Promise.resolve([]);
     }) as any);
 
-    vi.mocked(fs.statSync).mockReturnValue({
-      isDirectory: () => true,
-    } as any);
-
-    vi.mocked(fs.readFileSync).mockReturnValue(
+    vi.mocked(fsPromises.readFile).mockResolvedValue(
       JSON.stringify({
         name: 'service1',
         domain: 'domain1',

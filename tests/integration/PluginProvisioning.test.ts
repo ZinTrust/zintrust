@@ -1,11 +1,8 @@
+import { SpawnUtil } from '@cli/utils/spawn';
 import { mkdtemp, readFile, realpath, rm, writeFile } from '@node-singletons/fs';
 import { tmpdir } from '@node-singletons/os';
 import { join } from '@node-singletons/path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-
-const execState = vi.hoisted(() => ({
-  execSync: vi.fn(),
-}));
 
 const loggerState = vi.hoisted(() => ({
   info: vi.fn(),
@@ -14,9 +11,12 @@ const loggerState = vi.hoisted(() => ({
 }));
 
 vi.mock('@node-singletons/child-process', () => ({
-  execSync: execState.execSync,
   execFileSync: vi.fn(),
   spawn: vi.fn(),
+}));
+
+vi.mock('@cli/utils/spawn', () => ({
+  SpawnUtil: { spawnAndWait: vi.fn() },
 }));
 
 vi.mock('@config/logger', () => ({
@@ -65,21 +65,22 @@ describe.sequential('Plugin provisioning integration', () => {
   it('installs a plugin into the current project root', async () => {
     if (tempDir === undefined) throw new Error('tempDir missing');
 
-    execState.execSync.mockClear();
+    vi.mocked(SpawnUtil.spawnAndWait).mockClear();
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
 
     await PluginManager.install('feature:auth');
 
-    expect(execState.execSync).toHaveBeenCalledTimes(2);
-    expect(execState.execSync).toHaveBeenNthCalledWith(
-      1,
-      'npm install jsonwebtoken bcrypt',
-      expect.objectContaining({ cwd: tempDir, stdio: 'inherit' })
-    );
-    expect(execState.execSync).toHaveBeenNthCalledWith(
-      2,
-      'npm install -D @types/jsonwebtoken @types/bcrypt',
-      expect.objectContaining({ cwd: tempDir, stdio: 'inherit' })
-    );
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledTimes(2);
+    expect(SpawnUtil.spawnAndWait).toHaveBeenNthCalledWith(1, {
+      command: 'npm',
+      args: ['install', 'jsonwebtoken', 'bcrypt'],
+      cwd: tempDir,
+    });
+    expect(SpawnUtil.spawnAndWait).toHaveBeenNthCalledWith(2, {
+      command: 'npm',
+      args: ['install', '--save-dev', '@types/jsonwebtoken', '@types/bcrypt'],
+      cwd: tempDir,
+    });
 
     const authPath = join(tempDir, 'src/auth/Auth.ts');
     const authText = await readFile(authPath, 'utf-8');

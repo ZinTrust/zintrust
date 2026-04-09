@@ -2,6 +2,10 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-09
+
+- Corrected the bottleneck and memory-retention analysis in [report/bottlenecks-memory-leaks-analysis.md] so it now reflects only verified code facts. Implemented the corresponding fixes in core: plugin dependency installs and opt-in post-install commands now run asynchronously via `SpawnUtil` instead of `execSync`, microservice discovery now uses async filesystem reads for `service.config.json` traversal, and the PostgreSQL adapter manager now exposes `releaseInstance(key)` for targeted cached-adapter cleanup.
+
 ## 2026-04-08
 
 - Refreshed the Nodemailer adapter dependency metadata to pick up `nodemailer@8.0.5`, which clears the moderate SMTP command-injection advisory (`GHSA-vvjj-xcjg-gr5g`) in both the root workspace install and the package-local `@zintrust/mail-nodemailer` lockfile used for package-level audits.

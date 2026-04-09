@@ -10,7 +10,7 @@ import {
   serviceMatchesAllowList,
   type ServiceManifestEntry,
 } from '@microservices/ServiceManifest';
-import fs from '@node-singletons/fs';
+import fs, { fsPromises } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
 
@@ -77,11 +77,11 @@ async function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig
       return manifestServices;
     }
 
-    const domains = getDomains(state.servicesDir);
+    const domains = await getDomains(state.servicesDir);
     const services: ServiceConfig[] = [];
 
     for (const domain of domains) {
-      const domainServices = discoverServicesInDomain(state, domain, services.length);
+      const domainServices = await discoverServicesInDomain(state, domain, services.length);
       services.push(...domainServices);
     }
 
@@ -282,13 +282,11 @@ async function discoverServicesFromManifest(state: BootstrapState): Promise<Serv
 /**
  * Get all domains in services directory
  */
-function getDomains(servicesDir: string): string[] {
+async function getDomains(servicesDir: string): Promise<string[]> {
   if (!fs.existsSync(servicesDir)) return [];
 
-  return fs.readdirSync(servicesDir).filter((file) => {
-    const filePath = path.join(servicesDir, file);
-    return fs.statSync(filePath).isDirectory();
-  });
+  const entries = await fsPromises.readdir(servicesDir, { withFileTypes: true });
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 }
 
 /**
@@ -301,13 +299,13 @@ function isServiceEnabled(serviceName: string, enabledServices: string[]): boole
 /**
  * Load service configuration from file
  */
-function loadServiceConfig(
+async function loadServiceConfig(
   domain: string,
   serviceName: string,
   configPath: string,
   index: number
-): ServiceConfig {
-  const configData = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+): Promise<ServiceConfig> {
+  const configData = JSON.parse(await fsPromises.readFile(configPath, 'utf-8'));
 
   return {
     id: getServiceId(domain, serviceName),
@@ -364,17 +362,17 @@ function createServiceConfigFromManifest(
 /**
  * Try to load service configuration if it exists
  */
-function tryLoadServiceConfig(
+async function tryLoadServiceConfig(
   state: BootstrapState,
   domain: string,
   serviceName: string,
   domainPath: string,
   index: number
-): ServiceConfig | null {
+): Promise<ServiceConfig | null> {
   const configPath = path.join(domainPath, serviceName, 'service.config.json');
   if (!fs.existsSync(configPath)) return null;
 
-  const config = loadServiceConfig(domain, serviceName, configPath, index);
+  const config = await loadServiceConfig(domain, serviceName, configPath, index);
   state.serviceConfigs.set(getServiceKey(domain, serviceName), config);
   return config;
 }
@@ -382,23 +380,23 @@ function tryLoadServiceConfig(
 /**
  * Discover all services within a specific domain
  */
-function discoverServicesInDomain(
+async function discoverServicesInDomain(
   state: BootstrapState,
   domain: string,
   startIndex: number
-): ServiceConfig[] {
+): Promise<ServiceConfig[]> {
   const domainPath = path.join(state.servicesDir, domain);
-  const serviceNames = fs.readdirSync(domainPath).filter((file) => {
-    const filePath = path.join(domainPath, file);
-    return fs.statSync(filePath).isDirectory() && file !== 'shared';
-  });
+  const entries = await fsPromises.readdir(domainPath, { withFileTypes: true });
+  const serviceNames = entries
+    .filter((entry) => entry.isDirectory() && entry.name !== 'shared')
+    .map((entry) => entry.name);
 
   const services: ServiceConfig[] = [];
   const enabledServices = getEnabledServices();
 
   for (const serviceName of serviceNames) {
     if (isServiceEnabled(serviceName, enabledServices)) {
-      const config = tryLoadServiceConfig(
+      const config = await tryLoadServiceConfig(
         state,
         domain,
         serviceName,

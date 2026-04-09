@@ -24,7 +24,6 @@ describe('PluginManager coverage edges', () => {
     vi.resetModules();
 
     const spawnAndWait = vi.fn().mockResolvedValue(0);
-    const execSync = vi.fn();
 
     const existsSync = vi.fn((p: string) => {
       // Make findPackageRoot + resolveTemplateRootOrThrow succeed.
@@ -44,9 +43,7 @@ describe('PluginManager coverage edges', () => {
       SpawnUtil: { spawnAndWait },
     }));
 
-    vi.doMock('@node-singletons/child-process', () => ({
-      execSync,
-    }));
+    vi.doMock('@node-singletons/child-process', () => ({}));
 
     vi.doMock('@node-singletons/fs', () => ({
       existsSync,
@@ -76,8 +73,6 @@ describe('PluginManager coverage edges', () => {
       PluginManager.install('test', { packageManager: 'yarn' })
     ).resolves.toBeUndefined();
 
-    // Yarn branch uses SpawnUtil, not execSync.
-    expect(execSync).not.toHaveBeenCalled();
     expect(spawnAndWait).toHaveBeenCalled();
 
     await expect(PluginManager.uninstall('test')).resolves.toBeUndefined();
@@ -92,9 +87,7 @@ describe('PluginManager coverage edges', () => {
       SpawnUtil: { spawnAndWait },
     }));
 
-    vi.doMock('@node-singletons/child-process', () => ({
-      execSync: vi.fn(),
-    }));
+    vi.doMock('@node-singletons/child-process', () => ({}));
 
     vi.doMock('@node-singletons/fs', () => ({
       existsSync: vi.fn((p: string) => p.endsWith('package.json') || p.includes('templates')),
@@ -130,7 +123,6 @@ describe('PluginManager coverage edges', () => {
     vi.resetModules();
 
     const spawnAndWait = vi.fn().mockResolvedValue(0);
-    const execSync = vi.fn();
 
     const fsPromises = {
       mkdir: vi.fn().mockResolvedValue(undefined),
@@ -143,9 +135,7 @@ describe('PluginManager coverage edges', () => {
       SpawnUtil: { spawnAndWait },
     }));
 
-    vi.doMock('@node-singletons/child-process', () => ({
-      execSync,
-    }));
+    vi.doMock('@node-singletons/child-process', () => ({}));
 
     vi.doMock('@node-singletons/fs', () => ({
       existsSync: vi.fn((p: string) => p.endsWith('package.json') || p.includes('templates')),
@@ -178,17 +168,13 @@ describe('PluginManager coverage edges', () => {
 
     process.env['ZINTRUST_ALLOW_POSTINSTALL'] = '1';
 
-    const execSync = vi.fn(() => {
-      throw new Error('post-install boom');
-    });
+    const spawnAndWait = vi.fn().mockRejectedValue(new Error('post-install boom'));
 
     vi.doMock('@cli/utils/spawn', () => ({
-      SpawnUtil: { spawnAndWait: vi.fn().mockResolvedValue(0) },
+      SpawnUtil: { spawnAndWait },
     }));
 
-    vi.doMock('@node-singletons/child-process', () => ({
-      execSync,
-    }));
+    vi.doMock('@node-singletons/child-process', () => ({}));
 
     vi.doMock('@node-singletons/fs', () => ({
       existsSync: vi.fn((p: string) => p.endsWith('package.json') || p.includes('templates')),
@@ -219,7 +205,12 @@ describe('PluginManager coverage edges', () => {
     await expect(
       PluginManager.install('test', { packageManager: 'pnpm' })
     ).resolves.toBeUndefined();
-    expect(execSync).toHaveBeenCalled();
+    expect(spawnAndWait).toHaveBeenCalledWith({
+      command: 'echo hi',
+      args: [],
+      cwd: process.cwd(),
+      shell: true,
+    });
   });
 
   it('covers isInstalled not-found throw and defensive final return false', async () => {
@@ -229,9 +220,7 @@ describe('PluginManager coverage edges', () => {
       SpawnUtil: { spawnAndWait: vi.fn().mockResolvedValue(0) },
     }));
 
-    vi.doMock('@node-singletons/child-process', () => ({
-      execSync: vi.fn(),
-    }));
+    vi.doMock('@node-singletons/child-process', () => ({}));
 
     vi.doMock('@node-singletons/fs', () => ({
       existsSync: vi.fn((p: string) => p.endsWith('package.json') || p.includes('templates')),

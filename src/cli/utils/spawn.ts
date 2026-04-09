@@ -10,6 +10,7 @@ export interface SpawnAndWaitInput {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   forwardSignals?: boolean;
+  shell?: boolean;
 }
 
 const getExitCode = (exitCode: number | null, signal: NodeJS.Signals | null): number => {
@@ -55,12 +56,14 @@ const buildCommandNotFoundMessage = (command: string): string => {
 export const SpawnUtil = Object.freeze({
   async spawnAndWait(input: SpawnAndWaitInput): Promise<number> {
     const cwd = input.cwd ?? process.cwd();
-    const resolvedCommand = resolveLocalBin(input.command, cwd);
+    const resolvedCommand =
+      input.shell === true ? input.command : resolveLocalBin(input.command, cwd);
 
     const child = spawn(resolvedCommand, input.args, {
       cwd,
       env: input.env ?? appConfig.getSafeEnv(),
       stdio: 'inherit',
+      shell: input.shell === true,
     });
 
     // In interactive shells, the foreground process group already receives SIGINT
