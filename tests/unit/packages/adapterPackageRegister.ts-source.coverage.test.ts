@@ -41,6 +41,18 @@ describe('adapter packages /register (TS source coverage)', () => {
     expect(core.StorageDriverRegistry.has('gcs')).toBe(true);
   });
 
+  it('registers the storage multipart parser from the documented entrypoint', async () => {
+    vi.resetModules();
+    const core = await import('../../../src/index');
+
+    core.MultipartParserRegistry.clear();
+    expect(core.MultipartParserRegistry.has()).toBe(false);
+
+    await import('../../../packages/storage/src/register');
+
+    expect(core.MultipartParserRegistry.has()).toBe(true);
+  });
+
   it('registers mail smtp/sendgrid/mailgun (register.ts)', async () => {
     vi.resetModules();
     const core = await import('../../../src/index');

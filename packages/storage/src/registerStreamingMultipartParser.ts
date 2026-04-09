@@ -226,27 +226,42 @@ const executeParsing = (
   let finished = false;
   const settlement = createSettlementHandlers(createdPaths);
 
+  const onAborted = (): void => {
+    if (finished) return;
+    rejectOnce(new Error('Upload aborted'));
+  };
+
+  const onClose = (): void => {
+    if (finished) return;
+    if (input.req.complete === true) return;
+    rejectOnce(new Error('Upload aborted'));
+  };
+
+  const onRequestError = (err: unknown): void => {
+    rejectOnce(err);
+  };
+
+  const cleanupRequestListeners = (): void => {
+    input.req.off('aborted', onAborted);
+    input.req.off('close', onClose);
+    input.req.off('error', onRequestError);
+  };
+
   const resolveOnce = (value: ParsedMultipartData): void => {
+    cleanupRequestListeners();
     settlement.resolveOnce(value, resolve);
   };
 
   const rejectOnce = (err: unknown): void => {
+    cleanupRequestListeners();
     settlement.rejectOnce(err, reject);
   };
 
   const bb = createBusboyInstance(input);
 
-  const onAbortOrClose = (): void => {
-    if (finished) return;
-    rejectOnce(new Error('Upload aborted'));
-  };
-
-  input.req.once('aborted', onAbortOrClose);
-  input.req.once('close', onAbortOrClose);
-
-  input.req.on('error', (err) => {
-    rejectOnce(err);
-  });
+  input.req.once('aborted', onAborted);
+  input.req.once('close', onClose);
+  input.req.on('error', onRequestError);
 
   const ctx: BusboyContext = {
     fields,

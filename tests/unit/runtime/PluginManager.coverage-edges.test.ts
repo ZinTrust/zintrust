@@ -163,7 +163,7 @@ describe('PluginManager coverage edges', () => {
     );
   });
 
-  it('covers post-install command catch (error swallowed)', async () => {
+  it('covers post-install command catch (error rethrown)', async () => {
     vi.resetModules();
 
     process.env['ZINTRUST_ALLOW_POSTINSTALL'] = '1';
@@ -202,9 +202,10 @@ describe('PluginManager coverage edges', () => {
 
     const { PluginManager } = await import('@runtime/PluginManager');
 
-    await expect(
-      PluginManager.install('test', { packageManager: 'pnpm' })
-    ).resolves.toBeUndefined();
+    await expect(PluginManager.install('test', { packageManager: 'pnpm' })).rejects.toMatchObject({
+      code: 'CLI_ERROR',
+      message: 'Post-install command failed',
+    });
     expect(spawnAndWait).toHaveBeenCalledWith({
       command: 'echo hi',
       args: [],
