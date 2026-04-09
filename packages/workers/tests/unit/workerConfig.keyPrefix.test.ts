@@ -29,6 +29,15 @@ describe('workerConfig keyPrefix', () => {
     expect(keyPrefix()).toBe('vizo_zintrust_development_zintrust:workers:');
   });
 
+  it('trims leading and trailing underscores without regex backtracking', async () => {
+    process.env['APP_NAME'] = '___ Vizo@@@ Zintrust Development ___';
+    delete process.env['WORKER_PERSISTENCE_REDIS_KEY_PREFIX'];
+
+    const { keyPrefix } = await import('../../src/config/workerConfig');
+
+    expect(keyPrefix()).toBe('vizo_zintrust_development_zintrust:workers:');
+  });
+
   it('uses the explicit WORKER_PERSISTENCE_REDIS_KEY_PREFIX as-is when provided', async () => {
     process.env['APP_NAME'] = 'Ignored App Name';
     process.env['WORKER_PERSISTENCE_REDIS_KEY_PREFIX'] = 'custom_workers_prefix:';

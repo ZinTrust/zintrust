@@ -24,12 +24,27 @@ export const WorkerConfig = Object.freeze({
   getWorkerBaseUrl: resolveWorkerApiUrl,
 });
 
+const trimBoundaryUnderscores = (value: string): string => {
+  let start = 0;
+  let end = value.length;
+
+  while (start < end && value.charAt(start) === '_') {
+    start += 1;
+  }
+
+  while (end > start && value.charAt(end - 1) === '_') {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
+};
+
 const normalizeAppName = (value: string): string => {
   const trimmed = value.trim().toLowerCase();
   const collapsedWhitespace = trimmed.replaceAll(/\s+/g, '_');
   const sanitized = collapsedWhitespace.replaceAll(/[^a-z0-9_:-]/g, '_');
   const collapsedUnderscores = sanitized.replaceAll(/_+/g, '_');
-  const normalized = collapsedUnderscores.replaceAll(/^_+|_+$/g, '');
+  const normalized = trimBoundaryUnderscores(collapsedUnderscores);
   return normalized === '' ? 'zintrust' : normalized;
 };
 
