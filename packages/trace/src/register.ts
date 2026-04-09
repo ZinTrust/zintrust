@@ -64,6 +64,9 @@ type CoreApi = {
   Logger?: {
     warn(message: string, context?: Record<string, unknown>): void;
   };
+  ErrorFactory?: {
+    createConfigError(message: string, details?: unknown): Error;
+  };
   StartupConfigFile?: {
     Trace?: string;
   };
@@ -71,6 +74,14 @@ type CoreApi = {
     get<T>(file: string): T | undefined;
   };
 };
+
+type CoreDatabase = import('@zintrust/core').IDatabase;
+
+const TRACE_REQUIRED_TABLES = [
+  'zin_trace_entries',
+  'zin_trace_entries_tags',
+  'zin_trace_monitoring',
+] as const;
 
 type GlobalMiddlewareRegistrarState = {
   __zintrust_register_global_middleware__?: ITraceWatcherConfig['registerMiddleware'];
@@ -125,7 +136,7 @@ const resolveObservedConnectionName = (
     return resolveTraceConnectionName(env, configuredObservedConnection);
   }
 
-  const defaultConnectionName = resolveTraceConnectionName(env, undefined);
+  const defaultConnectionName = resolveTraceConnectionName(env);
   if (storageConnectionName !== defaultConnectionName) {
     return defaultConnectionName;
   }
@@ -217,6 +228,71 @@ const buildTraceRedactionOverrides = (input: {
     : undefined;
 };
 
+const createTraceConfigError = (coreApi: CoreApi, message: string, details?: unknown): Error => {
+  if (coreApi.ErrorFactory?.createConfigError !== undefined) {
+    return coreApi.ErrorFactory.createConfigError(message, details);
+  }
+
+  const error = new globalThis.Error(message) as Error & {
+    code?: string;
+    details?: unknown;
+    name?: string;
+    statusCode?: number;
+  };
+  error.name = 'ConfigError';
+  error.code = 'CONFIG_ERROR';
+  error.statusCode = 500;
+  error.details = details;
+  return error;
+};
+
+function assertTraceConnectionResolved(
+  coreApi: CoreApi,
+  db: CoreDatabase | undefined,
+  params: { connectionName: string; envKey: 'TRACE_DB_CONNECTION' | 'TRACE_QUERY_CONNECTION' }
+): asserts db is CoreDatabase {
+  if (db !== undefined) {
+    return;
+  }
+
+  throw createTraceConfigError(
+    coreApi,
+    `Trace connection "${params.connectionName}" could not be resolved.`,
+    {
+      connectionName: params.connectionName,
+      envKey: params.envKey,
+      hint:
+        params.envKey === 'TRACE_DB_CONNECTION'
+          ? 'Configure TRACE_DB_CONNECTION to an existing database connection before enabling TRACE_ENABLED.'
+          : 'Configure TRACE_QUERY_CONNECTION, or ensure DB_CONNECTION resolves to an existing database connection.',
+    }
+  );
+}
+
+const assertTraceStorageReady = async (
+  coreApi: CoreApi,
+  db: CoreDatabase,
+  connectionName: string
+): Promise<void> => {
+  try {
+    await Promise.all(
+      TRACE_REQUIRED_TABLES.map(async (table) => {
+        await db.queryOne(`SELECT 1 AS ok FROM ${table} LIMIT 1`, []);
+      })
+    );
+  } catch (error) {
+    throw createTraceConfigError(
+      coreApi,
+      `Trace storage connection "${connectionName}" is not ready. Create the database if needed and run \`zin migrate:trace\` before enabling TRACE_ENABLED.`,
+      {
+        connectionName,
+        error,
+        requiredTables: [...TRACE_REQUIRED_TABLES],
+      }
+    );
+  }
+};
+
 const core = (await importCore()) as CoreApi;
 const Env = core.Env;
 const startupOverrides = resolveTraceStartupOverrides(core);
@@ -292,98 +368,103 @@ if (!traceAlreadyInitialized && Env) {
     const storageDb = core.useDatabase?.(undefined, resolvedConnectionName);
     const observedDb = core.useDatabase?.(undefined, resolvedObservedConnectionName);
 
-    if (storageDb && observedDb) {
-      const storage = TraceWriteDiagnostics.wrapStorage(
-        TraceContentRedaction.wrapStorage(
-          TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(storageDb), config),
-          config.redaction
-        ),
-        {
-          connectionName: resolvedConnectionName,
-          logger: core.Logger,
+    assertTraceConnectionResolved(core, storageDb, {
+      connectionName: resolvedConnectionName,
+      envKey: 'TRACE_DB_CONNECTION',
+    });
+    assertTraceConnectionResolved(core, observedDb, {
+      connectionName: resolvedObservedConnectionName,
+      envKey: 'TRACE_QUERY_CONNECTION',
+    });
+    await assertTraceStorageReady(core, storageDb, resolvedConnectionName);
+
+    const storage = TraceWriteDiagnostics.wrapStorage(
+      TraceContentRedaction.wrapStorage(
+        TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(storageDb), config),
+        config.redaction
+      ),
+      {
+        connectionName: resolvedConnectionName,
+        logger: core.Logger,
+      }
+    );
+
+    if (core.RequestContext) {
+      TraceContext.setRequestContextImpl(
+        core.RequestContext as {
+          current?: () => unknown;
+          peek?: () => unknown;
         }
       );
-
-      if (core.RequestContext) {
-        TraceContext.setRequestContextImpl(
-          core.RequestContext as {
-            current?: () => unknown;
-            peek?: () => unknown;
-          }
-        );
-      }
-
-      const [
-        { HttpWatcher },
-        { QueryWatcher },
-        { LogWatcher },
-        { ExceptionWatcher },
-        { JobWatcher },
-        { CacheWatcher },
-        { ScheduleWatcher },
-        { MailWatcher },
-        { AuthWatcher },
-        { EventWatcher },
-        { ModelWatcher },
-        { NotificationWatcher },
-        { RedisWatcher },
-        { GateWatcher },
-        { MiddlewareWatcher },
-        { CommandWatcher },
-        { BatchWatcher },
-        { DumpWatcher },
-        { ViewWatcher },
-        { HttpClientWatcher },
-      ] = await Promise.all([
-        import('./watchers/HttpWatcher'),
-        import('./watchers/QueryWatcher'),
-        import('./watchers/LogWatcher'),
-        import('./watchers/ExceptionWatcher'),
-        import('./watchers/JobWatcher'),
-        import('./watchers/CacheWatcher'),
-        import('./watchers/ScheduleWatcher'),
-        import('./watchers/MailWatcher'),
-        import('./watchers/AuthWatcher'),
-        import('./watchers/EventWatcher'),
-        import('./watchers/ModelWatcher'),
-        import('./watchers/NotificationWatcher'),
-        import('./watchers/RedisWatcher'),
-        import('./watchers/GateWatcher'),
-        import('./watchers/MiddlewareWatcher'),
-        import('./watchers/CommandWatcher'),
-        import('./watchers/BatchWatcher'),
-        import('./watchers/DumpWatcher'),
-        import('./watchers/ViewWatcher'),
-        import('./watchers/HttpClientWatcher'),
-      ]);
-
-      const watcherArgs = { storage, config, db: observedDb };
-
-      HttpWatcher.register({ ...watcherArgs, registerMiddleware: resolveRegisterMiddleware() });
-
-      QueryWatcher.register(watcherArgs);
-      LogWatcher.register(watcherArgs);
-      ExceptionWatcher.register(watcherArgs);
-      JobWatcher.register(watcherArgs);
-      CacheWatcher.register(watcherArgs);
-      ScheduleWatcher.register(watcherArgs);
-      MailWatcher.register(watcherArgs);
-      AuthWatcher.register(watcherArgs);
-      EventWatcher.register(watcherArgs);
-      ModelWatcher.register(watcherArgs);
-      NotificationWatcher.register(watcherArgs);
-      RedisWatcher.register(watcherArgs);
-      GateWatcher.register(watcherArgs);
-      MiddlewareWatcher.register(watcherArgs);
-      CommandWatcher.register(watcherArgs);
-      BatchWatcher.register(watcherArgs);
-      DumpWatcher.register(watcherArgs);
-      ViewWatcher.register(watcherArgs);
-      HttpClientWatcher.register(watcherArgs);
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn('[trace] Could not resolve database connection - skipping init.');
     }
+
+    const [
+      { HttpWatcher },
+      { QueryWatcher },
+      { LogWatcher },
+      { ExceptionWatcher },
+      { JobWatcher },
+      { CacheWatcher },
+      { ScheduleWatcher },
+      { MailWatcher },
+      { AuthWatcher },
+      { EventWatcher },
+      { ModelWatcher },
+      { NotificationWatcher },
+      { RedisWatcher },
+      { GateWatcher },
+      { MiddlewareWatcher },
+      { CommandWatcher },
+      { BatchWatcher },
+      { DumpWatcher },
+      { ViewWatcher },
+      { HttpClientWatcher },
+    ] = await Promise.all([
+      import('./watchers/HttpWatcher'),
+      import('./watchers/QueryWatcher'),
+      import('./watchers/LogWatcher'),
+      import('./watchers/ExceptionWatcher'),
+      import('./watchers/JobWatcher'),
+      import('./watchers/CacheWatcher'),
+      import('./watchers/ScheduleWatcher'),
+      import('./watchers/MailWatcher'),
+      import('./watchers/AuthWatcher'),
+      import('./watchers/EventWatcher'),
+      import('./watchers/ModelWatcher'),
+      import('./watchers/NotificationWatcher'),
+      import('./watchers/RedisWatcher'),
+      import('./watchers/GateWatcher'),
+      import('./watchers/MiddlewareWatcher'),
+      import('./watchers/CommandWatcher'),
+      import('./watchers/BatchWatcher'),
+      import('./watchers/DumpWatcher'),
+      import('./watchers/ViewWatcher'),
+      import('./watchers/HttpClientWatcher'),
+    ]);
+
+    const watcherArgs = { storage, config, db: observedDb };
+
+    HttpWatcher.register({ ...watcherArgs, registerMiddleware: resolveRegisterMiddleware() });
+
+    QueryWatcher.register(watcherArgs);
+    LogWatcher.register(watcherArgs);
+    ExceptionWatcher.register(watcherArgs);
+    JobWatcher.register(watcherArgs);
+    CacheWatcher.register(watcherArgs);
+    ScheduleWatcher.register(watcherArgs);
+    MailWatcher.register(watcherArgs);
+    AuthWatcher.register(watcherArgs);
+    EventWatcher.register(watcherArgs);
+    ModelWatcher.register(watcherArgs);
+    NotificationWatcher.register(watcherArgs);
+    RedisWatcher.register(watcherArgs);
+    GateWatcher.register(watcherArgs);
+    MiddlewareWatcher.register(watcherArgs);
+    CommandWatcher.register(watcherArgs);
+    BatchWatcher.register(watcherArgs);
+    DumpWatcher.register(watcherArgs);
+    ViewWatcher.register(watcherArgs);
+    HttpClientWatcher.register(watcherArgs);
   }
 } else if (!traceAlreadyInitialized) {
   // Running outside a ZinTrust project - skip init silently.

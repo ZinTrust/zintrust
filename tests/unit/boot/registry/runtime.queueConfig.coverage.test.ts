@@ -204,4 +204,42 @@ describe('runtime registry (coverage extras)', () => {
     cwdSpy.mockRestore();
     rmSync(tempProjectRoot, { recursive: true, force: true });
   });
+
+  it('boot() fails fast when trace runtime registration throws', async () => {
+    envStrings.TRACE_ENABLED = 'true';
+    const traceInitError = Object.assign(new Error('trace storage missing'), {
+      code: 'CONFIG_ERROR',
+      name: 'ConfigError',
+      statusCode: 500,
+    });
+
+    (globalThis as Record<string, unknown>).__zintrust_system_trace_plugin_requested__ = true;
+    (globalThis as Record<string, unknown>).__zintrust_system_trace_runtime__ = {
+      isAvailable: () => true,
+      ensureSystemTraceRegistered: vi.fn(async () => {
+        throw traceInitError;
+      }),
+    };
+
+    let booted = false;
+    const lifecycle = createLifecycle({
+      environment: 'production',
+      resolvedBasePath: '/',
+      router: {} as any,
+      shutdownManager: { run: vi.fn(async () => undefined) } as any,
+      getBooted: () => booted,
+      setBooted: (value: boolean) => {
+        booted = value;
+      },
+    });
+
+    await expect(lifecycle.boot()).rejects.toBe(traceInitError);
+
+    const { Logger } = await import('@config/logger');
+    expect(Logger.error).toHaveBeenCalledWith(
+      'Failed to initialize System Trace runtime',
+      traceInitError
+    );
+    expect(booted).toBe(false);
+  });
 });

@@ -5,6 +5,7 @@
 
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { MultipartParser } from '@http/parsers/MultipartParser';
 import { MultipartParserRegistry } from '@http/parsers/MultipartParserRegistry';
 import type { IRequest } from '@http/Request';
@@ -26,7 +27,7 @@ const getContentType = (req: IRequest): string => {
  */
 export const fileUploadMiddleware: Middleware = async (
   req: IRequest,
-  res: IResponse,
+  _res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   const contentType = getContentType(req);
@@ -40,10 +41,10 @@ export const fileUploadMiddleware: Middleware = async (
   // Phase 4 default behavior: multipart requires external streaming parser.
   const provider = MultipartParserRegistry.get();
   if (provider === null) {
-    res.setStatus(415).json({
-      error: 'multipart/form-data not supported. Install @zintrust/storage to enable uploads.',
+    throw ErrorFactory.createConfigError('Multipart upload parser is not configured.', {
+      contentType,
+      hint: 'Install @zintrust/storage to enable multipart/form-data uploads.',
     });
-    return;
   }
 
   try {

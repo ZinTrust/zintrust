@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-09
 
+- Fixed a trace self-recursion path on SQLite after trace migrations are present. The trace query watcher now excludes `zin_trace_entries_tags` alongside the other trace tables, and the trace log watcher now skips adapter query-execution logs when the logged SQL targets trace storage tables. This prevents `TRACE_ENABLED=true` plus SQLite query logging from turning trace writes into an unbounded stream of repeated `SQLite query executed` inserts.
 - Corrected the bottleneck and memory-retention analysis in [report/bottlenecks-memory-leaks-analysis.md] so it now reflects only verified code facts. Implemented the corresponding fixes in core: plugin dependency installs and opt-in post-install commands now run asynchronously via `SpawnUtil` instead of `execSync`, microservice discovery now uses async filesystem reads for `service.config.json` traversal, and the PostgreSQL adapter manager now exposes `releaseInstance(key)` for targeted cached-adapter cleanup.
 
 ## 2026-04-08

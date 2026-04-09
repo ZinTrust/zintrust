@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  createConfigError,
   useDatabase,
   queryWatcherRegister,
   noopRegister,
@@ -13,7 +14,16 @@ const {
     name: connection ?? 'default',
     onAfterQuery: vi.fn(),
     offAfterQuery: vi.fn(),
+    queryOne: vi.fn(async () => ({ ok: 1 })),
   })),
+  createConfigError: vi.fn((message: string, details?: unknown) =>
+    Object.assign(new Error(message), {
+      code: 'CONFIG_ERROR',
+      details,
+      name: 'ConfigError',
+      statusCode: 500,
+    })
+  ),
   queryWatcherRegister: vi.fn(),
   noopRegister: vi.fn(),
   resolveStorage: vi.fn((db: unknown) => ({ db })),
@@ -34,6 +44,9 @@ vi.mock('@zintrust/core', () => ({
     getInt: (_key: string, fallback: number) => fallback,
   },
   useDatabase,
+  ErrorFactory: {
+    createConfigError,
+  },
   Logger: {
     warn: vi.fn(),
   },
