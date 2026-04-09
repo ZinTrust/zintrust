@@ -78,12 +78,11 @@ async function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig
     }
 
     const domains = await getDomains(state.servicesDir);
-    const services: ServiceConfig[] = [];
-
-    for (const domain of domains) {
-      const domainServices = await discoverServicesInDomain(state, domain, services.length);
-      services.push(...domainServices);
-    }
+    const services = await domains.reduce<Promise<ServiceConfig[]>>(async (pending, domain) => {
+      const discovered = await pending;
+      const domainServices = await discoverServicesInDomain(state, domain, discovered.length);
+      return [...discovered, ...domainServices];
+    }, Promise.resolve([]));
 
     Logger.info(`✅ Discovered ${services.length} microservices`);
     return services;
@@ -390,24 +389,18 @@ async function discoverServicesInDomain(
   const serviceNames = entries
     .filter((entry) => entry.isDirectory() && entry.name !== 'shared')
     .map((entry) => entry.name);
-
-  const services: ServiceConfig[] = [];
   const enabledServices = getEnabledServices();
+  const eligibleServiceNames = serviceNames.filter((serviceName) =>
+    isServiceEnabled(serviceName, enabledServices)
+  );
 
-  for (const serviceName of serviceNames) {
-    if (isServiceEnabled(serviceName, enabledServices)) {
-      const config = await tryLoadServiceConfig(
-        state,
-        domain,
-        serviceName,
-        domainPath,
-        startIndex + services.length
-      );
-      if (config) services.push(config);
-    }
-  }
+  const services = await Promise.all(
+    eligibleServiceNames.map(async (serviceName, index) =>
+      tryLoadServiceConfig(state, domain, serviceName, domainPath, startIndex + index)
+    )
+  );
 
-  return services;
+  return services.filter((config): config is ServiceConfig => config !== null);
 }
 
 /**
