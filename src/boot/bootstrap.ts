@@ -184,6 +184,8 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
             error as Error
           );
         }
+
+        Logger.info('✅ Application shut down successfully');
       })(),
       shutdownBudgetMs,
       'Graceful shutdown timed out'

@@ -222,27 +222,27 @@ describe('OptionalCliCommandRegistry patch coverage', () => {
       globalThis as { __zintrust_cli_command_registry__?: Map<string, unknown> }
     ).__zintrust_cli_command_registry__ = new Map<string, unknown>();
 
-    await import('../../../packages/workers/src/register.ts');
+    await import('../../../packages/workers/src/register');
 
     expect(OptionalCliCommandRegistry.has('worker:list')).toBe(true);
     expect(OptionalCliCommandRegistry.has('worker:doctor')).toBe(true);
     expect(OptionalCliCommandRegistry.has('worker:summary')).toBe(true);
   });
 
-  it('debugger register syncs commands into an already-imported core registry', async () => {
+  it('trace register syncs commands into an already-imported core registry', async () => {
     const { OptionalCliCommandRegistry } = await import('@cli/OptionalCliCommandRegistry');
 
-    expect(OptionalCliCommandRegistry.has('debugger:status')).toBe(false);
+    expect(OptionalCliCommandRegistry.has('trace:status')).toBe(false);
 
     (
       globalThis as { __zintrust_cli_command_registry__?: Map<string, unknown> }
     ).__zintrust_cli_command_registry__ = new Map<string, unknown>();
 
-    await import('../../../packages/system-debugger/src/cli-register.ts');
+    await import('../../../packages/trace/src/cli-register.js');
 
-    expect(OptionalCliCommandRegistry.has('debugger:prune')).toBe(true);
-    expect(OptionalCliCommandRegistry.has('debugger:clear')).toBe(true);
-    expect(OptionalCliCommandRegistry.has('debugger:status')).toBe(true);
-    expect(OptionalCliCommandRegistry.has('migrate:debugger')).toBe(true);
+    expect(OptionalCliCommandRegistry.has('trace:prune')).toBe(true);
+    expect(OptionalCliCommandRegistry.has('trace:clear')).toBe(true);
+    expect(OptionalCliCommandRegistry.has('trace:status')).toBe(true);
+    expect(OptionalCliCommandRegistry.has('migrate:trace')).toBe(true);
   });
 });

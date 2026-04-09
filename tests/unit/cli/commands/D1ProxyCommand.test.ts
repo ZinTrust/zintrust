@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocked = vi.hoisted(() => ({
   spawnAndWait: vi.fn(),
+  withWranglerDevVarsSnapshot: vi.fn(),
+  ensureLoaded: vi.fn(),
   existsSync: vi.fn(),
   mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
@@ -19,6 +21,16 @@ const mocked = vi.hoisted(() => ({
 vi.mock('@cli/utils/spawn', () => ({
   SpawnUtil: {
     spawnAndWait: (...args: unknown[]) => mocked.spawnAndWait(...args),
+  },
+}));
+
+vi.mock('@cli/cloudflare/CloudflareWranglerDevEnv', () => ({
+  withWranglerDevVarsSnapshot: (...args: unknown[]) => mocked.withWranglerDevVarsSnapshot(...args),
+}));
+
+vi.mock('@cli/utils/EnvFileLoader', () => ({
+  EnvFileLoader: {
+    ensureLoaded: (...args: unknown[]) => mocked.ensureLoaded(...args),
   },
 }));
 
@@ -42,9 +54,13 @@ describe('D1ProxyCommand', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     mocked.existsSync.mockImplementation((value: string) => value === '/repo/wrangler.jsonc');
     mocked.readFileSync.mockReturnValue('{\n  "name": "zintrust-api",\n  "env": {}\n}\n');
     mocked.spawnAndWait.mockResolvedValue(0);
+    mocked.withWranglerDevVarsSnapshot.mockImplementation(
+      async (_args: unknown, fn: () => Promise<unknown>) => fn()
+    );
   });
 
   it('adds env.d1-proxy when missing and starts wrangler dev', async () => {
@@ -72,8 +88,27 @@ describe('D1ProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/wrangler.jsonc', '--env', 'd1-proxy'],
+        args: ['dev', '--config', '/repo/.zin.proxy.d1-proxy.jsonc'],
       })
+    );
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/.zin.proxy.d1-proxy.jsonc',
+      expect.stringContaining('"main": "./src/proxy/d1/ZintrustD1Proxy.ts"'),
+      'utf-8'
+    );
+    expect(mocked.ensureLoaded).toHaveBeenCalledWith({
+      cwd: '/repo',
+      includeCwd: true,
+    });
+    expect(mocked.withWranglerDevVarsSnapshot).toHaveBeenCalledWith(
+      {
+        cwd: '/repo',
+        projectRoot: '/repo',
+        envName: '',
+        configPath: '/repo/wrangler.jsonc',
+        runtimeEnv: process.env,
+      },
+      expect.any(Function)
     );
 
     cwdSpy.mockRestore();
@@ -115,8 +150,23 @@ describe('D1ProxyCommand', () => {
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
       expect.objectContaining({
         command: 'wrangler',
-        args: ['dev', '--config', '/repo/wrangler.jsonc', '--env', 'd1-proxy', '--port', '8787'],
+        args: ['dev', '--config', '/repo/.zin.proxy.d1-proxy.jsonc', '--port', '8787'],
       })
+    );
+
+    cwdSpy.mockRestore();
+  });
+
+  it('warns when the resolved project env does not provide a D1 signing secret fallback', async () => {
+    vi.stubEnv('APP_KEY', '');
+    vi.stubEnv('D1_REMOTE_SECRET', '');
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/repo');
+
+    const { D1ProxyCommand } = await import('@cli/commands/D1ProxyCommand');
+    await D1ProxyCommand.create().execute({});
+
+    expect(mocked.logger.warn).toHaveBeenCalledWith(
+      'D1 proxy signing will fail: the resolved project env does not expose D1_REMOTE_SECRET or APP_KEY to the Worker runtime. Signed requests will be rejected with 401 CONFIG_ERROR until one of those keys is set.'
     );
 
     cwdSpy.mockRestore();

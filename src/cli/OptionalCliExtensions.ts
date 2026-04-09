@@ -94,15 +94,15 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
     ],
   },
   {
-    packageName: '@zintrust/system-debugger',
-    specifier: '@zintrust/system-debugger/cli-register',
-    commands: ['debugger:prune', 'debugger:clear', 'debugger:status', 'migrate:debugger'],
-    installCommand: 'npm install @zintrust/system-debugger',
+    packageName: '@zintrust/trace',
+    specifier: '@zintrust/trace/cli-register',
+    commands: ['trace:prune', 'trace:clear', 'trace:status', 'migrate:trace'],
+    installCommand: 'npm install @zintrust/trace',
     localCandidates: [
-      path.join(packageRoot, 'packages', 'system-debugger', 'src', 'cli-register.ts'),
-      path.join(packageRoot, 'packages', 'system-debugger', 'src', 'cli-register.js'),
-      path.join(packageRoot, 'packages', 'system-debugger', 'dist', 'cli-register.js'),
-      path.join(packageRoot, 'dist', 'packages', 'system-debugger', 'src', 'cli-register.js'),
+      path.join(packageRoot, 'packages', 'trace', 'src', 'cli-register.ts'),
+      path.join(packageRoot, 'packages', 'trace', 'src', 'cli-register.js'),
+      path.join(packageRoot, 'packages', 'trace', 'dist', 'cli-register.js'),
+      path.join(packageRoot, 'dist', 'packages', 'trace', 'src', 'cli-register.js'),
     ],
   },
   {

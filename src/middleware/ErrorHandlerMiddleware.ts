@@ -10,10 +10,30 @@ import {
   type MiddlewareFailureResponder,
 } from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
+import { captureTraceException } from '@runtime/plugins/trace-runtime';
 
 export interface ErrorHandlerOptions {
   onFailure?: MiddlewareFailureResponder;
 }
+
+const resolveTraceExceptionContext = (
+  req: IRequest
+): { batchId?: string; path?: string; userId?: string } | undefined => {
+  const requestContext = RequestContext.get(req);
+  const context = req.context ?? {};
+
+  const batchId =
+    requestContext?.traceId ??
+    (typeof context['traceId'] === 'string' ? context['traceId'] : undefined);
+  const path =
+    requestContext?.path ?? (typeof context['path'] === 'string' ? context['path'] : undefined);
+  const userId =
+    requestContext?.userId ??
+    (typeof context['userId'] === 'string' ? context['userId'] : undefined);
+
+  if (batchId === undefined && path === undefined && userId === undefined) return undefined;
+  return { batchId, path, userId };
+};
 
 const isWritableEnded = (res: IResponse): boolean => {
   if (typeof res.getRaw !== 'function') return false;
@@ -45,6 +65,7 @@ export const ErrorHandlerMiddleware = Object.freeze({
       try {
         await next();
       } catch (error) {
+        captureTraceException(error, resolveTraceExceptionContext(req));
         Logger.error('Unhandled request error:', error as Error);
 
         const requestId =

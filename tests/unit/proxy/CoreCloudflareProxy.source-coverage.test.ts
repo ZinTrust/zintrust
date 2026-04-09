@@ -262,7 +262,7 @@ describe('core cloudflare proxy source coverage', () => {
           { DB: createDb(), APP_KEY, ZT_D1_STATEMENTS_JSON: '[]' }
         )
       ).status
-    ).toBe(400);
+    ).toBe(404);
 
     const exceptionResponse = await ZintrustD1Proxy.fetch(
       await buildSignedRequest({

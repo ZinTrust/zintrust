@@ -108,11 +108,10 @@ const setContextField = (
   }
 };
 
-const STORAGE_PROMISE: Promise<StoreApi> = (async (): Promise<StoreApi> => {
-  const storage = await resolveStorage();
-  syncStorage = storage;
-  return storage;
-})();
+const resolvedStorage = await resolveStorage();
+syncStorage = resolvedStorage;
+
+const STORAGE_PROMISE: Promise<StoreApi> = Promise.resolve(resolvedStorage);
 
 export const RequestContext = Object.freeze({
   async run<T>(context: IRequestContext, callback: () => T): Promise<T> {
@@ -139,7 +138,8 @@ export const RequestContext = Object.freeze({
       extractTraceIdFromTraceparent(getHeaderString(req, 'traceparent')) ??
       getHeaderString(req, 'x-trace-id') ??
       getTraceIdFromMicroserviceTraceContext(req) ??
-      getOptionalContextString(req, 'traceId');
+      getOptionalContextString(req, 'traceId') ??
+      requestId;
 
     const userId = getOptionalContextString(req, 'userId');
     const tenantId = getOptionalContextString(req, 'tenantId');

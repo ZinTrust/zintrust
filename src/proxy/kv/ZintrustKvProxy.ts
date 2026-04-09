@@ -1,3 +1,4 @@
+import { SystemTraceWorkerBridge } from '@/trace/SystemTraceWorkerBridge';
 import { isObject, isString } from '@helper/index';
 import {
   getEnvInt,
@@ -137,18 +138,43 @@ const handleGet = async (request: Request, env: KvEnv): Promise<Response> => {
   if (!parsed.ok) return parsed.response;
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
+  const startedAt = Date.now();
 
   if (parsed.type === 'json') {
     const value = await resolved.cache.get(storageKey, 'json');
+    SystemTraceWorkerBridge.emitCache(
+      'get',
+      storageKey,
+      Date.now() - startedAt,
+      value !== null,
+      value,
+      'kv-proxy'
+    );
     return json(200, { value: value ?? null });
   }
 
   if (parsed.type === 'arrayBuffer') {
     const value = await resolved.cache.get(storageKey, 'arrayBuffer');
+    SystemTraceWorkerBridge.emitCache(
+      'get',
+      storageKey,
+      Date.now() - startedAt,
+      value !== null,
+      value,
+      'kv-proxy'
+    );
     return json(200, { value: value ?? null });
   }
 
   const value = await resolved.cache.get(storageKey);
+  SystemTraceWorkerBridge.emitCache(
+    'get',
+    storageKey,
+    Date.now() - startedAt,
+    value !== null,
+    value,
+    'kv-proxy'
+  );
   return json(200, { value: value ?? null });
 };
 
@@ -190,6 +216,7 @@ const handlePut = async (request: Request, env: KvEnv): Promise<Response> => {
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
   const value = JSON.stringify(parsed.value);
+  const startedAt = Date.now();
 
   const options: KVNamespacePutOptions = {};
   if (parsed.ttlSeconds !== undefined) {
@@ -197,6 +224,15 @@ const handlePut = async (request: Request, env: KvEnv): Promise<Response> => {
   }
 
   await resolved.cache.put(storageKey, value, options);
+  SystemTraceWorkerBridge.emitCache(
+    'set',
+    storageKey,
+    Date.now() - startedAt,
+    undefined,
+    parsed.value,
+    'kv-proxy',
+    parsed.ttlSeconds
+  );
   return json(200, { ok: true });
 };
 
@@ -223,7 +259,16 @@ const handleDelete = async (request: Request, env: KvEnv): Promise<Response> => 
   if (!parsed.ok) return parsed.response;
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
+  const startedAt = Date.now();
   await resolved.cache.delete(storageKey);
+  SystemTraceWorkerBridge.emitCache(
+    'delete',
+    storageKey,
+    Date.now() - startedAt,
+    undefined,
+    undefined,
+    'kv-proxy'
+  );
   return json(200, { ok: true });
 };
 
@@ -262,6 +307,12 @@ const handleList = async (request: Request, env: KvEnv): Promise<Response> => {
   const fullPrefix = prefixKey === undefined ? basePrefix : `${basePrefix}${prefixKey}`;
 
   const out = await resolved.cache.list({
+    prefix: fullPrefix,
+    limit,
+    cursor: parsed.params.cursor,
+  });
+
+  SystemTraceWorkerBridge.emitEvent('kv-proxy.list', 1, {
     prefix: fullPrefix,
     limit,
     cursor: parsed.params.cursor,

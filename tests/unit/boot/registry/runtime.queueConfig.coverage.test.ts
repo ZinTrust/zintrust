@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const envStrings: Record<string, string> = {
-  DEBUGGER_ENABLED: 'false',
+  TRACE_ENABLED: 'false',
 };
 
 vi.mock('@runtime-config/queue', () => ({}));
@@ -114,9 +114,9 @@ import { createLifecycle } from '../../../../src/boot/registry/runtime';
 
 describe('runtime registry (coverage extras)', () => {
   afterEach(() => {
-    envStrings.DEBUGGER_ENABLED = 'false';
-    delete (globalThis as Record<string, unknown>).__zintrust_system_debugger_plugin_requested__;
-    delete (globalThis as Record<string, unknown>).__zintrust_system_debugger_runtime__;
+    envStrings.TRACE_ENABLED = 'false';
+    delete (globalThis as Record<string, unknown>).__zintrust_system_trace_plugin_requested__;
+    delete (globalThis as Record<string, unknown>).__zintrust_system_trace_runtime__;
     vi.restoreAllMocks();
   });
 
@@ -136,14 +136,14 @@ describe('runtime registry (coverage extras)', () => {
     await expect(lifecycle.boot()).resolves.toBeUndefined();
   });
 
-  it('boot() initializes a cached debugger runtime module when requested', async () => {
-    envStrings.DEBUGGER_ENABLED = 'true';
-    const ensureSystemDebuggerRegistered = vi.fn(async () => undefined);
+  it('boot() initializes a cached trace runtime module when requested', async () => {
+    envStrings.TRACE_ENABLED = 'true';
+    const ensureSystemTraceRegistered = vi.fn(async () => undefined);
 
-    (globalThis as Record<string, unknown>).__zintrust_system_debugger_plugin_requested__ = true;
-    (globalThis as Record<string, unknown>).__zintrust_system_debugger_runtime__ = {
+    (globalThis as Record<string, unknown>).__zintrust_system_trace_plugin_requested__ = true;
+    (globalThis as Record<string, unknown>).__zintrust_system_trace_runtime__ = {
       isAvailable: () => true,
-      ensureSystemDebuggerRegistered,
+      ensureSystemTraceRegistered,
     };
 
     let booted = false;
@@ -160,22 +160,22 @@ describe('runtime registry (coverage extras)', () => {
 
     await expect(lifecycle.boot()).resolves.toBeUndefined();
 
-    expect(ensureSystemDebuggerRegistered).toHaveBeenCalledTimes(1);
+    expect(ensureSystemTraceRegistered).toHaveBeenCalledTimes(1);
   });
 
-  it('boot() skips activating a local debugger runtime module that reports unavailable', async () => {
-    envStrings.DEBUGGER_ENABLED = 'true';
-    (globalThis as Record<string, unknown>).__zintrust_system_debugger_plugin_requested__ = true;
+  it('boot() skips activating a local trace runtime module that reports unavailable', async () => {
+    envStrings.TRACE_ENABLED = 'true';
+    (globalThis as Record<string, unknown>).__zintrust_system_trace_plugin_requested__ = true;
 
     const tempProjectRoot = mkdtempSync(join(tmpdir(), 'zintrust-runtime-'));
     const pluginDir = join(tempProjectRoot, 'src', 'runtime', 'plugins');
     mkdirSync(pluginDir, { recursive: true });
     writeFileSync(join(tempProjectRoot, 'package.json'), '{"type":"module"}\n');
     writeFileSync(
-      join(pluginDir, 'system-debugger-runtime.js'),
+      join(pluginDir, 'trace-runtime.js'),
       [
         'export const isAvailable = () => false;',
-        'export const ensureSystemDebuggerRegistered = async () => {',
+        'export const ensureSystemTraceRegistered = async () => {',
         "  throw new Error('should not run');",
         '};',
       ].join('\n')
@@ -198,7 +198,7 @@ describe('runtime registry (coverage extras)', () => {
 
     const { Logger } = await import('@config/logger');
     expect(Logger.debug).toHaveBeenCalledWith(
-      'System Debugger is enabled but the optional package is unavailable.'
+      'System Trace is enabled but the optional package is unavailable.'
     );
 
     cwdSpy.mockRestore();

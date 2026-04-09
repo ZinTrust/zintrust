@@ -1,5 +1,4 @@
-import { Logger } from '@config/logger';
-import { isArray, isObject, isString } from '@helper/index';
+import { SystemTraceWorkerBridge } from '@/trace/SystemTraceWorkerBridge';
 import {
   getEnvInt,
   json,
@@ -63,6 +62,13 @@ const DEFAULT_MAX_BODY_BYTES = 128 * 1024;
 const DEFAULT_MAX_SQL_BYTES = 32 * 1024;
 const DEFAULT_MAX_PARAMS = 256;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === 'string';
+
+const isArray = (value: unknown): value is unknown[] => Array.isArray(value);
+
 const isDebugEnabled = (env: D1Env): boolean => {
   const raw = env.ZT_PROXY_DEBUG;
   if (!isString(raw)) return false;
@@ -82,10 +88,15 @@ const safeErrorMessage = (error: unknown): string => {
 
 const logProxyError = (env: D1Env, context: Record<string, unknown>, error: unknown): void => {
   if (!isDebugEnabled(env)) return;
-  Logger.error('[ZintrustD1Proxy] error', {
-    ...context,
-    message: safeErrorMessage(error).slice(0, 800),
-  });
+  try {
+    // eslint-disable-next-line no-console
+    console.error('[ZintrustD1Proxy] error', {
+      ...context,
+      message: safeErrorMessage(error).slice(0, 800),
+    });
+  } catch {
+    // ignore logging failures in Workers proxy mode
+  }
 };
 
 const resolveD1Binding = (env: D1Env): D1Database | null => {
@@ -110,7 +121,7 @@ const loadStatements = (env: D1Env): Record<string, string> | null => {
   if (!isString(raw) || raw.trim() === '') return null;
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!isObject(parsed)) return null;
+    if (!isRecord(parsed)) return null;
     return parsed as Record<string, string>;
   } catch {
     return null;
@@ -150,7 +161,7 @@ const toD1ExceptionResponse = (error: unknown): Response => {
 const parseSqlPayload = (
   payload: unknown
 ): { ok: true; sql: string; params: unknown[] } | { ok: false; response: Response } => {
-  if (!isObject(payload)) {
+  if (!isRecord(payload)) {
     return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'Invalid body') };
   }
 
@@ -224,10 +235,17 @@ const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
     const resolved = await resolveSqlRequest(request, env);
     if (!resolved.ok) return resolved.response;
 
+    const startedAt = Date.now();
     const result = await resolved.db
       .prepare(resolved.sql)
       .bind(...resolved.params)
       .all<Record<string, unknown>>();
+    SystemTraceWorkerBridge.emitQuery(
+      resolved.sql,
+      resolved.params,
+      Date.now() - startedAt,
+      'd1-proxy'
+    );
     const rows = result.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {
@@ -241,10 +259,17 @@ const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> =
     const resolved = await resolveSqlRequest(request, env);
     if (!resolved.ok) return resolved.response;
 
+    const startedAt = Date.now();
     const row = await resolved.db
       .prepare(resolved.sql)
       .bind(...resolved.params)
       .first<Record<string, unknown>>();
+    SystemTraceWorkerBridge.emitQuery(
+      resolved.sql,
+      resolved.params,
+      Date.now() - startedAt,
+      'd1-proxy'
+    );
     return json(200, { row: row ?? null });
   } catch (error) {
     logProxyError(env, { op: 'queryOne', path: '/zin/d1/queryOne' }, error);
@@ -257,10 +282,17 @@ const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
     const resolved = await resolveSqlRequest(request, env);
     if (!resolved.ok) return resolved.response;
 
+    const startedAt = Date.now();
     const out = await resolved.db
       .prepare(resolved.sql)
       .bind(...resolved.params)
       .run();
+    SystemTraceWorkerBridge.emitQuery(
+      resolved.sql,
+      resolved.params,
+      Date.now() - startedAt,
+      'd1-proxy'
+    );
     return json(200, { ok: true, meta: out.meta });
   } catch (error) {
     logProxyError(env, { op: 'exec', path: '/zin/d1/exec' }, error);
@@ -271,7 +303,7 @@ const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
 const parseStatementPayload = (
   payload: unknown
 ): { ok: true; statementId: string; params: unknown[] } | { ok: false; response: Response } => {
-  if (!isObject(payload)) {
+  if (!isRecord(payload)) {
     return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'Invalid body') };
   }
 
@@ -305,11 +337,13 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
       return toErrorResponse(404, 'NOT_FOUND', 'Unknown statementId');
     }
 
+    const startedAt = Date.now();
     if (isMutatingSql(sql)) {
       const out = await resolved.db
         .prepare(sql)
         .bind(...parsed.params)
         .run();
+      SystemTraceWorkerBridge.emitQuery(sql, parsed.params, Date.now() - startedAt, 'd1-proxy');
       return json(200, { ok: true, meta: out.meta });
     }
 
@@ -317,6 +351,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
       .prepare(sql)
       .bind(...parsed.params)
       .all<Record<string, unknown>>();
+    SystemTraceWorkerBridge.emitQuery(sql, parsed.params, Date.now() - startedAt, 'd1-proxy');
     const rows = out.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {

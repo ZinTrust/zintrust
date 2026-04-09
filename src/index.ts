@@ -206,9 +206,10 @@ export {
   type RuntimeServices as RuntimeServicesType,
   type RuntimeTimers,
 } from '@runtime/RuntimeServices';
+export { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 // Events
-export { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
+export { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 export { EventDispatcher } from '@events/EventDispatcher';
 export type { EventListener, EventMap, IEventDispatcher } from '@events/EventDispatcher';
 

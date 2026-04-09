@@ -186,4 +186,44 @@ describe('workers config', () => {
 
     expect(third).not.toBe(first);
   });
+
+  it('forces disconnect when tracked Redis quit hangs during shutdown', async () => {
+    vi.useFakeTimers();
+
+    class HungRedis extends MockRedis {
+      public readonly quitSpy = vi.fn(async () => await new Promise<string>(() => undefined));
+      public readonly disconnectSpy = vi.fn(() => undefined);
+
+      public override quit = async (): Promise<string> => await this.quitSpy();
+      public override disconnect = (): void => {
+        this.disconnectSpy();
+      };
+    }
+
+    (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule = {
+      Redis: HungRedis,
+    };
+
+    const { createRedisConnection, shutdownRedisConnections } = await import('@config/workers');
+
+    const client = createRedisConnection({
+      host: 'localhost',
+      port: 6379,
+      password: 'pass',
+      db: 0,
+    }) as unknown as HungRedis;
+
+    const shutdownPromise = shutdownRedisConnections();
+    await vi.advanceTimersByTimeAsync(800);
+    await shutdownPromise;
+
+    expect(client.quitSpy).toHaveBeenCalledTimes(1);
+    expect(client.disconnectSpy).toHaveBeenCalledTimes(1);
+    expect(Logger.warn).toHaveBeenCalledWith(
+      'Tracked Redis graceful shutdown failed, forcing disconnect',
+      expect.any(Error)
+    );
+
+    vi.useRealTimers();
+  });
 });

@@ -1,6 +1,7 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import {
+  ensureProxyEnvLoadedForCwd,
   maybeRunProxyWatchMode,
   parseIntOption,
   trimOption,
@@ -26,6 +27,8 @@ type SmtpProxyOptions = CommandOptions & {
 };
 
 const addOptions = (command: Command): void => {
+  ensureProxyEnvLoadedForCwd();
+
   command.option('--host <host>', 'Host to bind', Env.get('SMTP_PROXY_HOST', '127.0.0.1'));
   command.option('--port <port>', 'Port to bind', String(Env.getInt('SMTP_PROXY_PORT', 8794)));
   command.option(

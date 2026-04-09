@@ -1,3 +1,4 @@
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -247,6 +248,7 @@ const createBackend = (client: MongoClientLike, config: ProxyConfig): ProxyBacke
     }
 
     try {
+      const startedAt = Date.now();
       const result = await executeOperation(
         client,
         config.mongoOptions.database,
@@ -254,6 +256,13 @@ const createBackend = (client: MongoClientLike, config: ProxyConfig): ProxyBacke
         validated.operation ?? '',
         validated.args ?? {}
       );
+
+      SystemTraceBridge.emitEvent('mongodb-proxy.operation', 1, {
+        operation: validated.operation,
+        collection: validated.collection,
+        args: validated.args,
+        duration: Date.now() - startedAt,
+      });
 
       return { status: 200, body: { success: true, result } };
     } catch (error) {

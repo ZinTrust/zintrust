@@ -42,9 +42,9 @@ interface IQueueHttpGatewayModule {
   };
 }
 
-type GlobalDebuggerPluginState = {
-  __zintrust_system_debugger_plugin_requested__?: boolean;
-  __zintrust_system_debugger_runtime__?: ILocalSystemDebuggerModule;
+type GlobalTracePluginState = {
+  __zintrust_system_trace_plugin_requested__?: boolean;
+  __zintrust_system_trace_runtime__?: ILocalSystemTraceModule;
 };
 
 type RuntimeQueueConfig = typeof RuntimeConfig.queueConfig;
@@ -55,9 +55,13 @@ type QueueMonitorWorkerFactoryModule = {
   };
 };
 
-type ILocalSystemDebuggerModule = {
+type ILocalSystemTraceModule = {
   isAvailable?: () => boolean;
-  ensureSystemDebuggerRegistered: () => Promise<void>;
+  ensureSystemTraceRegistered: () => Promise<void>;
+  registerTraceDashboard?: (
+    router: IRouter,
+    options?: { basePath?: string; middleware?: ReadonlyArray<string> }
+  ) => void;
 };
 
 const importFromExistingCandidates = async <T>(
@@ -78,10 +82,10 @@ const importFromExistingCandidates = async <T>(
   return undefined;
 };
 
-const loadLocalSystemDebuggerModule = async (): Promise<ILocalSystemDebuggerModule | undefined> => {
-  const globalDebuggerPluginState = globalThis as unknown as GlobalDebuggerPluginState;
-  if (globalDebuggerPluginState.__zintrust_system_debugger_runtime__ !== undefined) {
-    return globalDebuggerPluginState.__zintrust_system_debugger_runtime__;
+const loadLocalSystemTraceModule = async (): Promise<ILocalSystemTraceModule | undefined> => {
+  const globalTracePluginState = globalThis as unknown as GlobalTracePluginState;
+  if (globalTracePluginState.__zintrust_system_trace_runtime__ !== undefined) {
+    return globalTracePluginState.__zintrust_system_trace_runtime__;
   }
 
   const projectRoot =
@@ -89,14 +93,14 @@ const loadLocalSystemDebuggerModule = async (): Promise<ILocalSystemDebuggerModu
 
   if (projectRoot !== '') {
     const moduleCandidates = [
-      path.join(projectRoot, 'src', 'runtime', 'plugins', 'system-debugger-runtime.ts'),
-      path.join(projectRoot, 'src', 'runtime', 'plugins', 'system-debugger-runtime.js'),
-      path.join(projectRoot, 'dist', 'runtime', 'plugins', 'system-debugger-runtime.js'),
-      path.join(projectRoot, 'dist', 'src', 'runtime', 'plugins', 'system-debugger-runtime.js'),
+      path.join(projectRoot, 'src', 'runtime', 'plugins', 'trace-runtime.ts'),
+      path.join(projectRoot, 'src', 'runtime', 'plugins', 'trace-runtime.js'),
+      path.join(projectRoot, 'dist', 'runtime', 'plugins', 'trace-runtime.js'),
+      path.join(projectRoot, 'dist', 'src', 'runtime', 'plugins', 'trace-runtime.js'),
     ];
 
     const localModule =
-      await importFromExistingCandidates<ILocalSystemDebuggerModule>(moduleCandidates);
+      await importFromExistingCandidates<ILocalSystemTraceModule>(moduleCandidates);
 
     if (localModule !== undefined) {
       if (typeof localModule.isAvailable === 'function' && localModule.isAvailable() === false) {
@@ -106,7 +110,7 @@ const loadLocalSystemDebuggerModule = async (): Promise<ILocalSystemDebuggerModu
     }
   }
 
-  return tryImportOptional<ILocalSystemDebuggerModule>('@runtime/plugins/system-debugger-runtime');
+  return tryImportOptional<ILocalSystemTraceModule>('@runtime/plugins/trace-runtime');
 };
 
 const loadRuntimeQueueConfig = async (): Promise<RuntimeQueueConfig | undefined> => {
@@ -497,38 +501,82 @@ const initializeScheduleHttpGateway = async (router: IRouter): Promise<void> => 
   }
 };
 
-const isDebuggerEnabled = (): boolean => {
-  const raw = readEnvString('DEBUGGER_ENABLED').trim().toLowerCase();
+const isTraceEnabled = (): boolean => {
+  const raw = readEnvString('TRACE_ENABLED').trim().toLowerCase();
   return raw === '1' || raw === 'true';
 };
 
-const isSystemDebuggerPluginRequested = (): boolean => {
-  const globalDebuggerPluginState = globalThis as unknown as GlobalDebuggerPluginState;
-  return globalDebuggerPluginState.__zintrust_system_debugger_plugin_requested__ === true;
+const isTraceDashboardAutoMountEnabled = (): boolean => {
+  const raw = readEnvString('TRACE_AUTO_MOUNT').trim().toLowerCase();
+  return raw === '1' || raw === 'true';
 };
 
-const initializeSystemDebugger = async (): Promise<void> => {
-  if (!isSystemDebuggerPluginRequested()) {
-    Logger.debug('System Debugger plugin is not enabled in zintrust.plugins.*. Skipping init.');
+const resolveTraceDashboardBasePath = (): string => {
+  const raw = readEnvString('TRACE_BASE_PATH').trim();
+  if (raw === '') return '/trace';
+  return raw.startsWith('/') ? raw : `/${raw}`;
+};
+
+const resolveTraceDashboardMiddleware = (): ReadonlyArray<string> => {
+  return readEnvString('TRACE_MIDDLEWARE')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(isNonEmptyString);
+};
+
+const isSystemTracePluginRequested = (): boolean => {
+  const globalTracePluginState = globalThis as unknown as GlobalTracePluginState;
+  return globalTracePluginState.__zintrust_system_trace_plugin_requested__ === true;
+};
+
+const initializeSystemTrace = async (router: IRouter): Promise<void> => {
+  if (!isSystemTracePluginRequested()) {
+    Logger.debug('System Trace plugin is not enabled in zintrust.plugins.*. Skipping init.');
     return;
   }
 
-  if (!isDebuggerEnabled()) return;
+  if (!isTraceEnabled()) return;
 
-  const debuggerModule =
-    (await tryImportOptional<ILocalSystemDebuggerModule>(
-      '@runtime/plugins/system-debugger-runtime'
-    )) ?? (await loadLocalSystemDebuggerModule());
-  if (debuggerModule === undefined || debuggerModule.isAvailable?.() === false) {
-    Logger.debug('System Debugger is enabled but the optional package is unavailable.');
+  const traceModule =
+    (await tryImportOptional<ILocalSystemTraceModule>('@runtime/plugins/trace-runtime')) ??
+    (await loadLocalSystemTraceModule());
+  if (traceModule === undefined) {
+    Logger.debug('System Trace is enabled but the optional package is unavailable.');
     return;
   }
 
   try {
-    await debuggerModule.ensureSystemDebuggerRegistered();
-    Logger.info('System Debugger runtime activated. Register dashboard routes manually if needed.');
+    await traceModule.ensureSystemTraceRegistered();
+    if (traceModule.isAvailable?.() === false) {
+      Logger.debug('System Trace is enabled but the optional package is unavailable.');
+      return;
+    }
+
+    if (!isTraceDashboardAutoMountEnabled()) {
+      Logger.info(
+        'System Trace runtime activated. Set TRACE_AUTO_MOUNT=true or register dashboard routes manually if needed.'
+      );
+      return;
+    }
+
+    if (typeof traceModule.registerTraceDashboard !== 'function') {
+      Logger.warn(
+        'System Trace auto-mount requested but the optional package does not expose registerTraceDashboard.'
+      );
+      return;
+    }
+
+    const basePath = resolveTraceDashboardBasePath();
+    const middleware = resolveTraceDashboardMiddleware();
+
+    traceModule.registerTraceDashboard(router, {
+      basePath,
+      ...(middleware.length > 0 ? { middleware } : {}),
+    });
+
+    Logger.info(`System Trace dashboard auto-mounted at ${basePath}.`);
   } catch (error) {
-    Logger.warn('Failed to initialize System Debugger runtime', error as Error);
+    Logger.warn('Failed to initialize System Trace runtime', error as Error);
   }
 };
 
@@ -618,7 +666,7 @@ export const createLifecycle = (params: {
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerMasterRoutes(params.resolvedBasePath, params.router);
     initializeSockets(params.router);
-    await initializeSystemDebugger();
+    await initializeSystemTrace(params.router);
 
     if (Cloudflare.getWorkersEnv() === null && appConfig.dockerWorker === false) {
       await initializeWorkers(params.router);
@@ -660,7 +708,6 @@ export const createLifecycle = (params: {
     }
 
     params.setBooted(false);
-    Logger.info('✅ Application shut down successfully');
   };
 
   return { boot, shutdown };

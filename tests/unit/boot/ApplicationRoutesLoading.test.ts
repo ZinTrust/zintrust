@@ -1,5 +1,3 @@
-import { Application } from '@boot/Application';
-import { Router } from '@core-routes/Router';
 import { mkdir, mkdtemp, rm, writeFile } from '@node-singletons/fs';
 import { tmpdir } from '@node-singletons/os';
 import { join } from '@node-singletons/path';
@@ -7,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Application route loading', () => {
   let originalCwd: string;
+  let originalQueueMonitorEnabled: string | undefined;
+  let originalWorkerEnabled: string | undefined;
   let tempDir: string | undefined;
   let consoleLogSpy: ReturnType<typeof vi.spyOn> | undefined;
   let consoleDebugSpy: ReturnType<typeof vi.spyOn> | undefined;
@@ -15,6 +15,8 @@ describe('Application route loading', () => {
 
   beforeEach(() => {
     originalCwd = process.cwd();
+    originalQueueMonitorEnabled = process.env['QUEUE_MONITOR_ENABLED'];
+    originalWorkerEnabled = process.env['WORKER_ENABLED'];
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -30,6 +32,16 @@ describe('Application route loading', () => {
     if (tempDir !== undefined) {
       await rm(tempDir, { recursive: true, force: true });
       tempDir = undefined;
+    }
+    if (originalQueueMonitorEnabled === undefined) {
+      delete process.env['QUEUE_MONITOR_ENABLED'];
+    } else {
+      process.env['QUEUE_MONITOR_ENABLED'] = originalQueueMonitorEnabled;
+    }
+    if (originalWorkerEnabled === undefined) {
+      delete process.env['WORKER_ENABLED'];
+    } else {
+      process.env['WORKER_ENABLED'] = originalWorkerEnabled;
     }
     consoleLogSpy?.mockRestore();
     consoleDebugSpy?.mockRestore();
@@ -65,6 +77,15 @@ describe('Application route loading', () => {
     );
 
     process.chdir(tempDir);
+
+    process.env['QUEUE_MONITOR_ENABLED'] = 'false';
+    process.env['WORKER_ENABLED'] = 'false';
+    vi.resetModules();
+
+    const [{ Application }, { Router }] = await Promise.all([
+      import('@boot/Application'),
+      import('@core-routes/Router'),
+    ]);
 
     const app = Application.create();
     await app.boot();

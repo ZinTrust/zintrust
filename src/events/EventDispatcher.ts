@@ -1,4 +1,4 @@
-import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Logger } from '@config/logger';
 
 export type EventMap = Record<string, unknown>;
@@ -86,7 +86,7 @@ export const EventDispatcher = Object.freeze({
         const set = listeners.get(event);
         if (set === undefined) return;
 
-        SystemDebuggerBridge.emitEvent(event, set.size, payload);
+        SystemTraceBridge.emitEvent(event, set.size, payload);
 
         // Snapshot to avoid mutation during iteration affecting dispatch.
         const snapshot = Array.from(set);
@@ -102,7 +102,7 @@ export const EventDispatcher = Object.freeze({
         const set = listeners.get(event);
         if (set === undefined) return;
 
-        SystemDebuggerBridge.emitEvent(event, set.size, payload);
+        SystemTraceBridge.emitEvent(event, set.size, payload);
 
         const snapshot = Array.from(set);
 

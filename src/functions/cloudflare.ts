@@ -36,6 +36,10 @@ const startupConfigModules: ReadonlyArray<{
     serviceModuleId: '@service-runtime-config/' + 'mail.ts',
   },
   {
+    file: StartupConfigFile.Trace,
+    serviceModuleId: '@service-runtime-config/' + 'trace.ts',
+  },
+  {
     file: StartupConfigFile.Middleware,
     serviceModuleId: '@service-runtime-config/' + 'middleware.ts',
   },
@@ -77,6 +81,10 @@ const importRootMailModule: RootStartupImporter = async () => {
   return (await import('@runtime-config/' + 'mail.ts').catch(() => ({}))) as RootStartupModule;
 };
 
+const importRootTraceModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'trace.ts').catch(() => ({}))) as RootStartupModule;
+};
+
 const importRootMiddlewareModule: RootStartupImporter = async () => {
   return (await import('@runtime-config/' + 'middleware.ts').catch(
     () => ({})
@@ -107,6 +115,7 @@ const rootStartupImporters: Readonly<Record<StartupConfigFileTypes, RootStartupI
     [StartupConfigFile.Cache]: importRootCacheModule,
     [StartupConfigFile.Database]: importRootDatabaseModule,
     [StartupConfigFile.Mail]: importRootMailModule,
+    [StartupConfigFile.Trace]: importRootTraceModule,
     [StartupConfigFile.Middleware]: importRootMiddlewareModule,
     [StartupConfigFile.Notification]: importRootNotificationModule,
     [StartupConfigFile.Queue]: importRootQueueModule,

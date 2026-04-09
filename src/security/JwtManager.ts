@@ -4,7 +4,7 @@
  * Uses native Node.js crypto module (zero external dependencies)
  */
 
-import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { securityConfig } from '@config/security';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { createHmac, createSign, createVerify, randomBytes } from '@node-singletons/crypto';
@@ -95,12 +95,12 @@ const getLogoutSubject = (authHeader: AuthorizationHeader): string | undefined =
 const logout = async (authHeader: AuthorizationHeader): Promise<void> => {
   const subject = getLogoutSubject(authHeader);
   await JwtSessions.logout(authHeader);
-  SystemDebuggerBridge.emitAuth('logout', subject);
+  SystemTraceBridge.emitAuth('logout', subject);
 };
 
 const logoutAll = async (sub: string): Promise<void> => {
   await JwtSessions.logoutAll(sub);
-  SystemDebuggerBridge.emitAuth('logout', sub);
+  SystemTraceBridge.emitAuth('logout', sub);
 };
 
 const signAccessToken = async (payload: JwtPayload, expiresIn?: number): Promise<string> => {
@@ -130,7 +130,7 @@ const signAccessToken = async (payload: JwtPayload, expiresIn?: number): Promise
   }
 
   await JwtSessions.register(token);
-  SystemDebuggerBridge.emitAuth('login', typeof payload.sub === 'string' ? payload.sub : undefined);
+  SystemTraceBridge.emitAuth('login', typeof payload.sub === 'string' ? payload.sub : undefined);
   return token;
 };
 

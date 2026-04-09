@@ -1,5 +1,6 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
+import { ensureProxyEnvLoadedForCwd } from '@cli/commands/ProxyCommandUtils';
 import {
   addSqlProxyOptions,
   runSqlProxyCommand,
@@ -12,15 +13,20 @@ import type { Command } from 'commander';
 type PostgresProxyOptions = SqlProxyCommandOptions & CommandOptions;
 
 const addOptions = (command: Command): void => {
+  ensureProxyEnvLoadedForCwd();
+
   addSqlProxyOptions(command, {
-    hostDefault: Env.POSTGRES_PROXY_HOST,
-    portDefault: Env.POSTGRES_PROXY_PORT,
-    maxBodyBytesDefault: Env.POSTGRES_PROXY_MAX_BODY_BYTES,
+    hostDefault: Env.get('POSTGRES_PROXY_HOST', '127.0.0.1'),
+    portDefault: Env.getInt('POSTGRES_PROXY_PORT', 8790),
+    maxBodyBytesDefault: Env.getInt('POSTGRES_PROXY_MAX_BODY_BYTES', 131072),
     dbVendorLabel: 'PostgreSQL',
-    requireSigningDefault: Env.POSTGRES_PROXY_REQUIRE_SIGNING,
-    keyIdDefault: Env.POSTGRES_PROXY_KEY_ID,
-    secretDefault: Env.POSTGRES_PROXY_SECRET,
-    signingWindowMsDefault: Env.POSTGRES_PROXY_SIGNING_WINDOW_MS,
+    requireSigningDefault: Env.getBool('POSTGRES_PROXY_REQUIRE_SIGNING', true),
+    keyIdDefault: Env.get('POSTGRES_PROXY_KEY_ID', Env.get('APP_NAME', 'ZinTrust')),
+    secretDefault: Env.get('POSTGRES_PROXY_SECRET', Env.get('APP_KEY', '')),
+    signingWindowMsDefault: Env.getInt(
+      'POSTGRES_PROXY_SIGNING_WINDOW_MS',
+      Env.getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
+    ),
   });
 };
 

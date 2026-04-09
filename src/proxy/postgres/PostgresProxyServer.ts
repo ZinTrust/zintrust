@@ -1,3 +1,4 @@
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { type BaseProxyOverrides } from '@proxy/ProxyServerUtils';
@@ -122,7 +123,14 @@ const handleStatementRequest = async (params: {
 
   try {
     const normalizedSql = normalizeSql(resolved.value.sql);
+    const startedAt = Date.now();
     const result = await params.pool.query(normalizedSql, resolved.value.params);
+    SystemTraceBridge.emitQuery(
+      normalizedSql,
+      resolved.value.params,
+      Date.now() - startedAt,
+      'postgres-proxy'
+    );
     const rows = (result.rows ?? []) as unknown[];
     const rowCount = result.rowCount ?? rows.length ?? 0;
 
@@ -165,7 +173,14 @@ const handleSqlRequest = async (params: {
 
   try {
     const sql = normalizeSql(sqlValidation.sql ?? '');
+    const startedAt = Date.now();
     const result = await params.pool.query(sql, sqlValidation.params ?? []);
+    SystemTraceBridge.emitQuery(
+      sql,
+      sqlValidation.params ?? [],
+      Date.now() - startedAt,
+      'postgres-proxy'
+    );
     return handleEndpoint(params.request.path, {
       rows: (result.rows ?? []) as unknown[],
       rowCount: result.rowCount ?? result.rows?.length ?? 0,

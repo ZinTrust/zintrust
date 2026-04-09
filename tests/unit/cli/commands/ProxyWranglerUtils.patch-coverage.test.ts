@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 const mocked = vi.hoisted(() => ({
   spawnAndWait: vi.fn(),
+  withWranglerDevVarsSnapshot: vi.fn(),
+  ensureLoaded: vi.fn(),
   existsSync: vi.fn(),
   mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
@@ -19,6 +21,16 @@ const mocked = vi.hoisted(() => ({
 vi.mock('@cli/utils/spawn', () => ({
   SpawnUtil: {
     spawnAndWait: (...args: unknown[]) => mocked.spawnAndWait(...args),
+  },
+}));
+
+vi.mock('@cli/cloudflare/CloudflareWranglerDevEnv', () => ({
+  withWranglerDevVarsSnapshot: (...args: unknown[]) => mocked.withWranglerDevVarsSnapshot(...args),
+}));
+
+vi.mock('@cli/utils/EnvFileLoader', () => ({
+  EnvFileLoader: {
+    ensureLoaded: (...args: unknown[]) => mocked.ensureLoaded(...args),
   },
 }));
 
@@ -55,6 +67,9 @@ describe('proxy wrangler utils patch coverage', () => {
     mocked.existsSync.mockImplementation((value: string) => value === '/repo/wrangler.jsonc');
     mocked.readFileSync.mockReturnValue('{\n  "name": "zintrust-api",\n  "env": {}\n}\n');
     mocked.spawnAndWait.mockResolvedValue(5);
+    mocked.withWranglerDevVarsSnapshot.mockImplementation(
+      async (_args: unknown, fn: () => Promise<unknown>) => fn()
+    );
 
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
       throw new Error(`exit:${String(code)}`);
@@ -74,10 +89,32 @@ describe('proxy wrangler utils patch coverage', () => {
       moduleSpecifier: '@zintrust/core/proxy',
       addOptions: () => {},
       resolveValues: () => ({ binding: 'X' }),
-      renderEnvBlock: () => '    "test-proxy": {}',
+      renderEnvBlock: () =>
+        ['    "test-proxy": {', '      "main": "./src/proxy/test/TestProxy.ts"', '    }'].join(
+          '\n'
+        ),
     });
 
     await expect(command.execute({})).rejects.toThrow('exit:5');
+    expect(mocked.ensureLoaded).toHaveBeenCalledWith({
+      cwd: '/repo',
+      includeCwd: true,
+    });
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/.zin.proxy.test-proxy.jsonc',
+      expect.stringContaining('"main": "./src/proxy/test/TestProxy.ts"'),
+      'utf-8'
+    );
+    expect(mocked.withWranglerDevVarsSnapshot).toHaveBeenCalledWith(
+      {
+        cwd: '/repo',
+        projectRoot: '/repo',
+        envName: '',
+        configPath: '/repo/wrangler.jsonc',
+        runtimeEnv: process.env,
+      },
+      expect.any(Function)
+    );
 
     cwdSpy.mockRestore();
     exitSpy.mockRestore();

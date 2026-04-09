@@ -1,5 +1,7 @@
+import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
 type NumberExpectation = 'positive' | 'non-negative';
@@ -26,6 +28,34 @@ export const parseIntOption = (
 };
 
 export const trimOption = (value: string | undefined): string | undefined => value?.trim();
+
+const findNearestPackageJsonDir = (cwd: string): string | undefined => {
+  let current = cwd;
+
+  while (true) {
+    if (existsSync(path.join(current, 'package.json'))) return current;
+
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+};
+
+export const resolveProxyProjectRoot = (cwd: string): string => {
+  return findNearestPackageJsonDir(cwd) ?? cwd;
+};
+
+export const ensureProxyEnvLoadedForCwd = (cwd: string = process.cwd()): string => {
+  const projectRoot = resolveProxyProjectRoot(cwd);
+
+  EnvFileLoader.ensureLoaded({
+    cwd: projectRoot,
+    includeCwd: true,
+    ...(cwd === projectRoot ? {} : { extraCwds: [cwd] }),
+  });
+
+  return projectRoot;
+};
 
 const isWatchChild = (): boolean => process.env['ZINTRUST_PROXY_WATCH_CHILD'] === '1';
 

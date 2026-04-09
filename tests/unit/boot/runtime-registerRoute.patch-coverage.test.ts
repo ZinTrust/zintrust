@@ -759,13 +759,13 @@ describe('runtime/registerRoute patch coverage', () => {
     );
   });
 
-  it('createLifecycle only initializes the debugger runtime when the plugin file opted in', async () => {
-    const ensureSystemDebuggerRegisteredSpy = vi.fn(async () => undefined);
+  it('createLifecycle only initializes the trace runtime when the plugin file opted in', async () => {
+    const ensureSystemTraceRegisteredSpy = vi.fn(async () => undefined);
     const tryImportOptionalSpy = vi.fn(async (specifier: string) => {
-      if (specifier === '@runtime/plugins/system-debugger-runtime') {
+      if (specifier === '@runtime/plugins/trace-runtime') {
         return {
           isAvailable: () => true,
-          ensureSystemDebuggerRegistered: ensureSystemDebuggerRegisteredSpy,
+          ensureSystemTraceRegistered: ensureSystemTraceRegisteredSpy,
         };
       }
 
@@ -816,9 +816,9 @@ describe('runtime/registerRoute patch coverage', () => {
     vi.doMock('@common/ExternalServiceUtils', () => ({
       readEnvString: vi.fn((key: string) => {
         const values: Record<string, string> = {
-          DEBUGGER_ENABLED: 'true',
-          DEBUGGER_BASE_PATH: '/debugger',
-          DEBUGGER_MIDDLEWARE: '',
+          TRACE_ENABLED: 'true',
+          TRACE_BASE_PATH: '/trace',
+          TRACE_MIDDLEWARE: '',
         };
         return values[key] ?? '';
       }),
@@ -868,16 +868,14 @@ describe('runtime/registerRoute patch coverage', () => {
 
     await lifecycleWithoutPlugin.boot();
 
-    expect(tryImportOptionalSpy).not.toHaveBeenCalledWith(
-      '@runtime/plugins/system-debugger-runtime'
-    );
+    expect(tryImportOptionalSpy).not.toHaveBeenCalledWith('@runtime/plugins/trace-runtime');
     expect(routerWithoutPlugin.routes).toHaveLength(0);
     expect(useDatabaseSpy).not.toHaveBeenCalled();
-    expect(ensureSystemDebuggerRegisteredSpy).not.toHaveBeenCalled();
+    expect(ensureSystemTraceRegisteredSpy).not.toHaveBeenCalled();
 
     (
-      globalThis as { __zintrust_system_debugger_plugin_requested__?: boolean }
-    ).__zintrust_system_debugger_plugin_requested__ = true;
+      globalThis as { __zintrust_system_trace_plugin_requested__?: boolean }
+    ).__zintrust_system_trace_plugin_requested__ = true;
 
     const routerWithPlugin = { routes: [], getRoutes: vi.fn(), getNamedRoutes: vi.fn() } as any;
     const lifecycleWithPlugin = createLifecycle({
@@ -891,10 +889,131 @@ describe('runtime/registerRoute patch coverage', () => {
 
     await lifecycleWithPlugin.boot();
 
-    expect(tryImportOptionalSpy).toHaveBeenCalledWith('@runtime/plugins/system-debugger-runtime');
+    expect(tryImportOptionalSpy).toHaveBeenCalledWith('@runtime/plugins/trace-runtime');
     expect(useDatabaseSpy).not.toHaveBeenCalled();
-    expect(ensureSystemDebuggerRegisteredSpy).toHaveBeenCalledTimes(1);
+    expect(ensureSystemTraceRegisteredSpy).toHaveBeenCalledTimes(1);
     expect(routerWithPlugin.routes).toHaveLength(0);
+  });
+
+  it('createLifecycle auto-mounts the trace dashboard when TRACE_AUTO_MOUNT is enabled', async () => {
+    const ensureSystemTraceRegisteredSpy = vi.fn(async () => undefined);
+    const registerTraceDashboardSpy = vi.fn();
+    const tryImportOptionalSpy = vi.fn(async (specifier: string) => {
+      if (specifier === '@runtime/plugins/trace-runtime') {
+        return {
+          isAvailable: () => true,
+          ensureSystemTraceRegistered: ensureSystemTraceRegisteredSpy,
+          registerTraceDashboard: registerTraceDashboardSpy,
+        };
+      }
+
+      return undefined;
+    });
+
+    vi.doMock('@node-singletons/fs', () => ({ existsSync: vi.fn(() => true), mkdirSync: vi.fn() }));
+    vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+    vi.doMock('@cache/CacheRuntimeRegistration', () => ({
+      registerCachesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@orm/DatabaseRuntimeRegistration', () => ({
+      registerDatabasesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/queue/QueueRuntimeRegistration', () => ({
+      registerQueuesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/broadcast/BroadcastRuntimeRegistration', () => ({
+      registerBroadcastersFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/storage/StorageRuntimeRegistration', () => ({
+      registerDisksFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/notification/NotificationRuntimeRegistration', () => ({
+      registerNotificationChannelsFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@registry/registerRoute', () => ({
+      registerMasterRoutes: vi.fn(async () => undefined),
+      tryImportOptional: tryImportOptionalSpy,
+    }));
+    vi.doMock('@registry/worker', () => ({ registerWorkerShutdownHook: vi.fn() }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({ WorkerInit: {}, registerWorkerRoutes: vi.fn() })),
+      loadQueueMonitorModule: vi.fn(async () => null),
+    }));
+    vi.doMock('@runtime-config/queue', () => ({ default: { monitor: { enabled: false } } }));
+    vi.doMock('@/config', () => ({
+      appConfig: { port: 7777, dockerWorker: false, worker: false },
+      cacheConfig: {},
+      databaseConfig: { default: 'sqlite', connections: {} },
+      queueConfig: { drivers: { redis: {} } },
+      storageConfig: {},
+    }));
+    vi.doMock('@config/database', () => ({
+      databaseConfig: { default: 'sqlite', connections: {} },
+    }));
+    vi.doMock('@common/ExternalServiceUtils', () => ({
+      readEnvString: vi.fn((key: string) => {
+        const values: Record<string, string> = {
+          TRACE_ENABLED: 'true',
+          TRACE_AUTO_MOUNT: 'true',
+          TRACE_BASE_PATH: '/trace-live',
+          TRACE_MIDDLEWARE: 'auth, admin ',
+        };
+        return values[key] ?? '';
+      }),
+    }));
+    vi.doMock('@config/cloudflare', () => ({ Cloudflare: { getWorkersEnv: () => null } }));
+    vi.doMock('@config/features', () => ({ FeatureFlags: { initialize: vi.fn() } }));
+    vi.doMock('@/health/StartupHealthChecks', () => ({
+      StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@config/StartupConfigValidator', () => ({
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
+    }));
+    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
+      StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
+      StartupConfigFile: {
+        Middleware: 'config/middleware.ts',
+        Cache: 'config/cache.ts',
+        Database: 'config/database.ts',
+        Queue: 'config/queue.ts',
+        Storage: 'config/storage.ts',
+        Mail: 'config/mail.ts',
+        Broadcast: 'config/broadcast.ts',
+        Notification: 'config/notification.ts',
+      },
+    }));
+    vi.doMock('@config/broadcast', () => ({ default: { default: 'default', drivers: {} } }));
+    vi.doMock('@config/notification', () => ({ default: { default: 'default', drivers: {} } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+
+    const { createLifecycle } = await import('@/boot/registry/runtime');
+
+    (
+      globalThis as { __zintrust_system_trace_plugin_requested__?: boolean }
+    ).__zintrust_system_trace_plugin_requested__ = true;
+
+    const router = { routes: [], getRoutes: vi.fn(), getNamedRoutes: vi.fn() } as any;
+    const lifecycle = createLifecycle({
+      environment: 'development',
+      resolvedBasePath: '/workspace',
+      router,
+      shutdownManager: { add: vi.fn(), run: vi.fn(async () => undefined) } as any,
+      getBooted: () => false,
+      setBooted: vi.fn(),
+    });
+
+    await lifecycle.boot();
+
+    expect(ensureSystemTraceRegisteredSpy).toHaveBeenCalledTimes(1);
+    expect(registerTraceDashboardSpy).toHaveBeenCalledWith(router, {
+      basePath: '/trace-live',
+      middleware: ['auth', 'admin'],
+    });
   });
 
   it('createLifecycle reads the latest runtime database config when booting', async () => {

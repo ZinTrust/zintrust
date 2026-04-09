@@ -14,6 +14,24 @@ const makeContent = (filename) => `/**
  * It allows optional runtime plugin imports to resolve in CI/scaffolded setups.
  */
 
+import * as TraceRuntime from '@runtime/plugins/trace-runtime';
+
+export type {};
+
+(
+  globalThis as {
+    __zintrust_system_trace_plugin_requested__?: boolean;
+    __zintrust_system_trace_runtime__?: typeof TraceRuntime;
+  }
+).__zintrust_system_trace_plugin_requested__ = true;
+
+(
+  globalThis as {
+    __zintrust_system_trace_plugin_requested__?: boolean;
+    __zintrust_system_trace_runtime__?: typeof TraceRuntime;
+  }
+).__zintrust_system_trace_runtime__ = TraceRuntime;
+
 export const __zintrustGeneratedPluginStub = '${filename}';
 export default {};
 `;

@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { redactString } from '../../../packages/system-debugger/src/utils/redact';
-import { parseStackFrameLine } from '../../../packages/system-debugger/src/utils/stackFrame';
+import { redactString } from '../../../packages/trace/src/utils/redact';
+import { parseStackFrameLine } from '../../../packages/trace/src/utils/stackFrame';
 
-describe('System debugger parsing helpers', () => {
+describe('System trace parsing helpers', () => {
   it('redacts selected query parameters without regex backtracking', () => {
     expect(redactString('token=abc123&keep=visible&password=s3cret', ['token', 'password'])).toBe(
-      'token=[REDACTED]&keep=visible&password=[REDACTED]'
+      'token=****&keep=visible&password=****'
     );
   });
 
   it('keeps malformed or partial query segments intact', () => {
     expect(redactString('plain&=noop&user=name&&token=abc', ['token'])).toBe(
-      'plain&=noop&user=name&&token=[REDACTED]'
+      'plain&=noop&user=name&&token=****'
     );
   });
 

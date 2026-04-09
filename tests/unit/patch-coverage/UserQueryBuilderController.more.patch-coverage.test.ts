@@ -1,30 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@config/logger', () => ({ Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
-vi.mock('@orm/Database', () => ({ useDatabase: vi.fn().mockReturnValue({}) }));
+const createQueryBuilder = (firstResult: unknown = null) => ({
+  create: vi.fn(() => ({
+    select: () => ({ where: () => ({ limit: () => ({ first: async () => firstResult }) }) }),
+  })),
+});
 
-vi.mock('@orm/QueryBuilder', () => ({
-  QueryBuilder: {
-    create: vi.fn(() => ({
-      select: () => ({ where: () => ({ limit: () => ({ first: async () => null }) }) }),
-    })),
-  },
-}));
-
-vi.mock('@validation/Validator', () => ({
-  Validator: { validate: vi.fn() },
-  Schema: { create: () => ({}) },
-}));
-
-// Default sanitizer will be overridden in some tests via resetModules + doMock
-vi.mock('@security/Sanitizer', () => ({
+const createCoreMock = (overrides: Record<string, unknown> = {}) => ({
+  Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
+  QueryBuilder: createQueryBuilder(),
   Sanitizer: {
     digitsOnly: String,
-    nameText: (v: any) => (typeof v === 'string' ? v : ''),
+    nameText: (value: any) => (typeof value === 'string' ? value : ''),
     email: String,
     safePasswordChars: String,
   },
-}));
+  Schema: { create: () => ({}) },
+  Validator: { validate: vi.fn() },
+  getValidatedBody: vi.fn(() => undefined),
+  nowIso: vi.fn(() => '2026-04-07 00:00:00'),
+  randomBytes: vi.fn(() => Buffer.from('password')),
+  useDatabase: vi.fn().mockReturnValue({}),
+  ...overrides,
+});
 
 const makeReqRes = () => {
   const resCalls: any = {};
@@ -53,16 +51,17 @@ const makeReqRes = () => {
 describe('UserQueryBuilderController extra branches', () => {
   it('show: returns 400 when Sanitizer.digitsOnly yields empty id', async () => {
     vi.resetModules();
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: () => '' } }));
-    vi.doMock('@config/logger', () => ({
-      Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-    }));
-    vi.doMock('@orm/Database', () => ({ useDatabase: vi.fn().mockReturnValue({}) }));
-    vi.doMock('@orm/QueryBuilder', () => ({ QueryBuilder: { create: vi.fn() } }));
-    vi.doMock('@validation/Validator', () => ({
-      Validator: { validate: vi.fn() },
-      Schema: { create: () => ({}) },
-    }));
+    vi.doMock('@zintrust/core', () =>
+      createCoreMock({
+        QueryBuilder: { create: vi.fn() },
+        Sanitizer: {
+          digitsOnly: () => '',
+          nameText: (value: any) => (typeof value === 'string' ? value : ''),
+          email: String,
+          safePasswordChars: String,
+        },
+      })
+    );
 
     const { default: controller } = await import('@app/Controllers/UserQueryBuilderController');
     const { req, res } = makeReqRes();
@@ -76,16 +75,7 @@ describe('UserQueryBuilderController extra branches', () => {
 
   it('show: returns 401 when request subject missing', async () => {
     vi.resetModules();
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
-    vi.doMock('@config/logger', () => ({
-      Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-    }));
-    vi.doMock('@orm/Database', () => ({ useDatabase: vi.fn().mockReturnValue({}) }));
-    vi.doMock('@orm/QueryBuilder', () => ({ QueryBuilder: { create: vi.fn() } }));
-    vi.doMock('@validation/Validator', () => ({
-      Validator: { validate: vi.fn() },
-      Schema: { create: () => ({}) },
-    }));
+    vi.doMock('@zintrust/core', () => createCoreMock({ QueryBuilder: { create: vi.fn() } }));
 
     const { default: controller } = await import('@app/Controllers/UserQueryBuilderController');
     const { req, res } = makeReqRes();
@@ -93,22 +83,13 @@ describe('UserQueryBuilderController extra branches', () => {
     req.user = undefined; // no subject
 
     await controller.create().show(req, res);
-    expect(res._calls.status).toBe(400);
-    expect(res._calls.payload).toEqual({ error: 'Missing user id' });
+    expect(res._calls.status).toBe(401);
+    expect(res._calls.payload).toEqual({ error: 'Unauthorized' });
   });
 
   it('show: returns 403 when subject mismatched', async () => {
     vi.resetModules();
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
-    vi.doMock('@config/logger', () => ({
-      Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-    }));
-    vi.doMock('@orm/Database', () => ({ useDatabase: vi.fn().mockReturnValue({}) }));
-    vi.doMock('@orm/QueryBuilder', () => ({ QueryBuilder: { create: vi.fn() } }));
-    vi.doMock('@validation/Validator', () => ({
-      Validator: { validate: vi.fn() },
-      Schema: { create: () => ({}) },
-    }));
+    vi.doMock('@zintrust/core', () => createCoreMock({ QueryBuilder: { create: vi.fn() } }));
 
     const { default: controller } = await import('@app/Controllers/UserQueryBuilderController');
     const { req, res } = makeReqRes();
@@ -116,27 +97,17 @@ describe('UserQueryBuilderController extra branches', () => {
     req.user = { sub: '2' };
 
     await controller.create().show(req, res);
-    expect(res._calls.status).toBe(400);
-    expect(res._calls.payload).toEqual({ error: 'Missing user id' });
+    expect(res._calls.status).toBe(403);
+    expect(res._calls.payload).toEqual({ error: 'Forbidden' });
   });
 
   it('show: success returns user data', async () => {
     vi.resetModules();
-    const qbCreate = vi.fn().mockReturnValue({
-      select: () => ({
-        where: () => ({ limit: () => ({ first: async () => ({ id: '1', name: 'A' }) }) }),
-      }),
-    });
-    vi.doMock('@orm/QueryBuilder', () => ({ QueryBuilder: { create: qbCreate } }));
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
-    vi.doMock('@config/logger', () => ({
-      Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-    }));
-    vi.doMock('@orm/Database', () => ({ useDatabase: vi.fn().mockReturnValue({}) }));
-    vi.doMock('@validation/Validator', () => ({
-      Validator: { validate: vi.fn() },
-      Schema: { create: () => ({}) },
-    }));
+    vi.doMock('@zintrust/core', () =>
+      createCoreMock({
+        QueryBuilder: createQueryBuilder({ id: '1', name: 'A' }),
+      })
+    );
 
     const { default: controller } = await import('@app/Controllers/UserQueryBuilderController');
     const { req, res } = makeReqRes();
@@ -144,7 +115,7 @@ describe('UserQueryBuilderController extra branches', () => {
     req.user = { sub: '1' };
 
     await controller.create().show(req, res);
-    expect(res._calls.status).toBe(400);
-    expect(res._calls.payload).toEqual({ error: 'Missing user id' });
+    expect(res._calls.status).toBeUndefined();
+    expect(res._calls.payload).toEqual({ data: { id: '1', name: 'A' } });
   });
 });

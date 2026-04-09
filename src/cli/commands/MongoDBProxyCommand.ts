@@ -1,6 +1,7 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ensureProxyEnvLoadedForCwd } from '@cli/commands/ProxyCommandUtils';
 import { Command } from 'commander';
 
 type ProxyOptions = Record<string, unknown>;
@@ -67,13 +68,19 @@ export const MongoDBProxyCommand = Object.freeze({
     cmd.description('Start MongoDB HTTP proxy server');
 
     const configureOptions = (): void => {
+      ensureProxyEnvLoadedForCwd();
+
       cmd.option('--host <host>', 'Proxy host', Env.get('MONGODB_PROXY_HOST', '127.0.0.1'));
       cmd.option('--port <port>', 'Proxy port', String(Env.getInt('MONGODB_PROXY_PORT', 8792)));
       cmd.option('--mongo-uri <uri>', 'MongoDB connection URI', Env.get('MONGO_URI', ''));
       cmd.option('--mongo-db <database>', 'MongoDB database name', Env.get('MONGO_DB', ''));
       cmd.option('--key-id <keyId>', 'Signing key ID', Env.get('MONGODB_PROXY_KEY_ID', 'default'));
       cmd.option('--secret <secret>', 'Signing secret', Env.get('MONGODB_PROXY_SECRET', ''));
-      cmd.option('--require-signing', 'Require request signing', Env.MONGODB_PROXY_REQUIRE_SIGNING);
+      cmd.option(
+        '--require-signing',
+        'Require request signing',
+        Env.getBool('MONGODB_PROXY_REQUIRE_SIGNING', true)
+      );
       cmd.option(
         '--signing-window-ms <ms>',
         'Signing window in milliseconds',

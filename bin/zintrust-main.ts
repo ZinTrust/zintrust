@@ -5,10 +5,159 @@
  * be imported by other bin shortcuts (zin/z/zt) without parse errors.
  */
 
-import { Logger } from '@config/logger';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+type ProjectLocalCliTarget = {
+  binPath: string;
+  packageRoot: string;
+};
+
+type LoggerLike = {
+  warn: (message: string, details?: unknown) => void;
+  debug: (message: string, details?: unknown) => void;
+  error: (message: string, details?: unknown) => void;
+};
+
+const CLI_HANDOFF_ENV_KEY = 'ZINTRUST_CLI_HANDOFF';
+
+const loadLogger = async (): Promise<LoggerLike | undefined> => {
+  try {
+    const { Logger } = await import('@config/logger');
+    return Logger;
+  } catch {
+    return undefined;
+  }
+};
+
+const getCurrentPackageRoot = (): string => {
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+};
+
+const getRealPath = (targetPath: string): string => {
+  try {
+    return fs.realpathSync(targetPath);
+  } catch {
+    return path.resolve(targetPath);
+  }
+};
+
+const isWithinDirectory = (targetPath: string, possibleParentPath: string): boolean => {
+  const normalizedTarget = getRealPath(targetPath);
+  const normalizedParent = getRealPath(possibleParentPath);
+
+  if (normalizedTarget === normalizedParent) return true;
+
+  const relativePath = path.relative(normalizedParent, normalizedTarget);
+  return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+};
+
+const findProjectLocalCliTarget = (cwd: string): ProjectLocalCliTarget | undefined => {
+  let currentDir = path.resolve(cwd);
+
+  while (true) {
+    const packageRoot = path.join(currentDir, 'node_modules', '@zintrust', 'core');
+    const packageJsonPath = path.join(packageRoot, 'package.json');
+    const binCandidates = [
+      path.join(packageRoot, 'bin', 'zin.js'),
+      path.join(packageRoot, 'bin', 'zin.mjs'),
+      path.join(packageRoot, 'bin', 'zin.cjs'),
+      path.join(packageRoot, 'bin', 'zin.ts'),
+    ];
+
+    if (fs.existsSync(packageJsonPath)) {
+      const binPath = binCandidates.find((candidate) => fs.existsSync(candidate));
+      if (binPath !== undefined) {
+        return { binPath, packageRoot };
+      }
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) return undefined;
+    currentDir = parentDir;
+  }
+};
+
+const resolveProjectLocalCliHandoff = (
+  cwd: string,
+  currentPackageRoot: string,
+  env: NodeJS.ProcessEnv = process.env
+): ProjectLocalCliTarget | undefined => {
+  if (env[CLI_HANDOFF_ENV_KEY] === '1') return undefined;
+
+  if (isWithinDirectory(cwd, currentPackageRoot)) return undefined;
+
+  const target = findProjectLocalCliTarget(cwd);
+  if (target === undefined) return undefined;
+
+  if (getRealPath(target.packageRoot) === getRealPath(currentPackageRoot)) {
+    return undefined;
+  }
+
+  return target;
+};
+
+const getHandoffExitCode = (exitCode: number | null, signal: NodeJS.Signals | null): number => {
+  if (typeof exitCode === 'number') return exitCode;
+  if (signal === 'SIGINT' || signal === 'SIGTERM') return 0;
+  return 1;
+};
+
+const handoffToProjectLocalCli = async (
+  target: ProjectLocalCliTarget,
+  rawArgs: string[]
+): Promise<never> => {
+  const child = spawn(process.execPath, [target.binPath, ...rawArgs], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      [CLI_HANDOFF_ENV_KEY]: '1',
+    },
+  });
+
+  const forwardSignals = !process.stdin.isTTY;
+  const forwardSignal = (signal: NodeJS.Signals): void => {
+    if (!forwardSignals) return;
+
+    try {
+      child.kill(signal);
+    } catch {
+      // best-effort forwarding during CLI handoff
+    }
+  };
+
+  const onSigint = (): void => forwardSignal('SIGINT');
+  const onSigterm = (): void => forwardSignal('SIGTERM');
+
+  process.on('SIGINT', onSigint);
+  process.on('SIGTERM', onSigterm);
+
+  try {
+    const result = await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
+      (resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (exitCode: number | null, signal: NodeJS.Signals | null) => {
+          resolve({ exitCode, signal });
+        });
+      }
+    );
+
+    process.exit(getHandoffExitCode(result.exitCode, result.signal));
+  } finally {
+    process.off('SIGINT', onSigint);
+    process.off('SIGTERM', onSigterm);
+  }
+};
+
+const maybeHandoffToProjectLocalCli = async (rawArgs: string[]): Promise<boolean> => {
+  const localCliTarget = resolveProjectLocalCliHandoff(process.cwd(), getCurrentPackageRoot());
+  if (localCliTarget === undefined) return false;
+
+  await handoffToProjectLocalCli(localCliTarget, rawArgs);
+  return true;
+};
 
 const loadPackageVersionFast = (): string => {
   try {
@@ -36,6 +185,13 @@ const getArgsFromProcess = (): { rawArgs: string[]; args: string[] } => {
 
 const isVersionRequest = (args: string[]): boolean => {
   return args.includes('-v') || args.includes('--version');
+};
+
+const maybePrintVersionAndExit = (args: string[]): boolean => {
+  if (!isVersionRequest(args)) return false;
+
+  printFancyVersion(loadPackageVersionFast());
+  return true;
 };
 
 const printFancyVersion = (version: string): void => {
@@ -104,24 +260,28 @@ const shouldDeferPluginAutoImportWarnings = (args: string[]): boolean => {
   return command === 'start' || command === 's';
 };
 
-const logPluginAutoImportFailure = (
+const logPluginAutoImportFailure = async (
   args: string[],
   scope: 'Official' | 'Project',
   details?: string
-): void => {
+): Promise<void> => {
+  const logger = await loadLogger();
+  if (logger === undefined) return;
+
   if (shouldDeferPluginAutoImportWarnings(args)) {
-    Logger.debug(`${scope} plugin auto-import advisory deferred to runtime bootstrap`, {
+    logger.debug(`${scope} plugin auto-import advisory deferred to runtime bootstrap`, {
       details,
     });
     return;
   }
 
-  Logger.warn(`${scope} plugin auto-imports failed:`, details);
+  logger.warn(`${scope} plugin auto-imports failed:`, details);
 };
 
 const handleCliFatal = async (error: unknown, context: string): Promise<never> => {
   try {
-    Logger.error(context, error);
+    const logger = await loadLogger();
+    logger?.error(context, error);
   } catch {
     // best-effort logging
   }
@@ -136,86 +296,103 @@ const handleCliFatal = async (error: unknown, context: string): Promise<never> =
   process.exit(1);
 };
 
+const runCliInternal = async (): Promise<void> => {
+  const { rawArgs: rawArgs0, args: args0 } = getArgsFromProcess();
+  if (await maybeHandoffToProjectLocalCli(rawArgs0)) {
+    return;
+  }
+
+  // Fast path: print version and exit without bootstrapping the CLI.
+  // This keeps `zin -v` / `zin --version` snappy and avoids any debug output.
+  if (maybePrintVersionAndExit(args0)) {
+    return;
+  }
+
+  const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+  EnvFileLoader.ensureLoaded();
+
+  // Auto-load install-only CLI extension packages that self-register commands.
+  let optionalCliExtensions:
+    | typeof import('@cli/OptionalCliExtensions').OptionalCliExtensions
+    | undefined;
+  let optionalCliStatuses: ReadonlyArray<
+    import('@cli/OptionalCliExtensions').OptionalCliExtensionStatus
+  > = [];
+  try {
+    ({ OptionalCliExtensions: optionalCliExtensions } = await import('@cli/OptionalCliExtensions'));
+    optionalCliStatuses = await optionalCliExtensions.loadForArgs(args0);
+  } catch {
+    // best-effort; missing optional extensions must not block the CLI
+  }
+
+  const missingOptionalExtension = optionalCliExtensions?.findMissingExtensionForArgs(
+    args0,
+    optionalCliStatuses
+  );
+
+  if (missingOptionalExtension !== undefined) {
+    const { ErrorFactory } = await import('@exceptions/ZintrustError');
+    throw ErrorFactory.createCliError(
+      optionalCliExtensions?.getMissingExtensionMessage(missingOptionalExtension) ??
+        `Missing optional CLI package: ${missingOptionalExtension.packageName}`
+    );
+  }
+
+  // Ensure project-installed adapters/drivers are registered for CLI commands.
+  // (This is driven by src/zintrust.plugins.ts generated by `zin plugin install`.)
+  try {
+    const { PluginAutoImports } = await import('@runtime/PluginAutoImports');
+    const runtimeImportMode = process.env['DOCKER_WORKER'] === 'true' ? 'worker' : 'base';
+    const officialImports = await PluginAutoImports.tryImportRuntimeAutoImports(runtimeImportMode);
+    if (!officialImports.ok) {
+      await logPluginAutoImportFailure(args0, 'Official', officialImports.errorMessage);
+    }
+
+    const projectImports = await PluginAutoImports.tryImportProjectAutoImports();
+    if (!projectImports.ok && projectImports.reason !== 'not-found') {
+      await logPluginAutoImportFailure(args0, 'Project', projectImports.errorMessage);
+    }
+  } catch {
+    // best-effort; CLI should still run even if plugins file is missing
+  }
+
+  const { CLI } = await import('@cli/CLI');
+
+  const cli = CLI.create();
+
+  // When executing via tsx (e.g. `npx tsx bin/zin.ts ...`), the script path can
+  // appear as the first element of `process.argv.slice(2)`. Commander expects
+  // args to start at the command name, so we strip a leading script path if present.
+  const { rawArgs, args } = getArgsFromProcess();
+  if (shouldDebugArgs(rawArgs)) {
+    try {
+      process.stderr.write(`[zintrust-cli] process.argv=${JSON.stringify(process.argv)}\n`);
+      process.stderr.write(`[zintrust-cli] rawArgs=${JSON.stringify(rawArgs)}\n`);
+    } catch {
+      // ignore
+    }
+  }
+  await cli.run(normalizeProxyTargetArgs(args));
+};
+
 export async function run(): Promise<void> {
   try {
-    // Fast path: print version and exit without bootstrapping the CLI.
-    // This keeps `zin -v` / `zin --version` snappy and avoids any debug output.
-    const { rawArgs: _rawArgs0, args: args0 } = getArgsFromProcess();
-    if (isVersionRequest(args0)) {
-      printFancyVersion(loadPackageVersionFast());
-      return;
-    }
-
-    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
-    EnvFileLoader.ensureLoaded();
-
-    // Auto-load install-only CLI extension packages that self-register commands.
-    let optionalCliExtensions:
-      | typeof import('@cli/OptionalCliExtensions').OptionalCliExtensions
-      | undefined;
-    let optionalCliStatuses: ReadonlyArray<
-      import('@cli/OptionalCliExtensions').OptionalCliExtensionStatus
-    > = [];
-    try {
-      ({ OptionalCliExtensions: optionalCliExtensions } =
-        await import('@cli/OptionalCliExtensions'));
-      optionalCliStatuses = await optionalCliExtensions.loadForArgs(args0);
-    } catch {
-      // best-effort; missing optional extensions must not block the CLI
-    }
-
-    const missingOptionalExtension = optionalCliExtensions?.findMissingExtensionForArgs(
-      args0,
-      optionalCliStatuses
-    );
-
-    if (missingOptionalExtension !== undefined) {
-      const { ErrorFactory } = await import('@exceptions/ZintrustError');
-      throw ErrorFactory.createCliError(
-        optionalCliExtensions?.getMissingExtensionMessage(missingOptionalExtension) ??
-          `Missing optional CLI package: ${missingOptionalExtension.packageName}`
-      );
-    }
-
-    // Ensure project-installed adapters/drivers are registered for CLI commands.
-    // (This is driven by src/zintrust.plugins.ts generated by `zin plugin install`.)
-    try {
-      const { PluginAutoImports } = await import('@runtime/PluginAutoImports');
-      const runtimeImportMode = process.env['DOCKER_WORKER'] === 'true' ? 'worker' : 'base';
-      const officialImports =
-        await PluginAutoImports.tryImportRuntimeAutoImports(runtimeImportMode);
-      if (!officialImports.ok) {
-        logPluginAutoImportFailure(args0, 'Official', officialImports.errorMessage);
-      }
-
-      const projectImports = await PluginAutoImports.tryImportProjectAutoImports();
-      if (!projectImports.ok && projectImports.reason !== 'not-found') {
-        logPluginAutoImportFailure(args0, 'Project', projectImports.errorMessage);
-      }
-    } catch {
-      // best-effort; CLI should still run even if plugins file is missing
-    }
-
-    const { CLI } = await import('@cli/CLI');
-
-    const cli = CLI.create();
-
-    // When executing via tsx (e.g. `npx tsx bin/zin.ts ...`), the script path can
-    // appear as the first element of `process.argv.slice(2)`. Commander expects
-    // args to start at the command name, so we strip a leading script path if present.
-    const { rawArgs, args } = getArgsFromProcess();
-    if (shouldDebugArgs(rawArgs)) {
-      try {
-        process.stderr.write(`[zintrust-cli] process.argv=${JSON.stringify(process.argv)}\n`);
-        process.stderr.write(`[zintrust-cli] rawArgs=${JSON.stringify(rawArgs)}\n`);
-      } catch {
-        // ignore
-      }
-    }
-    await cli.run(normalizeProxyTargetArgs(args));
+    await runCliInternal();
   } catch (error) {
     await handleCliFatal(error, 'CLI execution failed');
   }
 }
+
+export const CliLauncherInternal = Object.freeze({
+  CLI_HANDOFF_ENV_KEY,
+  findProjectLocalCliTarget,
+  getHandoffExitCode,
+  getCurrentPackageRoot,
+  getRealPath,
+  handoffToProjectLocalCli,
+  isWithinDirectory,
+  maybeHandoffToProjectLocalCli,
+  resolveProjectLocalCliHandoff,
+});
 
 export {};

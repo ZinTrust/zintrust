@@ -1,5 +1,5 @@
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import notificationConfig from '@config/notification';
-import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { NotificationConfig } from '@notification/config';
 import { ConsoleDriver } from '@notification/drivers/Console';
@@ -74,7 +74,7 @@ export const NotificationService = Object.freeze({
     const driverName = NotificationConfig.getDriver();
     const driver = NotificationRegistry.get(driverName);
     const result = await driver.send(recipient, message, options);
-    SystemDebuggerBridge.emitNotification(driverName, [driverName], recipient);
+    SystemTraceBridge.emitNotification(driverName, [driverName], recipient, message, options);
     return result;
   },
 
@@ -91,7 +91,7 @@ export const NotificationService = Object.freeze({
     switch (cfg.driver) {
       case 'console': {
         const result = await ConsoleDriver.send(recipient, message, options);
-        SystemDebuggerBridge.emitNotification(channelName, ['console'], recipient);
+        SystemTraceBridge.emitNotification(channelName, ['console'], recipient, message, options);
         return result;
       }
 
@@ -99,7 +99,7 @@ export const NotificationService = Object.freeze({
         const slackCfg = cfg as { webhookUrl: string };
         const payload: Record<string, unknown> = { text: message, ...options };
         const result = await SlackDriver.send({ webhookUrl: slackCfg.webhookUrl }, payload);
-        SystemDebuggerBridge.emitNotification(channelName, ['slack'], recipient);
+        SystemTraceBridge.emitNotification(channelName, ['slack'], recipient, message, payload);
         return result;
       }
 
@@ -117,7 +117,10 @@ export const NotificationService = Object.freeze({
           },
           { to: recipient, body: message }
         );
-        SystemDebuggerBridge.emitNotification(channelName, ['twilio'], recipient);
+        SystemTraceBridge.emitNotification(channelName, ['twilio'], recipient, message, {
+          to: recipient,
+          body: message,
+        });
         return result;
       }
 
@@ -128,7 +131,7 @@ export const NotificationService = Object.freeze({
           message,
           options
         );
-        SystemDebuggerBridge.emitNotification(channelName, ['termii'], recipient);
+        SystemTraceBridge.emitNotification(channelName, ['termii'], recipient, message, options);
         return result;
       }
 

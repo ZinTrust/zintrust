@@ -7,7 +7,7 @@
  */
 
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
-import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -45,6 +45,88 @@ interface RequestState {
   contentType?: 'json' | 'form';
 }
 
+const headersToRecord = (
+  headers:
+    | Headers
+    | Map<string, string>
+    | { entries?: () => IterableIterator<[string, string]> }
+    | Record<string, string>
+    | null
+    | undefined
+): Record<string, string> => {
+  if (!headers) return {};
+
+  if (headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+
+  if (headers instanceof Map) {
+    return Object.fromEntries(headers.entries());
+  }
+
+  if (typeof headers === 'object' && typeof headers.entries === 'function') {
+    return Object.fromEntries(headers.entries());
+  }
+
+  if (typeof headers === 'object') {
+    return Object.fromEntries(
+      Object.entries(headers).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string'
+      )
+    );
+  }
+
+  return {};
+};
+
+const bodyToTracePayload = (body: BodyInitLocal | null | undefined): unknown => {
+  if (body === null || body === undefined) return undefined;
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body) as unknown;
+    } catch {
+      return body;
+    }
+  }
+  if (body instanceof URLSearchParams) {
+    return body.toString();
+  }
+  if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    return Array.from(body.entries()).map(([key, value]) => [key, String(value)]);
+  }
+  return '[stream]';
+};
+
+const emitHttpClientTrace = (input: {
+  state: RequestState;
+  durationMs: number;
+  response?: Response;
+  responseBody?: string;
+  error?: string;
+}): void => {
+  const { state, durationMs, response, responseBody, error } = input;
+
+  SystemTraceBridge.emitHttpClient({
+    method: state.method,
+    url: state.url,
+    requestHeaders: { ...state.headers },
+    responseStatus: response?.status,
+    duration: durationMs,
+    requestBody: bodyToTracePayload(state.body),
+    responseHeaders: headersToRecord(response?.headers),
+    responseBody,
+    error,
+  });
+};
+
+const captureTraceResponseBody = async (response: Response): Promise<string | undefined> => {
+  try {
+    return await response.clone().text();
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * Perform the actual request for a given state. Separated to keep the builder small
  */
@@ -65,6 +147,7 @@ async function performRequestRaw(
 ): Promise<{ response: Response; bodyText: string; durationMs: number }> {
   const { response, durationMs } = await performFetch(state);
   const bodyText = await response.text();
+  emitHttpClientTrace({ state, response, responseBody: bodyText, durationMs });
   return { response, bodyText, durationMs };
 }
 
@@ -101,20 +184,21 @@ async function performFetch(
     return init;
   };
 
+  const startTime = Date.now();
+
   try {
     const init = buildInit();
-    const startTime = Date.now();
     const response = await globalThis.fetch(state.url, init);
     const duration = Date.now() - startTime;
-    SystemDebuggerBridge.emitHttpClient(
-      state.method,
-      state.url,
-      { ...state.headers },
-      response.status,
-      duration
-    );
     return { response, durationMs: duration };
   } catch (error) {
+    const duration = Date.now() - startTime;
+    emitHttpClientTrace({
+      state,
+      durationMs: duration,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     if (error instanceof Error && error.name === 'AbortError') {
       throw ErrorFactory.createConnectionError(`HTTP request timeout after ${timeout}ms`, {
         url: state.url,
@@ -196,12 +280,16 @@ function createRequestBuilder(
     },
 
     async sendRaw(): Promise<Response> {
-      const { response } = await performFetch(state);
+      const { response, durationMs } = await performFetch(state);
+      const responseBody = await captureTraceResponseBody(response);
+      emitHttpClientTrace({ state, response, responseBody, durationMs });
       return response;
     },
 
     async sendStream(): Promise<{ response: Response; stream: ReadableStream<Uint8Array> | null }> {
-      const { response } = await performFetch(state);
+      const { response, durationMs } = await performFetch(state);
+      const responseBody = await captureTraceResponseBody(response);
+      emitHttpClientTrace({ state, response, responseBody, durationMs });
       return { response, stream: response.body };
     },
   };

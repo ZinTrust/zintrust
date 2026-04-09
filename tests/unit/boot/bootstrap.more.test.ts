@@ -385,9 +385,10 @@ describe('Bootstrap additional branches', () => {
 
     const workerShutdown = vi.fn(async () => undefined);
     const shutdownRedisConnections = vi.fn(async () => undefined);
+    const infoSpy = vi.fn();
 
     vi.doMock('@config/logger', () => ({
-      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      Logger: { info: infoSpy, warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
     vi.doMock('@config/app', () => ({
       appConfig: {
@@ -433,6 +434,13 @@ describe('Bootstrap additional branches', () => {
 
     expect(workerShutdown).toHaveBeenCalledWith(expect.objectContaining({ signal: 'SIGUSR2' }));
     expect(shutdownRedisConnections).toHaveBeenCalledTimes(1);
+    const successCallIndex = infoSpy.mock.calls.findIndex(
+      ([message]) => message === '✅ Application shut down successfully'
+    );
+    expect(successCallIndex).toBeGreaterThanOrEqual(0);
+    expect(infoSpy.mock.invocationCallOrder[successCallIndex] ?? 0).toBeGreaterThan(
+      shutdownRedisConnections.mock.invocationCallOrder[0] ?? 0
+    );
     expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(0);
   });
 

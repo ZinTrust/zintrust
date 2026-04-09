@@ -5,6 +5,7 @@
  * Sealed namespace pattern - all exports through Cache namespace
  */
 
+import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import type { CacheDriver } from '@cache/CacheDriver';
 import { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
 import { KVDriver } from '@cache/drivers/KVDriver';
@@ -13,11 +14,11 @@ import { MemoryDriver } from '@cache/drivers/MemoryDriver';
 import { MongoDriver } from '@cache/drivers/MongoDriver';
 import { RedisDriver } from '@cache/drivers/RedisDriver';
 import { cacheConfig } from '@config/cache';
-import { SystemDebuggerBridge } from '@/debugger/SystemDebuggerBridge';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 const instances: Map<string, CacheDriver> = new Map();
+const DEFAULT_STORE_NAME = 'default';
 
 /**
  * Auto-prefix cache keys with 'zt:' if not already prefixed
@@ -112,7 +113,14 @@ const get = async <T>(key: string): Promise<T | null> => {
   const prefixedKey = autoPrefixKey(key);
   const startedAt = Date.now();
   const value = await getDriverInstance().get<T>(prefixedKey);
-  SystemDebuggerBridge.emitCache('get', prefixedKey, Date.now() - startedAt, value !== null);
+  SystemTraceBridge.emitCache(
+    'get',
+    prefixedKey,
+    Date.now() - startedAt,
+    value !== null,
+    value,
+    DEFAULT_STORE_NAME
+  );
   return value;
 };
 
@@ -123,7 +131,15 @@ const set = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
   const prefixedKey = autoPrefixKey(key);
   const startedAt = Date.now();
   await getDriverInstance().set(prefixedKey, value, ttl);
-  SystemDebuggerBridge.emitCache('set', prefixedKey, Date.now() - startedAt);
+  SystemTraceBridge.emitCache(
+    'set',
+    prefixedKey,
+    Date.now() - startedAt,
+    undefined,
+    value,
+    DEFAULT_STORE_NAME,
+    ttl
+  );
 };
 
 /**
@@ -133,7 +149,14 @@ const del = async (key: string): Promise<void> => {
   const prefixedKey = autoPrefixKey(key);
   const startedAt = Date.now();
   await getDriverInstance().delete(prefixedKey);
-  SystemDebuggerBridge.emitCache('delete', prefixedKey, Date.now() - startedAt);
+  SystemTraceBridge.emitCache(
+    'delete',
+    prefixedKey,
+    Date.now() - startedAt,
+    undefined,
+    undefined,
+    DEFAULT_STORE_NAME
+  );
 };
 
 /**
@@ -142,7 +165,14 @@ const del = async (key: string): Promise<void> => {
 const clear = async (): Promise<void> => {
   const startedAt = Date.now();
   await getDriverInstance().clear();
-  SystemDebuggerBridge.emitCache('clear', 'zt:*', Date.now() - startedAt);
+  SystemTraceBridge.emitCache(
+    'clear',
+    'zt:*',
+    Date.now() - startedAt,
+    undefined,
+    undefined,
+    DEFAULT_STORE_NAME
+  );
 };
 
 /**
@@ -152,7 +182,14 @@ const has = async (key: string): Promise<boolean> => {
   const prefixedKey = autoPrefixKey(key);
   const startedAt = Date.now();
   const exists = await getDriverInstance().has(prefixedKey);
-  SystemDebuggerBridge.emitCache('has', prefixedKey, Date.now() - startedAt, exists);
+  SystemTraceBridge.emitCache(
+    'has',
+    prefixedKey,
+    Date.now() - startedAt,
+    exists,
+    undefined,
+    DEFAULT_STORE_NAME
+  );
   return exists;
 };
 
@@ -177,7 +214,14 @@ const store = (name?: string): CacheStore => {
     const prefixedKey = autoPrefixKey(key);
     const startedAt = Date.now();
     const value = await getDriverInstance(name).get<T>(prefixedKey);
-    SystemDebuggerBridge.emitCache('get', prefixedKey, Date.now() - startedAt, value !== null);
+    SystemTraceBridge.emitCache(
+      'get',
+      prefixedKey,
+      Date.now() - startedAt,
+      value !== null,
+      value,
+      String(name ?? DEFAULT_STORE_NAME)
+    );
     return value;
   };
 
@@ -185,23 +229,41 @@ const store = (name?: string): CacheStore => {
     const prefixedKey = autoPrefixKey(key);
     const startedAt = Date.now();
     await getDriverInstance(name).set(prefixedKey, value, ttl);
-    SystemDebuggerBridge.emitCache('set', prefixedKey, Date.now() - startedAt);
+    SystemTraceBridge.emitCache(
+      'set',
+      prefixedKey,
+      Date.now() - startedAt,
+      undefined,
+      value,
+      String(name ?? DEFAULT_STORE_NAME),
+      ttl
+    );
   };
 
   const delFromStore = async (key: string): Promise<void> => {
     const prefixedKey = autoPrefixKey(key);
     const startedAt = Date.now();
     await getDriverInstance(name).delete(prefixedKey);
-    SystemDebuggerBridge.emitCache('delete', prefixedKey, Date.now() - startedAt);
+    SystemTraceBridge.emitCache(
+      'delete',
+      prefixedKey,
+      Date.now() - startedAt,
+      undefined,
+      undefined,
+      String(name ?? DEFAULT_STORE_NAME)
+    );
   };
 
   const clearStore = async (): Promise<void> => {
     const startedAt = Date.now();
     await getDriverInstance(name).clear();
-    SystemDebuggerBridge.emitCache(
+    SystemTraceBridge.emitCache(
       'clear',
       `store:${String(name ?? 'default')}`,
-      Date.now() - startedAt
+      Date.now() - startedAt,
+      undefined,
+      undefined,
+      String(name ?? DEFAULT_STORE_NAME)
     );
   };
 
@@ -209,7 +271,14 @@ const store = (name?: string): CacheStore => {
     const prefixedKey = autoPrefixKey(key);
     const startedAt = Date.now();
     const exists = await getDriverInstance(name).has(prefixedKey);
-    SystemDebuggerBridge.emitCache('has', prefixedKey, Date.now() - startedAt, exists);
+    SystemTraceBridge.emitCache(
+      'has',
+      prefixedKey,
+      Date.now() - startedAt,
+      exists,
+      undefined,
+      String(name ?? DEFAULT_STORE_NAME)
+    );
     return exists;
   };
 

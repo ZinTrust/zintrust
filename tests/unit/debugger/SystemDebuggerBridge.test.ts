@@ -1,26 +1,26 @@
 import { describe, expect, it, vi } from 'vitest';
 
-describe('SystemDebuggerBridge', () => {
+describe('SystemTraceBridge', () => {
   it('returns false from preload when the optional package is unavailable', async () => {
     vi.resetModules();
-    vi.doMock('@zintrust/system-debugger', () => {
+    vi.doMock('@zintrust/trace', () => {
       throw new Error('module unavailable');
     });
 
-    const { SystemDebuggerBridge } = await import('@/debugger/SystemDebuggerBridge');
+    const { SystemTraceBridge } = await import('@/trace/SystemTraceBridge');
 
-    await expect(SystemDebuggerBridge.preload()).resolves.toBe(false);
-    expect(() => SystemDebuggerBridge.emitCache('get', 'zt:key', 5, true)).not.toThrow();
+    await expect(SystemTraceBridge.preload()).resolves.toBe(false);
+    expect(() => SystemTraceBridge.emitCache('get', 'zt:key', 5, true)).not.toThrow();
   });
 
-  it('loads the optional debugger package once and forwards watcher calls', async () => {
+  it('loads the optional trace package once and forwards watcher calls', async () => {
     vi.resetModules();
 
     let loadCount = 0;
     const cacheEmit = vi.fn();
     const eventEmit = vi.fn();
 
-    vi.doMock('@zintrust/system-debugger', () => {
+    vi.doMock('@zintrust/trace', () => {
       loadCount += 1;
 
       return {
@@ -29,15 +29,23 @@ describe('SystemDebuggerBridge', () => {
       };
     });
 
-    const { SystemDebuggerBridge } = await import('@/debugger/SystemDebuggerBridge');
+    const { SystemTraceBridge } = await import('@/trace/SystemTraceBridge');
 
-    await expect(SystemDebuggerBridge.preload()).resolves.toBe(true);
+    await expect(SystemTraceBridge.preload()).resolves.toBe(true);
 
-    SystemDebuggerBridge.emitCache('has', 'zt:users:1', 7, true);
-    SystemDebuggerBridge.emitEvent('user.created', 2, { id: 1 });
+    SystemTraceBridge.emitCache('has', 'zt:users:1', 7, true);
+    SystemTraceBridge.emitEvent('user.created', 2, { id: 1 });
 
     expect(loadCount).toBe(1);
-    expect(cacheEmit).toHaveBeenCalledWith('has', 'zt:users:1', 7, true);
+    expect(cacheEmit).toHaveBeenCalledWith(
+      'has',
+      'zt:users:1',
+      7,
+      true,
+      undefined,
+      undefined,
+      undefined
+    );
     expect(eventEmit).toHaveBeenCalledWith('user.created', 2, { id: 1 });
   });
 
@@ -47,15 +55,15 @@ describe('SystemDebuggerBridge', () => {
       throw new Error('watcher failed');
     });
 
-    vi.doMock('@zintrust/system-debugger', () => ({
+    vi.doMock('@zintrust/trace', () => ({
       CacheWatcher: {
         emit: throwingEmit,
       },
     }));
 
-    const { SystemDebuggerBridge } = await import('@/debugger/SystemDebuggerBridge');
+    const { SystemTraceBridge } = await import('@/trace/SystemTraceBridge');
 
-    await expect(SystemDebuggerBridge.preload()).resolves.toBe(true);
-    expect(() => SystemDebuggerBridge.emitCache('set', 'zt:key', 3)).not.toThrow();
+    await expect(SystemTraceBridge.preload()).resolves.toBe(true);
+    expect(() => SystemTraceBridge.emitCache('set', 'zt:key', 3)).not.toThrow();
   });
 });

@@ -88,7 +88,8 @@ function normalizeFilename(database: string | null | undefined): string {
 }
 
 function isSelectQuery(sql: string): boolean {
-  return sql.trimStart().toLowerCase().startsWith('select');
+  const normalized = sql.trimStart().toLowerCase();
+  return normalized.startsWith('select') || normalized.startsWith('pragma');
 }
 
 function requireDb(db: SqliteDatabase | null): SqliteDatabase {
