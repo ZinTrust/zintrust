@@ -394,8 +394,14 @@ async function discoverServicesInDomain(
     isServiceEnabled(serviceName, enabledServices)
   );
 
+  // Pre-filter to services that actually have config files so that the index
+  // used for default port assignment (3001 + index) stays contiguous and stable.
+  const servicesWithConfig = eligibleServiceNames.filter((serviceName) =>
+    fs.existsSync(path.join(domainPath, serviceName, 'service.config.json'))
+  );
+
   const services = await Promise.all(
-    eligibleServiceNames.map(async (serviceName, index) =>
+    servicesWithConfig.map(async (serviceName, index) =>
       tryLoadServiceConfig(state, domain, serviceName, domainPath, startIndex + index)
     )
   );

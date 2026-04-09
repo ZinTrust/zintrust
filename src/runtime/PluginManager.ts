@@ -262,18 +262,19 @@ async function runPostInstall(plugin: PluginDefinition): Promise<void> {
     const allow = getAllowPostInstallEnv() === '1';
     if (allow) {
       Logger.info(`Running post-install command: ${plugin.postInstall.command}...`);
+      let exit: number;
       try {
-        const exit = await SpawnUtil.spawnAndWait({
+        exit = await SpawnUtil.spawnAndWait({
           command: plugin.postInstall.command,
           args: [],
           cwd: projectRoot,
           shell: true,
         });
-        if (exit !== 0) {
-          ErrorFactory.createCliError('Post-install command failed', { exit });
-        }
       } catch (error: unknown) {
-        ErrorFactory.createCliError('Post-install command failed', { error });
+        throw ErrorFactory.createCliError('Post-install command failed', { error });
+      }
+      if (exit !== 0) {
+        throw ErrorFactory.createCliError('Post-install command failed', { exit });
       }
     } else {
       Logger.info(
