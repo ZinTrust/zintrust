@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/expose",
-  "version": "0.4.85",
+  "version": "0.4.86",
   "description": "ZinTrust local tunnel exposure package",
   "type": "module",
   "main": "dist/index.js",
