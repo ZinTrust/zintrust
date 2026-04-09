@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/socket",
-  "version": "0.4.87",
+  "version": "0.4.88",
   "description": "Unified socket runtime for ZinTrust.",
   "private": false,
   "type": "module",
@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.4.86"
+    "@zintrust/core": "^0.4.87"
   },
   "publishConfig": {
     "access": "public"
