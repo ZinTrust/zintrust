@@ -22,6 +22,7 @@
 import { TraceConfig } from './config';
 import { TraceContext } from './context';
 import { TraceStorage } from './storage';
+import { TraceContentBudget } from './storage/TraceContentBudget';
 import { TraceContentRedaction } from './storage/TraceContentRedaction';
 import { TraceEntryFiltering } from './storage/TraceEntryFiltering';
 import { TraceWriteDiagnostics } from './storage/TraceWriteDiagnostics';
@@ -379,9 +380,11 @@ if (!traceAlreadyInitialized && Env) {
     await assertTraceStorageReady(core, storageDb, resolvedConnectionName);
 
     const storage = TraceWriteDiagnostics.wrapStorage(
-      TraceContentRedaction.wrapStorage(
-        TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(storageDb), config),
-        config.redaction
+      TraceContentBudget.wrapStorage(
+        TraceContentRedaction.wrapStorage(
+          TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(storageDb), config),
+          config.redaction
+        )
       ),
       {
         connectionName: resolvedConnectionName,

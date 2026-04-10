@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
   useDatabase: vi.fn(),
   wrapDiagnostics: vi.fn((storage: unknown) => storage),
   wrapFiltering: vi.fn((storage: unknown) => storage),
+  wrapBudget: vi.fn((storage: unknown) => storage),
   wrapRedaction: vi.fn((storage: unknown) => storage),
 }));
 
@@ -64,6 +65,12 @@ vi.mock('../../src/storage/TraceEntryFiltering', () => ({
 vi.mock('../../src/storage/TraceContentRedaction', () => ({
   TraceContentRedaction: {
     wrapStorage: state.wrapRedaction,
+  },
+}));
+
+vi.mock('../../src/storage/TraceContentBudget', () => ({
+  TraceContentBudget: {
+    wrapStorage: state.wrapBudget,
   },
 }));
 
