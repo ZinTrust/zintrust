@@ -85,4 +85,30 @@ describe('LogWatcher', () => {
       })
     );
   });
+
+  it('skips trace storage query execution logs to avoid recursive trace writes', async () => {
+    vi.resetModules();
+
+    let sink:
+      | ((level: string, message: string, context?: Record<string, unknown>) => void)
+      | undefined;
+    addSink.mockImplementation((callback) => {
+      sink = callback;
+      return () => undefined;
+    });
+
+    const { LogWatcher } = await import('../../src/watchers/LogWatcher');
+    const storage = createStorage();
+    const config = { watchers: { log: true }, logMinLevel: 'debug', ignoreRoutes: [] } as any;
+
+    LogWatcher.register({ storage, config } as any);
+
+    sink?.('debug', 'SQLite query executed', {
+      durationMs: 0.12,
+      sql: 'INSERT INTO zin_trace_entries_tags (entry_uuid, tag) VALUES (?, ?)',
+    });
+    await flushAsync();
+
+    expect(storage.writeEntry).not.toHaveBeenCalled();
+  });
 });

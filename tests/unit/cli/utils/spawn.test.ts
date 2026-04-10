@@ -51,6 +51,29 @@ describe('SpawnUtil', () => {
       expect.objectContaining({
         stdio: 'inherit',
         env: { SAFE: 'env' },
+        shell: false,
+      })
+    );
+  });
+
+  it('supports shell commands without local bin resolution', async () => {
+    mockChild.once.mockImplementation((event, cb) => {
+      if (event === 'close') {
+        cb(0, null);
+      }
+    });
+
+    await SpawnUtil.spawnAndWait({
+      command: 'echo hello',
+      args: [],
+      shell: true,
+    });
+
+    expect(spawn).toHaveBeenCalledWith(
+      'echo hello',
+      [],
+      expect.objectContaining({
+        shell: true,
       })
     );
   });

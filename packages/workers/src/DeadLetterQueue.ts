@@ -5,7 +5,7 @@
  */
 
 import { ErrorFactory, Logger, createRedisConnection, type RedisConfig } from '@zintrust/core';
-import { keyPrefix } from './config/workerConfig';
+import { keyPrefixFor } from './config/workerConfig';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
 
@@ -74,11 +74,11 @@ export type DLQStats = {
 
 // Redis key prefixes - using workers package prefix system
 const getDLQPrefix = (): string => {
-  return keyPrefix() + ':dlq:';
+  return keyPrefixFor('dlq');
 };
 
 const getAuditPrefix = (): string => {
-  return keyPrefix() + ':dlq:audit:';
+  return keyPrefixFor('dlq', 'audit');
 };
 
 // Internal state

@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cache-redis",
-  "version": "0.4.86",
+  "version": "0.4.92",
   "description": "Redis cache driver for ZinTrust.",
   "private": false,
   "type": "module",
@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.4.84"
+    "@zintrust/core": "^0.4.91"
   },
   "publishConfig": {
     "access": "public"

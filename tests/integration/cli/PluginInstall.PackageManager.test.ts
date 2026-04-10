@@ -7,10 +7,7 @@ import { CLI } from '@cli/CLI';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { PluginRegistry } from '@runtime/PluginRegistry';
 
-// Mock execSync to avoid actually running npm in CI
-const execMock = vi.hoisted(() => ({ execSync: vi.fn() }));
 vi.mock('@node-singletons/child-process', () => ({
-  execSync: execMock.execSync,
   execFileSync: vi.fn(),
   spawn: vi.fn(),
 }));
@@ -80,7 +77,7 @@ describe('CLI → Plugin install with package manager', () => {
     Reflect.deleteProperty(PluginRegistry, id);
   });
 
-  it('falls back to npm and uses execSync when --package-manager npm is provided', async () => {
+  it('falls back to npm and uses SpawnUtil when --package-manager npm is provided', async () => {
     const id = 'pm:cli:test2';
     PluginRegistry[id] = {
       name: 'PMCLITest2',
@@ -92,13 +89,16 @@ describe('CLI → Plugin install with package manager', () => {
       templates: [],
     } as any;
 
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
     const cli = CLI.create();
     await cli.run(['plugin', 'install', id, '--package-manager', 'npm']);
 
-    expect(execMock.execSync).toHaveBeenCalled();
-    expect(vi.mocked(execMock.execSync).mock.calls[0][0]).toContain('npm install x');
-    const execOpts = vi.mocked(execMock.execSync).mock.calls[0][1] as Record<string, unknown>;
-    expect(String(execOpts['cwd'])).toContain('plugin-cli-pm-');
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith({
+      command: 'npm',
+      args: ['install', 'x'],
+      cwd: expect.stringContaining('plugin-cli-pm-'),
+    });
 
     Reflect.deleteProperty(PluginRegistry, id);
   });

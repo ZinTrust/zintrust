@@ -65,7 +65,10 @@ describe('SecurityMiddleware', () => {
     });
 
     (req.getMethod as any).mockReturnValue('OPTIONS');
-    (req.getHeader as any).mockReturnValue('https://example.com');
+    (req.getHeader as any).mockImplementation((name: string) => {
+      if (name === 'origin') return 'https://example.com';
+      return undefined;
+    });
 
     await middleware(req, res, next);
 
@@ -142,5 +145,65 @@ describe('SecurityMiddleware', () => {
 
     vi.doUnmock('@config/security');
     vi.resetModules();
+  });
+
+  it('merges requested preflight headers so electron clients are not blocked', async () => {
+    const middleware = SecurityMiddleware.create({
+      cors: {
+        origin: ['http://localhost:8091'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+      },
+    });
+
+    (req.getMethod as any).mockReturnValue('OPTIONS');
+    (req.getHeader as any).mockImplementation((name: string) => {
+      if (name === 'origin') return 'http://localhost:8091';
+      if (name === 'access-control-request-headers') {
+        return 'authorization, content-type, x-requested-with, z-client';
+      }
+      return undefined;
+    });
+
+    await middleware(req, res, next);
+
+    expect(headers['access-control-allow-origin']).toBe('http://localhost:8091');
+    expect(headers['access-control-allow-headers']).toContain('Content-Type');
+    expect(headers['access-control-allow-headers']).toContain('Authorization');
+    expect(headers['access-control-allow-headers']).toContain('x-requested-with');
+    expect(headers['access-control-allow-headers']).toContain('z-client');
+    expect(res.setStatus).toHaveBeenCalledWith(204);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('treats wildcard cors config as allow-all for preflight requests', async () => {
+    const middleware = SecurityMiddleware.create({
+      cors: {
+        origin: '*',
+        methods: ['*'],
+        allowedHeaders: ['*'],
+        exposedHeaders: ['*'],
+        credentials: true,
+      },
+    });
+
+    (req.getMethod as any).mockReturnValue('OPTIONS');
+    (req.getHeader as any).mockImplementation((name: string) => {
+      if (name === 'origin') return 'http://localhost:8091';
+      if (name === 'access-control-request-method') return 'POST';
+      if (name === 'access-control-request-headers') {
+        return 'authorization, content-type, x-requested-with, z-client';
+      }
+      return undefined;
+    });
+
+    await middleware(req, res, next);
+
+    expect(headers['access-control-allow-origin']).toBe('http://localhost:8091');
+    expect(headers['access-control-allow-methods']).toBe('POST');
+    expect(headers['access-control-allow-headers']).toBe(
+      'authorization, content-type, x-requested-with, z-client'
+    );
+    expect(headers['access-control-expose-headers']).toBe('*');
+    expect(headers['access-control-allow-credentials']).toBe('true');
   });
 });

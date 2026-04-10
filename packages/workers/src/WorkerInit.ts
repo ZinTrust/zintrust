@@ -13,7 +13,7 @@ import { ResourceMonitor } from './ResourceMonitor';
 import type { WorkerPersistenceConfig } from './WorkerFactory';
 import { WorkerFactory } from './WorkerFactory';
 import { WorkerShutdown } from './WorkerShutdown';
-import { keyPrefix } from './config/workerConfig';
+import { resolveWorkerKeyPrefix } from './config/workerConfig';
 
 // ============================================================================
 // Types
@@ -109,7 +109,7 @@ function initializeResourceMonitoring(
 
 const getPersistenceOverride = (driver: string): WorkerPersistenceConfig => {
   if (driver === 'redis') {
-    return { driver: 'redis', keyPrefix: keyPrefix() };
+    return { driver: 'redis', keyPrefix: resolveWorkerKeyPrefix() };
   }
 
   if (driver === 'memory') {

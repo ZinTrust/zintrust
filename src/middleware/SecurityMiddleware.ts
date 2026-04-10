@@ -22,6 +22,7 @@ export interface SecurityOptions {
     origin?: string | string[];
     methods?: string[];
     allowedHeaders?: string[];
+    exposedHeaders?: string[];
     credentials?: boolean;
     maxAge?: number;
   };
@@ -38,6 +39,35 @@ const normalizeCorsList = (values: readonly string[] | undefined, fallback: stri
   return normalized.length > 0 ? normalized : fallback;
 };
 
+const parseHeaderList = (value: string | undefined): string[] => {
+  return String(value ?? '')
+    .split(',')
+    .map((element) => element.trim())
+    .filter((element) => element !== '');
+};
+
+const hasWildcard = (values: readonly string[] | string | undefined): boolean => {
+  if (typeof values === 'string') return values.trim() === '*';
+  return (values ?? []).some((value) => value.trim() === '*');
+};
+
+const mergeCorsHeaders = (
+  configured: string[] | undefined,
+  requested: string[] | undefined
+): string[] => {
+  const merged = new Map<string, string>();
+
+  for (const header of [...(configured ?? []), ...(requested ?? [])]) {
+    const normalized = header.toLowerCase();
+    if (normalized === '') continue;
+    if (!merged.has(normalized)) {
+      merged.set(normalized, header);
+    }
+  }
+
+  return Array.from(merged.values());
+};
+
 const getSecurityCorsConfig = ():
   | NonNullable<(typeof securityConfig)['cors']>
   | Record<string, never> => {
@@ -48,6 +78,92 @@ const getSecurityCorsConfig = ():
 const resolveCorsOrigin = (): string | string[] => {
   const origins = normalizeCorsList(getSecurityCorsConfig().origins, ['*']);
   return origins.includes('*') ? '*' : origins;
+};
+
+const resolveAllowedOrigin = (
+  configuredOrigin: string | string[] | undefined,
+  requestOrigin: string | undefined,
+  credentials: boolean | undefined
+): string | undefined => {
+  if (configuredOrigin === undefined) return undefined;
+
+  if (typeof configuredOrigin === 'string') {
+    if (configuredOrigin.trim() === '*') {
+      return credentials === true && requestOrigin !== undefined ? requestOrigin : '*';
+    }
+    return configuredOrigin;
+  }
+
+  if (hasWildcard(configuredOrigin)) {
+    return credentials === true && requestOrigin !== undefined ? requestOrigin : '*';
+  }
+
+  if (requestOrigin === undefined || !configuredOrigin.includes(requestOrigin)) {
+    return undefined;
+  }
+
+  return requestOrigin;
+};
+
+const resolveAllowedMethods = (
+  configuredMethods: string[] | undefined,
+  requestMethod: string | undefined
+): string[] => {
+  if (!hasWildcard(configuredMethods)) return configuredMethods ?? [];
+  if (requestMethod === undefined || requestMethod.trim() === '') return ['*'];
+  return [requestMethod.trim()];
+};
+
+const resolveAllowedHeaders = (
+  configuredHeaders: string[] | undefined,
+  requestedHeaders: string[]
+): string[] => {
+  if (hasWildcard(configuredHeaders)) {
+    return requestedHeaders.length > 0 ? requestedHeaders : ['*'];
+  }
+
+  return mergeCorsHeaders(configuredHeaders, requestedHeaders);
+};
+
+const resolveExposedHeaders = (configuredHeaders: string[] | undefined): string[] => {
+  if (!hasWildcard(configuredHeaders)) return configuredHeaders ?? [];
+  return ['*'];
+};
+
+const applyCorsHeaders = (
+  res: IResponse,
+  options: {
+    origin?: string;
+    methods: string[];
+    allowedHeaders: string[];
+    exposedHeaders: string[];
+    credentials?: boolean;
+    maxAge?: number;
+  }
+): void => {
+  if (options.origin !== undefined) {
+    res.setHeader('Access-Control-Allow-Origin', options.origin);
+  }
+
+  if (options.methods.length > 0) {
+    res.setHeader('Access-Control-Allow-Methods', options.methods.join(', '));
+  }
+
+  if (options.allowedHeaders.length > 0) {
+    res.setHeader('Access-Control-Allow-Headers', options.allowedHeaders.join(', '));
+  }
+
+  if (options.exposedHeaders.length > 0) {
+    res.setHeader('Access-Control-Expose-Headers', options.exposedHeaders.join(', '));
+  }
+
+  if (options.credentials !== undefined) {
+    res.setHeader('Access-Control-Allow-Credentials', options.credentials ? 'true' : 'false');
+  }
+
+  if (options.maxAge !== undefined) {
+    res.setHeader('Access-Control-Max-Age', options.maxAge.toString());
+  }
 };
 
 const DEFAULT_OPTIONS: SecurityOptions = {
@@ -75,6 +191,7 @@ const DEFAULT_OPTIONS: SecurityOptions = {
       'X-Requested-With',
       'X-CSRF-Token',
     ]),
+    exposedHeaders: normalizeCorsList(getSecurityCorsConfig().exposedHeaders, []),
     credentials: getSecurityCorsConfig().credentials,
     maxAge: getSecurityCorsConfig().maxAge,
   },
@@ -123,40 +240,29 @@ function applyCsp(res: IResponse, csp?: SecurityOptions['csp']): void {
 function applyCors(req: IRequest, res: IResponse, cors?: SecurityOptions['cors']): boolean {
   if (!cors) return false;
 
+  const method = req.getMethod();
   const originHeader = req.getHeader('origin');
   const origin = typeof originHeader === 'string' ? originHeader : undefined;
+  const requestedMethodHeader =
+    method === 'OPTIONS' ? req.getHeader('access-control-request-method') : undefined;
+  const requestedMethod =
+    typeof requestedMethodHeader === 'string' ? requestedMethodHeader : undefined;
+  const requestedHeadersHeader =
+    method === 'OPTIONS' ? req.getHeader('access-control-request-headers') : undefined;
+  const requestedHeaders =
+    typeof requestedHeadersHeader === 'string' ? parseHeaderList(requestedHeadersHeader) : [];
 
-  let allowedOrigin = cors.origin;
-  if (Array.isArray(cors.origin)) {
-    if (origin === undefined || !cors.origin.includes(origin)) {
-      allowedOrigin = undefined;
-    } else {
-      allowedOrigin = origin;
-    }
-  }
-
-  if (allowedOrigin !== null && allowedOrigin !== undefined) {
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin ?? '*');
-  }
-
-  if (cors.methods) {
-    res.setHeader('Access-Control-Allow-Methods', cors.methods.join(', '));
-  }
-
-  if (cors.allowedHeaders) {
-    res.setHeader('Access-Control-Allow-Headers', cors.allowedHeaders.join(', '));
-  }
-
-  if (cors.credentials !== undefined) {
-    res.setHeader('Access-Control-Allow-Credentials', cors.credentials ? 'true' : 'false');
-  }
-
-  if (cors.maxAge !== undefined) {
-    res.setHeader('Access-Control-Max-Age', cors.maxAge.toString());
-  }
+  applyCorsHeaders(res, {
+    origin: resolveAllowedOrigin(cors.origin, origin, cors.credentials),
+    methods: resolveAllowedMethods(cors.methods, requestedMethod),
+    allowedHeaders: resolveAllowedHeaders(cors.allowedHeaders, requestedHeaders),
+    exposedHeaders: resolveExposedHeaders(cors.exposedHeaders),
+    credentials: cors.credentials,
+    maxAge: cors.maxAge,
+  });
 
   // Handle Preflight
-  if (req.getMethod() === 'OPTIONS') {
+  if (method === 'OPTIONS') {
     res.setStatus(204);
     res.send('');
     return true;

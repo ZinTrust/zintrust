@@ -6,10 +6,7 @@ import { PluginManager } from '@runtime/PluginManager';
 import { PluginRegistry } from '@runtime/PluginRegistry';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-// Mock spawn util and execSync
-const execMock = vi.hoisted(() => ({ execSync: vi.fn() }));
 vi.mock('@node-singletons/child-process', () => ({
-  execSync: execMock.execSync,
   execFileSync: vi.fn(),
   spawn: vi.fn(),
 }));
@@ -95,11 +92,11 @@ describe('PluginManager package manager support', () => {
 
     await PluginManager.install(id, { packageManager: 'npm' });
 
-    // npm uses execSync (legacy behavior) - verify execSync was invoked
-    expect(execMock.execSync).toHaveBeenCalled();
-    expect(execMock.execSync).toHaveBeenCalledWith('npm install x', expect.any(Object));
-    const execOpts = vi.mocked(execMock.execSync).mock.calls[0][1] as Record<string, unknown>;
-    expect(String(execOpts['cwd'])).toContain('plugin-pm-');
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith({
+      command: 'npm',
+      args: ['install', 'x'],
+      cwd: expect.stringContaining('plugin-pm-'),
+    });
 
     Reflect.deleteProperty(PluginRegistry, id);
   });

@@ -46,7 +46,7 @@ import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerMetrics } from './WorkerMetrics';
 import { WorkerRegistry, type WorkerInstance as RegistryWorkerInstance } from './WorkerRegistry';
 import { WorkerVersioning } from './WorkerVersioning';
-import { keyPrefix } from './config/workerConfig';
+import { resolveWorkerKeyPrefix } from './config/workerConfig';
 import { recordQueueMonitorJob } from './queueMonitorHistory';
 import {
   DbWorkerStore,
@@ -2166,7 +2166,7 @@ const normalizeExplicitPersistence = (
     return {
       driver: 'redis',
       redis: persistence.redis,
-      keyPrefix: keyPrefix(),
+      keyPrefix: resolveWorkerKeyPrefix(persistence.keyPrefix),
     };
   }
 
@@ -2210,7 +2210,7 @@ const resolvePersistenceConfig = (
         env: true,
         db: persistenceDbOverride ? 'WORKER_PERSISTENCE_REDIS_DB' : 'REDIS_QUEUE_DB',
       },
-      keyPrefix: keyPrefix(),
+      keyPrefix: resolveWorkerKeyPrefix(),
     };
   }
 
@@ -2270,7 +2270,7 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
       'Worker persistence requires redis config (persistence.redis or infrastructure.redis)',
       'infrastructure.persistence.redis'
     );
-    const key_prefix = persistence.keyPrefix ?? keyPrefix();
+    const key_prefix = resolveWorkerKeyPrefix(persistence.keyPrefix);
     logRedisPersistenceConfig(redisConfig, key_prefix, 'resolveWorkerStore');
     const client = createRedisConnection(redisConfig, 3, { subsystem: 'worker-persistence' });
     next = RedisWorkerStore.create(client, key_prefix);
@@ -2324,7 +2324,7 @@ const createWorkerStore = async (persistence: WorkerPersistenceConfig): Promise<
       'Worker persistence requires redis config (persistence.redis or REDIS_* env values)',
       'persistence.redis'
     );
-    const key_prefix = persistence.keyPrefix ?? keyPrefix();
+    const key_prefix = resolveWorkerKeyPrefix(persistence.keyPrefix);
     logRedisPersistenceConfig(redisConfig, key_prefix, 'createWorkerStore');
     const client = createRedisConnection(redisConfig, 3, { subsystem: 'worker-persistence' });
     return RedisWorkerStore.create(client, key_prefix);

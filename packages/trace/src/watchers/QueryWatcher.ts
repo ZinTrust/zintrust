@@ -24,7 +24,11 @@ const bindingsInterpolated = (sql: string, params: unknown[]): string => {
 
 const isTraceStorageQuery = (sql: string): boolean => {
   const normalized = sql.toLowerCase();
-  return normalized.includes('zin_trace_entries') || normalized.includes('zin_trace_monitoring');
+  return (
+    normalized.includes('zin_trace_entries') ||
+    normalized.includes('zin_trace_entries_tags') ||
+    normalized.includes('zin_trace_monitoring')
+  );
 };
 
 const emit = (query: string, params: unknown[], duration: number, connection = 'default'): void => {

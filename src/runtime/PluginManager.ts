@@ -10,7 +10,6 @@ import { readEnvString } from '@common/ExternalServiceUtils';
 import { esmDirname, resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { execSync } from '@node-singletons/child-process';
 import { existsSync, fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import type { PluginDefinition } from '@runtime/PluginRegistry';
@@ -121,22 +120,6 @@ async function npmInstall(
 
   const projectRoot = options.projectRoot ?? resolveProjectRoot();
   const pm = options.packageManager ?? resolvePackageManager();
-
-  // Legacy behavior: npm uses execSync in this framework.
-  // This keeps behavior predictable for CI/test environments and matches existing unit tests.
-  if (pm === 'npm') {
-    const cmd = options.dev
-      ? `npm install -D ${packages.join(' ')}`
-      : `npm install ${packages.join(' ')}`;
-
-    try {
-      execSync(cmd, { cwd: projectRoot, stdio: 'inherit' });
-      return;
-    } catch (error: unknown) {
-      ErrorFactory.createCliError(`Failed to install ${options.label}`, { error });
-      throw error;
-    }
-  }
 
   let cmd: string;
   let args: string[] = [];
@@ -268,7 +251,7 @@ async function ensurePluginAutoImports(plugin: PluginDefinition): Promise<void> 
   await fs.writeFile(pluginFile, next, 'utf-8');
 }
 
-function runPostInstall(plugin: PluginDefinition): void {
+async function runPostInstall(plugin: PluginDefinition): Promise<void> {
   if (!plugin.postInstall) return;
 
   const projectRoot = resolveProjectRoot();
@@ -279,13 +262,19 @@ function runPostInstall(plugin: PluginDefinition): void {
     const allow = getAllowPostInstallEnv() === '1';
     if (allow) {
       Logger.info(`Running post-install command: ${plugin.postInstall.command}...`);
+      let exit: number;
       try {
-        execSync(plugin.postInstall.command, {
-          stdio: 'inherit',
+        exit = await SpawnUtil.spawnAndWait({
+          command: plugin.postInstall.command,
+          args: [],
           cwd: projectRoot,
+          shell: true,
         });
       } catch (error: unknown) {
-        ErrorFactory.createCliError('Post-install command failed', { error });
+        throw ErrorFactory.createCliError('Post-install command failed', { error });
+      }
+      if (exit !== 0) {
+        throw ErrorFactory.createCliError('Post-install command failed', { exit });
       }
     } else {
       Logger.info(
@@ -411,8 +400,8 @@ export const PluginManager = Object.freeze({
     // 2b. Ensure plugin-side effects are imported by the project
     await ensurePluginAutoImports(plugin);
 
-    // 3. Post-Install (still executed via execSync - opt-in)
-    runPostInstall(plugin);
+    // 3. Post-Install (opt-in, async to avoid blocking the event loop)
+    await runPostInstall(plugin);
 
     Logger.info(`✓ Plugin ${plugin.name} installed successfully`);
   },

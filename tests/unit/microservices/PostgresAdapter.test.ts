@@ -367,6 +367,12 @@ describe('PostgresAdapter', () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(mod.getAllInstances()).toEqual([]);
 
+    const cached = mod.getInstance(cfg, 'release-me');
+    const releaseSpy = vi.spyOn(cached, 'disconnectAll');
+    await mod.releaseInstance('release-me');
+    expect(releaseSpy).toHaveBeenCalledTimes(1);
+    expect(mod.getAllInstances()).toEqual([]);
+
     const adapter = mod.PostgresAdapter.create(cfg);
     await expect(adapter.disconnect()).resolves.toBeUndefined();
     await expect(adapter.disconnectAll()).resolves.toBeUndefined();

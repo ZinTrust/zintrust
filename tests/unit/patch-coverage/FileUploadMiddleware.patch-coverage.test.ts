@@ -48,11 +48,13 @@ describe('patch coverage: FileUploadMiddleware', () => {
     } as unknown as IRequest;
     const res = makeRes();
 
-    await fileUploadMiddleware(req, res, next);
-    expect(res.getStatus()).toBe(415);
-    expect(res._json).toEqual({
-      error: 'multipart/form-data not supported. Install @zintrust/storage to enable uploads.',
+    await expect(fileUploadMiddleware(req, res, next)).rejects.toMatchObject({
+      name: 'ConfigError',
+      code: 'CONFIG_ERROR',
+      message: 'Multipart upload parser is not configured.',
     });
+    expect(res.getStatus()).toBe(200);
+    expect(res._json).toBeUndefined();
     expect(next).not.toHaveBeenCalled();
   });
 

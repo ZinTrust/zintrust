@@ -57,6 +57,13 @@ export interface IPostgresAdapter {
   healthCheck(): Promise<boolean>;
 }
 
+export interface IPostgresAdapterManager {
+  getInstance(config: PostgresPoolConfig, key?: string): IPostgresAdapter;
+  getAllInstances(): IPostgresAdapter[];
+  releaseInstance(key: string): Promise<void>;
+  disconnectAll(): Promise<void>;
+}
+
 /**
  * PostgreSQL Adapter with Connection Pooling
  * Supports both shared (multi-service) and isolated (per-service) database modes
@@ -459,6 +466,19 @@ export function getAllInstances(): IPostgresAdapter[] {
 }
 
 /**
+ * Disconnect and release a single cached adapter instance.
+ */
+export async function releaseInstance(key: string): Promise<void> {
+  const adapter = instances.get(key);
+  if (adapter === undefined) {
+    return;
+  }
+
+  await adapter.disconnectAll();
+  instances.delete(key);
+}
+
+/**
  * Disconnect all instances
  */
 export async function disconnectAll(): Promise<void> {
@@ -469,7 +489,8 @@ export async function disconnectAll(): Promise<void> {
 export const PostgresAdapterManager = Object.freeze({
   getInstance,
   getAllInstances,
+  releaseInstance,
   disconnectAll,
-});
+}) as IPostgresAdapterManager;
 
 export default PostgresAdapter;

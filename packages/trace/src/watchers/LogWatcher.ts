@@ -21,8 +21,50 @@ const TRACE_INFRASTRUCTURE_LOG_MESSAGES = new Set<string>([
   '[trace] Trace storage write degraded',
 ]);
 
-const shouldSkipTraceInfrastructureLog = (message: string): boolean => {
-  return TRACE_INFRASTRUCTURE_LOG_MESSAGES.has(message.trim());
+const TRACE_STORAGE_TABLE_NAMES = [
+  'zin_trace_entries',
+  'zin_trace_entries_tags',
+  'zin_trace_monitoring',
+];
+
+const isTraceStorageQuery = (sql: string): boolean => {
+  const normalized = sql.toLowerCase();
+  return TRACE_STORAGE_TABLE_NAMES.some((tableName) => normalized.includes(tableName));
+};
+
+const extractSqlFromLog = (
+  message: string,
+  context?: Record<string, unknown>
+): string | undefined => {
+  const contextSql = context?.['sql'];
+  if (typeof contextSql === 'string') return contextSql;
+
+  const trimmed = message.trim();
+  const rawPrefix = 'Raw SQL Query executed:';
+  if (trimmed.startsWith(rawPrefix)) {
+    const sql = trimmed.slice(rawPrefix.length).trim();
+    return sql === '' ? undefined : sql;
+  }
+
+  return undefined;
+};
+
+const isTraceStorageQueryLog = (message: string, context?: Record<string, unknown>): boolean => {
+  const normalizedMessage = message.trim().toLowerCase();
+  if (!normalizedMessage.includes('query executed')) return false;
+
+  const sql = extractSqlFromLog(message, context);
+  return typeof sql === 'string' && isTraceStorageQuery(sql);
+};
+
+const shouldSkipTraceInfrastructureLog = (
+  message: string,
+  context?: Record<string, unknown>
+): boolean => {
+  return (
+    TRACE_INFRASTRUCTURE_LOG_MESSAGES.has(message.trim()) ||
+    isTraceStorageQueryLog(message, context)
+  );
 };
 
 export const LogWatcher: ITraceWatcher = Object.freeze({
@@ -41,7 +83,7 @@ export const LogWatcher: ITraceWatcher = Object.freeze({
       (level: string, message: string, context?: Record<string, unknown>) => {
         if ((LEVEL_PRIORITY[level] ?? 0) < minPriority) return;
         if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes)) return;
-        if (shouldSkipTraceInfrastructureLog(message)) return;
+        if (shouldSkipTraceInfrastructureLog(message, context)) return;
 
         const content: LogContent = {
           level,

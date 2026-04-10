@@ -576,7 +576,8 @@ const initializeSystemTrace = async (router: IRouter): Promise<void> => {
 
     Logger.info(`System Trace dashboard auto-mounted at ${basePath}.`);
   } catch (error) {
-    Logger.warn('Failed to initialize System Trace runtime', error as Error);
+    Logger.error('Failed to initialize System Trace runtime', error as Error);
+    throw error;
   }
 };
 
