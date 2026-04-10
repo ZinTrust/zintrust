@@ -92,6 +92,21 @@ function isSelectQuery(sql: string): boolean {
   return normalized.startsWith('select') || normalized.startsWith('pragma');
 }
 
+const TRACE_STORAGE_TABLE_NAMES = [
+  'zin_trace_entries',
+  'zin_trace_entries_tags',
+  'zin_trace_monitoring',
+];
+
+function isTraceStorageQuery(sql: string): boolean {
+  const normalized = sql.toLowerCase();
+  return TRACE_STORAGE_TABLE_NAMES.some((tableName) => normalized.includes(tableName));
+}
+
+function shouldLogQuery(sql: string): boolean {
+  return databaseConfig.logging.enabled && !isTraceStorageQuery(sql);
+}
+
 function requireDb(db: SqliteDatabase | null): SqliteDatabase {
   if (db === null) throw ErrorFactory.createConnectionError('Database not connected');
   return db;
@@ -107,14 +122,14 @@ function executeQuery(
   const stmt = db.prepare(sql);
   if (isSelectQuery(sql)) {
     const rows = stmt.all(parameters) as Record<string, unknown>[];
-    if (databaseConfig.logging.enabled) {
+    if (shouldLogQuery(sql)) {
       Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
     }
     return { rows, rowCount: rows.length };
   }
 
   const info = stmt.run(parameters);
-  if (databaseConfig.logging.enabled) {
+  if (shouldLogQuery(sql)) {
     Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
   }
   return { rows: [], rowCount: info.changes, lastInsertId: info.lastInsertRowid };
@@ -191,7 +206,9 @@ async function rawQuerySQLite<T>(
 
   const currentDb = requireDb(state.db);
 
-  Logger.warn(`Raw SQL Query executed: ${sql}`);
+  if (!isTraceStorageQuery(sql)) {
+    Logger.warn(`Raw SQL Query executed: ${sql}`);
+  }
 
   try {
     return executeRawQuery<T>(currentDb, sql, parameters);

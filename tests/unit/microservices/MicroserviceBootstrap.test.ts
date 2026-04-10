@@ -85,4 +85,56 @@ describe('MicroserviceBootstrap', () => {
     const services = await bootstrap.discoverServices();
     expect(services).toEqual([]);
   });
+
+  it('should keep default ports contiguous when some enabled services lack configs', async () => {
+    const bootstrap = MicroserviceBootstrap.getInstance();
+    bootstrap.setServicesDir(mockServicesDir);
+
+    vi.mocked(fs.existsSync).mockImplementation((targetPath: any) => {
+      if (targetPath === mockServicesDir) return true;
+
+      return [
+        path.join(mockServicesDir, 'domain1', 'service1', 'service.config.json'),
+        path.join(mockServicesDir, 'domain1', 'service3', 'service.config.json'),
+      ].includes(targetPath);
+    });
+
+    vi.mocked(fsPromises.readdir).mockImplementation(((dir: any) => {
+      if (dir === mockServicesDir) {
+        return Promise.resolve([{ isDirectory: () => true, name: 'domain1' }]);
+      }
+
+      if (dir === path.join(mockServicesDir, 'domain1')) {
+        return Promise.resolve([
+          { isDirectory: () => true, name: 'service1' },
+          { isDirectory: () => true, name: 'service2' },
+          { isDirectory: () => true, name: 'service3' },
+        ]);
+      }
+
+      return Promise.resolve([]);
+    }) as any);
+
+    vi.mocked(fsPromises.readFile).mockImplementation(async (filePath: any) => {
+      if (filePath === path.join(mockServicesDir, 'domain1', 'service1', 'service.config.json')) {
+        return JSON.stringify({ version: '1.0.0' });
+      }
+
+      if (filePath === path.join(mockServicesDir, 'domain1', 'service3', 'service.config.json')) {
+        return JSON.stringify({ version: '1.0.0' });
+      }
+
+      throw new Error(`Unexpected read: ${String(filePath)}`);
+    });
+
+    const services = await bootstrap.discoverServices();
+
+    expect(services).toHaveLength(2);
+    expect(services.map((service) => service.name)).toEqual(['service1', 'service3']);
+    expect(services.map((service) => service.port)).toEqual([3001, 3002]);
+    expect(fsPromises.readFile).not.toHaveBeenCalledWith(
+      path.join(mockServicesDir, 'domain1', 'service2', 'service.config.json'),
+      'utf-8'
+    );
+  });
 });
