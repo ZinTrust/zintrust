@@ -19,9 +19,11 @@ describe('patch coverage: Model soft deletes + query wrappers', () => {
   });
 
   afterEach(() => {
-    delete (globalThis as typeof globalThis & {
-      __zintrust_trace_model_emit__?: ReturnType<typeof vi.fn>;
-    }).__zintrust_trace_model_emit__;
+    delete (
+      globalThis as typeof globalThis & {
+        __zintrust_trace_model_emit__?: ReturnType<typeof vi.fn>;
+      }
+    ).__zintrust_trace_model_emit__;
   });
 
   it('restore() and isDeleted() behave for soft delete models', async () => {
@@ -65,9 +67,11 @@ describe('patch coverage: Model soft deletes + query wrappers', () => {
 
   it('emits traced model changes on update save', async () => {
     const emit = vi.fn();
-    (globalThis as typeof globalThis & {
-      __zintrust_trace_model_emit__?: typeof emit;
-    }).__zintrust_trace_model_emit__ = emit;
+    (
+      globalThis as typeof globalThis & {
+        __zintrust_trace_model_emit__?: typeof emit;
+      }
+    ).__zintrust_trace_model_emit__ = emit;
     await useDatabase().query(
       'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)',
       []
@@ -93,9 +97,11 @@ describe('patch coverage: Model soft deletes + query wrappers', () => {
 
   it('emits traced model delete events without change payloads on forceDelete', async () => {
     const emit = vi.fn();
-    (globalThis as typeof globalThis & {
-      __zintrust_trace_model_emit__?: typeof emit;
-    }).__zintrust_trace_model_emit__ = emit;
+    (
+      globalThis as typeof globalThis & {
+        __zintrust_trace_model_emit__?: typeof emit;
+      }
+    ).__zintrust_trace_model_emit__ = emit;
 
     const m = Model.create(config, { id: 7 });
     m.setExists(true);

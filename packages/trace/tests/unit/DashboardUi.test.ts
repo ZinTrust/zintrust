@@ -17,6 +17,7 @@ describe('buildDashboardHtml', () => {
     const html = buildDashboardHtml('/trace', 'ZinTrust Test App');
 
     expect(html).toContain('trace-disclosure');
+    expect(html).toContain('trace-summary-icon');
     expect(html).toContain("queries: renderTraceItems(batchEntriesByType('query'))");
   });
 

@@ -262,7 +262,7 @@ const executeQueryOne = async (
   const result = await adapter.queryOne(sql, parameters);
   const duration = Date.now() - startTime;
   eventEmitter.emit('after-query', sql, parameters, duration);
-  return result === null ? null : BaseAdapter.normalizeRow(result as Record<string, unknown>);
+  return result === null ? null : BaseAdapter.normalizeRow(result);
 };
 
 const installDbMetricsIfEnabled = (
