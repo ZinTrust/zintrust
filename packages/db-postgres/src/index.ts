@@ -1,4 +1,11 @@
-import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import {
+  BaseAdapter,
+  Cloudflare,
+  ErrorFactory,
+  FeatureFlags,
+  Logger,
+  QueryBuilder,
+} from '@zintrust/core';
 
 export type DatabaseConfig = {
   driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
@@ -192,7 +199,7 @@ async function query(
 
     const result = await current.query(processedSql, parameters);
     return {
-      rows: (result.rows ?? []) as Record<string, unknown>[],
+      rows: BaseAdapter.normalizeRows((result.rows ?? []) as Record<string, unknown>[]),
       rowCount: result.rowCount ?? result.rows?.length ?? 0,
     };
   } catch (error) {

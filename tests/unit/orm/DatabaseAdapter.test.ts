@@ -32,6 +32,19 @@ describe('DatabaseAdapter - Interfaces and BaseAdapter', () => {
       expect(result.sql).toBe('SELECT * FROM users WHERE id = $1 AND name = $2');
       expect(result.parameters).toEqual([1, 'John']);
     });
+
+    it('should normalize null-like database read values', () => {
+      expect(BaseAdapter.normalizeReadValue('NULL')).toBeNull();
+      expect(BaseAdapter.normalizeReadValue(' null ')).toBeNull();
+      expect(BaseAdapter.normalizeReadValue('NULLABLE')).toBe('NULLABLE');
+      expect(
+        BaseAdapter.normalizeRow({ actualNull: 'NULL', lowerNull: 'null', otherText: 'NULLABLE' })
+      ).toEqual({
+        actualNull: null,
+        lowerNull: null,
+        otherText: 'NULLABLE',
+      });
+    });
   });
 
   describe('DatabaseConfig Interface', () => {

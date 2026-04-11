@@ -18,6 +18,7 @@ export { TraceConfig } from './config';
 // ---------------------------------------------------------------------------
 export { TraceStorage } from './storage';
 export type { ITraceStorage } from './storage';
+export { TraceContentBudget } from './storage/TraceContentBudget';
 export { TraceContentRedaction } from './storage/TraceContentRedaction';
 
 // ---------------------------------------------------------------------------

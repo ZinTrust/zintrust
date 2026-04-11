@@ -14,6 +14,7 @@ import type {
   IDatabaseAdapter,
   QueryResult,
 } from '@orm/DatabaseAdapter';
+import { BaseAdapter } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
@@ -118,7 +119,7 @@ export const D1Adapter = Object.freeze({
 
           const result = await stmt.bind(...parameters).all();
           const rawResult = result as { results?: Record<string, unknown>[]; meta?: unknown };
-          const rows = rawResult.results ?? [];
+          const rows = BaseAdapter.normalizeRows(rawResult.results ?? []);
           const metaValue = rawResult.meta;
           const meta = extractMeta(metaValue);
           return {
@@ -142,7 +143,7 @@ export const D1Adapter = Object.freeze({
         try {
           const stmt = db.prepare(sql);
           const result = await stmt.bind(...parameters).first<Record<string, unknown>>();
-          return result ?? null;
+          return result === null ? null : BaseAdapter.normalizeRow(result);
         } catch (error) {
           throw ErrorFactory.createTryCatchError(`D1 queryOne failed: ${sql}`, error);
         }

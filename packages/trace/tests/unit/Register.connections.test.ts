@@ -7,6 +7,7 @@ const {
   noopRegister,
   resolveStorage,
   wrapFiltering,
+  wrapBudget,
   wrapRedaction,
   wrapDiagnostics,
 } = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ const {
   noopRegister: vi.fn(),
   resolveStorage: vi.fn((db: unknown) => ({ db })),
   wrapFiltering: vi.fn((storage: unknown) => storage),
+  wrapBudget: vi.fn((storage: unknown) => storage),
   wrapRedaction: vi.fn((storage: unknown) => storage),
   wrapDiagnostics: vi.fn((storage: unknown) => storage),
 }));
@@ -72,6 +74,12 @@ vi.mock('../../src/storage/TraceEntryFiltering', () => ({
 vi.mock('../../src/storage/TraceContentRedaction', () => ({
   TraceContentRedaction: {
     wrapStorage: wrapRedaction,
+  },
+}));
+
+vi.mock('../../src/storage/TraceContentBudget', () => ({
+  TraceContentBudget: {
+    wrapStorage: wrapBudget,
   },
 }));
 

@@ -117,6 +117,28 @@ export interface IDatabaseAdapter {
  * Refactored to Functional Object pattern
  */
 export const BaseAdapter = Object.freeze({
+  normalizeReadValue(value: unknown): unknown {
+    if (typeof value !== 'string') return value;
+    return value.trim().toLowerCase() === 'null' ? null : value;
+  },
+
+  normalizeRow(row: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key, BaseAdapter.normalizeReadValue(value)])
+    );
+  },
+
+  normalizeRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+    return rows.map((row) => BaseAdapter.normalizeRow(row));
+  },
+
+  normalizeQueryResult<T extends QueryResult>(result: T): T {
+    return {
+      ...result,
+      rows: BaseAdapter.normalizeRows(result.rows),
+    };
+  },
+
   /**
    * Sanitize parameter value
    */
