@@ -1,5 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { emitHttpClient, emitNotification } = vi.hoisted(() => ({
+  emitHttpClient: vi.fn(),
+  emitNotification: vi.fn(),
+}));
+
+vi.mock('@/trace/SystemTraceBridge', () => ({
+  SystemTraceBridge: {
+    emitHttpClient,
+    emitNotification,
+  },
+}));
+
 vi.mock('@notification/drivers/Console', () => {
   return {
     ConsoleDriver: {
@@ -144,6 +156,20 @@ describe('NotificationService.sendVia patch coverage', () => {
 
     const res = await NotificationService.sendVia('termiiChan', 'user', 'hello');
     expect(res).toEqual({});
+    expect(emitHttpClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'termii',
+        method: 'POST',
+        url: 'https://termii.invalid',
+        responseStatus: 200,
+        duration: expect.any(Number),
+        requestBody: expect.objectContaining({
+          to: 'user',
+          sms: 'hello',
+          api_key: 'k',
+        }),
+      })
+    );
   });
 
   it('throws for unsupported driver names', async () => {

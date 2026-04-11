@@ -40,6 +40,14 @@ export default {
     // },
     // log: { exclude: ['healthcheck'] },
     // exception: { include: ['trace'] },
+    // clientRequest: {
+    //   exclude: ['internal-http'],
+    //   sources: {
+    //     termii: { enabled: false },
+    //     sendgrid: { responseBody: false },
+    //     s3: { requestHeaders: false, responseHeaders: false },
+    //   },
+    // },
     // cache: { include: ['session:'] },
     // dump: false,  // DumpWatcher is opt-in — enable explicitly if needed
   },

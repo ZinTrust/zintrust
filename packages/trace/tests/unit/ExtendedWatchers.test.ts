@@ -30,6 +30,7 @@ describe('extended trace watchers', () => {
     } as never);
 
     HttpClientWatcher.emit({
+      source: 'termii',
       method: 'post',
       url: 'https://example.test/users',
       requestHeaders: { Authorization: 'Bearer secret' },
@@ -45,10 +46,68 @@ describe('extended trace watchers', () => {
       expect.objectContaining({
         type: 'client_request',
         content: expect.objectContaining({
+          source: 'termii',
           requestHeaders: { Authorization: '****' },
           requestBody: { email: 'user@example.com', token: '****' },
           responseHeaders: { 'content-type': 'application/json' },
           responseBody: { ok: true, token: '****' },
+        }),
+      })
+    );
+  });
+
+  it('supports per-source outbound capture rules', async () => {
+    vi.resetModules();
+
+    const { HttpClientWatcher } = await import('../../src/watchers/HttpClientWatcher');
+    const storage = createStorage();
+
+    HttpClientWatcher.register({
+      storage,
+      config: {
+        watchers: {
+          clientRequest: {
+            sources: {
+              termii: {
+                requestBody: false,
+                responseBody: false,
+              },
+            },
+          },
+        },
+        ignoreRoutes: [],
+        redaction: { keys: ['authorization'], headers: [], body: [], query: [] },
+      },
+    } as never);
+
+    HttpClientWatcher.emit({
+      source: 'termii',
+      method: 'post',
+      url: 'https://api.termii.test/send',
+      requestHeaders: { authorization: 'Bearer secret' },
+      responseStatus: 200,
+      duration: 9,
+      requestBody: { sms: 'hello' },
+      responseHeaders: { 'content-type': 'application/json' },
+      responseBody: { ok: true },
+    });
+    await flushAsync();
+
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          source: 'termii',
+          requestHeaders: { authorization: '****' },
+          responseHeaders: { 'content-type': 'application/json' },
+        }),
+      })
+    );
+
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.not.objectContaining({
+          requestBody: expect.anything(),
+          responseBody: expect.anything(),
         }),
       })
     );

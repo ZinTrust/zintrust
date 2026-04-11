@@ -1,4 +1,4 @@
-import { readEnvString } from '@common/ExternalServiceUtils';
+import { readEnvString, tracedFetch } from '@common/ExternalServiceUtils';
 import { AwsSigV4 } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
@@ -152,11 +152,15 @@ export const SesDriver = Object.freeze({
 
     const headers = buildHeaders(amzDate, authorization, sessionToken);
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: bodyJson,
-    });
+    const res = await tracedFetch(
+      url,
+      {
+        method: 'POST',
+        headers,
+        body: bodyJson,
+      },
+      { source: 'ses' }
+    );
 
     if (res.ok) {
       try {

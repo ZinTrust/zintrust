@@ -357,6 +357,7 @@ const getDeliveries = (payload: unknown): number | undefined => {
   return typeof deliveries === 'number' && Number.isFinite(deliveries) ? deliveries : undefined;
 };
 
+import { tracedFetch } from '@common/ExternalServiceUtils';
 const describeError = (error: unknown): unknown => {
   if (error instanceof Error) {
     return {
@@ -389,19 +390,23 @@ const requestInternalPublishEndpoint = async (
   }
 ): Promise<BroadcastTransportAttemptResult> => {
   try {
-    const response = await globalThis.fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(secret === ''
-          ? {}
-          : {
-              [INTERNAL_SOCKET_SECRET_HEADER]: secret,
-              authorization: `Bearer ${secret}`,
-            }),
+    const response = await tracedFetch(
+      endpoint,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(secret === ''
+            ? {}
+            : {
+                [INTERNAL_SOCKET_SECRET_HEADER]: secret,
+                authorization: `Bearer ${secret}`,
+              }),
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
+      { source: 'broadcast-internal-http' }
+    );
 
     const responseBody = await parseJsonResponseSafe(response);
     if (!response.ok) {

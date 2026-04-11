@@ -1,6 +1,7 @@
 import type {
   ITraceConfig,
   ITraceEntry,
+  TraceClientRequestWatcherConfig,
   TraceFilterRule,
   TraceRequestWatcherConfig,
   WatcherToggles,
@@ -22,6 +23,7 @@ const normalizeTerms = (terms?: string[]): string[] => {
 
 const matchesRule = (haystack: string, rule?: TraceFilterRule): boolean => {
   if (!rule) return true;
+  if (rule.enabled === false) return false;
 
   const include = normalizeTerms(rule.include);
   const exclude = normalizeTerms(rule.exclude);
@@ -86,6 +88,20 @@ const getRequestMethodRule = (
   return watcher.all;
 };
 
+const getClientRequestSourceRule = (
+  watcher: TraceClientRequestWatcherConfig,
+  entry: ITraceEntry
+): TraceFilterRule | undefined => {
+  if (entry.type !== EntryType.CLIENT_REQUEST) return undefined;
+
+  const content = isObjectValue(entry.content) ? entry.content : undefined;
+  const sourceValue = content?.['source'];
+  const source = typeof sourceValue === 'string' ? sourceValue.trim().toLowerCase() : '';
+
+  if (source === '') return undefined;
+  return watcher.sources?.[source];
+};
+
 export const TraceEntryFilter = Object.freeze({
   shouldCapture(entry: ITraceEntry, config: ITraceConfig): boolean {
     const watcherKey = watcherKeyByEntryType[entry.type];
@@ -101,6 +117,13 @@ export const TraceEntryFilter = Object.freeze({
       const methodRule = getRequestMethodRule(requestWatcher, entry);
       if (!matchesRule(haystack, requestWatcher.all)) return false;
       if (!matchesRule(haystack, methodRule)) return false;
+    }
+
+    if (watcherKey === 'clientRequest') {
+      const clientRequestWatcher = watcher as TraceClientRequestWatcherConfig;
+      const sourceRule = getClientRequestSourceRule(clientRequestWatcher, entry);
+      if (sourceRule?.enabled === false) return false;
+      if (!matchesRule(haystack, sourceRule)) return false;
     }
 
     return true;

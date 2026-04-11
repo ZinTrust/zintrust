@@ -107,6 +107,7 @@ const emitHttpClientTrace = (input: {
   const { state, durationMs, response, responseBody, error } = input;
 
   SystemTraceBridge.emitHttpClient({
+    source: 'http-client',
     method: state.method,
     url: state.url,
     requestHeaders: { ...state.headers },

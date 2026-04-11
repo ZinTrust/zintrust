@@ -29,6 +29,7 @@ type SystemTraceModule = Partial<{
   };
   HttpClientWatcher: {
     emit: (payload: {
+      source?: string;
       method: string;
       url: string;
       requestHeaders: Record<string, string>;
@@ -165,6 +166,7 @@ const emitMail = (
 };
 
 const emitHttpClient = (payload: {
+  source?: string;
   method: string;
   url: string;
   requestHeaders: Record<string, string>;

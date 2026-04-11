@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/db-d1",
-  "version": "0.4.95",
+  "version": "0.4.96",
   "description": "Cloudflare D1 database adapter for ZinTrust.",
   "private": false,
   "type": "module",
@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.4.94"
+    "@zintrust/core": "^0.4.95"
   },
   "publishConfig": {
     "access": "public"

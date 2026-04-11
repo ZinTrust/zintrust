@@ -1,4 +1,5 @@
 import { MIME_TYPES } from '@/config/constants';
+import { tracedFetch } from '@common/ExternalServiceUtils';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type SendGridConfig = {
@@ -77,14 +78,18 @@ export const SendGridDriver = Object.freeze({
       }));
     }
 
-    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        'content-type': MIME_TYPES.JSON,
+    const res = await tracedFetch(
+      'https://api.sendgrid.com/v3/mail/send',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          'content-type': MIME_TYPES.JSON,
+        },
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    });
+      { source: 'sendgrid' }
+    );
 
     // SendGrid typically returns 202 for success.
     if (res.status === 202) {

@@ -209,6 +209,7 @@ export interface ViewContent {
 }
 
 export interface ClientRequestContent {
+  source?: string;
   method: string;
   url: string;
   requestHeaders: Record<string, string>;
@@ -222,6 +223,7 @@ export interface ClientRequestContent {
 }
 
 export interface ClientRequestTraceInput {
+  source?: string;
   method: string;
   url: string;
   requestHeaders: Record<string, string>;
@@ -315,6 +317,13 @@ export type TraceFilterRule = {
   exclude?: string[];
 };
 
+export type TraceClientRequestCaptureRule = TraceFilterRule & {
+  requestHeaders?: boolean;
+  requestBody?: boolean;
+  responseHeaders?: boolean;
+  responseBody?: boolean;
+};
+
 export type TraceRequestWatcherConfig = TraceFilterRule & {
   all?: TraceFilterRule;
   get?: TraceFilterRule;
@@ -324,8 +333,13 @@ export type TraceRequestWatcherConfig = TraceFilterRule & {
   delete?: TraceFilterRule;
 };
 
+export type TraceClientRequestWatcherConfig = TraceClientRequestCaptureRule & {
+  sources?: Record<string, TraceClientRequestCaptureRule>;
+};
+
 export type TraceWatcherToggle = boolean | TraceFilterRule;
 export type TraceRequestWatcherToggle = boolean | TraceRequestWatcherConfig;
+export type TraceClientRequestWatcherToggle = boolean | TraceClientRequestWatcherConfig;
 
 export type WatcherToggles = {
   request?: TraceRequestWatcherToggle;
@@ -347,7 +361,7 @@ export type WatcherToggles = {
   batch?: TraceWatcherToggle;
   dump?: TraceWatcherToggle;
   view?: TraceWatcherToggle;
-  clientRequest?: TraceWatcherToggle;
+  clientRequest?: TraceClientRequestWatcherToggle;
 };
 
 export interface ITraceConfig {

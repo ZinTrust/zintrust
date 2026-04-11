@@ -122,4 +122,51 @@ describe('TraceEntryFilter', () => {
       )
     ).toBe(false);
   });
+
+  it('supports per-source client request filters', () => {
+    const config = TraceConfig.merge({
+      watchers: {
+        clientRequest: {
+          include: ['https://'],
+          sources: {
+            termii: { enabled: false },
+            sendgrid: { include: ['sendgrid.com'] },
+          },
+        },
+      },
+    });
+
+    expect(
+      TraceEntryFilter.shouldCapture(
+        createEntry(EntryType.CLIENT_REQUEST, {
+          source: 'termii',
+          method: 'POST',
+          url: 'https://api.termii.com/sms/send',
+        }),
+        config
+      )
+    ).toBe(false);
+
+    expect(
+      TraceEntryFilter.shouldCapture(
+        createEntry(EntryType.CLIENT_REQUEST, {
+          source: 'sendgrid',
+          method: 'POST',
+          url: 'https://api.sendgrid.com/v3/mail/send',
+        }),
+        config
+      )
+    ).toBe(true);
+
+    expect(
+      TraceEntryFilter.shouldCapture(
+        createEntry(EntryType.CLIENT_REQUEST, {
+          source: 'sendgrid',
+          method: 'POST',
+          url: 'https://example.test/fallback',
+        }),
+        config
+      )
+    ).toBe(false);
+  });
 });

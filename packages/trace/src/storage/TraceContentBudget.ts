@@ -27,6 +27,87 @@ const describeValueType = (value: unknown): string => {
   return typeof value;
 };
 
+type TracePathSegment = string | number;
+
+type TracePathCandidate = {
+  path: TracePathSegment[];
+  size: number;
+};
+
+const chooseLargerCandidate = (
+  left: TracePathCandidate | null,
+  right: TracePathCandidate | null
+): TracePathCandidate | null => {
+  if (left === null) return right;
+  if (right === null) return left;
+  return right.size > left.size ? right : left;
+};
+
+const fallbackCandidate = (value: unknown, path: TracePathSegment[]): TracePathCandidate | null => {
+  return path.length === 0 ? null : { path, size: serializedSize(value) };
+};
+
+const findLargestDroppablePathInArray = (
+  value: unknown[],
+  path: TracePathSegment[]
+): TracePathCandidate | null => {
+  let best: TracePathCandidate | null = null;
+
+  for (const [index, item] of value.entries()) {
+    best = chooseLargerCandidate(best, findLargestDroppablePath(item, [...path, index]));
+  }
+
+  return best ?? fallbackCandidate(value, path);
+};
+
+const findLargestDroppablePathInObject = (
+  value: Record<string, unknown>,
+  path: TracePathSegment[]
+): TracePathCandidate | null => {
+  let best: TracePathCandidate | null = null;
+
+  for (const [key, entryValue] of Object.entries(value)) {
+    if (key === '__traceNotice') continue;
+    best = chooseLargerCandidate(best, findLargestDroppablePath(entryValue, [...path, key]));
+  }
+
+  return best ?? fallbackCandidate(value, path);
+};
+
+const findLargestDroppablePath = (
+  value: unknown,
+  path: TracePathSegment[] = []
+): TracePathCandidate | null => {
+  if (Array.isArray(value)) return findLargestDroppablePathInArray(value, path);
+  if (typeof value === 'object' && value !== null) {
+    return findLargestDroppablePathInObject(value as Record<string, unknown>, path);
+  }
+
+  return fallbackCandidate(value, path);
+};
+
+const replaceAtPath = (value: unknown, path: TracePathSegment[], replacement: unknown): unknown => {
+  if (path.length === 0) return replacement;
+
+  const [segment, ...rest] = path;
+
+  if (Array.isArray(value) && typeof segment === 'number') {
+    const next = value.slice();
+    next[segment] = replaceAtPath(next[segment], rest, replacement);
+    return next;
+  }
+
+  if (typeof value === 'object' && value !== null && typeof segment === 'string') {
+    const current = value as Record<string, unknown>;
+    return {
+      ...current,
+      [segment]: replaceAtPath(current[segment], rest, replacement),
+    };
+  }
+
+  return value;
+};
+
 const compactValue = (value: unknown, depth: number): unknown => {
   if (depth >= DEFAULT_MAX_DEPTH) {
     return DROPPED_FIELD_MESSAGE;
@@ -69,19 +150,19 @@ const compactValue = (value: unknown, depth: number): unknown => {
   return Object.fromEntries(compactedEntries);
 };
 
-const compactTopLevelObjectToBudget = (value: Record<string, unknown>): Record<string, unknown> => {
-  const compacted: Record<string, unknown> = {
-    ...value,
-    __traceNotice: COMPACTED_CONTENT_MESSAGE,
-  };
+const compactStructuredValueToBudget = (value: unknown): unknown => {
+  let compacted: unknown =
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? {
+          ...(value as Record<string, unknown>),
+          __traceNotice: COMPACTED_CONTENT_MESSAGE,
+        }
+      : value;
 
-  const keysByDescendingSize = Object.keys(compacted)
-    .filter((key) => key !== '__traceNotice')
-    .sort((left, right) => serializedSize(compacted[right]) - serializedSize(compacted[left]));
-
-  for (const key of keysByDescendingSize) {
-    if (serializedSize(compacted) <= DEFAULT_MAX_ENTRY_BYTES) break;
-    compacted[key] = DROPPED_FIELD_MESSAGE;
+  while (serializedSize(compacted) > DEFAULT_MAX_ENTRY_BYTES) {
+    const candidate = findLargestDroppablePath(compacted);
+    if (candidate === null) break;
+    compacted = replaceAtPath(compacted, candidate.path, DROPPED_FIELD_MESSAGE);
   }
 
   return compacted;
@@ -97,10 +178,10 @@ const fitContentToBudget = (content: unknown): unknown => {
     return compacted;
   }
 
-  if (typeof compacted === 'object' && compacted !== null && !Array.isArray(compacted)) {
-    const topLevelCompacted = compactTopLevelObjectToBudget(compacted as Record<string, unknown>);
-    if (serializedSize(topLevelCompacted) <= DEFAULT_MAX_ENTRY_BYTES) {
-      return topLevelCompacted;
+  if (typeof compacted === 'object' && compacted !== null) {
+    const budgetCompacted = compactStructuredValueToBudget(compacted);
+    if (serializedSize(budgetCompacted) <= DEFAULT_MAX_ENTRY_BYTES) {
+      return budgetCompacted;
     }
   }
 

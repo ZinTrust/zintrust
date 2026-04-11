@@ -1,3 +1,4 @@
+import { tracedFetch } from '@common/ExternalServiceUtils';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type SlackConfig = {
@@ -16,11 +17,15 @@ export const SlackDriver = Object.freeze({
       throw ErrorFactory.createConfigError('Slack: missing webhook URL');
     }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const res = await tracedFetch(
+      url,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      { source: 'slack' }
+    );
 
     if (!res.ok) {
       const text = await res.text();

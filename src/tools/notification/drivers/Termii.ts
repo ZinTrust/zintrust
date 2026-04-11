@@ -27,13 +27,17 @@ export const TermiiDriver = Object.freeze({
 
     // Use shared fetch wrapper
     const url = 'https://api.termii.com/sms/send';
-    const res = await safeFetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    const res = await safeFetch(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
+      { source: 'termii' }
+    );
 
     const json = await res.json().catch(() => ({}));
     return json;

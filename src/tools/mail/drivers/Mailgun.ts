@@ -1,3 +1,4 @@
+import { tracedFetch } from '@common/ExternalServiceUtils';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type MailgunConfig = {
@@ -101,13 +102,17 @@ export const MailgunDriver = Object.freeze({
 
     const auth = `Basic ${base64('api:' + apiKey)}`;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: auth,
+    const res = await tracedFetch(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: auth,
+        },
+        body: form,
       },
-      body: form,
-    });
+      { source: 'mailgun' }
+    );
 
     if (res.ok) {
       try {
