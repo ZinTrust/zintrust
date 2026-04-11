@@ -577,7 +577,7 @@ const initializeSystemTrace = async (router: IRouter): Promise<void> => {
     Logger.info(`System Trace dashboard auto-mounted at ${basePath}.`);
   } catch (error) {
     Logger.error('Failed to initialize System Trace runtime', error as Error);
-    throw error;
+    Logger.warn('System Trace runtime disabled for this boot. Application startup will continue.');
   }
 };
 

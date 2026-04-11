@@ -2,6 +2,12 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-11
+
+- Made System Trace startup failures non-fatal for application boot. When trace runtime initialization fails, ZinTrust now logs the failure, disables trace for that boot, and continues starting the app instead of aborting the full runtime.
+- Improved the built-in trace dashboard request experience. Request rows now use HTTP method labels such as `Get` and `Post` in the Type column, request summaries no longer repeat the method name, and related request entries now render collapsed by default so developers can expand the specific query, middleware, model, log, exception, HTTP, cache, or other item they need.
+- Extended request trace correlation to include route middleware and ORM model activity. The request detail view now shows attached route middleware, exposes dedicated Middleware and Models tabs, records route middleware execution inside the request batch, and emits model create/update/delete entries into the same request trace context for easier end-to-end debugging.
+
 ## 2026-04-09
 
 - Normalized null-like database read values across the shared ORM boundary so database results that come back as the literal strings `NULL`, `null`, or trimmed variants now reach application code as real `null` values instead of string sentinels. This applies to the core runtime database manager and the public D1, MySQL, and PostgreSQL adapter packages, keeping read behavior consistent across supported databases.

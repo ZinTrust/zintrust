@@ -17,9 +17,21 @@ describe('buildDashboardHtml', () => {
     const html = buildDashboardHtml('/trace', 'ZinTrust Test App');
 
     expect(html).toContain('trace-disclosure');
+    expect(html).toContain("queries: renderTraceItems(batchEntriesByType('query'))");
+  });
+
+  it('renders request middleware and model tabs with collapsed related entries', () => {
+    const html = buildDashboardHtml('/trace', 'ZinTrust Test App');
+
     expect(html).toContain(
-      "renderTraceItems(batchEntriesByType('query'), { collapsible: true, collapsed: true })"
+      "{ id: 'middleware', label: 'Middleware', count: batchEntriesByType('middleware').length }"
     );
+    expect(html).toContain(
+      "{ id: 'models', label: 'Models', count: batchEntriesByType('model').length }"
+    );
+    expect(html).toContain("middleware: renderTraceItems(batchEntriesByType('middleware'))");
+    expect(html).toContain("models: renderTraceItems(batchEntriesByType('model'))");
+    expect(html).toContain("renderMetricBox('Route middleware'");
   });
 
   it('renders mail html before mail text in detail stacks', () => {

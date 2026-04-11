@@ -26,6 +26,13 @@ const normalizeHeaderValue = (value: string | string[]): string => {
   return Array.isArray(value) ? value.join(', ') : value;
 };
 
+const resolveRouteMiddleware = (req: IRequest): string[] => {
+  const middleware = req.context?.['traceRouteMiddleware'];
+  return Array.isArray(middleware)
+    ? middleware.filter((value): value is string => typeof value === 'string')
+    : [];
+};
+
 const resolveRequestPayload = (req: IRequest, config: ITraceConfig): unknown => {
   const redactFields = [...config.redaction.keys, ...config.redaction.body];
   const requestBody = typeof req.getBody === 'function' ? req.getBody() : req.body;
@@ -150,7 +157,7 @@ const buildEntry = (
     responseBody: responseCapture.body,
     duration: Date.now() - start,
     memory: TraceContext.getMemory(),
-    middleware: [],
+    middleware: resolveRouteMiddleware(req),
     hostname: TraceContext.getHostname(),
     userId: TraceContext.getUserId(),
   };

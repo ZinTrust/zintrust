@@ -76,9 +76,14 @@ const createResponse = () => {
   return { response, raw, headers };
 };
 
-const createRequest = (path: string, body: unknown = {}) => ({
+const createRequest = (
+  path: string,
+  body: unknown = {},
+  context: Record<string, unknown> = {}
+) => ({
   headers: {},
   body: {},
+  context,
   getBody: vi.fn(() => body),
   getMethod: vi.fn(() => 'GET'),
   getPath: vi.fn(() => path),
@@ -224,6 +229,47 @@ describe('HttpWatcher', () => {
       expect.objectContaining({
         content: expect.objectContaining({
           payload: { email: 'user@example.com', password: 'secret' },
+        }),
+      })
+    );
+  });
+
+  it('captures route middleware names from request context', async () => {
+    vi.resetModules();
+
+    const { HttpWatcher } = await import('../../src/watchers/HttpWatcher');
+    const storage = createStorage();
+    const config = {
+      watchers: { request: true },
+      ignoreRoutes: ['/trace'],
+      redaction: { keys: [], headers: [], body: [], query: [] },
+    } as any;
+
+    let registeredMiddleware:
+      | ((req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>)
+      | undefined;
+    HttpWatcher.register({
+      storage,
+      config,
+      registerMiddleware(
+        middleware: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
+      ) {
+        registeredMiddleware = middleware;
+      },
+    } as any);
+
+    const { response } = createResponse();
+    const request = createRequest('/reports', {}, { traceRouteMiddleware: ['auth', 'throttle'] });
+
+    await registeredMiddleware?.(request, response, async () => {
+      response.json({ ok: true });
+    });
+    await flushAsync();
+
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          middleware: ['auth', 'throttle'],
         }),
       })
     );

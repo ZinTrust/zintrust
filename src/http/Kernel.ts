@@ -28,6 +28,14 @@ type GlobalMiddlewareRegistrarState = {
   __zintrust_pending_global_middlewares__?: Middleware[];
 };
 
+type GlobalTraceMiddlewareState = {
+  __zintrust_trace_middleware_emit__?: (
+    name: string,
+    event: 'before' | 'after',
+    duration?: number
+  ) => void;
+};
+
 export interface IKernel {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
   handleRequest(req: IRequest, res: IResponse): Promise<void>;
@@ -80,22 +88,20 @@ const getStatusSafe = (res: IResponse): number => {
   return 0;
 };
 
-const resolveMiddlewareForRoute = (
-  route: unknown,
-  globalMiddleware: Middleware[],
-  routeMiddleware: Record<string, Middleware>
-): Middleware[] => {
+const getRouteMiddlewareNames = (route: unknown): string[] => {
   const routeAny = route as { middleware?: unknown };
-  const routeMiddlewareNames = Array.isArray(routeAny.middleware)
+  return Array.isArray(routeAny.middleware)
     ? routeAny.middleware.filter((m): m is string => typeof m === 'string')
     : [];
-
-  const resolvedRouteMiddleware = routeMiddlewareNames
-    .map((name) => routeMiddleware[name])
-    .filter((mw): mw is Middleware => typeof mw === 'function');
-
-  return [...globalMiddleware, ...resolvedRouteMiddleware];
 };
+
+const getTraceMiddlewareEmitter =
+  (): GlobalTraceMiddlewareState['__zintrust_trace_middleware_emit__'] => {
+    const globalState = globalThis as unknown as GlobalTraceMiddlewareState;
+    return typeof globalState.__zintrust_trace_middleware_emit__ === 'function'
+      ? globalState.__zintrust_trace_middleware_emit__
+      : undefined;
+  };
 
 const PREFLIGHT_FALLBACK_METHODS = Object.freeze([
   'GET',
@@ -213,11 +219,33 @@ const runKernelPipeline = async (
   }
   req.setParams(safeParams);
 
-  const middlewareToRun = resolveMiddlewareForRoute(
-    matchedRoute,
-    globalMiddleware,
-    routeMiddleware
-  );
+  const routeMiddlewareNames = getRouteMiddlewareNames(matchedRoute);
+  req.context['traceRouteMiddleware'] = routeMiddlewareNames;
+
+  const traceMiddlewareEmitter = getTraceMiddlewareEmitter();
+  const resolvedRouteMiddleware = routeMiddlewareNames
+    .map((name) => ({ name, middleware: routeMiddleware[name] }))
+    .filter(
+      (entry): entry is { name: string; middleware: Middleware } =>
+        typeof entry.middleware === 'function'
+    )
+    .map(({ name, middleware }) => {
+      if (traceMiddlewareEmitter === undefined) return middleware;
+
+      const wrapped: Middleware = async (request, response, next) => {
+        const start = Date.now();
+        traceMiddlewareEmitter(name, 'before');
+        try {
+          await middleware(request, response, next);
+        } finally {
+          traceMiddlewareEmitter(name, 'after', Date.now() - start);
+        }
+      };
+
+      return wrapped;
+    });
+
+  const middlewareToRun = [...globalMiddleware, ...resolvedRouteMiddleware];
 
   let index = 0;
   const next = async (): Promise<void> => {
