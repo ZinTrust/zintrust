@@ -1,4 +1,11 @@
-import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import {
+  BaseAdapter,
+  Cloudflare,
+  ErrorFactory,
+  FeatureFlags,
+  Logger,
+  QueryBuilder,
+} from '@zintrust/core';
 import { CREATE_MIGRATIONS_TABLE_SQL, MYSQL_PLACEHOLDER, MYSQL_TYPE } from './common.js';
 
 export type DatabaseConfig = {
@@ -155,7 +162,7 @@ function normalizeQueryResult(raw: unknown): QueryResult {
 
   if (Array.isArray(raw)) {
     return {
-      rows: raw as Record<string, unknown>[],
+      rows: BaseAdapter.normalizeRows(raw as Record<string, unknown>[]),
       rowCount: raw.length,
     };
   }

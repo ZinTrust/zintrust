@@ -625,6 +625,12 @@ export declare const CacheDriverRegistry: any;
 export declare const MailDriverRegistry: any;
 export declare const FeatureFlags: any;
 export declare const QueryBuilder: any;
+export declare const BaseAdapter: {
+  normalizeReadValue: (value: unknown) => unknown;
+  normalizeRow: (row: Record<string, unknown>) => Record<string, unknown>;
+  normalizeRows: (rows: Record<string, unknown>[]) => Record<string, unknown>[];
+  normalizeQueryResult: <T extends { rows: Record<string, unknown>[] }>(result: T) => T;
+};
 export declare const Cloudflare: any;
 export declare const Router: any;
 export declare const Broadcast: any;
@@ -816,6 +822,26 @@ export const CacheDriverRegistry = {};
 export const MailDriverRegistry = {};
 export const FeatureFlags = {};
 export const QueryBuilder = {};
+export const BaseAdapter = {
+  normalizeReadValue(value) {
+    if (typeof value !== 'string') return value;
+    return value.trim().toLowerCase() === 'null' ? null : value;
+  },
+  normalizeRow(row) {
+    return Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key, BaseAdapter.normalizeReadValue(value)])
+    );
+  },
+  normalizeRows(rows) {
+    return rows.map((row) => BaseAdapter.normalizeRow(row));
+  },
+  normalizeQueryResult(result) {
+    return {
+      ...result,
+      rows: BaseAdapter.normalizeRows(result.rows),
+    };
+  },
+};
 export const Cloudflare = {};
 export const Router = {};
 export const Broadcast = {};

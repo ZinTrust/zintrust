@@ -1,4 +1,11 @@
-import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import {
+  BaseAdapter,
+  Cloudflare,
+  ErrorFactory,
+  FeatureFlags,
+  Logger,
+  QueryBuilder,
+} from '@zintrust/core';
 
 export interface ID1Database {
   prepare(sql: string): {
@@ -75,7 +82,7 @@ async function queryD1(
   try {
     const stmt = db.prepare(sql);
     const result = await stmt.bind(...parameters).all();
-    const rows = (result.results as Record<string, unknown>[]) ?? [];
+    const rows = BaseAdapter.normalizeRows((result.results as Record<string, unknown>[]) ?? []);
     return { rows, rowCount: rows.length };
   } catch (error) {
     throw ErrorFactory.createTryCatchError(`D1 query failed: ${sql}`, error);
@@ -91,7 +98,7 @@ async function queryOneD1(
   try {
     const stmt = db.prepare(sql);
     const result = await stmt.bind(...parameters).first<Record<string, unknown>>();
-    return result ?? null;
+    return result === null ? null : BaseAdapter.normalizeRow(result);
   } catch (error) {
     throw ErrorFactory.createTryCatchError(`D1 queryOne failed: ${sql}`, error);
   }

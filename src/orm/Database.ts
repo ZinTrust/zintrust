@@ -19,7 +19,12 @@ import { PostgreSQLProxyAdapter } from '@orm/adapters/PostgreSQLProxyAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import { createSqlServerProxyAdapter } from '@orm/adapters/SqlServerProxyAdapter';
-import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import {
+  BaseAdapter,
+  type DatabaseConfig,
+  type IDatabaseAdapter,
+  type QueryResult,
+} from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import type { IQueryBuilder } from '@orm/QueryBuilder';
@@ -229,7 +234,7 @@ const executeQuery = async (
   const result = await adapter[method](sql, parameters);
   const duration = Date.now() - startTime;
   eventEmitter.emit('after-query', sql, parameters, duration);
-  return result.rows;
+  return BaseAdapter.normalizeRows(result.rows);
 };
 
 const executeFullQuery = async (
@@ -243,7 +248,7 @@ const executeFullQuery = async (
   const result = await adapter.query(sql, parameters);
   const duration = Date.now() - startTime;
   eventEmitter.emit('after-query', sql, parameters, duration);
-  return result;
+  return BaseAdapter.normalizeQueryResult(result);
 };
 
 const executeQueryOne = async (
@@ -257,7 +262,7 @@ const executeQueryOne = async (
   const result = await adapter.queryOne(sql, parameters);
   const duration = Date.now() - startTime;
   eventEmitter.emit('after-query', sql, parameters, duration);
-  return result;
+  return result === null ? null : BaseAdapter.normalizeRow(result as Record<string, unknown>);
 };
 
 const installDbMetricsIfEnabled = (

@@ -117,6 +117,7 @@ export type {
   IDatabaseAdapter,
   QueryResult,
 } from '@orm/DatabaseAdapter';
+export { BaseAdapter } from '@orm/DatabaseAdapter';
 
 // Profiling
 export { MemoryProfiler } from '@profiling/MemoryProfiler';
