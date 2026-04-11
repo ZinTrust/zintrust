@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/db-postgres",
-  "version": "0.4.93",
+  "version": "0.4.94",
   "description": "PostgreSQL database adapter for ZinTrust.",
   "private": false,
   "type": "module",
