@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-rabbitmq",
-  "version": "0.4.100",
+  "version": "0.4.101",
   "description": "RabbitMQ queue driver for ZinTrust.",
   "private": false,
   "type": "module",
