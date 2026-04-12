@@ -180,7 +180,9 @@ describe('TraceContentBudget', () => {
       createdAt: 1,
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await vi.waitFor(() => {
+      expect(enqueue).toHaveBeenCalled();
+    });
 
     expect(enqueue).toHaveBeenCalledWith(
       'trace-content',

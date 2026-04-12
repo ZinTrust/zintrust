@@ -2,6 +2,8 @@
 
 Redis cache driver package for ZinTrust.
 
+Docs: https://zintrust.com/package-cache-redis
+
 ## Install
 
 Recommended (installs + wires registration):

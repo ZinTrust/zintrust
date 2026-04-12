@@ -2,6 +2,8 @@
 
 ESLint configuration and TypeScript governance setup for ZinTrust projects.
 
+Docs: https://zintrust.com/package-governance
+
 ## Install
 
 ```bash

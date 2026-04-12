@@ -391,6 +391,9 @@ if (!traceAlreadyInitialized && Env) {
       redactionKeys,
       redactionQuery,
     });
+    const defaultContentDispatch = TraceConfig.defaults().contentDispatch;
+    const startupContentDispatch = startupOverrides?.contentDispatch;
+    const startupContentDispatchWorker = startupContentDispatch?.worker;
 
     const config = TraceConfig.merge({
       ...startupOverrides,
@@ -406,8 +409,11 @@ if (!traceAlreadyInitialized && Env) {
       ...(typeof captureCachePayloads === 'boolean' ? { captureCachePayloads } : {}),
       ...(typeof captureQueryBindings === 'boolean' ? { captureQueryBindings } : {}),
       contentDispatch: {
-        ...startupOverrides?.contentDispatch,
-        ...(typeof contentDispatchDriver === 'string' ? { driver: contentDispatchDriver } : {}),
+        ...defaultContentDispatch,
+        ...startupContentDispatch,
+        ...(typeof contentDispatchDriver === 'string' && contentDispatchDriver !== ''
+          ? { driver: contentDispatchDriver }
+          : {}),
         ...(typeof contentDispatchQueueName === 'string' && contentDispatchQueueName !== ''
           ? { queueName: contentDispatchQueueName }
           : {}),
@@ -416,22 +422,30 @@ if (!traceAlreadyInitialized && Env) {
           ? { enqueueTimeoutMs: contentDispatchEnqueueTimeout }
           : {}),
         worker: {
-          ...startupOverrides?.contentDispatch?.worker,
-          ...(typeof contentDispatchWorkerEnabled === 'boolean'
-            ? { enabled: contentDispatchWorkerEnabled }
-            : {}),
-          ...(typeof contentDispatchWorkerInterval === 'number' &&
-          Number.isFinite(contentDispatchWorkerInterval)
-            ? { intervalMs: contentDispatchWorkerInterval }
-            : {}),
-          ...(typeof contentDispatchWorkerDuration === 'number' &&
-          Number.isFinite(contentDispatchWorkerDuration)
-            ? { maxDurationMs: contentDispatchWorkerDuration }
-            : {}),
-          ...(typeof contentDispatchWorkerConcurrency === 'number' &&
-          Number.isFinite(contentDispatchWorkerConcurrency)
-            ? { concurrency: contentDispatchWorkerConcurrency }
-            : {}),
+          ...defaultContentDispatch.worker,
+          ...startupContentDispatchWorker,
+          enabled:
+            typeof contentDispatchWorkerEnabled === 'boolean'
+              ? contentDispatchWorkerEnabled
+              : (startupContentDispatchWorker?.enabled ?? defaultContentDispatch.worker.enabled),
+          intervalMs:
+            typeof contentDispatchWorkerInterval === 'number' &&
+            Number.isFinite(contentDispatchWorkerInterval)
+              ? contentDispatchWorkerInterval
+              : (startupContentDispatchWorker?.intervalMs ??
+                defaultContentDispatch.worker.intervalMs),
+          maxDurationMs:
+            typeof contentDispatchWorkerDuration === 'number' &&
+            Number.isFinite(contentDispatchWorkerDuration)
+              ? contentDispatchWorkerDuration
+              : (startupContentDispatchWorker?.maxDurationMs ??
+                defaultContentDispatch.worker.maxDurationMs),
+          concurrency:
+            typeof contentDispatchWorkerConcurrency === 'number' &&
+            Number.isFinite(contentDispatchWorkerConcurrency)
+              ? contentDispatchWorkerConcurrency
+              : (startupContentDispatchWorker?.concurrency ??
+                defaultContentDispatch.worker.concurrency),
         },
       },
       logMinLevel,

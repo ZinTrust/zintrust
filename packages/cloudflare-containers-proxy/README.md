@@ -2,6 +2,8 @@
 
 Cloudflare Containers + Durable Object gateway for the ZinTrust proxy stack.
 
+Docs: https://zintrust.com/package-cloudflare-containers-proxy
+
 ## What this provides
 
 - A Worker `fetch` handler that routes by path prefix (`/mysql/*`, `/postgres/*`, etc.)

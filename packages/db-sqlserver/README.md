@@ -2,6 +2,8 @@
 
 SQL Server database adapter package for ZinTrust (uses `mssql`).
 
+Docs: https://zintrust.com/package-db-sqlserver
+
 ## Install
 
 Recommended:

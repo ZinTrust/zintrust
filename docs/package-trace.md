@@ -7,6 +7,8 @@ description: Runtime observability, storage, and optional dashboard UI for ZinTr
 
 The `@zintrust/trace` package adds application-level observability to ZinTrust. It records requests, queries, exceptions, jobs, cache activity, notifications, CLI events, outbound HTTP calls, and other runtime signals into trace storage, then exposes those entries through an optional web dashboard.
 
+Package docs URL: https://zintrust.com/package-trace
+
 The package works with both `zin s` and `zin s --wg`.
 
 ## What the package does
@@ -49,10 +51,28 @@ Set the trace env keys you need:
 TRACE_ENABLED=true
 TRACE_AUTO_MOUNT=true         # optional — stock bootstrap auto-mounts /trace when true
 TRACE_DB_CONNECTION=
+TRACE_QUERY_CONNECTION=
 TRACE_PRUNE_HOURS=24
 TRACE_SLOW_QUERY_MS=100
 TRACE_LOG_LEVEL=info
+TRACE_CACHE_PAYLOADS=false
+TRACE_QUERY_BINDINGS=true
+TRACE_CONTENT_QUEUE_DRIVER=
+TRACE_CONTENT_QUEUE_NAME=trace-content
+TRACE_CONTENT_QUEUE_ENQUEUE_TIMEOUT_MS=25
+TRACE_CONTENT_QUEUE_WORKER_ENABLED=true
+TRACE_CONTENT_QUEUE_WORKER_INTERVAL_MS=1000
+TRACE_CONTENT_QUEUE_WORKER_MAX_DURATION_MS=250
+TRACE_CONTENT_QUEUE_WORKER_CONCURRENCY=1
+TRACE_REDACT_KEYS=password,token,secret
+TRACE_REDACT_HEADERS=authorization,cookie
+TRACE_REDACT_BODY=password,token,secret
+TRACE_REDACT_QUERY=
 ```
+
+When `TRACE_CONTENT_QUEUE_DRIVER` is set, trace writes enqueue through that registered queue driver and an internal trace drain worker handles persistence outside the live request path. If it is not set, oversized trace content is replaced with `Trace content exceeded budget and was replaced.` instead of using the heavier inline compaction path.
+
+That means the current architecture already supports Redis or any other registered async queue driver. First-class Cloudflare Queue support still requires a dedicated queue driver plus queue-runtime registration for that transport.
 
 Then opt in through your project plugin file.
 
@@ -189,6 +209,15 @@ Key config knobs include:
 - `pruneAfterHours`
 - `slowQueryThreshold`
 - `logMinLevel`
+- `captureCachePayloads`
+- `captureQueryBindings`
+- `contentDispatch.driver`
+- `contentDispatch.queueName`
+- `contentDispatch.enqueueTimeoutMs`
+- `contentDispatch.worker.enabled`
+- `contentDispatch.worker.intervalMs`
+- `contentDispatch.worker.maxDurationMs`
+- `contentDispatch.worker.concurrency`
 - `ignoreRoutes`
 - `watchers`
 - `redaction.headers`

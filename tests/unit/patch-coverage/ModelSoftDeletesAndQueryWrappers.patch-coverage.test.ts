@@ -2,7 +2,19 @@ import { resetDatabase, useDatabase } from '@orm/Database';
 import { Model } from '@orm/Model';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('patch coverage: Model soft deletes + query wrappers', () => {
+let HAS_NATIVE_SQLITE = true;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const DB = require('better-sqlite3');
+  const conn = new DB(':memory:');
+  conn.close();
+} catch {
+  HAS_NATIVE_SQLITE = false;
+}
+
+const sqliteDescribe = HAS_NATIVE_SQLITE ? describe : describe.skip;
+
+sqliteDescribe('patch coverage: Model soft deletes + query wrappers', () => {
   const config = {
     table: 'users',
     fillable: ['id', 'deleted_at'],

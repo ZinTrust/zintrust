@@ -238,13 +238,18 @@ const mergeContentDispatch = (
   base: TraceContentDispatchConfig,
   override?: TraceConfigOverrides['contentDispatch']
 ): TraceContentDispatchConfig => {
+  const workerOverride = override?.worker;
+
   return {
     ...base,
     ...override,
-    worker: {
-      ...base.worker,
-      ...(override?.worker ?? {}),
-    },
+    worker:
+      workerOverride === undefined
+        ? base.worker
+        : {
+            ...base.worker,
+            ...workerOverride,
+          },
   };
 };
 

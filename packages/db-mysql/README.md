@@ -2,6 +2,8 @@
 
 MySQL / MariaDB database adapter package for ZinTrust (uses `mysql2`).
 
+Docs: https://zintrust.com/package-db-mysql
+
 ## Install
 
 Recommended:

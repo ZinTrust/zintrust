@@ -2,6 +2,8 @@
 
 A debug assistant for ZinTrust. Records HTTP requests, database queries, exceptions, jobs, cache operations, scheduled tasks, mail, auth events, and more — all surfaced through a built-in web dashboard.
 
+Docs: https://zintrust.com/package-trace
+
 Works with both `zin s` (Node.js) and `zin s --wg` (Cloudflare Workers).
 
 ---
@@ -33,7 +35,24 @@ TRACE_QUERY_CONNECTION=main   # optional — app DB to observe for SQL traces
 TRACE_PRUNE_HOURS=24          # how long entries are kept (default: 24)
 TRACE_SLOW_QUERY_MS=100       # slow-query threshold in ms (default: 100)
 TRACE_LOG_LEVEL=info          # minimum log level captured (default: info)
+TRACE_CACHE_PAYLOADS=false    # optional — include cache payload values in trace entries
+TRACE_QUERY_BINDINGS=true     # optional — include SQL binding values in query traces
+TRACE_CONTENT_QUEUE_DRIVER=   # optional — any registered async queue driver for trace offload
+TRACE_CONTENT_QUEUE_NAME=trace-content
+TRACE_CONTENT_QUEUE_ENQUEUE_TIMEOUT_MS=25
+TRACE_CONTENT_QUEUE_WORKER_ENABLED=true
+TRACE_CONTENT_QUEUE_WORKER_INTERVAL_MS=1000
+TRACE_CONTENT_QUEUE_WORKER_MAX_DURATION_MS=250
+TRACE_CONTENT_QUEUE_WORKER_CONCURRENCY=1
+TRACE_REDACT_KEYS=password,token,secret
+TRACE_REDACT_HEADERS=authorization,cookie
+TRACE_REDACT_BODY=password,token,secret
+TRACE_REDACT_QUERY=
 ```
+
+When `TRACE_CONTENT_QUEUE_DRIVER` is set, trace writes enqueue through that registered queue driver and an internal trace worker drains them outside the live request path. When it is unset, oversized content is replaced with `Trace content exceeded budget and was replaced.` before persistence instead of running the heavy compaction loop inline.
+
+This currently works with any queue driver already registered in ZinTrust. First-class Cloudflare Queue support still requires a dedicated queue driver and queue-runtime registration for that transport.
 
 ### 2. Enable the plugin in `zintrust.plugins.*`
 
@@ -82,6 +101,19 @@ export default {
   pruneAfterHours: Env.getInt('TRACE_PRUNE_HOURS', 24),
   slowQueryThreshold: Env.getInt('TRACE_SLOW_QUERY_MS', 100),
   logMinLevel: Env.get('TRACE_LOG_LEVEL', 'info') as TraceConfigOverrides['logMinLevel'],
+  captureCachePayloads: Env.getBool('TRACE_CACHE_PAYLOADS', false),
+  captureQueryBindings: Env.getBool('TRACE_QUERY_BINDINGS', true),
+  contentDispatch: {
+    driver: Env.get('TRACE_CONTENT_QUEUE_DRIVER', '') || undefined,
+    queueName: Env.get('TRACE_CONTENT_QUEUE_NAME', 'trace-content'),
+    enqueueTimeoutMs: Env.getInt('TRACE_CONTENT_QUEUE_ENQUEUE_TIMEOUT_MS', 25),
+    worker: {
+      enabled: Env.getBool('TRACE_CONTENT_QUEUE_WORKER_ENABLED', true),
+      intervalMs: Env.getInt('TRACE_CONTENT_QUEUE_WORKER_INTERVAL_MS', 1000),
+      maxDurationMs: Env.getInt('TRACE_CONTENT_QUEUE_WORKER_MAX_DURATION_MS', 250),
+      concurrency: Env.getInt('TRACE_CONTENT_QUEUE_WORKER_CONCURRENCY', 1),
+    },
+  },
   watchers: {
     request: {
       get: { exclude: ['report'] },
@@ -258,19 +290,29 @@ ExceptionWatcher.register({ storage, config, db });
 
 `TraceConfig.merge(overrides?)` accepts the following options:
 
-| Option               | Type                                                | Default                            | Description                                                                  |
-| -------------------- | --------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
-| `enabled`            | `boolean`                                           | `false`                            | Master switch — no watchers activate when `false`                            |
-| `connection`         | `string \| undefined`                               | `undefined`                        | Named DB connection for storing entries; uses `'default'` if omitted         |
-| `pruneAfterHours`    | `number`                                            | `24`                               | Entries older than this are pruned                                           |
-| `slowQueryThreshold` | `number`                                            | `100`                              | Queries taking longer (ms) are flagged as slow                               |
-| `logMinLevel`        | `'debug' \| 'info' \| 'warn' \| 'error' \| 'fatal'` | `'info'`                           | Minimum log severity captured                                                |
-| `ignoreRoutes`       | `string[]`                                          | `['/trace', '/health', '/ping']`   | Routes excluded from HTTP watcher                                            |
-| `watchers`           | `Record<string, boolean \| { include?, exclude? }>` | `{}`                               | Per-watcher enable/disable flags plus contains-based include/exclude filters |
-| `redaction.keys`     | `string[]`                                          | common auth/card/session keys      | Extra sensitive keys redacted recursively before trace persistence           |
-| `redaction.headers`  | `string[]`                                          | `['authorization', 'cookie', ...]` | Request header names to redact                                               |
-| `redaction.body`     | `string[]`                                          | `['password', 'token', ...]`       | Request body keys to redact                                                  |
-| `redaction.query`    | `string[]`                                          | `[]`                               | Query-string keys to redact                                                  |
+| Option                                 | Type                                                | Default                            | Description                                                                    |
+| -------------------------------------- | --------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
+| `enabled`                              | `boolean`                                           | `false`                            | Master switch — no watchers activate when `false`                              |
+| `connection`                           | `string \| undefined`                               | `undefined`                        | Named DB connection for storing entries; uses `'default'` if omitted           |
+| `observeConnection`                    | `string \| undefined`                               | `undefined`                        | Separate observed DB connection for query tracing when storage uses another DB |
+| `pruneAfterHours`                      | `number`                                            | `24`                               | Entries older than this are pruned                                             |
+| `slowQueryThreshold`                   | `number`                                            | `100`                              | Queries taking longer (ms) are flagged as slow                                 |
+| `logMinLevel`                          | `'debug' \| 'info' \| 'warn' \| 'error' \| 'fatal'` | `'info'`                           | Minimum log severity captured                                                  |
+| `captureCachePayloads`                 | `boolean`                                           | `false`                            | Include cache payload values in cache trace entries                            |
+| `captureQueryBindings`                 | `boolean`                                           | `true`                             | Include SQL binding values in query trace entries                              |
+| `contentDispatch.driver`               | `string \| undefined`                               | `undefined`                        | Registered queue driver used for async trace content offload                   |
+| `contentDispatch.queueName`            | `string`                                            | `'trace-content'`                  | Queue name used for offloaded trace content writes                             |
+| `contentDispatch.enqueueTimeoutMs`     | `number`                                            | `25`                               | Max enqueue wait before trace falls back to fail-open persistence              |
+| `contentDispatch.worker.enabled`       | `boolean`                                           | `true`                             | Enables the internal trace queue drain worker                                  |
+| `contentDispatch.worker.intervalMs`    | `number`                                            | `1000`                             | Poll interval for the internal trace queue drain worker                        |
+| `contentDispatch.worker.maxDurationMs` | `number`                                            | `250`                              | Max runtime per drain pass before the worker yields                            |
+| `contentDispatch.worker.concurrency`   | `number`                                            | `1`                                | Number of concurrent queue-drain loops for the internal trace worker           |
+| `ignoreRoutes`                         | `string[]`                                          | `['/trace', '/health', '/ping']`   | Routes excluded from HTTP watcher                                              |
+| `watchers`                             | `Record<string, boolean \| { include?, exclude? }>` | `{}`                               | Per-watcher enable/disable flags plus contains-based include/exclude filters   |
+| `redaction.keys`                       | `string[]`                                          | common auth/card/session keys      | Extra sensitive keys redacted recursively before trace persistence             |
+| `redaction.headers`                    | `string[]`                                          | `['authorization', 'cookie', ...]` | Request header names to redact                                                 |
+| `redaction.body`                       | `string[]`                                          | `['password', 'token', ...]`       | Request body keys to redact                                                    |
+| `redaction.query`                      | `string[]`                                          | `[]`                               | Query-string keys to redact                                                    |
 
 Request watcher filters can also be scoped per method. Matching is contains-based against the stored trace content, so values like `report`, `auth`, or `trace` match any request or entry whose content includes those fragments.
 

@@ -2,7 +2,7 @@
 
 Google Cloud Storage (GCS) storage driver registration for ZinTrust.
 
-- Docs: https://zintrust.com/storage
+Docs: https://zintrust.com/package-storage-gcs
 
 ## Install
 

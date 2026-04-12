@@ -2,6 +2,8 @@
 
 Enterprise-grade worker management system for ZinTrust framework. Provides comprehensive background job processing, monitoring, resilience, and orchestration capabilities.
 
+Docs: https://zintrust.com/package-workers
+
 [![npm version](https://badge.fury.io/js/%40zintrust%2Fworkers.svg)](https://www.npmjs.com/package/@zintrust/workers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

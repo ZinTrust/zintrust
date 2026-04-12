@@ -2,6 +2,8 @@
 
 Nodemailer mail driver package for ZinTrust.
 
+Docs: https://zintrust.com/package-mail-nodemailer
+
 ## Install
 
 ```bash
