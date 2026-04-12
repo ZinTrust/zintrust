@@ -92,6 +92,29 @@ vi.mock('@security/SignedRequest', () => ({
 }));
 
 describe('RemoteSignedJson coverage', () => {
+  it('sends Connection: close with signed JSON requests', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '{"ok":true}',
+    }));
+
+    (globalThis as any).fetch = fetchMock;
+
+    await RemoteSignedJson.request(settings, '/zin/test', { a: 1 });
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+
+    expect(String(url)).toBe('https://example.test/zin/test');
+    expect(init).toMatchObject({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Connection: 'close',
+      },
+    });
+  });
+
   it('returns text payload when JSON parse fails', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,

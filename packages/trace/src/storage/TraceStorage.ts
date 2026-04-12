@@ -4,7 +4,14 @@
  * read/write operations to the trace storage facade.
  */
 import type { IDatabase } from '@zintrust/core';
-import type { EntryTypeValue, ITraceEntry, ITraceStorage, QueryEntriesOptions } from '../types';
+import type {
+  EntryTypeValue,
+  ITraceEntry,
+  ITraceStorage,
+  QueryBatchEntriesOptions,
+  QueryBatchEntriesResult,
+  QueryEntriesOptions,
+} from '../types';
 import { familyHash } from '../utils/familyHash';
 
 const TABLE_ENTRIES = 'zin_trace_entries';
@@ -25,6 +32,102 @@ type EntryRow = {
 };
 
 type TagRow = { entry_uuid: string; tag: string };
+
+const decodeJsonStringLiteral = (value: string): string | undefined => {
+  try {
+    return JSON.parse(`"${value}"`) as string;
+  } catch {
+    return undefined;
+  }
+};
+
+const matchJsonStringField = (content: string, key: string): string | undefined => {
+  const match = new RegExp(String.raw`"${key}"\s*:\s*"((?:\\.|[^"\\])*)"`, 's').exec(content);
+  return match ? decodeJsonStringLiteral(match[1]) : undefined;
+};
+
+const matchJsonNumberField = (content: string, key: string): number | undefined => {
+  const match = new RegExp(String.raw`"${key}"\s*:\s*(-?\d+(?:\.\d+)?)`, 's').exec(content);
+  if (!match) return undefined;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const matchJsonNullOrNumberField = (content: string, key: string): number | null | undefined => {
+  const nullMatch = new RegExp(String.raw`"${key}"\s*:\s*null`, 's').exec(content);
+  if (nullMatch) return null;
+  return matchJsonNumberField(content, key);
+};
+
+const matchJsonStringArrayField = (content: string, key: string): string[] | undefined => {
+  const match = new RegExp(String.raw`"${key}"\s*:\s*(\[.*?\])`, 's').exec(content);
+  if (!match) return undefined;
+
+  try {
+    const parsed = JSON.parse(match[1]) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === 'string')
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const compactRequestContent = (content: string): Record<string, unknown> | undefined => {
+  const compact: Record<string, unknown> = {};
+  const method = matchJsonStringField(content, 'method');
+  const uri = matchJsonStringField(content, 'uri');
+  const responseStatus = matchJsonNumberField(content, 'responseStatus');
+  const duration = matchJsonNumberField(content, 'duration');
+  const memory = matchJsonNullOrNumberField(content, 'memory');
+  const middleware = matchJsonStringArrayField(content, 'middleware');
+  const hostname = matchJsonStringField(content, 'hostname');
+  const userId = matchJsonStringField(content, 'userId');
+
+  if (method !== undefined) compact['method'] = method;
+  if (uri !== undefined) compact['uri'] = uri;
+  if (responseStatus !== undefined) compact['responseStatus'] = responseStatus;
+  if (duration !== undefined) compact['duration'] = duration;
+  if (memory !== undefined) compact['memory'] = memory;
+  if (middleware !== undefined) compact['middleware'] = middleware;
+  if (hostname !== undefined) compact['hostname'] = hostname;
+  if (userId !== undefined) compact['userId'] = userId;
+
+  return Object.keys(compact).length > 0 ? compact : undefined;
+};
+
+const compactClientRequestContent = (content: string): Record<string, unknown> | undefined => {
+  const compact: Record<string, unknown> = {};
+  const source = matchJsonStringField(content, 'source');
+  const method = matchJsonStringField(content, 'method');
+  const url = matchJsonStringField(content, 'url');
+  const responseStatus = matchJsonNumberField(content, 'responseStatus');
+  const error = matchJsonStringField(content, 'error');
+  const duration = matchJsonNumberField(content, 'duration');
+  const hostname = matchJsonStringField(content, 'hostname');
+
+  if (source !== undefined) compact['source'] = source;
+  if (method !== undefined) compact['method'] = method;
+  if (url !== undefined) compact['url'] = url;
+  if (responseStatus !== undefined) compact['responseStatus'] = responseStatus;
+  if (error !== undefined) compact['error'] = error;
+  if (duration !== undefined) compact['duration'] = duration;
+  if (hostname !== undefined) compact['hostname'] = hostname;
+
+  return Object.keys(compact).length > 0 ? compact : undefined;
+};
+
+const summarizeEntryContent = (row: EntryRow): unknown => {
+  if (row.type === 'request') {
+    return compactRequestContent(row.content) ?? (JSON.parse(row.content) as unknown);
+  }
+
+  if (row.type === 'client_request') {
+    return compactClientRequestContent(row.content) ?? (JSON.parse(row.content) as unknown);
+  }
+
+  return JSON.parse(row.content) as unknown;
+};
 
 type DatabaseWithDriver = IDatabase & {
   getType?: () => string;
@@ -74,12 +177,12 @@ const buildIgnoreInsert = (
   return `INSERT INTO ${table} (${columnList}) VALUES (${placeholders})`;
 };
 
-const rowToEntry = (row: EntryRow, tags: string[]): ITraceEntry => ({
+const rowToEntry = (row: EntryRow, tags: string[], summary = false): ITraceEntry => ({
   uuid: row.uuid,
   batchId: row.batch_id,
   familyHash: row.family_hash ?? undefined,
   type: row.type as EntryTypeValue,
-  content: JSON.parse(row.content) as unknown,
+  content: summary ? summarizeEntryContent(row) : (JSON.parse(row.content) as unknown),
   tags,
   isLatest: Boolean(row.is_latest),
   createdAt: row.created_at,
@@ -130,6 +233,45 @@ const buildEntryFilters = (
   const countParams = opts.tag ? [opts.tag, ...params.slice(1)] : [...params];
 
   return { joinClause, whereClause, params, countParams };
+};
+
+const buildBatchCounts = async (
+  db: IDatabase,
+  batchId: string
+): Promise<Partial<Record<EntryTypeValue, number>>> => {
+  const rows = (await db.query(
+    `SELECT type, COUNT(*) as cnt FROM ${TABLE_ENTRIES} WHERE batch_id = ? GROUP BY type`,
+    [batchId]
+  )) as Array<{ type: string; cnt: number }>;
+
+  const counts: Partial<Record<EntryTypeValue, number>> = {};
+  for (const row of rows) {
+    counts[row.type as EntryTypeValue] = row.cnt;
+  }
+
+  return counts;
+};
+
+const buildBatchEntryFilters = (
+  batchId: string,
+  opts: QueryBatchEntriesOptions
+): { whereClause: string; params: unknown[] } => {
+  const conditions = ['batch_id = ?'];
+  const params: unknown[] = [batchId];
+
+  if (opts.type) {
+    conditions.push('type = ?');
+    params.push(opts.type);
+  }
+
+  const excludeTypes = opts.excludeTypes ?? [];
+  if (excludeTypes.length > 0) {
+    const placeholders = excludeTypes.map(() => '?').join(', ');
+    conditions.push(`type NOT IN (${placeholders})`);
+    params.push(...excludeTypes);
+  }
+
+  return { whereClause: `WHERE ${conditions.join(' AND ')}`, params };
 };
 
 const loadTagsByUuid = async (db: IDatabase, uuids: string[]): Promise<Map<string, string[]>> => {
@@ -230,7 +372,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     );
 
     return {
-      data: rows.map((row) => rowToEntry(row, tagsByUuid.get(row.uuid) ?? [])),
+      data: rows.map((row) => rowToEntry(row, tagsByUuid.get(row.uuid) ?? [], opts.summary)),
       total,
     };
   };
@@ -271,6 +413,53 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     );
 
     return rows.map((row) => rowToEntry(row, tagsByUuid.get(row.uuid) ?? []));
+  };
+
+  const queryBatchEntries = async (
+    batchId: string,
+    opts: QueryBatchEntriesOptions = {}
+  ): Promise<QueryBatchEntriesResult> => {
+    const page = opts.page ?? 1;
+    const perPage = opts.perPage ?? 10;
+    const offset = (page - 1) * perPage;
+    const counts = await buildBatchCounts(db, batchId);
+
+    if (opts.countsOnly) {
+      const total = Object.values(counts).reduce((sum, value) => sum + Number(value ?? 0), 0);
+      return { entries: [], total, counts, page, perPage };
+    }
+
+    const { whereClause, params } = buildBatchEntryFilters(batchId, opts);
+    const countResult = (await db.queryOne(
+      `SELECT COUNT(*) as cnt FROM ${TABLE_ENTRIES} ${whereClause}`,
+      params
+    )) as { cnt: number } | undefined;
+    const total = countResult?.cnt ?? 0;
+    if (total === 0) {
+      return { entries: [], total: 0, counts, page, perPage };
+    }
+
+    const rows = (await db.query(
+      `SELECT id, uuid, batch_id, family_hash, type, content, is_latest, created_at
+       FROM ${TABLE_ENTRIES}
+       ${whereClause}
+       ORDER BY created_at ASC, id ASC
+       LIMIT ? OFFSET ?`,
+      [...params, perPage, offset]
+    )) as EntryRow[];
+
+    const tagsByUuid = await loadTagsByUuid(
+      db,
+      rows.map((row) => row.uuid)
+    );
+
+    return {
+      entries: rows.map((row) => rowToEntry(row, tagsByUuid.get(row.uuid) ?? [], opts.summary)),
+      total,
+      counts,
+      page,
+      perPage,
+    };
   };
 
   const prune = async (olderThanMs: number, keepExceptions = false): Promise<number> => {
@@ -331,6 +520,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     queryEntries,
     getEntry,
     getBatch,
+    queryBatchEntries,
     prune,
     clear,
     getMonitoring,

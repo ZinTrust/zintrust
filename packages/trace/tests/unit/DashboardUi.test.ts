@@ -18,7 +18,7 @@ describe('buildDashboardHtml', () => {
 
     expect(html).toContain('trace-disclosure');
     expect(html).toContain('trace-summary-icon');
-    expect(html).toContain("queries: renderTraceItems(batchEntriesByType('query'))");
+    expect(html).toContain("queries: renderDetailBatchPanel('queries')");
   });
 
   it('keeps dashboard css out of the runtime script block', () => {
@@ -35,14 +35,22 @@ describe('buildDashboardHtml', () => {
     const html = buildDashboardHtml('/trace', 'ZinTrust Test App');
 
     expect(html).toContain(
-      "{ id: 'middleware', label: 'Middleware', count: batchEntriesByType('middleware').length }"
+      "{ id: 'middleware', label: 'Middleware', count: resolveDetailBatchCount('middleware') }"
     );
     expect(html).toContain(
-      "{ id: 'models', label: 'Models', count: batchEntriesByType('model').length }"
+      "{ id: 'models', label: 'Models', count: resolveDetailBatchCount('models') }"
     );
-    expect(html).toContain("middleware: renderTraceItems(batchEntriesByType('middleware'))");
-    expect(html).toContain("models: renderTraceItems(batchEntriesByType('model'))");
+    expect(html).toContain("middleware: renderDetailBatchPanel('middleware')");
+    expect(html).toContain("models: renderDetailBatchPanel('models')");
     expect(html).toContain("renderMetricBox('Route middleware'");
+  });
+
+  it('loads request batch counts first and pages related entries by tab', () => {
+    const html = buildDashboardHtml('/trace', 'ZinTrust Test App');
+
+    expect(html).toContain('?countsOnly=true');
+    expect(html).toContain('const loadDetailBatchTab = async (tab, page = 1) =>');
+    expect(html).toContain('data-action="detail-batch-next"');
   });
 
   it('renders mail html before mail text in detail stacks', () => {

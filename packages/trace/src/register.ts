@@ -309,6 +309,28 @@ if (!traceAlreadyInitialized && Env) {
     const logMinLevelRaw = Env.get('TRACE_LOG_LEVEL', '').trim();
     const captureCachePayloadsRaw = Env.get('TRACE_CACHE_PAYLOADS', '').trim();
     const captureQueryBindingsRaw = Env.get('TRACE_QUERY_BINDINGS', '').trim();
+    const contentDispatchDriverRaw = Env.get('TRACE_CONTENT_QUEUE_DRIVER', '').trim();
+    const contentDispatchQueueRaw = Env.get('TRACE_CONTENT_QUEUE_NAME', '').trim();
+    const contentDispatchEnqueueTimeoutRaw = Env.get(
+      'TRACE_CONTENT_QUEUE_ENQUEUE_TIMEOUT_MS',
+      ''
+    ).trim();
+    const contentDispatchWorkerEnabledRaw = Env.get(
+      'TRACE_CONTENT_QUEUE_WORKER_ENABLED',
+      ''
+    ).trim();
+    const contentDispatchWorkerIntervalRaw = Env.get(
+      'TRACE_CONTENT_QUEUE_WORKER_INTERVAL_MS',
+      ''
+    ).trim();
+    const contentDispatchWorkerDurationRaw = Env.get(
+      'TRACE_CONTENT_QUEUE_WORKER_MAX_DURATION_MS',
+      ''
+    ).trim();
+    const contentDispatchWorkerConcurrencyRaw = Env.get(
+      'TRACE_CONTENT_QUEUE_WORKER_CONCURRENCY',
+      ''
+    ).trim();
     const redactionKeys = parseEnvList(Env.get('TRACE_REDACT_KEYS', ''));
     const redactionHeaders = parseEnvList(Env.get('TRACE_REDACT_HEADERS', ''));
     const redactionBody = parseEnvList(Env.get('TRACE_REDACT_BODY', ''));
@@ -335,6 +357,33 @@ if (!traceAlreadyInitialized && Env) {
       parseEnvBool(captureCachePayloadsRaw) ?? startupOverrides?.captureCachePayloads;
     const captureQueryBindings =
       parseEnvBool(captureQueryBindingsRaw) ?? startupOverrides?.captureQueryBindings;
+    const contentDispatchDriver =
+      contentDispatchDriverRaw === ''
+        ? startupOverrides?.contentDispatch?.driver
+        : contentDispatchDriverRaw;
+    const contentDispatchQueueName =
+      contentDispatchQueueRaw === ''
+        ? startupOverrides?.contentDispatch?.queueName
+        : contentDispatchQueueRaw;
+    const contentDispatchEnqueueTimeout =
+      contentDispatchEnqueueTimeoutRaw === ''
+        ? startupOverrides?.contentDispatch?.enqueueTimeoutMs
+        : Number.parseInt(contentDispatchEnqueueTimeoutRaw, 10);
+    const contentDispatchWorkerEnabled =
+      parseEnvBool(contentDispatchWorkerEnabledRaw) ??
+      startupOverrides?.contentDispatch?.worker?.enabled;
+    const contentDispatchWorkerInterval =
+      contentDispatchWorkerIntervalRaw === ''
+        ? startupOverrides?.contentDispatch?.worker?.intervalMs
+        : Number.parseInt(contentDispatchWorkerIntervalRaw, 10);
+    const contentDispatchWorkerDuration =
+      contentDispatchWorkerDurationRaw === ''
+        ? startupOverrides?.contentDispatch?.worker?.maxDurationMs
+        : Number.parseInt(contentDispatchWorkerDurationRaw, 10);
+    const contentDispatchWorkerConcurrency =
+      contentDispatchWorkerConcurrencyRaw === ''
+        ? startupOverrides?.contentDispatch?.worker?.concurrency
+        : Number.parseInt(contentDispatchWorkerConcurrencyRaw, 10);
     const redaction = buildTraceRedactionOverrides({
       startupOverrides,
       redactionBody,
@@ -356,6 +405,35 @@ if (!traceAlreadyInitialized && Env) {
         : {}),
       ...(typeof captureCachePayloads === 'boolean' ? { captureCachePayloads } : {}),
       ...(typeof captureQueryBindings === 'boolean' ? { captureQueryBindings } : {}),
+      contentDispatch: {
+        ...startupOverrides?.contentDispatch,
+        ...(typeof contentDispatchDriver === 'string' ? { driver: contentDispatchDriver } : {}),
+        ...(typeof contentDispatchQueueName === 'string' && contentDispatchQueueName !== ''
+          ? { queueName: contentDispatchQueueName }
+          : {}),
+        ...(typeof contentDispatchEnqueueTimeout === 'number' &&
+        Number.isFinite(contentDispatchEnqueueTimeout)
+          ? { enqueueTimeoutMs: contentDispatchEnqueueTimeout }
+          : {}),
+        worker: {
+          ...startupOverrides?.contentDispatch?.worker,
+          ...(typeof contentDispatchWorkerEnabled === 'boolean'
+            ? { enabled: contentDispatchWorkerEnabled }
+            : {}),
+          ...(typeof contentDispatchWorkerInterval === 'number' &&
+          Number.isFinite(contentDispatchWorkerInterval)
+            ? { intervalMs: contentDispatchWorkerInterval }
+            : {}),
+          ...(typeof contentDispatchWorkerDuration === 'number' &&
+          Number.isFinite(contentDispatchWorkerDuration)
+            ? { maxDurationMs: contentDispatchWorkerDuration }
+            : {}),
+          ...(typeof contentDispatchWorkerConcurrency === 'number' &&
+          Number.isFinite(contentDispatchWorkerConcurrency)
+            ? { concurrency: contentDispatchWorkerConcurrency }
+            : {}),
+        },
+      },
       logMinLevel,
       ...(redaction === undefined ? {} : { redaction }),
     });
@@ -384,7 +462,8 @@ if (!traceAlreadyInitialized && Env) {
         TraceContentRedaction.wrapStorage(
           TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(storageDb), config),
           config.redaction
-        )
+        ),
+        config
       ),
       {
         connectionName: resolvedConnectionName,

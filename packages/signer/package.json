@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/signer",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Request signing and signature verification utilities for ZinTrust.",
   "type": "module",
   "exports": {
@@ -27,6 +27,6 @@
     "type-check": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.5.0"
+    "@zintrust/core": "^0.5.1"
   }
 }

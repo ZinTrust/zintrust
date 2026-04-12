@@ -169,6 +169,28 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
 
     let state = createInitialState();
 
+    const DETAIL_BATCH_PAGE_SIZE = 10;
+    const DETAIL_BATCH_SCOPE_BY_TAB = Object.freeze({
+      queries: { type: 'query' },
+      middleware: { type: 'middleware' },
+      models: { type: 'model' },
+      logs: { type: 'log' },
+      exceptions: { type: 'exception' },
+      http: { type: 'client_request' },
+      cache: { type: 'cache' },
+      other: { scope: 'other' }
+    });
+    const DETAIL_BATCH_COUNT_TYPES = Object.freeze({
+      queries: 'query',
+      middleware: 'middleware',
+      models: 'model',
+      logs: 'log',
+      exceptions: 'exception',
+      http: 'client_request',
+      cache: 'cache'
+    });
+    const DETAIL_BATCH_OTHER_EXCLUDED_TYPES = ['request','query','middleware','model','log','exception','client_request','cache'];
+
     let copySequence = 0;
     const copyPayloads = new Map();
 
@@ -325,9 +347,40 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       return raw === '' ? '-' : escapeHtml(raw.slice(0, 8));
     };
 
-    const batchEntries = () => Array.isArray(state.detailBatch) ? state.detailBatch : [];
-    const batchEntriesByType = (type) => batchEntries().filter((entry) => entry.type === type);
-    const hasRequestTrace = () => Boolean(state.detail && state.detail.type === 'request' && batchEntries().length > 0);
+    const createDetailBatchState = (payload, scope = '', loading = false) => ({
+      counts: payload && typeof payload.counts === 'object' && payload.counts !== null ? payload.counts : {},
+      entries: payload && Array.isArray(payload.entries) ? payload.entries : [],
+      total: payload && Number.isFinite(Number(payload.total)) ? Number(payload.total) : 0,
+      page: payload && Number.isFinite(Number(payload.page)) && Number(payload.page) > 0 ? Number(payload.page) : 1,
+      perPage: payload && Number.isFinite(Number(payload.perPage)) && Number(payload.perPage) > 0 ? Number(payload.perPage) : DETAIL_BATCH_PAGE_SIZE,
+      scope,
+      loading
+    });
+
+    const detailBatchState = () => {
+      const detailBatch = state.detailBatch;
+      if (!detailBatch || typeof detailBatch !== 'object' || Array.isArray(detailBatch)) {
+        return createDetailBatchState(null);
+      }
+      return createDetailBatchState(detailBatch, typeof detailBatch.scope === 'string' ? detailBatch.scope : '', detailBatch.loading === true);
+    };
+
+    const batchEntries = () => detailBatchState().entries;
+    const batchCounts = () => detailBatchState().counts;
+    const batchCount = (type) => {
+      const raw = batchCounts()[type];
+      return Number.isFinite(Number(raw)) ? Number(raw) : 0;
+    };
+    const otherBatchCount = () => Object.entries(batchCounts()).reduce((sum, pair) => {
+      return DETAIL_BATCH_OTHER_EXCLUDED_TYPES.includes(pair[0]) ? sum : sum + Number(pair[1] || 0);
+    }, 0);
+    const resolveDetailBatchQuery = (tab) => DETAIL_BATCH_SCOPE_BY_TAB[tab] || null;
+    const resolveDetailBatchCount = (tab) => {
+      if (tab === 'other') return otherBatchCount();
+      const type = DETAIL_BATCH_COUNT_TYPES[tab];
+      return typeof type === 'string' ? batchCount(type) : 0;
+    };
+    const hasRequestTrace = () => Boolean(state.detail && state.detail.type === 'request');
 
     const prettyJson = (value) => {
       try {
@@ -686,6 +739,27 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       }).join('') + '</div>';
     };
 
+    const renderDetailBatchPanel = (tab) => {
+      const detailBatch = detailBatchState();
+      const count = resolveDetailBatchCount(tab);
+      if (detailBatch.loading && detailBatch.scope === tab) {
+        return '<p class="trace-note">Loading related entries...</p>';
+      }
+      if (count === 0) {
+        return '<p class="trace-note">No related entries captured.</p>';
+      }
+      if (detailBatch.scope !== tab) {
+        return '<p class="trace-note">Open this tab to load the first page of related entries.</p>';
+      }
+
+      const totalPages = Math.max(1, Math.ceil(detailBatch.total / Math.max(1, detailBatch.perPage)));
+
+      return [
+        renderTraceItems(batchEntries()),
+        '<div class="pagination"><span>Page ' + escapeHtml(detailBatch.page) + ' of ' + escapeHtml(totalPages) + ' · ' + escapeHtml(detailBatch.total) + ' related entries</span><div class="pagination-controls"><button type="button" data-action="detail-batch-prev"' + (detailBatch.page <= 1 ? ' disabled' : '') + '>Previous</button><button type="button" data-action="detail-batch-next"' + (detailBatch.page >= totalPages ? ' disabled' : '') + '>Next</button></div></div>'
+      ].join('');
+    };
+
     const renderRequestTrace = (main) => {
       const entry = state.detail;
       const content = entry && entry.content ? entry.content : {};
@@ -694,17 +768,16 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         { id: 'payload', label: 'Payload' },
         { id: 'headers', label: 'Headers' },
         { id: 'response', label: 'Response' },
-        { id: 'queries', label: 'Queries', count: batchEntriesByType('query').length },
-        { id: 'middleware', label: 'Middleware', count: batchEntriesByType('middleware').length },
-        { id: 'models', label: 'Models', count: batchEntriesByType('model').length },
-        { id: 'logs', label: 'Logs', count: batchEntriesByType('log').length },
-        { id: 'exceptions', label: 'Exceptions', count: batchEntriesByType('exception').length },
-        { id: 'http', label: 'HTTP', count: batchEntriesByType('client_request').length },
-        { id: 'cache', label: 'Cache', count: batchEntriesByType('cache').length },
-        { id: 'other', label: 'Other', count: batchEntries().filter((item) => !['request','query','middleware','model','log','exception','client_request','cache'].includes(item.type)).length }
+        { id: 'queries', label: 'Queries', count: resolveDetailBatchCount('queries') },
+        { id: 'middleware', label: 'Middleware', count: resolveDetailBatchCount('middleware') },
+        { id: 'models', label: 'Models', count: resolveDetailBatchCount('models') },
+        { id: 'logs', label: 'Logs', count: resolveDetailBatchCount('logs') },
+        { id: 'exceptions', label: 'Exceptions', count: resolveDetailBatchCount('exceptions') },
+        { id: 'http', label: 'HTTP', count: resolveDetailBatchCount('http') },
+        { id: 'cache', label: 'Cache', count: resolveDetailBatchCount('cache') },
+        { id: 'other', label: 'Other', count: resolveDetailBatchCount('other') }
       ];
       const currentTab = traceTabs.some((tab) => tab.id === state.detailTab) ? state.detailTab : 'summary';
-      const otherEntries = batchEntries().filter((item) => !['request','query','middleware','model','log','exception','client_request','cache'].includes(item.type));
       const panels = {
         summary: [
           '<div class="detail-grid">',
@@ -731,14 +804,14 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         payload: detailJson(content.payload || {}, 'Payload Json'),
         headers: '<div class="detail-stack">' + detailJson(content.headers || {}, 'Request Header Json') + detailJson(content.responseHeaders || {}, 'Response Header Json') + '</div>',
         response: '<div class="detail-stack"><div class="detail-grid">' + renderMetricBox('Status', [{ label: 'Response status', value: escapeHtml(content.responseStatus || '') }, { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }]) + '</div>' + (content.responseBody === undefined ? '<p class="trace-note">No response body was captured for this request.</p>' : detailJson(content.responseBody, 'Response Body Json')) + detailJson(content.responseHeaders || {}, 'Response Header Json') + '</div>',
-        queries: renderTraceItems(batchEntriesByType('query')),
-        middleware: renderTraceItems(batchEntriesByType('middleware')),
-        models: renderTraceItems(batchEntriesByType('model')),
-        logs: renderTraceItems(batchEntriesByType('log')),
-        exceptions: renderTraceItems(batchEntriesByType('exception')),
-        http: renderTraceItems(batchEntriesByType('client_request')),
-        cache: renderTraceItems(batchEntriesByType('cache')),
-        other: renderTraceItems(otherEntries)
+        queries: renderDetailBatchPanel('queries'),
+        middleware: renderDetailBatchPanel('middleware'),
+        models: renderDetailBatchPanel('models'),
+        logs: renderDetailBatchPanel('logs'),
+        exceptions: renderDetailBatchPanel('exceptions'),
+        http: renderDetailBatchPanel('http'),
+        cache: renderDetailBatchPanel('cache'),
+        other: renderDetailBatchPanel('other')
       };
 
       main.innerHTML = [
@@ -958,12 +1031,60 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         const entry = detailResult.entry;
         let detailBatch = null;
         if (entry.type === 'request' && entry.batchId) {
-          const batch = await api('/batch/' + encodeURIComponent(entry.batchId));
-          detailBatch = batch.entries || [];
+          const batch = await api('/batch/' + encodeURIComponent(entry.batchId) + '?countsOnly=true');
+          detailBatch = createDetailBatchState(batch);
         }
         state = { ...state, detail: entry, detailBatch, detailTab: 'summary', page: 'entries' };
         render();
       } catch (error) {
+        window.alert(error.message);
+      }
+    };
+
+    const loadDetailBatchTab = async (tab, page = 1) => {
+      const detail = state.detail;
+      if (!detail || detail.type !== 'request' || !detail.batchId) return;
+
+      const query = resolveDetailBatchQuery(tab);
+      if (!query) {
+        state = { ...state, detailTab: tab };
+        render();
+        return;
+      }
+
+      const previous = detailBatchState();
+      state = {
+        ...state,
+        detailTab: tab,
+        detailBatch: {
+          ...previous,
+          scope: tab,
+          page,
+          perPage: DETAIL_BATCH_PAGE_SIZE,
+          loading: true,
+        },
+      };
+      render();
+
+      try {
+        const qs = new URLSearchParams({ page: String(page), perPage: String(DETAIL_BATCH_PAGE_SIZE) });
+        if (query.type) qs.set('type', query.type);
+        if (query.scope) qs.set('scope', query.scope);
+        const batch = await api('/batch/' + encodeURIComponent(detail.batchId) + '?' + qs.toString());
+        state = {
+          ...state,
+          detailTab: tab,
+          detailBatch: createDetailBatchState(batch, tab, false),
+          page: 'entries'
+        };
+        render();
+      } catch (error) {
+        state = {
+          ...state,
+          detailTab: tab,
+          detailBatch: { ...previous, loading: false }
+        };
+        render();
         window.alert(error.message);
       }
     };
@@ -1045,10 +1166,27 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         filterByTag(String(target.getAttribute('data-tag') || ''));
         return;
       }
-      if (action === 'detail-tab') { state = { ...state, detailTab: String(target.getAttribute('data-tab') || 'summary') }; render(); return; }
+      if (action === 'detail-tab') {
+        const tab = String(target.getAttribute('data-tab') || 'summary');
+        if (Object.prototype.hasOwnProperty.call(DETAIL_BATCH_SCOPE_BY_TAB, tab)) {
+          loadDetailBatchTab(tab, 1);
+          return;
+        }
+        state = { ...state, detailTab: tab };
+        render();
+        return;
+      }
       if (action === 'clear-all') { clearAll(); return; }
       if (action === 'show-detail') { showDetail(String(target.getAttribute('data-uuid') || '')); return; }
       if (action === 'close-detail') { state = { ...state, detail: null, detailBatch: null, detailTab: 'summary' }; render(); return; }
+      if (action === 'detail-batch-prev' || action === 'detail-batch-next') {
+        const detailBatch = detailBatchState();
+        const nextPage = action === 'detail-batch-prev' ? Math.max(1, detailBatch.page - 1) : detailBatch.page + 1;
+        if (detailBatch.scope !== '') {
+          loadDetailBatchTab(detailBatch.scope, nextPage);
+        }
+        return;
+      }
       if (action === 'page-prev') { state = { ...state, entriesPage: Math.max(1, state.entriesPage - 1) }; render(); return; }
       if (action === 'page-next') { state = { ...state, entriesPage: state.entriesPage + 1 }; render(); return; }
       if (action === 'clear-filters') { state = { ...state, detail: null, detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { type: '', tag: '', batchId: '' } }; render(); return; }

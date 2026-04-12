@@ -37,6 +37,15 @@ const onlyDirs = onlyDirsRaw
     )
   : undefined;
 
+const releasePublishPriority = Object.freeze({
+  'db-d1': 10,
+  'db-mysql': 11,
+  'db-postgres': 12,
+  'db-sqlite': 13,
+  'db-sqlserver': 14,
+  'd1-migrator': 20,
+});
+
 function run(cmd, args, opts = {}) {
   const result = spawnSync(cmd, args, {
     stdio: 'inherit',
@@ -393,8 +402,18 @@ async function getPackageDirsToPublish() {
     packageDirs = packageDirs.filter((d) => onlyDirs.has(d));
   }
 
-  // Publish in a stable order.
-  packageDirs.sort();
+  // Publish in a stable order, but keep adapter packages ahead of d1-migrator so
+  // its rewritten npm dependencies never fall back to stale registry versions.
+  packageDirs.sort((left, right) => {
+    const leftPriority = releasePublishPriority[left] ?? 1000;
+    const rightPriority = releasePublishPriority[right] ?? 1000;
+
+    if (leftPriority !== rightPriority) {
+      return leftPriority - rightPriority;
+    }
+
+    return left.localeCompare(right);
+  });
   return packageDirs;
 }
 
@@ -490,12 +509,20 @@ function transformPackageForPublish(pkg, coreVersion) {
     fileDeps.forEach((dep) => {
       if (!transformed.dependencies[dep]?.startsWith('file:')) return;
 
-      const publishedVersion = getPublishedVersion(dep);
-      if (!publishedVersion) {
-        throw new Error(`${dep} is not published on npm; cannot rewrite d1-migrator dependency`);
+      const expectedVersion = coreVersion;
+      const publishedExpectedVersion = isPublishedOnNpm({
+        packageName: dep,
+        version: expectedVersion,
+      });
+
+      if (!publishedExpectedVersion) {
+        const latestPublishedVersion = getPublishedVersion(dep);
+        throw new Error(
+          `${dep}@${expectedVersion} is not published on npm; refusing to rewrite d1-migrator to stale ${latestPublishedVersion ?? 'unpublished'} metadata`
+        );
       }
 
-      transformed.dependencies[dep] = publishedVersion;
+      transformed.dependencies[dep] = expectedVersion;
     });
   }
 

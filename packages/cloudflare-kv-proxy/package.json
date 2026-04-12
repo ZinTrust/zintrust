@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cloudflare-kv-proxy",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Cloudflare KV proxy package for ZinTrust.",
   "type": "module",
   "private": true,
@@ -17,7 +17,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.5.0"
+    "@zintrust/core": "^0.5.1"
   },
   "keywords": [
     "zintrust",

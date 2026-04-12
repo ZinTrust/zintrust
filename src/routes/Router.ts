@@ -403,7 +403,7 @@ const any = <M extends string = string>(
   options?: RouteOptions<M>
 ): void => {
   const fullPath = joinPaths(router.prefix, path);
-  ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].forEach((method) => {
+  ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].forEach((method) => {
     registerRoute(router, method, fullPath, handler, options);
   });
 };

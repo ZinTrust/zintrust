@@ -262,6 +262,24 @@ export interface QueryEntriesOptions {
   to?: number;
   page?: number;
   perPage?: number;
+  summary?: boolean;
+}
+
+export interface QueryBatchEntriesOptions {
+  type?: EntryTypeValue;
+  excludeTypes?: EntryTypeValue[];
+  page?: number;
+  perPage?: number;
+  summary?: boolean;
+  countsOnly?: boolean;
+}
+
+export interface QueryBatchEntriesResult {
+  entries: ITraceEntry[];
+  total: number;
+  counts: Partial<Record<EntryTypeValue, number>>;
+  page: number;
+  perPage: number;
 }
 
 export interface ITraceStorage {
@@ -274,6 +292,10 @@ export interface ITraceStorage {
   queryEntries(opts: QueryEntriesOptions): Promise<{ data: ITraceEntry[]; total: number }>;
   getEntry(uuid: string): Promise<ITraceEntry | null>;
   getBatch(batchId: string): Promise<ITraceEntry[]>;
+  queryBatchEntries(
+    batchId: string,
+    opts?: QueryBatchEntriesOptions
+  ): Promise<QueryBatchEntriesResult>;
   prune(olderThanMs: number, keepExceptions?: boolean): Promise<number>;
   clear(): Promise<void>;
   getMonitoring(): Promise<string[]>;
@@ -337,6 +359,20 @@ export type TraceClientRequestWatcherConfig = TraceClientRequestCaptureRule & {
   sources?: Record<string, TraceClientRequestCaptureRule>;
 };
 
+export type TraceContentDispatchWorkerConfig = {
+  enabled: boolean;
+  intervalMs: number;
+  maxDurationMs: number;
+  concurrency: number;
+};
+
+export type TraceContentDispatchConfig = {
+  driver?: string;
+  queueName: string;
+  enqueueTimeoutMs: number;
+  worker: TraceContentDispatchWorkerConfig;
+};
+
 export type TraceWatcherToggle = boolean | TraceFilterRule;
 export type TraceRequestWatcherToggle = boolean | TraceRequestWatcherConfig;
 export type TraceClientRequestWatcherToggle = boolean | TraceClientRequestWatcherConfig;
@@ -374,6 +410,7 @@ export interface ITraceConfig {
   captureCachePayloads: boolean;
   captureQueryBindings: boolean;
   logMinLevel: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  contentDispatch: TraceContentDispatchConfig;
   watchers: WatcherToggles;
   redaction: RedactionConfig;
 }

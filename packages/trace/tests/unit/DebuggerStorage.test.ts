@@ -9,8 +9,22 @@ type MockDb = {
   queryOne: ReturnType<typeof vi.fn>;
 };
 
-const createDb = (driver = 'sqlite'): MockDb => {
-  const entryRows = [
+const createDb = (
+  driver = 'sqlite',
+  overrides?: {
+    entryRows?: Array<{
+      id: number;
+      uuid: string;
+      batch_id: string;
+      family_hash: string | null;
+      type: string;
+      content: string;
+      is_latest: number;
+      created_at: number;
+    }>;
+  }
+): MockDb => {
+  const entryRows = overrides?.entryRows ?? [
     {
       id: 2,
       uuid: 'entry-2',
@@ -104,6 +118,148 @@ describe('TraceStorage', () => {
         tags: ['cache'],
         content: { message: 'first' },
       }),
+    ]);
+  });
+
+  it('summarizes request entries without returning heavy bodies in list mode', async () => {
+    const db = createDb('sqlite', {
+      entryRows: [
+        {
+          id: 3,
+          uuid: 'entry-3',
+          batch_id: 'batch-9',
+          family_hash: 'hash-9',
+          type: 'request',
+          content: JSON.stringify({
+            method: 'POST',
+            uri: '/api/tasks',
+            responseStatus: 201,
+            duration: 143,
+            hostname: 'app-node',
+            middleware: ['auth', 'throttle'],
+            payload: { large: 'x'.repeat(50_000) },
+            responseBody: { nested: 'y'.repeat(50_000) },
+          }),
+          is_latest: 1,
+          created_at: 30,
+        },
+      ],
+    });
+    const storage = TraceStorage.resolveStorage(db);
+
+    const result = await storage.queryEntries({
+      page: 1,
+      perPage: 10,
+      type: 'request',
+      summary: true,
+    });
+
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        uuid: 'entry-3',
+        type: 'request',
+        content: {
+          method: 'POST',
+          uri: '/api/tasks',
+          responseStatus: 201,
+          duration: 143,
+          hostname: 'app-node',
+          middleware: ['auth', 'throttle'],
+        },
+      }),
+    ]);
+    expect(result.data[0].content).not.toHaveProperty('payload');
+    expect(result.data[0].content).not.toHaveProperty('responseBody');
+  });
+
+  it('paginates batch entries by type and returns per-type counts', async () => {
+    const db = createDb('sqlite', {
+      entryRows: [
+        {
+          id: 1,
+          uuid: 'cache-1',
+          batch_id: 'batch-5',
+          family_hash: null,
+          type: 'cache',
+          content: JSON.stringify({ operation: 'get', key: 'a' }),
+          is_latest: 1,
+          created_at: 10,
+        },
+        {
+          id: 2,
+          uuid: 'cache-2',
+          batch_id: 'batch-5',
+          family_hash: null,
+          type: 'cache',
+          content: JSON.stringify({ operation: 'get', key: 'b' }),
+          is_latest: 1,
+          created_at: 20,
+        },
+      ],
+    });
+    db.query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('GROUP BY type')) {
+        return [
+          { type: 'request', cnt: 1 },
+          { type: 'cache', cnt: 12 },
+          { type: 'query', cnt: 2 },
+        ];
+      }
+
+      if (sql.includes('WHERE entry_uuid IN')) {
+        return [];
+      }
+
+      if (sql.includes('FROM zin_trace_entries')) {
+        expect(params).toEqual(['batch-5', 'cache', 2, 2]);
+        return [
+          {
+            id: 3,
+            uuid: 'cache-3',
+            batch_id: 'batch-5',
+            family_hash: null,
+            type: 'cache',
+            content: JSON.stringify({ operation: 'set', key: 'c' }),
+            is_latest: 1,
+            created_at: 30,
+          },
+          {
+            id: 4,
+            uuid: 'cache-4',
+            batch_id: 'batch-5',
+            family_hash: null,
+            type: 'cache',
+            content: JSON.stringify({ operation: 'set', key: 'd' }),
+            is_latest: 1,
+            created_at: 40,
+          },
+        ];
+      }
+
+      return [];
+    });
+    db.queryOne = vi.fn(async (sql: string) => {
+      if (sql.includes('COUNT(*) as cnt FROM zin_trace_entries WHERE batch_id = ? AND type = ?')) {
+        return { cnt: 12 };
+      }
+
+      return null;
+    });
+
+    const storage = TraceStorage.resolveStorage(db);
+    const result = await storage.queryBatchEntries('batch-5', {
+      type: 'cache',
+      page: 2,
+      perPage: 2,
+    });
+
+    expect(result.counts).toEqual({ request: 1, cache: 12, query: 2 });
+    expect(result.total).toBe(12);
+    expect(result.page).toBe(2);
+    expect(result.perPage).toBe(2);
+    expect(result.entries).toEqual([
+      expect.objectContaining({ uuid: 'cache-3', type: 'cache' }),
+      expect.objectContaining({ uuid: 'cache-4', type: 'cache' }),
     ]);
   });
 
