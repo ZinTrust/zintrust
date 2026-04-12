@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-11
 
+- Temporarily disabled the new raw-fetch outbound trace capture path for internal service integrations such as SMS, mail, storage, and internal broadcast HTTP while investigating request hangs under the expanded `client_request` tracing rollout. `HttpClient` tracing remains available, but `tracedFetch(...)` and `safeFetch(...)` now fall back to plain fetch behavior for this test release.
 - Made System Trace startup failures non-fatal for application boot. When trace runtime initialization fails, ZinTrust now logs the failure, disables trace for that boot, and continues starting the app instead of aborting the full runtime.
 - Improved the built-in trace dashboard request experience. Request rows now use HTTP method labels such as `Get` and `Post` in the Type column, request summaries no longer repeat the method name, and related request entries now render collapsed by default so developers can expand the specific query, middleware, model, log, exception, HTTP, cache, or other item they need.
 - Extended request trace correlation to include route middleware and ORM model activity. The request detail view now shows attached route middleware, exposes dedicated Middleware and Models tabs, records route middleware execution inside the request batch, and emits model create/update/delete entries into the same request trace context for easier end-to-end debugging.
