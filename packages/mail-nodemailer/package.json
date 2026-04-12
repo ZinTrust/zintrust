@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/mail-nodemailer",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Nodemailer mail driver for ZinTrust.",
   "private": false,
   "type": "module",
