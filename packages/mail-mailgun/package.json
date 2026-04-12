@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/mail-mailgun",
-  "version": "0.4.97",
+  "version": "0.4.98",
   "description": "Mailgun mail driver for ZinTrust.",
   "private": false,
   "type": "module",
