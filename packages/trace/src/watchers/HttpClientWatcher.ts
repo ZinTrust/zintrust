@@ -1,3 +1,4 @@
+import { generateUuid } from '@zintrust/core';
 import { TraceContext } from '../context';
 import {
   EntryType,
@@ -183,7 +184,7 @@ const emit = ({
   );
   _storage
     .writeEntry({
-      uuid: crypto.randomUUID(),
+      uuid: generateUuid(),
       batchId: TraceContext.getBatchId(),
       type: EntryType.CLIENT_REQUEST,
       content,
