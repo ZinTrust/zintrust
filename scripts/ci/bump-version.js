@@ -5,7 +5,9 @@
 // - fix -> patch
 // - feat -> minor
 // - breaking -> major
-// - patch releases roll over at x.y.99 -> x.(y+1).0
+// - custom carry rules apply to release numbers:
+//   - patch releases roll over at x.y.99 -> x.(y+1).0
+//   - minor releases roll over at x.9.z -> (x+1).0.0
 //
 // Designed for release -> master flow:
 // - compares commits in origin/master..HEAD
@@ -131,23 +133,71 @@ function parseSemver(version) {
   };
 }
 
-function resolveAppliedBumpType(currentVersion, bumpType) {
-  if (bumpType !== 'patch') return bumpType;
+function formatSemver(version) {
+  return `${version.major}.${version.minor}.${version.patch}`;
+}
 
+function incrementMajor(parsedVersion) {
+  return {
+    major: parsedVersion.major + 1,
+    minor: 0,
+    patch: 0,
+  };
+}
+
+function incrementMinor(parsedVersion) {
+  const nextMinor = parsedVersion.minor + 1;
+  if (nextMinor > 9) {
+    return incrementMajor(parsedVersion);
+  }
+
+  return {
+    major: parsedVersion.major,
+    minor: nextMinor,
+    patch: 0,
+  };
+}
+
+function incrementPatch(parsedVersion) {
+  const nextPatch = parsedVersion.patch + 1;
+  if (nextPatch > 99) {
+    return incrementMinor(parsedVersion);
+  }
+
+  return {
+    major: parsedVersion.major,
+    minor: parsedVersion.minor,
+    patch: nextPatch,
+  };
+}
+
+function resolveNextVersion(currentVersion, bumpType) {
   const parsedVersion = parseSemver(currentVersion);
-  if (!parsedVersion) return bumpType;
+  if (!parsedVersion) return null;
 
-  return parsedVersion.patch >= 99 ? 'minor' : 'patch';
+  if (bumpType === 'major') {
+    return formatSemver(incrementMajor(parsedVersion));
+  }
+
+  if (bumpType === 'minor') {
+    return formatSemver(incrementMinor(parsedVersion));
+  }
+
+  if (bumpType === 'patch') {
+    return formatSemver(incrementPatch(parsedVersion));
+  }
+
+  return null;
 }
 
 function applyBump(bumpType) {
   if (bumpType === 'none') return null;
 
   const currentVersion = readJson('./package.json').version;
-  const appliedBumpType = resolveAppliedBumpType(currentVersion, bumpType);
+  const nextVersion = resolveNextVersion(currentVersion, bumpType) ?? currentVersion;
 
   // Update package.json + package-lock.json without creating a git tag.
-  run(`npm version ${appliedBumpType} --no-git-tag-version`);
+  run(`npm version ${nextVersion} --no-git-tag-version`);
 
   // Keep all workspace package versions, peer ranges, and workspace lockfile entries aligned
   // with the new core version so the CI sync check remains green after the bump commit.
@@ -159,7 +209,7 @@ function applyBump(bumpType) {
   run('git add package.json package-lock.json packages/*/package.json');
 
   const pkg = readJson('./package.json');
-  return { version: pkg.version, appliedBumpType };
+  return { version: pkg.version, appliedBumpType: bumpType };
 }
 
 // Ensure refs exist

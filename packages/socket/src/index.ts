@@ -21,8 +21,6 @@ import {
   type SocketPublishPolicyHandler,
   type SocketRouteRegistrar,
   type SocketRuntime,
-  type SocketRuntimeDiagnostics,
-  type SocketWorkerContext,
 } from '@zintrust/core';
 
 type NodeSocket = import('node:net').Socket;
@@ -56,6 +54,25 @@ type ServerSideSocketPublishInput = Readonly<{
 }>;
 
 type WorkerMessageEvent = Event & { data?: unknown };
+
+type SocketRuntimeDiagnostics = Readonly<{
+  enabled: boolean;
+  transport: 'node' | 'cloudflare';
+  path: string;
+  appKeyConfigured: boolean;
+}>;
+
+type SocketWorkerContext = Readonly<{
+  env?: unknown;
+  ctx?: unknown;
+}>;
+
+type SocketAuthorizationContext = Readonly<{
+  channelName: string;
+  socketId: string;
+  user: unknown;
+  channelData?: string;
+}>;
 
 type SubscribePayload = {
   channel?: unknown;
@@ -785,7 +802,10 @@ const isSocketAuthorizer = (value: unknown): value is SocketAuthorizer => {
 
 const createDefaultSocketAuthorizer = (): SocketAuthorizer => {
   return Object.freeze({
-    async authorize(_request, context): Promise<SocketAuthorizationDecision> {
+    async authorize(
+      _request: IRequest,
+      context: SocketAuthorizationContext
+    ): Promise<SocketAuthorizationDecision> {
       if (
         context.channelName.startsWith('private-') ||
         context.channelName.startsWith('presence-')
@@ -864,8 +884,8 @@ const resolveSocketPublishPolicy = (): SocketPublishPolicy => {
 };
 
 const resolveSocketAuthMiddleware = (): string[] => {
-  const configured = broadcastConfig.socket.authMiddleware
-    .filter(isNonEmptyString)
+  const configured = (broadcastConfig.socket.authMiddleware as readonly unknown[])
+    .filter((value): value is string => isNonEmptyString(value))
     .map((value) => value.trim())
     .filter((value) => value !== '');
   const middleware = configured.length > 0 ? configured : ['auth'];
@@ -886,7 +906,9 @@ const isSocketAuthRouteOverrideEnabled = (): boolean => {
 };
 
 const routeExists = (router: IRouter, method: string, path: string): boolean => {
-  return router.routes.some((route) => route.method === method && route.path === path);
+  return router.routes.some(
+    (route: { method: string; path: string }) => route.method === method && route.path === path
+  );
 };
 
 const assertReservedSocketRouteAvailable = (
@@ -941,7 +963,9 @@ const parsePublishPayload = (payload: PublishPayload): SocketForwardPublishPaylo
 
   let channels: string[] = [];
   if (isArray(payload.channels)) {
-    channels = payload.channels.filter(isNonEmptyString).map((item) => item.trim());
+    channels = payload.channels
+      .filter((item): item is string => isNonEmptyString(item))
+      .map((item) => item.trim());
   } else if (isNonEmptyString(payload.channel)) {
     channels = [payload.channel.trim()];
   }
@@ -963,8 +987,11 @@ const normalizePublishDecisionPayload = (
   decision: SocketPublishDecision
 ): SocketForwardPublishPayload | null => {
   const event = isNonEmptyString(decision.event) ? decision.event.trim() : payload.event;
-  const channels = isArray(decision.channels)
-    ? decision.channels.filter(isNonEmptyString).map((item) => item.trim())
+  const decisionChannels = decision.channels as readonly unknown[] | undefined;
+  const channels = isArray(decisionChannels)
+    ? decisionChannels
+        .filter((item): item is string => isNonEmptyString(item))
+        .map((item) => item.trim())
     : payload.channels;
 
   if (event === '' || channels.length === 0) {

@@ -98,7 +98,7 @@ const getStatsImpl = async (
   if (!results) return [];
 
   return results
-    .map((result, i) => {
+    .map((result: unknown, i: number) => {
       const [err, data] = result as [Error | null, Record<string, string>];
       if (err || !data)
         return {
@@ -125,12 +125,12 @@ export const createMetrics = (config: RedisConfig): Metrics => {
 
     getRecentJobs: async (queue: string): Promise<JobSummary[]> => {
       const list = await redis.lrange(getKey('recent', queue), 0, -1);
-      return list.map((item) => JSON.parse(item) as JobSummary);
+      return list.map((item: string) => JSON.parse(item) as JobSummary);
     },
 
     getFailedJobs: async (queue: string): Promise<JobSummary[]> => {
       const list = await redis.lrange(getKey('failed', queue), 0, -1);
-      return list.map((item) => JSON.parse(item) as JobSummary);
+      return list.map((item: string) => JSON.parse(item) as JobSummary);
     },
 
     close: async (): Promise<void> => {

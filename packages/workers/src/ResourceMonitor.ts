@@ -222,7 +222,7 @@ const calculateCpuUsage = (): number => {
     let totalIdle = 0;
     let totalTick = 0;
 
-    cpus.forEach((cpu) => {
+    cpus.forEach((cpu: { times: Record<string, number> }) => {
       for (const type in cpu.times) {
         totalTick += cpu.times[type as keyof typeof cpu.times];
       }

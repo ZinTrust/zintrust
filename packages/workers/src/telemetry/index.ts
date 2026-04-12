@@ -72,7 +72,7 @@ function registerDashboardRoute(
   Router.get(
     router,
     settings.basePath,
-    (_req, res) => {
+    (_req: IRequest, res: IResponse) => {
       res.html(
         getDashboardHtml({
           basePath: settings.basePath,
@@ -95,7 +95,7 @@ function registerSummaryApi(
   Router.get(
     router,
     `${settings.basePath}/api/summary`,
-    async (_req, res) => {
+    async (_req: IRequest, res: IResponse) => {
       const snapshot = await buildSnapshot();
       res.json(snapshot);
     },

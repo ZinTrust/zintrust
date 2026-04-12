@@ -711,7 +711,7 @@ export const ComplianceManager = Object.freeze({
 
       const logs = await redisClient.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
 
-      return logs.map((log) => JSON.parse(log) as ComplianceAuditLog);
+      return (logs as string[]).map((log: string) => JSON.parse(log) as ComplianceAuditLog);
     } catch (error) {
       Logger.error('Failed to retrieve audit logs', error);
       return [];
@@ -740,7 +740,9 @@ export const ComplianceManager = Object.freeze({
     const requestKeys = await client.keys(`${ACCESS_REQUEST_PREFIX}*`);
     let pendingRequests = 0;
 
-    const requestEntries = await Promise.all(requestKeys.map(async (key) => client.get(key)));
+    const requestEntries = await Promise.all(
+      (requestKeys as string[]).map(async (key: string) => client.get(key))
+    );
 
     requestEntries.forEach((requestJson) => {
       if (requestJson !== null) {
