@@ -134,7 +134,7 @@ const collectClientRequestSourceKeys = (
 ): string[] => {
   const overrideSources = override?.sources ?? {};
   const sourceKeys = new Set<string>([
-    ...Object.keys(isObjectValue(base) ? base.sources ?? {} : {}),
+    ...Object.keys(isObjectValue(base) ? (base.sources ?? {}) : {}),
     ...Object.keys(overrideSources),
   ]);
 

@@ -1,3 +1,6 @@
+import { TermiiDriver } from '@notification/drivers/Termii';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 const { emitHttpClient } = vi.hoisted(() => ({
   emitHttpClient: vi.fn(),
 }));
@@ -7,9 +10,6 @@ vi.mock('@/trace/SystemTraceBridge', () => ({
     emitHttpClient,
   },
 }));
-
-import { TermiiDriver } from '@notification/drivers/Termii';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Termii Driver', () => {
   beforeEach(() => {

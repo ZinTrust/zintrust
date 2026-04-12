@@ -1,13 +1,13 @@
 import { TraceContext } from '../context';
-import type {
-  ClientRequestContent,
-  ClientRequestTraceInput,
-  ITraceWatcher,
-  ITraceWatcherConfig,
-  TraceClientRequestCaptureRule,
-  TraceClientRequestWatcherConfig,
+import {
+  EntryType,
+  type ClientRequestContent,
+  type ClientRequestTraceInput,
+  type ITraceWatcher,
+  type ITraceWatcherConfig,
+  type TraceClientRequestCaptureRule,
+  type TraceClientRequestWatcherConfig,
 } from '../types';
-import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 import { redactHeaders, redactUnknown } from '../utils/redact';
 import { RequestFilter } from '../utils/requestFilter';
@@ -85,24 +85,56 @@ const buildResponseBody = (
   return { responseBody: redactUnknown(responseBody, _redactBodyFields) };
 };
 
+const applySource = (content: ClientRequestContent, normalizedSource: string | undefined): void => {
+  if (normalizedSource !== undefined) {
+    content.source = normalizedSource;
+  }
+};
+
+const applyResponseStatus = (
+  content: ClientRequestContent,
+  responseStatus: number | undefined
+): void => {
+  if (responseStatus !== undefined) {
+    content.responseStatus = responseStatus;
+  }
+};
+
+const applyError = (content: ClientRequestContent, error: unknown): void => {
+  if (typeof error === 'string' && error !== '') {
+    content.error = error;
+  }
+};
+
+const mergePartialContent = (
+  content: ClientRequestContent,
+  partial: Partial<ClientRequestContent>
+): void => {
+  Object.assign(content, partial);
+};
+
 const buildClientRequestContent = (
   input: ClientRequestTraceInput,
   sourceRule: TraceClientRequestCaptureRule | undefined,
   normalizedSource: string | undefined
 ): ClientRequestContent => {
-  return {
-    ...(normalizedSource === undefined ? {} : { source: normalizedSource }),
+  const content: ClientRequestContent = {
     method: input.method.toUpperCase(),
     url: input.url,
-    ...buildRequestHeaders(input.requestHeaders, sourceRule),
-    ...buildRequestBody(input.requestBody, sourceRule),
-    ...(input.responseStatus === undefined ? {} : { responseStatus: input.responseStatus }),
-    ...buildResponseHeaders(input.responseHeaders, sourceRule),
-    ...buildResponseBody(input.responseBody, sourceRule),
-    ...(typeof input.error === 'string' && input.error !== '' ? { error: input.error } : {}),
+    requestHeaders: {},
     duration: input.duration,
     hostname: TraceContext.getHostname(),
   };
+
+  applySource(content, normalizedSource);
+  mergePartialContent(content, buildRequestHeaders(input.requestHeaders, sourceRule));
+  mergePartialContent(content, buildRequestBody(input.requestBody, sourceRule));
+  applyResponseStatus(content, input.responseStatus);
+  mergePartialContent(content, buildResponseHeaders(input.responseHeaders, sourceRule));
+  mergePartialContent(content, buildResponseBody(input.responseBody, sourceRule));
+  applyError(content, input.error);
+
+  return content;
 };
 
 const isWatcherEnabled = (
@@ -169,7 +201,7 @@ export const HttpClientWatcher: ITraceWatcher & { emit: typeof emit } = Object.f
     _storage = storage;
     _clientRequestWatcher =
       typeof config.watchers.clientRequest === 'object' && config.watchers.clientRequest !== null
-        ? (config.watchers.clientRequest as TraceClientRequestWatcherConfig)
+        ? config.watchers.clientRequest
         : undefined;
     _redactHeaderNames = [...(config.redaction?.keys ?? []), ...(config.redaction?.headers ?? [])];
     _redactBodyFields = [...(config.redaction?.keys ?? []), ...(config.redaction?.body ?? [])];

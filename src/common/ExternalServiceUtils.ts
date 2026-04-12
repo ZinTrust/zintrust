@@ -17,13 +17,7 @@ type HeadersInitLocal =
   | HeaderEntriesLike
   | Array<[string, string]>
   | Record<string, string | undefined>;
-type BodyInitLocal =
-  | string
-  | ArrayBuffer
-  | ArrayBufferView
-  | Blob
-  | FormData
-  | URLSearchParams;
+type BodyInitLocal = string | ArrayBuffer | ArrayBufferView | Blob | FormData | URLSearchParams;
 
 const isHeaderEntriesLike = (value: unknown): value is HeaderEntriesLike => {
   return typeof value === 'object' && value !== null && 'entries' in value;
