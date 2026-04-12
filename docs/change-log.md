@@ -2,6 +2,12 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-12
+
+- Removed the temporary TypeScript 6 deprecation suppression from the root [tsconfig.json](tsconfig.json) by dropping the deprecated `baseUrl`, `downlevelIteration`, and `ignoreDeprecations` options. The remaining workspace-only imports that had been relying on `baseUrl` were converted to explicit `@zintrust/*` package aliases and path mappings so `npm run type-check` stays clean on TypeScript 6 without config suppression.
+- Fixed the built-in trace dashboard entries runtime path so `GET /trace/api/entries` now returns compact summary rows instead of full nested trace payloads in list mode. Request-heavy views such as `/trace?page=entries&type=request` now omit large request and response bodies from list responses, include lightweight detail metadata, and enforce a tighter `perPage` cap for request rows to keep dashboard serialization bounded under load.
+- Fixed the inline trace dashboard document so the runtime script no longer contains stray duplicated CSS. This removes the browser-side `Unexpected token '.'` failure on `/trace?page=entries&type=request` and lets the entries page boot normally again.
+
 ## 2026-04-11
 
 - Temporarily disabled the new raw-fetch outbound trace capture path for internal service integrations such as SMS, mail, storage, and internal broadcast HTTP while investigating request hangs under the expanded `client_request` tracing rollout. `HttpClient` tracing remains available, but `tracedFetch(...)` and `safeFetch(...)` now fall back to plain fetch behavior for this test release.

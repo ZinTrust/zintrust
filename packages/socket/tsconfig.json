@@ -4,6 +4,7 @@
     "module": "ES2022",
     "lib": ["es2023", "dom"],
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "moduleResolution": "bundler",
     "rootDir": "./src",
     "outDir": "./dist",
