@@ -1,3 +1,4 @@
+import { tracedFetch } from '@common/ExternalServiceUtils';
 import type { PusherBroadcastDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { createHash, createHmac } from '@node-singletons/crypto';
@@ -78,13 +79,17 @@ export const PusherDriver = Object.freeze({
     const baseUrl = buildBaseUrl(config.cluster);
     const url = `${baseUrl}${path}?${queryString}&auth_signature=${authSignature}`;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
+    const res = await tracedFetch(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body,
       },
-      body,
-    });
+      { source: 'pusher' }
+    );
 
     if (!res.ok) {
       let responseBody: string | undefined;

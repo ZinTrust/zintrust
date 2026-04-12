@@ -1,3 +1,4 @@
+import type { IRouter } from '@core-routes/Router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const nextTick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -168,15 +169,27 @@ describe('patch coverage: runtime + proxy helpers', () => {
       Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
 
+    vi.doMock('@/runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn().mockResolvedValue({
+        WorkerInit: {
+          initialize: vi.fn().mockResolvedValue(undefined),
+          autoStartPersistedWorkers: vi.fn().mockResolvedValue(undefined),
+        },
+        registerWorkerRoutes: vi.fn(),
+      }),
+      loadQueueMonitorModule: vi.fn().mockResolvedValue(null),
+    }));
+
     const { createLifecycle } = await import('@/boot/registry/runtime');
 
     const lifecycle = createLifecycle({
       environment: 'development',
       resolvedBasePath: '/tmp',
-      router: { getRoutes: vi.fn(), getNamedRoutes: vi.fn() } as unknown as {
-        getRoutes: () => unknown;
-        getNamedRoutes: () => unknown;
-      },
+      router: {
+        routes: [],
+        prefix: '',
+        routeIndex: new Map(),
+      } as IRouter,
       shutdownManager: { add: vi.fn(), run: vi.fn() },
       getBooted: () => false,
       setBooted: vi.fn(),

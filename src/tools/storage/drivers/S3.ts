@@ -1,4 +1,4 @@
-import { readEnvString } from '@common/ExternalServiceUtils';
+import { readEnvString, tracedFetch } from '@common/ExternalServiceUtils';
 import { AwsSigV4 } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { createHash, createHmac } from '@node-singletons/crypto';
@@ -150,11 +150,15 @@ export const S3Driver = Object.freeze({
     };
     if (sessionToken !== undefined) headers['x-amz-security-token'] = sessionToken;
 
-    const res = await fetch(`https://${host}${path}`, {
-      method: 'PUT',
-      headers,
-      body,
-    });
+    const res = await tracedFetch(
+      `https://${host}${path}`,
+      {
+        method: 'PUT',
+        headers,
+        body,
+      },
+      { source: 's3' }
+    );
 
     if (!res.ok) {
       const text = await res.text();
@@ -195,10 +199,14 @@ export const S3Driver = Object.freeze({
     };
     if (sessionToken !== undefined) headers['x-amz-security-token'] = sessionToken;
 
-    const res = await fetch(`https://${host}${path}`, {
-      method: 'GET',
-      headers,
-    });
+    const res = await tracedFetch(
+      `https://${host}${path}`,
+      {
+        method: 'GET',
+        headers,
+      },
+      { source: 's3' }
+    );
 
     if (!res.ok) {
       const text = await res.text();
@@ -236,7 +244,11 @@ export const S3Driver = Object.freeze({
       };
       if (sessionToken !== undefined) headers['x-amz-security-token'] = sessionToken;
 
-      const res = await fetch(`https://${host}${path}`, { method: 'HEAD', headers });
+      const res = await tracedFetch(
+        `https://${host}${path}`,
+        { method: 'HEAD', headers },
+        { source: 's3' }
+      );
       return res.ok;
     } catch {
       return false;
@@ -269,7 +281,11 @@ export const S3Driver = Object.freeze({
     };
     if (sessionToken !== undefined) headers['x-amz-security-token'] = sessionToken;
 
-    const res = await fetch(`https://${host}${path}`, { method: 'DELETE', headers });
+    const res = await tracedFetch(
+      `https://${host}${path}`,
+      { method: 'DELETE', headers },
+      { source: 's3' }
+    );
     if (!res.ok) {
       const text = await res.text();
       throw ErrorFactory.createConnectionError(`S3 delete failed (${res.status})`, {

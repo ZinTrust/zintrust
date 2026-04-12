@@ -201,4 +201,38 @@ describe('Kernel middleware order', () => {
 
     expect(events).toEqual(['r1-before', 'handler', 'r1-after']);
   });
+
+  it('emits traced route middleware lifecycle events when a global trace emitter is registered', async () => {
+    const kernel = Kernel.create(mockRouter, mockContainer);
+    const emit = vi.fn();
+    (
+      globalThis as typeof globalThis & {
+        __zintrust_trace_middleware_emit__?: typeof emit;
+      }
+    ).__zintrust_trace_middleware_emit__ = emit;
+
+    kernel.registerRouteMiddleware('r1', async (_req, _res, next) => {
+      await next();
+    });
+
+    vi.mocked(Router.match).mockReturnValue({
+      params: {},
+      middleware: ['r1'],
+      handler: async () => undefined,
+    } as any);
+
+    try {
+      await kernel.handleRequest(mockReq, mockRes);
+    } finally {
+      delete (
+        globalThis as typeof globalThis & {
+          __zintrust_trace_middleware_emit__?: typeof emit;
+        }
+      ).__zintrust_trace_middleware_emit__;
+    }
+
+    expect(mockReq.context['traceRouteMiddleware']).toEqual(['r1']);
+    expect(emit).toHaveBeenNthCalledWith(1, 'r1', 'before');
+    expect(emit).toHaveBeenNthCalledWith(2, 'r1', 'after', expect.any(Number));
+  });
 });

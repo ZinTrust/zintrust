@@ -437,6 +437,51 @@ const applySaveTimestamps = (
   }
 };
 
+type GlobalTraceModelState = {
+  __zintrust_trace_model_emit__?: (
+    action: 'create' | 'update' | 'delete',
+    model: string,
+    id?: string | number,
+    changes?: Record<string, unknown>
+  ) => void;
+};
+
+const buildTraceModelChanges = (
+  attrs: Record<string, unknown>,
+  dirtyFields: string[]
+): Record<string, unknown> | undefined => {
+  if (dirtyFields.length === 0) return undefined;
+
+  const changes: Record<string, unknown> = {};
+  for (const field of dirtyFields) {
+    changes[field] = attrs[field];
+  }
+
+  return changes;
+};
+
+const emitTraceModelEvent = (
+  action: 'create' | 'update' | 'delete',
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  dirtyFields: string[] = []
+): void => {
+  const emit = (globalThis as unknown as GlobalTraceModelState).__zintrust_trace_model_emit__;
+  if (typeof emit !== 'function') return;
+
+  try {
+    const id = attrs['id'];
+    emit(
+      action,
+      config.table,
+      typeof id === 'string' || typeof id === 'number' ? id : undefined,
+      buildTraceModelChanges(attrs, dirtyFields)
+    );
+  } catch {
+    // best-effort trace emission must not affect ORM operations
+  }
+};
+
 const persistNewModel = async (
   config: ModelConfig,
   db: IDatabase,
@@ -515,11 +560,13 @@ const performModelSave = async (
   if (db === undefined) throw ErrorFactory.createDatabaseError('Database not initialized');
 
   const isCreate = context.isExists === false;
+  const dirtyFields = context.getDirtyFields();
   await runObservers(config, 'saving', model);
   await runObservers(config, isCreate ? 'creating' : 'updating', model);
 
   applySaveTimestamps(config, attrs, isCreate);
-  await persistModelState(config, db, attrs, isCreate, context.getDirtyFields());
+  await persistModelState(config, db, attrs, isCreate, dirtyFields);
+  emitTraceModelEvent(isCreate ? 'create' : 'update', config, attrs, dirtyFields);
 
   context.setExists(true);
   context.updateOriginal({ ...attrs });
@@ -540,6 +587,7 @@ const performModelDelete = async (
   if (!isExists || db === undefined) return false;
 
   await runObservers(config, 'deleting', model);
+  emitTraceModelEvent('delete', config, model.getAttributes());
   await runObservers(config, 'deleted', model);
   return true;
 };
@@ -653,6 +701,7 @@ const createLifecycleApi = (
     if (!context.exists()) return false;
     const model = context.getModel();
     await runObservers(config, 'deleting', model);
+    emitTraceModelEvent('delete', config, attrs);
     await runObservers(config, 'deleted', model);
     return true;
   },

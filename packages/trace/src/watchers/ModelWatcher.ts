@@ -6,6 +6,10 @@ import { RequestFilter } from '../utils/requestFilter';
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _ignoreRoutes: string[] = [];
 
+type GlobalModelTraceState = {
+  __zintrust_trace_model_emit__?: typeof emit;
+};
+
 const emit = (
   action: ModelContent['action'],
   model: string,
@@ -40,7 +44,12 @@ export const ModelWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
     if (config.watchers.model === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
+    (globalThis as unknown as GlobalModelTraceState).__zintrust_trace_model_emit__ = emit;
     return () => {
+      const globalState = globalThis as unknown as GlobalModelTraceState;
+      if (globalState.__zintrust_trace_model_emit__ === emit) {
+        delete globalState.__zintrust_trace_model_emit__;
+      }
       _storage = null;
       _ignoreRoutes = [];
     };

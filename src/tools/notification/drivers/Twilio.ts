@@ -1,3 +1,4 @@
+import { tracedFetch } from '@common/ExternalServiceUtils';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type TwilioConfig = {
@@ -48,14 +49,18 @@ export const TwilioDriver = Object.freeze({
 
     const basic = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${basic}`,
-        'content-type': 'application/x-www-form-urlencoded',
+    const res = await tracedFetch(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${basic}`,
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
       },
-      body: params.toString(),
-    });
+      { source: 'twilio' }
+    );
 
     if (!res.ok) {
       const body = await res.text();

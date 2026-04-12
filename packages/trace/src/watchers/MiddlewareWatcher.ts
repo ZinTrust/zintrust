@@ -6,6 +6,10 @@ import { RequestFilter } from '../utils/requestFilter';
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _ignoreRoutes: string[] = [];
 
+type GlobalMiddlewareTraceState = {
+  __zintrust_trace_middleware_emit__?: typeof emit;
+};
+
 const emit = (name: string, event: MiddlewareContent['event'], duration?: number): void => {
   if (!_storage) return;
   if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
@@ -34,7 +38,12 @@ export const MiddlewareWatcher: ITraceWatcher & { emit: typeof emit } = Object.f
     if (config.watchers.middleware === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
+    (globalThis as unknown as GlobalMiddlewareTraceState).__zintrust_trace_middleware_emit__ = emit;
     return () => {
+      const globalState = globalThis as unknown as GlobalMiddlewareTraceState;
+      if (globalState.__zintrust_trace_middleware_emit__ === emit) {
+        delete globalState.__zintrust_trace_middleware_emit__;
+      }
       _storage = null;
       _ignoreRoutes = [];
     };

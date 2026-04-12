@@ -3,6 +3,8 @@
  */
 import type {
   ITraceConfig,
+  TraceClientRequestCaptureRule,
+  TraceClientRequestWatcherToggle,
   TraceConfigOverrides,
   TraceFilterRule,
   TraceRequestWatcherConfig,
@@ -25,19 +27,44 @@ const isObjectValue = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 };
 
+const resolveEnabled = (
+  base?: TraceFilterRule,
+  override?: TraceFilterRule
+): boolean | undefined => {
+  return override?.enabled ?? base?.enabled;
+};
+
+const hasMergedRuleValues = (
+  include: string[],
+  exclude: string[],
+  enabled: boolean | undefined
+): boolean => {
+  return include.length > 0 || exclude.length > 0 || enabled !== undefined;
+};
+
+const buildFilterRule = (input: {
+  include: string[];
+  exclude: string[];
+  enabled: boolean | undefined;
+}): TraceFilterRule => {
+  return Object.freeze({
+    ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
+    ...(input.include.length > 0 ? { include: input.include } : {}),
+    ...(input.exclude.length > 0 ? { exclude: input.exclude } : {}),
+  });
+};
+
 const mergeFilterRule = (
   base?: TraceFilterRule,
   override?: TraceFilterRule
 ): TraceFilterRule | undefined => {
   const include = mergeStringLists(base?.include ?? [], override?.include);
   const exclude = mergeStringLists(base?.exclude ?? [], override?.exclude);
+  const enabled = resolveEnabled(base, override);
 
-  if (include.length === 0 && exclude.length === 0) return undefined;
+  if (!hasMergedRuleValues(include, exclude, enabled)) return undefined;
 
-  return Object.freeze({
-    ...(include.length > 0 ? { include } : {}),
-    ...(exclude.length > 0 ? { exclude } : {}),
-  });
+  return buildFilterRule({ include, exclude, enabled });
 };
 
 const mergeWatcherToggle = (
@@ -49,6 +76,109 @@ const mergeWatcherToggle = (
 
   const baseRule = isObjectValue(base) ? base : undefined;
   return mergeFilterRule(baseRule, override);
+};
+
+type ClientRequestCaptureFlags = Pick<
+  TraceClientRequestCaptureRule,
+  'requestHeaders' | 'requestBody' | 'responseHeaders' | 'responseBody'
+>;
+
+const resolveClientRequestCaptureFlags = (
+  base?: TraceClientRequestCaptureRule,
+  override?: TraceClientRequestCaptureRule
+): ClientRequestCaptureFlags => {
+  return {
+    requestHeaders: override?.requestHeaders ?? base?.requestHeaders,
+    requestBody: override?.requestBody ?? base?.requestBody,
+    responseHeaders: override?.responseHeaders ?? base?.responseHeaders,
+    responseBody: override?.responseBody ?? base?.responseBody,
+  };
+};
+
+const hasClientRequestCaptureFlags = (flags: ClientRequestCaptureFlags): boolean => {
+  return Object.values(flags).some((value) => value !== undefined);
+};
+
+const buildClientRequestCaptureRule = (
+  mergedRule: TraceFilterRule | undefined,
+  flags: ClientRequestCaptureFlags
+): TraceClientRequestCaptureRule => {
+  const baseRule = mergedRule ? { ...mergedRule } : {};
+
+  return Object.freeze({
+    ...baseRule,
+    ...(flags.requestHeaders === undefined ? {} : { requestHeaders: flags.requestHeaders }),
+    ...(flags.requestBody === undefined ? {} : { requestBody: flags.requestBody }),
+    ...(flags.responseHeaders === undefined ? {} : { responseHeaders: flags.responseHeaders }),
+    ...(flags.responseBody === undefined ? {} : { responseBody: flags.responseBody }),
+  });
+};
+
+const mergeClientRequestCaptureRule = (
+  base?: TraceClientRequestCaptureRule,
+  override?: TraceClientRequestCaptureRule
+): TraceClientRequestCaptureRule | undefined => {
+  const mergedRule = mergeFilterRule(base, override);
+  const flags = resolveClientRequestCaptureFlags(base, override);
+
+  if (mergedRule === undefined && !hasClientRequestCaptureFlags(flags)) {
+    return undefined;
+  }
+
+  return buildClientRequestCaptureRule(mergedRule, flags);
+};
+
+const collectClientRequestSourceKeys = (
+  base?: TraceClientRequestWatcherToggle,
+  override?: Exclude<TraceClientRequestWatcherToggle, boolean>
+): string[] => {
+  const overrideSources = override?.sources ?? {};
+  const sourceKeys = new Set<string>([
+    ...Object.keys(isObjectValue(base) ? (base.sources ?? {}) : {}),
+    ...Object.keys(overrideSources),
+  ]);
+
+  return [...sourceKeys];
+};
+
+const mergeClientRequestSources = (
+  base?: TraceClientRequestWatcherToggle,
+  override?: Exclude<TraceClientRequestWatcherToggle, boolean>
+): Record<string, TraceClientRequestCaptureRule> | undefined => {
+  if (override === undefined) return undefined;
+
+  const sources: Record<string, TraceClientRequestCaptureRule> = {};
+
+  for (const key of collectClientRequestSourceKeys(base, override)) {
+    const baseSources = isObjectValue(base) ? base.sources : undefined;
+    const sourceRule = mergeClientRequestCaptureRule(baseSources?.[key], override.sources?.[key]);
+    if (sourceRule !== undefined) {
+      sources[key] = sourceRule;
+    }
+  }
+
+  return Object.keys(sources).length === 0 ? undefined : sources;
+};
+
+const mergeClientRequestWatcherToggle = (
+  base?: TraceClientRequestWatcherToggle,
+  override?: TraceClientRequestWatcherToggle
+): TraceClientRequestWatcherToggle | undefined => {
+  if (override === undefined) return base;
+  if (override === false || override === true) return override;
+
+  const baseConfig = isObjectValue(base) ? base : undefined;
+  const merged = mergeClientRequestCaptureRule(baseConfig, override) ?? {};
+  const sources = mergeClientRequestSources(base, override);
+
+  if (sources === undefined) {
+    return merged;
+  }
+
+  return Object.freeze({
+    ...merged,
+    sources,
+  });
 };
 
 const REQUEST_METHOD_KEYS = ['all', 'get', 'post', 'put', 'patch', 'delete'] as const;
@@ -99,7 +229,7 @@ const mergeWatchers = (
     batch: mergeWatcherToggle(base.batch, override.batch),
     dump: mergeWatcherToggle(base.dump, override.dump),
     view: mergeWatcherToggle(base.view, override.view),
-    clientRequest: mergeWatcherToggle(base.clientRequest, override.clientRequest),
+    clientRequest: mergeClientRequestWatcherToggle(base.clientRequest, override.clientRequest),
   };
 };
 

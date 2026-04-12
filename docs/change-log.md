@@ -2,6 +2,19 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-12
+
+- Removed the temporary TypeScript 6 deprecation suppression from the root [tsconfig.json](tsconfig.json) by dropping the deprecated `baseUrl`, `downlevelIteration`, and `ignoreDeprecations` options. The remaining workspace-only imports that had been relying on `baseUrl` were converted to explicit `@zintrust/*` package aliases and path mappings so `npm run type-check` stays clean on TypeScript 6 without config suppression.
+- Fixed the built-in trace dashboard entries runtime path so `GET /trace/api/entries` now returns compact summary rows instead of full nested trace payloads in list mode. Request-heavy views such as `/trace?page=entries&type=request` now omit large request and response bodies from list responses, include lightweight detail metadata, and enforce a tighter `perPage` cap for request rows to keep dashboard serialization bounded under load.
+- Fixed the inline trace dashboard document so the runtime script no longer contains stray duplicated CSS. This removes the browser-side `Unexpected token '.'` failure on `/trace?page=entries&type=request` and lets the entries page boot normally again.
+
+## 2026-04-11
+
+- Temporarily disabled the new raw-fetch outbound trace capture path for internal service integrations such as SMS, mail, storage, and internal broadcast HTTP while investigating request hangs under the expanded `client_request` tracing rollout. `HttpClient` tracing remains available, but `tracedFetch(...)` and `safeFetch(...)` now fall back to plain fetch behavior for this test release.
+- Made System Trace startup failures non-fatal for application boot. When trace runtime initialization fails, ZinTrust now logs the failure, disables trace for that boot, and continues starting the app instead of aborting the full runtime.
+- Improved the built-in trace dashboard request experience. Request rows now use HTTP method labels such as `Get` and `Post` in the Type column, request summaries no longer repeat the method name, and related request entries now render collapsed by default so developers can expand the specific query, middleware, model, log, exception, HTTP, cache, or other item they need.
+- Extended request trace correlation to include route middleware and ORM model activity. The request detail view now shows attached route middleware, exposes dedicated Middleware and Models tabs, records route middleware execution inside the request batch, and emits model create/update/delete entries into the same request trace context for easier end-to-end debugging.
+
 ## 2026-04-09
 
 - Normalized null-like database read values across the shared ORM boundary so database results that come back as the literal strings `NULL`, `null`, or trimmed variants now reach application code as real `null` values instead of string sentinels. This applies to the core runtime database manager and the public D1, MySQL, and PostgreSQL adapter packages, keeping read behavior consistent across supported databases.
@@ -109,6 +122,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-01
 
+- Added stable outbound trace `source` names for core HTTP integrations such as `termii`, `twilio`, `slack`, `sendgrid`, `mailgun`, `ses`, `s3`, and `pusher`, and extended `watchers.clientRequest` config so projects can include, exclude, or fully disable specific outbound sources as well as suppress selected request/response sections per source.
 - Replaced regex-based query redaction and stack-frame parsing in `@zintrust/trace` with deterministic scanners so CodeQL no longer flags ReDoS-prone handling on trace query strings, exception traces, or job failure traces. Also re-synced the trace/default database connection fallback so literal `DB_CONNECTION=default` resolves to the active runtime default connection while `TRACE_DB_CONNECTION` still overrides trace migrations and runtime storage when explicitly set.
 - Hardened ORM eager loading so `belongsTo` now batches on the parent foreign key and related owner key, `belongsToMany` follows the pivot-join resolution path during eager loading, and lazy-vs-eager parity coverage now spans standard, polymorphic, and through relations plus `withCount(...)` support for the currently counted relation types.
 - Fixed core ORM hydration and model-instance write semantics so `first()` and `firstOrFail()` now return hydrated models like `get()` and `paginate()`, raw `hydrate(...)` no longer re-runs mutators on stored values, and `save()` now persists model-instance inserts and dirty updates through the query builder with mutator-transformed values intact.

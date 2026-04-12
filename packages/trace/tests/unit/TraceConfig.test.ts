@@ -64,6 +64,30 @@ describe('TraceConfig', () => {
     );
   });
 
+  it('accepts client request source overrides', () => {
+    const config = TraceConfig.merge({
+      watchers: {
+        clientRequest: {
+          exclude: ['internal'],
+          sources: {
+            termii: { enabled: false },
+            sendgrid: { responseBody: false },
+          },
+        },
+      },
+    });
+
+    expect(config.watchers.clientRequest).toEqual(
+      expect.objectContaining({
+        exclude: expect.arrayContaining(['internal']),
+        sources: expect.objectContaining({
+          termii: expect.objectContaining({ enabled: false }),
+          sendgrid: expect.objectContaining({ responseBody: false }),
+        }),
+      })
+    );
+  });
+
   it('supports cache payload and SQL binding capture toggles', () => {
     const config = TraceConfig.merge({
       captureCachePayloads: true,

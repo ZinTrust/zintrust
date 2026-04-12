@@ -1,6 +1,16 @@
 import { TermiiDriver } from '@notification/drivers/Termii';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { emitHttpClient } = vi.hoisted(() => ({
+  emitHttpClient: vi.fn(),
+}));
+
+vi.mock('@/trace/SystemTraceBridge', () => ({
+  SystemTraceBridge: {
+    emitHttpClient,
+  },
+}));
+
 describe('Termii Driver', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -23,6 +33,20 @@ describe('Termii Driver', () => {
 
     const out = await TermiiDriver.send('12345', 'hello');
     expect(out).toEqual({ messageId: 'abc' });
+    expect(emitHttpClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'termii',
+        method: 'POST',
+        url: 'https://api.termii.com/sms/send',
+        responseStatus: undefined,
+        duration: expect.any(Number),
+        requestBody: expect.objectContaining({
+          to: '12345',
+          sms: 'hello',
+          api_key: 'testkey',
+        }),
+      })
+    );
   });
 
   it('throws when fetch returns non-ok', async () => {

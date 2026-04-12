@@ -205,7 +205,7 @@ describe('runtime registry (coverage extras)', () => {
     rmSync(tempProjectRoot, { recursive: true, force: true });
   });
 
-  it('boot() fails fast when trace runtime registration throws', async () => {
+  it('boot() continues when trace runtime registration throws', async () => {
     envStrings.TRACE_ENABLED = 'true';
     const traceInitError = Object.assign(new Error('trace storage missing'), {
       code: 'CONFIG_ERROR',
@@ -233,13 +233,16 @@ describe('runtime registry (coverage extras)', () => {
       },
     });
 
-    await expect(lifecycle.boot()).rejects.toBe(traceInitError);
+    await expect(lifecycle.boot()).resolves.toBeUndefined();
 
     const { Logger } = await import('@config/logger');
     expect(Logger.error).toHaveBeenCalledWith(
       'Failed to initialize System Trace runtime',
       traceInitError
     );
-    expect(booted).toBe(false);
+    expect(Logger.warn).toHaveBeenCalledWith(
+      'System Trace runtime disabled for this boot. Application startup will continue.'
+    );
+    expect(booted).toBe(true);
   });
 });

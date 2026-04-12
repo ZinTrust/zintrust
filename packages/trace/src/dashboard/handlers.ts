@@ -3,7 +3,7 @@
  * No auth in this layer — caller mounts middleware as needed.
  */
 import type { IRequest, IResponse } from '@zintrust/core';
-import type { EntryTypeValue, ITraceStorage } from '../types';
+import type { EntryTypeValue, ITraceEntry, ITraceStorage } from '../types';
 
 // ---------------------------------------------------------------------------
 // Storage holder (set once from routes.ts)
@@ -57,6 +57,128 @@ const getNumericQueryParam = (req: IRequest, key: string): number | undefined =>
   return undefined;
 };
 
+const DEFAULT_PER_PAGE = 50;
+const MAX_PER_PAGE = 100;
+const DEFAULT_REQUEST_PER_PAGE = 25;
+const MAX_REQUEST_PER_PAGE = 50;
+const SUMMARY_TEXT_LIMIT = 280;
+const SUMMARY_ARRAY_LIMIT = 10;
+
+type CompactTraceEntry = ITraceEntry<Record<string, unknown>> & {
+  hasDetails: true;
+  contentBytes?: number;
+};
+
+const truncateText = (value: string, limit = SUMMARY_TEXT_LIMIT): string =>
+  value.length <= limit ? value : `${value.slice(0, Math.max(0, limit - 3))}...`;
+
+const compactValue = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    return truncateText(value);
+  }
+
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value === null ||
+    value === undefined
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, SUMMARY_ARRAY_LIMIT).map((item) => {
+      if (typeof item === 'string') {
+        return truncateText(item);
+      }
+
+      if (typeof item === 'number' || typeof item === 'boolean' || item === null) {
+        return item;
+      }
+
+      return '[complex]';
+    });
+  }
+
+  return undefined;
+};
+
+const pickCompactContent = (content: unknown, keys: readonly string[]): Record<string, unknown> => {
+  if (typeof content !== 'object' || content === null || Array.isArray(content)) {
+    return {};
+  }
+
+  const source = content as Record<string, unknown>;
+  const compact: Record<string, unknown> = {};
+
+  for (const key of keys) {
+    const value = compactValue(source[key]);
+    if (value !== undefined) {
+      compact[key] = value;
+    }
+  }
+
+  return compact;
+};
+
+const COMPACT_ENTRY_KEYS: Record<EntryTypeValue, readonly string[]> = {
+  request: [
+    'method',
+    'uri',
+    'responseStatus',
+    'duration',
+    'memory',
+    'middleware',
+    'hostname',
+    'userId',
+  ],
+  query: ['connection', 'sql', 'time', 'duration', 'slow', 'hash', 'hostname'],
+  exception: ['class', 'file', 'line', 'message', 'occurrences', 'hostname', 'userId'],
+  log: ['level', 'message', 'hostname'],
+  job: ['status', 'connection', 'queue', 'name', 'tries', 'timeout', 'hostname'],
+  cache: ['operation', 'key', 'hit', 'store', 'payloadLogged', 'ttl', 'duration', 'hostname'],
+  schedule: ['name', 'expression', 'status', 'duration', 'hostname'],
+  mail: ['to', 'subject', 'template', 'hostname'],
+  auth: ['event', 'userId', 'hostname'],
+  event: ['name', 'listenerCount', 'hostname'],
+  model: ['action', 'model', 'id', 'hostname'],
+  notification: ['channels', 'notifiable', 'notification', 'message', 'hostname'],
+  redis: ['command', 'duration', 'hostname'],
+  gate: ['ability', 'result', 'userId', 'subject', 'hostname'],
+  middleware: ['name', 'event', 'duration', 'hostname'],
+  command: ['name', 'exitCode', 'duration', 'hostname'],
+  batch: ['name', 'total', 'processed', 'failed', 'status', 'hostname'],
+  dump: ['file', 'line', 'hostname'],
+  view: ['template', 'duration', 'hostname'],
+  client_request: ['source', 'method', 'url', 'responseStatus', 'error', 'duration', 'hostname'],
+};
+
+const compactEntryContent = (entry: ITraceEntry): Record<string, unknown> =>
+  pickCompactContent(entry.content, COMPACT_ENTRY_KEYS[entry.type]);
+
+const estimateContentBytes = (content: unknown): number | undefined => {
+  try {
+    return new TextEncoder().encode(JSON.stringify(content)).length;
+  } catch {
+    return undefined;
+  }
+};
+
+const compactListEntry = (entry: ITraceEntry): CompactTraceEntry => ({
+  ...entry,
+  content: compactEntryContent(entry),
+  hasDetails: true,
+  contentBytes: estimateContentBytes(entry.content),
+});
+
+const resolvePerPage = (req: IRequest, type?: EntryTypeValue): number => {
+  const isRequestList = type === 'request';
+  const fallback = isRequestList ? DEFAULT_REQUEST_PER_PAGE : DEFAULT_PER_PAGE;
+  const limit = isRequestList ? MAX_REQUEST_PER_PAGE : MAX_PER_PAGE;
+
+  return Math.max(1, Math.min(qpInt(req, 'perPage', fallback), limit));
+};
+
 // ---------------------------------------------------------------------------
 // Entry handlers
 // ---------------------------------------------------------------------------
@@ -64,18 +186,25 @@ const getNumericQueryParam = (req: IRequest, key: string): number | undefined =>
 export async function listEntries(req: IRequest, res: IResponse): Promise<void> {
   const storage = getStorage(res);
   if (storage !== null) {
+    const type = qp(req, 'type') as EntryTypeValue | undefined;
     const opts = {
-      type: qp(req, 'type') as EntryTypeValue | undefined,
+      type,
       tag: qp(req, 'tag'),
       batchId: qp(req, 'batchId'),
       from: getNumericQueryParam(req, 'from'),
       to: getNumericQueryParam(req, 'to'),
-      page: qpInt(req, 'page', 1),
-      perPage: Math.min(qpInt(req, 'perPage', 50), 200),
+      page: Math.max(1, qpInt(req, 'page', 1)),
+      perPage: resolvePerPage(req, type),
     };
     try {
       const result = await storage.queryEntries(opts);
-      res.json({ ok: true, ...result, page: opts.page, perPage: opts.perPage });
+      res.json({
+        ok: true,
+        data: result.data.map(compactListEntry),
+        total: result.total,
+        page: opts.page,
+        perPage: opts.perPage,
+      });
     } catch (err) {
       res.setStatus(500).json({ error: (err as Error).message });
     }

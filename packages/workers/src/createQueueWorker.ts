@@ -230,11 +230,11 @@ const getWorkerInstanceId = (): string | undefined => {
 };
 
 const getTrackerApi = (): TrackerApi => {
-  return ((getJobStateTracker() ?? {}) as TrackerApi) ?? {};
+  return (getJobStateTracker() ?? {}) as TrackerApi;
 };
 
 const getHeartbeatStoreApi = (): HeartbeatStoreApi => {
-  return ((getJobHeartbeatStore() ?? {}) as HeartbeatStoreApi) ?? {};
+  return (getJobHeartbeatStore() ?? {}) as HeartbeatStoreApi;
 };
 
 const emitJobProcessed = (name: string): void => {

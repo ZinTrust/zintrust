@@ -1,4 +1,5 @@
 import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
+import { tracedFetch } from '@common/ExternalServiceUtils';
 import notificationConfig from '@config/notification';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { NotificationConfig } from '@notification/config';
@@ -50,11 +51,15 @@ const sendTermii = async (
     ...options,
   } as Record<string, unknown>;
 
-  const res = await globalThis.fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  const res = await tracedFetch(
+    url,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    { source: 'termii' }
+  );
 
   if (!res.ok) {
     const txt = await res.text().catch(() => '');

@@ -74,4 +74,39 @@ describe('TraceContentBudget', () => {
       isLatest: false,
     });
   });
+
+  it('drops only the oversized nested field while preserving sibling fields', async () => {
+    const storage = createStorage();
+    const wrapped = TraceContentBudget.wrapStorage(storage);
+
+    await wrapped.writeEntry({
+      uuid: 'entry-3',
+      batchId: 'batch-1',
+      type: EntryType.CLIENT_REQUEST,
+      content: {
+        a: 'good',
+        b: {
+          nestedLarge: 'z'.repeat(200_000),
+          nestedSmall: 'still here',
+        },
+        c: 'is ok',
+      },
+      tags: [],
+      isLatest: true,
+      createdAt: 1,
+    });
+
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          a: 'good',
+          b: expect.objectContaining({
+            nestedLarge: expect.stringContaining('Value dropped'),
+            nestedSmall: 'still here',
+          }),
+          c: 'is ok',
+        }),
+      })
+    );
+  });
 });

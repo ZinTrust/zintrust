@@ -21,6 +21,8 @@ import {
   type SocketPublishPolicyHandler,
   type SocketRouteRegistrar,
   type SocketRuntime,
+  type SocketRuntimeDiagnostics,
+  type SocketWorkerContext,
 } from '@zintrust/core';
 
 type NodeSocket = import('node:net').Socket;
@@ -1117,25 +1119,29 @@ const createSocketRuntime = (): SocketRuntime => {
     return settings.enabled && settings.appKey.trim() !== '';
   };
 
+  const describe = (): SocketRuntimeDiagnostics => {
+    const settings = getSocketRuntimeSettings();
+    const transport: SocketRuntimeDiagnostics['transport'] =
+      typeof getWebSocketPairCtor() === 'function' ? 'cloudflare' : 'node';
+
+    return {
+      enabled: shouldEnable(),
+      transport,
+      path: settings.path,
+      appKeyConfigured: settings.appKey.trim() !== '',
+    };
+  };
+
   return Object.freeze({
     name: '@zintrust/socket',
     isEnabled: shouldEnable,
-    describe() {
-      const settings = getSocketRuntimeSettings();
-      const transport = typeof getWebSocketPairCtor() === 'function' ? 'cloudflare' : 'node';
-      return {
-        enabled: shouldEnable(),
-        transport,
-        path: settings.path,
-        appKeyConfigured: settings.appKey.trim() !== '',
-      };
-    },
-    canHandleNodeUpgrade(input) {
+    describe,
+    canHandleNodeUpgrade(input: SocketNodeUpgradeInput) {
       const settings = getSocketRuntimeSettings();
       if (settings.transport === 'cloudflare') return false;
       return isNodeUpgradeRequest(input, settings);
     },
-    async handleNodeUpgrade(input) {
+    async handleNodeUpgrade(input: SocketNodeUpgradeInput) {
       const settings = getSocketRuntimeSettings();
       const pathname = new URL(input.request.url ?? '/', 'http://localhost').pathname;
       const appKey = getSocketAppKey(pathname, settings);
@@ -1145,13 +1151,13 @@ const createSocketRuntime = (): SocketRuntime => {
 
       return attachNodePeer(getNodeSocketState(), input, settings);
     },
-    canHandleWorkerRequest(request) {
+    canHandleWorkerRequest(request: Request) {
       const settings = getSocketRuntimeSettings();
       if (settings.transport === 'node') return false;
       if (!isWorkerUpgradeRequest(request)) return false;
       return getSocketAppKey(new URL(request.url).pathname, settings) !== null;
     },
-    async handleWorkerRequest(request, context) {
+    async handleWorkerRequest(request: Request, context: SocketWorkerContext) {
       const settings = getSocketRuntimeSettings(context.env);
       const appKey = getSocketAppKey(new URL(request.url).pathname, settings);
       if (appKey === null || appKey !== settings.appKey) {

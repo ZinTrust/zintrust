@@ -38,6 +38,7 @@ const SUN_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke
 const MOON_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>`;
 
 const COPY_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+const DISCLOSURE_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l6 6-6 6"></path></svg>`;
 
 const JSON_HIGHLIGHT_PATTERN = String.raw`("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*")(?=\s*:)|(\s*:)|("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*")|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?`;
 const SQL_HIGHLIGHT_PATTERN = String.raw`(\/\*[\s\S]*?\*\/|--.*$|'(?:''|[^'])*'|\x60[^\x60]+\x60|\b(?:select|from|where|insert|into|values|update|delete|join|left|right|inner|outer|on|and|or|limit|order|by|group|having|as|distinct|null|is|in|like|set|case|when|then|else|end|returning|union|all)\b|-?\d+(?:\.\d+)?)`;
@@ -137,6 +138,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
     const SUN_ICON = __TRACE_SUN_ICON__;
     const MOON_ICON = __TRACE_MOON_ICON__;
     const COPY_ICON = __TRACE_COPY_ICON__;
+    const DISCLOSURE_ICON = __TRACE_DISCLOSURE_ICON__;
     const JSON_HIGHLIGHT_PATTERN = new RegExp(__TRACE_JSON_REGEX__, 'g');
     const SQL_HIGHLIGHT_PATTERN = new RegExp(__TRACE_SQL_REGEX__, 'gim');
     const ENTRY_TYPES = ['request','query','exception','log','job','cache','schedule','mail','auth','event','model','notification','redis','gate','middleware','command','batch','dump','view','client_request'];
@@ -219,6 +221,19 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       if (method === 'GET') return ' method-get';
       if (method === 'POST') return ' method-post';
       return ' method-other';
+    };
+
+    const normalizeMethodLabel = (value) => {
+      const method = String(value || '').trim().toUpperCase();
+      if (method === '') return 'Request';
+      return method.charAt(0) + method.slice(1).toLowerCase();
+    };
+
+    const entryTypeLabel = (entry) => {
+      if (entry && entry.type === 'request') {
+        return normalizeMethodLabel(entry.content && entry.content.method);
+      }
+      return String(entry && entry.type || '');
     };
 
     const typeClass = (entryOrType, maybeEntry) => {
@@ -433,7 +448,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
 
     const entrySummaryText = (entry) => {
       const content = entry && entry.content ? entry.content : {};
-      if (entry.type === 'request') return [content.responseStatus || '', content.method || '', content.uri || ''].filter(Boolean).join(' ');
+      if (entry.type === 'request') return [content.responseStatus || '', content.uri || ''].filter(Boolean).join(' ');
       if (entry.type === 'query') return String(content.sql || '').slice(0, 160);
       if (entry.type === 'exception') return [content.class || '', content.message || ''].filter(Boolean).join(': ');
       if (entry.type === 'log') return '[' + String(content.level || 'log') + '] ' + String(content.message || '').slice(0, 160);
@@ -630,16 +645,17 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
     const renderTraceItems = (entries, options = {}) => {
       if (entries.length === 0) return '<p class="trace-note">No related entries captured.</p>';
 
-      const collapsible = options.collapsible === true;
-      const isInitiallyOpen = options.collapsed !== true;
+      const collapsible = options.collapsible !== false;
+      const isInitiallyOpen = options.collapsed === false;
 
       return '<div class="trace-panel">' + entries.map((entry) => {
         if (collapsible) {
           return [
             '<details class="trace-item trace-disclosure"' + (isInitiallyOpen ? ' open' : '') + '>',
             '<summary class="trace-item-head trace-summary">',
+            '<span class="trace-summary-icon">' + DISCLOSURE_ICON + '</span>',
             '<span class="trace-summary-main">',
-            '<span><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span></span>',
+            '<span><span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span></span>',
             '<span class="trace-summary-copy">' + entrySummaryInlineHtml(entry) + '</span>',
             '</span>',
             '<span class="activity-head">' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></span>',
@@ -656,7 +672,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           '<section class="trace-item">',
           '<div class="trace-item-head">',
           '<div>',
-          '<span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span>',
+          '<span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span>',
           '</div>',
           '<div class="activity-head">' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></div>',
           '</div>',
@@ -679,14 +695,16 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         { id: 'headers', label: 'Headers' },
         { id: 'response', label: 'Response' },
         { id: 'queries', label: 'Queries', count: batchEntriesByType('query').length },
+        { id: 'middleware', label: 'Middleware', count: batchEntriesByType('middleware').length },
+        { id: 'models', label: 'Models', count: batchEntriesByType('model').length },
         { id: 'logs', label: 'Logs', count: batchEntriesByType('log').length },
         { id: 'exceptions', label: 'Exceptions', count: batchEntriesByType('exception').length },
         { id: 'http', label: 'HTTP', count: batchEntriesByType('client_request').length },
         { id: 'cache', label: 'Cache', count: batchEntriesByType('cache').length },
-        { id: 'other', label: 'Other', count: batchEntries().filter((item) => !['request','query','log','exception','client_request','cache'].includes(item.type)).length }
+        { id: 'other', label: 'Other', count: batchEntries().filter((item) => !['request','query','middleware','model','log','exception','client_request','cache'].includes(item.type)).length }
       ];
       const currentTab = traceTabs.some((tab) => tab.id === state.detailTab) ? state.detailTab : 'summary';
-      const otherEntries = batchEntries().filter((item) => !['request','query','log','exception','client_request','cache'].includes(item.type));
+      const otherEntries = batchEntries().filter((item) => !['request','query','middleware','model','log','exception','client_request','cache'].includes(item.type));
       const panels = {
         summary: [
           '<div class="detail-grid">',
@@ -705,12 +723,17 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           renderMetricBox('Tags', [
             { label: 'Values', value: tagsHtml(entry.tags) || '<span class="activity-time">-</span>' }
           ]),
+          renderMetricBox('Route middleware', [
+            { label: 'Attached', value: escapeHtml(Array.isArray(content.middleware) && content.middleware.length > 0 ? content.middleware.join(', ') : 'None') }
+          ]),
           '</div>'
         ].join(''),
         payload: detailJson(content.payload || {}, 'Payload Json'),
         headers: '<div class="detail-stack">' + detailJson(content.headers || {}, 'Request Header Json') + detailJson(content.responseHeaders || {}, 'Response Header Json') + '</div>',
         response: '<div class="detail-stack"><div class="detail-grid">' + renderMetricBox('Status', [{ label: 'Response status', value: escapeHtml(content.responseStatus || '') }, { label: 'Duration', value: escapeHtml(formatDuration(getEntryDuration(entry))) }]) + '</div>' + (content.responseBody === undefined ? '<p class="trace-note">No response body was captured for this request.</p>' : detailJson(content.responseBody, 'Response Body Json')) + detailJson(content.responseHeaders || {}, 'Response Header Json') + '</div>',
-        queries: renderTraceItems(batchEntriesByType('query'), { collapsible: true, collapsed: true }),
+        queries: renderTraceItems(batchEntriesByType('query')),
+        middleware: renderTraceItems(batchEntriesByType('middleware')),
+        models: renderTraceItems(batchEntriesByType('model')),
         logs: renderTraceItems(batchEntriesByType('log')),
         exceptions: renderTraceItems(batchEntriesByType('exception')),
         http: renderTraceItems(batchEntriesByType('client_request')),
@@ -722,8 +745,8 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         '<span class="back-link" data-action="close-detail"><- Back to entries</span>',
         '<section class="panel detail-card">',
         '<div>' + (entry.type === 'request'
-          ? '<span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> <span class="' + typeClass(entry) + '">' + escapeHtml(content.responseStatus || '') + '</span> <span class="mono">' + escapeHtml(content.uri || '') + '</span> ' + tagsHtml(entry.tags)
-          : '<span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags)) + '</div>',
+          ? '<span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span> <span class="' + typeClass(entry) + '">' + escapeHtml(content.responseStatus || '') + '</span> <span class="mono">' + escapeHtml(content.uri || '') + '</span> ' + tagsHtml(entry.tags)
+          : '<span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span> ' + tagsHtml(entry.tags)) + '</div>',
         '<div class="detail-meta"><span>UUID <span class="mono">' + escapeHtml(entry.uuid) + '</span></span><span>Batch <span class="mono">' + escapeHtml(entry.batchId || '-') + '</span></span><span>' + durationHtml(entry) + '</span><span>' + escapeHtml(new Date(Number(entry.createdAt)).toISOString()) + '</span></div>',
         '<div class="trace-tabs">',
         traceTabs.map((tab) => '<button type="button" class="trace-tab' + (tab.id === currentTab ? ' active' : '') + '" data-action="detail-tab" data-tab="' + escapeHtml(tab.id) + '">' + escapeHtml(tab.label) + (tab.count !== undefined ? ' (' + escapeHtml(tab.count) + ')' : '') + '</button>').join(''),
@@ -749,10 +772,10 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         const recentRows = recent.data || [];
         const recentTable = recentRows.length === 0
           ? '<div class="empty">No trace entries recorded.</div>'
-          : '<div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Duration</th><th>Happened</th></tr></thead><tbody>' + recentRows.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span></td><td>' + entrySummaryHtml(entry) + '</td><td>' + tagsHtml(entry.tags) + '</td><td>' + durationHtml(entry) + '</td><td class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('') + '</tbody></table></div>';
+          : '<div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Duration</th><th>Happened</th></tr></thead><tbody>' + recentRows.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td><span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span></td><td>' + entrySummaryHtml(entry) + '</td><td>' + tagsHtml(entry.tags) + '</td><td>' + durationHtml(entry) + '</td><td class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('') + '</tbody></table></div>';
         const activityList = recentRows.length === 0
           ? '<div class="empty">No recent activity.</div>'
-          : '<ul class="activity-list">' + recentRows.slice(0, 5).map((entry) => '<li class="activity-item"><div class="activity-head"><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span>' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></div><div class="activity-summary">' + escapeHtml(entrySummaryText(entry)) + '</div></li>').join('') + '</ul>';
+          : '<ul class="activity-list">' + recentRows.slice(0, 5).map((entry) => '<li class="activity-item"><div class="activity-head"><span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span>' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></div><div class="activity-summary">' + escapeHtml(entrySummaryText(entry)) + '</div></li>').join('') + '</ul>';
 
         main.innerHTML = [
           statsCardsHtml(stats),
@@ -796,7 +819,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         const total = Number(response.total || 0);
         const perPage = Number(response.perPage || 50);
         const totalPages = Math.max(1, Math.ceil(total / perPage));
-        const rows = data.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span></td><td>' + entrySummaryHtml(entry) + '</td><td>' + tagsHtml(entry.tags) + '</td><td>' + durationHtml(entry) + '</td><td class="mono">' + batchSnippet(entry.batchId) + '</td><td class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('');
+        const rows = data.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td><span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span></td><td>' + entrySummaryHtml(entry) + '</td><td>' + tagsHtml(entry.tags) + '</td><td>' + durationHtml(entry) + '</td><td class="mono">' + batchSnippet(entry.batchId) + '</td><td class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('');
 
         main.innerHTML = [
           '<section class="panel">',
@@ -1063,6 +1086,7 @@ const buildDashboardHtml = (basePath: string, projectName?: string): string => {
     .replace('__TRACE_SUN_ICON__', JSON.stringify(SUN_ICON))
     .replace('__TRACE_MOON_ICON__', JSON.stringify(MOON_ICON))
     .replace('__TRACE_COPY_ICON__', JSON.stringify(COPY_ICON))
+    .replace('__TRACE_DISCLOSURE_ICON__', JSON.stringify(DISCLOSURE_ICON))
     .replace('__TRACE_JSON_REGEX__', JSON.stringify(JSON_HIGHLIGHT_PATTERN))
     .replace('__TRACE_SQL_REGEX__', JSON.stringify(SQL_HIGHLIGHT_PATTERN))
     .replace('__TRACE_BASE_PATH_LABEL__', basePath)
