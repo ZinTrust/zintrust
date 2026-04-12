@@ -4,6 +4,8 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-12
 
+- Changed release PR automation to use conventional version bumping again, so release CI now honors `fix` as patch, `feat` as minor, and breaking changes as major instead of forcing every releasable change into a patch bump.
+- Added an explicit release-version rollover rule for the patch ceiling used in ZinTrust releases: a patch bump from `x.y.99` now advances to `x.(y+1).0` instead of producing `x.y.100`.
 - Removed the temporary TypeScript 6 deprecation suppression from the root [tsconfig.json](tsconfig.json) by dropping the deprecated `baseUrl`, `downlevelIteration`, and `ignoreDeprecations` options. The remaining workspace-only imports that had been relying on `baseUrl` were converted to explicit `@zintrust/*` package aliases and path mappings so `npm run type-check` stays clean on TypeScript 6 without config suppression.
 - Fixed the built-in trace dashboard entries runtime path so `GET /trace/api/entries` now returns compact summary rows instead of full nested trace payloads in list mode. Request-heavy views such as `/trace?page=entries&type=request` now omit large request and response bodies from list responses, include lightweight detail metadata, and enforce a tighter `perPage` cap for request rows to keep dashboard serialization bounded under load.
 - Fixed the inline trace dashboard document so the runtime script no longer contains stray duplicated CSS. This removes the browser-side `Unexpected token '.'` failure on `/trace?page=entries&type=request` and lets the entries page boot normally again.

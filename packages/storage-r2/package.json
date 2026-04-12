@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/storage-r2",
-  "version": "0.4.100",
+  "version": "0.5.0",
   "description": "Cloudflare R2 storage driver for ZinTrust.",
   "private": false,
   "type": "module",
