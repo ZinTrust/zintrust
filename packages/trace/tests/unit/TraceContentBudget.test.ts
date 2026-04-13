@@ -41,6 +41,13 @@ const createStorage = (): ITraceStorage => ({
   getMonitoring: vi.fn(async () => []),
   markFamilyStale: vi.fn(async () => undefined),
   prune: vi.fn(async () => 0),
+  queryBatchEntries: vi.fn(async () => ({
+    entries: [],
+    total: 0,
+    counts: {},
+    page: 1,
+    perPage: 10,
+  })),
   queryEntries: vi.fn(async () => ({ data: [], total: 0 })),
   removeMonitoring: vi.fn(async () => undefined),
   stats: vi.fn(async () => ({}) as never),
@@ -48,7 +55,92 @@ const createStorage = (): ITraceStorage => ({
   writeEntry: vi.fn(async () => undefined),
 });
 
+const flushScheduledTraceWork = async (): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    const channel = new MessageChannel();
+
+    channel.port1.onmessage = (): void => {
+      channel.port1.onmessage = null;
+      channel.port1.close();
+      channel.port2.close();
+      resolve();
+    };
+
+    channel.port2.postMessage(undefined);
+  });
+};
+
 describe('TraceContentBudget', () => {
+  it('yields fallback persistence until the next event-loop turn', async () => {
+    const storage = createStorage();
+    const wrapped = TraceContentBudget.wrapStorage(storage, baseConfig);
+
+    const pendingWrite = wrapped.writeEntry({
+      uuid: 'entry-0',
+      batchId: 'batch-1',
+      type: EntryType.CLIENT_REQUEST,
+      content: {
+        responseBody: 'z'.repeat(200_000),
+      },
+      tags: [],
+      isLatest: true,
+      createdAt: 1,
+    });
+
+    await Promise.resolve();
+
+    expect(storage.writeEntry).not.toHaveBeenCalled();
+
+    await flushScheduledTraceWork();
+
+    await pendingWrite;
+
+    expect(storage.writeEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps write promises pending until the deferred storage write finishes', async () => {
+    let releaseWrite = (): void => undefined;
+    const storage = createStorage();
+    storage.writeEntry = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseWrite = resolve;
+        })
+    );
+
+    const wrapped = TraceContentBudget.wrapStorage(storage, baseConfig);
+    let settled = false;
+
+    const pendingWrite = wrapped
+      .writeEntry({
+        uuid: 'entry-promise',
+        batchId: 'batch-1',
+        type: EntryType.CLIENT_REQUEST,
+        content: {
+          responseBody: 'z'.repeat(200_000),
+        },
+        tags: [],
+        isLatest: true,
+        createdAt: 1,
+      })
+      .then(() => {
+        settled = true;
+      });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await flushScheduledTraceWork();
+
+    expect(storage.writeEntry).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+
+    releaseWrite();
+    await pendingWrite;
+
+    expect(settled).toBe(true);
+  });
+
   it('replaces oversized content immediately when queue dispatch is not configured', async () => {
     const storage = createStorage();
     const wrapped = TraceContentBudget.wrapStorage(storage, baseConfig);
@@ -72,7 +164,7 @@ describe('TraceContentBudget', () => {
       createdAt: 1,
     });
 
-    await Promise.resolve();
+    await flushScheduledTraceWork();
 
     expect(storage.writeEntry).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -97,7 +189,7 @@ describe('TraceContentBudget', () => {
       isLatest: false,
     });
 
-    await Promise.resolve();
+    await flushScheduledTraceWork();
 
     expect(storage.updateEntry).toHaveBeenCalledWith('entry-2', {
       content: expect.objectContaining({
@@ -129,7 +221,7 @@ describe('TraceContentBudget', () => {
       createdAt: 1,
     });
 
-    await Promise.resolve();
+    await flushScheduledTraceWork();
 
     expect(storage.writeEntry).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -168,7 +260,7 @@ describe('TraceContentBudget', () => {
       }
     );
 
-    await wrapped.writeEntry({
+    const pendingWrite = wrapped.writeEntry({
       uuid: 'entry-4',
       batchId: 'batch-1',
       type: EntryType.LOG,
@@ -180,9 +272,11 @@ describe('TraceContentBudget', () => {
       createdAt: 1,
     });
 
-    await vi.waitFor(() => {
-      expect(enqueue).toHaveBeenCalled();
-    });
+    await Promise.resolve();
+
+    expect(enqueue).not.toHaveBeenCalled();
+
+    await pendingWrite;
 
     expect(enqueue).toHaveBeenCalledWith(
       'trace-content',
@@ -191,5 +285,62 @@ describe('TraceContentBudget', () => {
       })
     );
     expect(storage.writeEntry).not.toHaveBeenCalled();
+  });
+
+  it('uses bounded top-level compaction in the worker path for oversized queued content', async () => {
+    const storage = createStorage();
+    const wrapped = TraceContentBudget.wrapStorage(
+      storage,
+      {
+        ...baseConfig,
+        contentDispatch: {
+          ...baseConfig.contentDispatch,
+          driver: 'redis',
+          worker: {
+            ...baseConfig.contentDispatch.worker,
+            enabled: true,
+          },
+        },
+      },
+      {
+        queueWorkerApi: {
+          createQueueWorker: <TPayload>(options: { handle(payload: TPayload): Promise<void> }) => ({
+            runOnce: async () => {
+              await options.handle({
+                operation: 'write',
+                entry: {
+                  uuid: 'entry-worker',
+                  batchId: 'batch-1',
+                  type: EntryType.CLIENT_REQUEST,
+                  content: Object.fromEntries(
+                    Array.from({ length: 10 }, (_, index) => [
+                      `field${String(index)}`,
+                      'v'.repeat(15_000),
+                    ])
+                  ),
+                  tags: [],
+                  isLatest: true,
+                  createdAt: 1,
+                },
+              } as TPayload);
+
+              return 1;
+            },
+          }),
+        },
+      }
+    );
+
+    expect(wrapped).toBeDefined();
+
+    await vi.waitFor(() => {
+      expect(storage.writeEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.objectContaining({
+            __traceNotice: expect.stringContaining('top-level field(s) were dropped.'),
+          }),
+        })
+      );
+    });
   });
 });

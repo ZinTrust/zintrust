@@ -8,6 +8,7 @@ import {
   NodeSingletons,
   Router,
 } from '@zintrust/core';
+import { BrandFavicon } from '../BrandFavicon';
 import { INDEX_HTML, MAIN_JS, STYLES_CSS, ZINTRUST_SVG } from './EmbeddedAssets';
 
 const isCloudflare = ((): boolean => {
@@ -69,10 +70,12 @@ const escapeHtml = (value: string): string => {
 
 const injectIndexAppName = (html: string): string => {
   const appName = Env.get('APP_NAME', 'ZinTrust').trim() || 'ZinTrust';
+  const faviconLink = `<link rel="icon" type="image/svg+xml" href="${BrandFavicon.forWorkersUi()}" />`;
 
   return html
     .replaceAll('__ZINTRUST_WORKERS_TITLE__', escapeHtml(`ZinTrust ${appName} Workers Dashboard`))
-    .replaceAll('__ZINTRUST_WORKERS_HEADING__', escapeHtml(`ZinTrust ${appName}'s Workers`));
+    .replaceAll('__ZINTRUST_WORKERS_HEADING__', escapeHtml(`ZinTrust ${appName}'s Workers`))
+    .replace('</head>', `    ${faviconLink}\n  </head>`);
 };
 
 const resolveEmbeddedAssetText = (assetPath: string): string | null => {

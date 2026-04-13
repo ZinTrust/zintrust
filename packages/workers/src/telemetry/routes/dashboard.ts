@@ -1,3 +1,4 @@
+import { BrandFavicon } from '../../ui/BrandFavicon';
 import { renderAlertPanel } from '../components/AlertPanel';
 import { renderCostTracking } from '../components/CostTracking';
 import { renderResourceUsageChart } from '../components/ResourceUsageChart';
@@ -158,6 +159,7 @@ const getDashboardHead = (appName: string): string => `
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZinTrust ${appName}'s Telemetry Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="${BrandFavicon.forTelemetry()}" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     ${getDashboardStyles()}
   </head>`;

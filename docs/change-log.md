@@ -2,6 +2,11 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-13
+
+- Hardened the `@zintrust/trace` content-budget hot path so deferred trace writes now yield to the next event-loop turn instead of running from a microtask. `TraceContentBudget.wrapStorage(...)` now schedules queue enqueue and fallback persistence through a `MessageChannel` task boundary, keeps the returned write/update promise tied to the real deferred dispatch result, and uses bounded top-level field dropping instead of the older recursive droppable-path search when queued worker compaction still has to fit oversized content. The package tests now lock in both the next-turn ordering and the restored promise semantics.
+- Added distinct branded SVG favicons for the built-in Workers UI, Telemetry dashboard, and Queue Monitor pages so developers can identify each ZinTrust browser tab by icon at a glance. Each page now keeps the shared ZinTrust mark but overlays a page-specific symbol in the favicon while leaving the on-page branding unchanged.
+
 ## 2026-04-12
 
 - Changed `@zintrust/trace` content-budget writes to fail open instead of compacting oversized payloads inline on the request path. Trace writes now return immediately, can offload through a configured trace queue driver and internal drain worker, and when no trace queue is configured oversized content is replaced with a short `Trace content exceeded budget and was replaced.` notice before persistence instead of running the expensive compaction loop during live requests.

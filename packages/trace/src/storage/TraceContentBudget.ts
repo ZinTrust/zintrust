@@ -28,87 +28,6 @@ const describeValueType = (value: unknown): string => {
   return typeof value;
 };
 
-type TracePathSegment = string | number;
-
-type TracePathCandidate = {
-  path: TracePathSegment[];
-  size: number;
-};
-
-const chooseLargerCandidate = (
-  left: TracePathCandidate | null,
-  right: TracePathCandidate | null
-): TracePathCandidate | null => {
-  if (left === null) return right;
-  if (right === null) return left;
-  return right.size > left.size ? right : left;
-};
-
-const fallbackCandidate = (value: unknown, path: TracePathSegment[]): TracePathCandidate | null => {
-  return path.length === 0 ? null : { path, size: serializedSize(value) };
-};
-
-const findLargestDroppablePathInArray = (
-  value: unknown[],
-  path: TracePathSegment[]
-): TracePathCandidate | null => {
-  let best: TracePathCandidate | null = null;
-
-  for (const [index, item] of value.entries()) {
-    best = chooseLargerCandidate(best, findLargestDroppablePath(item, [...path, index]));
-  }
-
-  return best ?? fallbackCandidate(value, path);
-};
-
-const findLargestDroppablePathInObject = (
-  value: Record<string, unknown>,
-  path: TracePathSegment[]
-): TracePathCandidate | null => {
-  let best: TracePathCandidate | null = null;
-
-  for (const [key, entryValue] of Object.entries(value)) {
-    if (key === '__traceNotice') continue;
-    best = chooseLargerCandidate(best, findLargestDroppablePath(entryValue, [...path, key]));
-  }
-
-  return best ?? fallbackCandidate(value, path);
-};
-
-const findLargestDroppablePath = (
-  value: unknown,
-  path: TracePathSegment[] = []
-): TracePathCandidate | null => {
-  if (Array.isArray(value)) return findLargestDroppablePathInArray(value, path);
-  if (typeof value === 'object' && value !== null) {
-    return findLargestDroppablePathInObject(value as Record<string, unknown>, path);
-  }
-
-  return fallbackCandidate(value, path);
-};
-
-const replaceAtPath = (value: unknown, path: TracePathSegment[], replacement: unknown): unknown => {
-  if (path.length === 0) return replacement;
-
-  const [segment, ...rest] = path;
-
-  if (Array.isArray(value) && typeof segment === 'number') {
-    const next = value.slice();
-    next[segment] = replaceAtPath(next[segment], rest, replacement);
-    return next;
-  }
-
-  if (typeof value === 'object' && value !== null && typeof segment === 'string') {
-    const current = value as Record<string, unknown>;
-    return {
-      ...current,
-      [segment]: replaceAtPath(current[segment], rest, replacement),
-    };
-  }
-
-  return value;
-};
-
 const compactValue = (value: unknown, depth: number): unknown => {
   if (depth >= DEFAULT_MAX_DEPTH) {
     return DROPPED_FIELD_MESSAGE;
@@ -152,18 +71,34 @@ const compactValue = (value: unknown, depth: number): unknown => {
 };
 
 const compactStructuredValueToBudget = (value: unknown): unknown => {
-  let compacted: unknown =
-    typeof value === 'object' && value !== null && !Array.isArray(value)
-      ? {
-          ...(value as Record<string, unknown>),
-          __traceNotice: COMPACTED_CONTENT_MESSAGE,
-        }
-      : value;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return value;
+  }
 
-  while (serializedSize(compacted) > DEFAULT_MAX_ENTRY_BYTES) {
-    const candidate = findLargestDroppablePath(compacted);
-    if (candidate === null) break;
-    compacted = replaceAtPath(compacted, candidate.path, DROPPED_FIELD_MESSAGE);
+  const compacted: Record<string, unknown> = {
+    ...(value as Record<string, unknown>),
+    __traceNotice: COMPACTED_CONTENT_MESSAGE,
+  };
+
+  const topLevelCandidates = Object.entries(compacted)
+    .filter(([key]) => key !== '__traceNotice')
+    .map(([key, entryValue]) => ({ key, size: serializedSize(entryValue) }))
+    .sort((left, right) => right.size - left.size);
+
+  let droppedCount = 0;
+
+  for (const candidate of topLevelCandidates) {
+    if (serializedSize(compacted) <= DEFAULT_MAX_ENTRY_BYTES) {
+      break;
+    }
+
+    compacted[candidate.key] = DROPPED_FIELD_MESSAGE;
+    droppedCount += 1;
+  }
+
+  if (droppedCount > 0) {
+    compacted['__traceNotice'] =
+      `${COMPACTED_CONTENT_MESSAGE} ${String(droppedCount)} top-level field(s) were dropped.`;
   }
 
   return compacted;
@@ -264,20 +199,33 @@ type TraceContentBudgetRuntime = {
 
 const startedWorkerKeys = new Set<string>();
 
-const queueMicrotaskSafe = (task: () => void): void => {
-  if (typeof queueMicrotask === 'function') {
-    queueMicrotask(task);
-    return;
+const closePort = (port: MessagePort): void => {
+  if (typeof port.close === 'function') {
+    port.close();
   }
-
-  Promise.resolve()
-    .then(() => task())
-    .catch(() => undefined);
 };
 
-const scheduleTask = (task: () => Promise<void>): void => {
-  queueMicrotaskSafe(() => {
-    void task().catch(() => undefined);
+const scheduleTask = async (task: () => Promise<void>): Promise<void> => {
+  return await new Promise<void>((resolve, reject) => {
+    const runTask = (): void => {
+      void task().then(resolve).catch(reject);
+    };
+
+    if (typeof MessageChannel === 'function') {
+      const channel = new MessageChannel();
+
+      channel.port1.onmessage = (): void => {
+        channel.port1.onmessage = null;
+        closePort(channel.port1);
+        closePort(channel.port2);
+        runTask();
+      };
+
+      channel.port2.postMessage(undefined);
+      return;
+    }
+
+    Promise.resolve().then(runTask).catch(reject);
   });
 };
 
@@ -431,7 +379,7 @@ const startInternalDispatchWorker = (
   if (startedWorkerKeys.has(key)) return;
   startedWorkerKeys.add(key);
 
-  scheduleTask(async () => {
+  void scheduleTask(async () => {
     const workersApi = runtime?.queueWorkerApi ?? (await getQueueWorkerApi());
     if (workersApi === null) {
       startedWorkerKeys.delete(key);
@@ -476,16 +424,18 @@ const startInternalDispatchWorker = (
         void runWorker();
       }, intervalMs)
     );
+  }).catch(() => {
+    startedWorkerKeys.delete(key);
   });
 };
 
-const dispatchWrite = (
+const dispatchWrite = async (
   storage: ITraceStorage,
   config: ITraceConfig,
   entry: ITraceEntry,
   runtime?: TraceContentBudgetRuntime
-): void => {
-  scheduleTask(async () => {
+): Promise<void> => {
+  await scheduleTask(async () => {
     if (hasQueueDispatch(config)) {
       const enqueued = await enqueueTraceDispatch(config, { operation: 'write', entry }, runtime);
       if (enqueued) return;
@@ -495,14 +445,14 @@ const dispatchWrite = (
   });
 };
 
-const dispatchUpdate = (
+const dispatchUpdate = async (
   storage: ITraceStorage,
   config: ITraceConfig,
   uuid: string,
   patch: Partial<Pick<ITraceEntry, 'content' | 'isLatest'>>,
   runtime?: TraceContentBudgetRuntime
-): void => {
-  scheduleTask(async () => {
+): Promise<void> => {
+  await scheduleTask(async () => {
     if (hasQueueDispatch(config)) {
       const enqueued = await enqueueTraceDispatch(
         config,
@@ -527,13 +477,13 @@ export const TraceContentBudget = Object.freeze({
     return Object.freeze({
       ...storage,
       writeEntry: async (entry: ITraceEntry): Promise<void> => {
-        dispatchWrite(storage, config, entry, runtime);
+        await dispatchWrite(storage, config, entry, runtime);
       },
       updateEntry: async (
         uuid: string,
         patch: Partial<Pick<ITraceEntry, 'content' | 'isLatest'>>
       ): Promise<void> => {
-        dispatchUpdate(storage, config, uuid, patch, runtime);
+        await dispatchUpdate(storage, config, uuid, patch, runtime);
       },
     });
   },
