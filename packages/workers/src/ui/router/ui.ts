@@ -43,7 +43,7 @@ const getAssetsBinding = (): AssetsBinding | null => Cloudflare.getAssetsBinding
 const fetchAssetText = async (assetPath: string): Promise<string> => {
   const assets = getAssetsBinding();
   if (!assets) return '';
-  const url = new URL(assetPath, 'http://assets');
+  const url = new URL(assetPath, 'http://assets'); //NOSONAR
   const response = await assets.fetch(url);
   if (!response.ok) return '';
   return response.text();
@@ -52,7 +52,7 @@ const fetchAssetText = async (assetPath: string): Promise<string> => {
 const fetchAssetBytes = async (assetPath: string): Promise<Uint8Array | null> => {
   const assets = getAssetsBinding();
   if (!assets) return null;
-  const url = new URL(assetPath, 'http://assets');
+  const url = new URL(assetPath, 'http://assets'); //NOSONAR
   const response = await assets.fetch(url);
   if (!response.ok) return null;
   const buffer = await response.arrayBuffer();

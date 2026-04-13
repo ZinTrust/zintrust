@@ -10,6 +10,7 @@ import {
   Logger,
   middlewareConfig,
   Router,
+  type SocketAuthorizationContext,
   type SocketAuthorizationDecision,
   type SocketAuthorizer,
   type SocketAuthorizerHandler,
@@ -21,6 +22,8 @@ import {
   type SocketPublishPolicyHandler,
   type SocketRouteRegistrar,
   type SocketRuntime,
+  type SocketRuntimeDiagnostics,
+  type SocketWorkerContext,
 } from '@zintrust/core';
 
 type NodeSocket = import('node:net').Socket;
@@ -54,25 +57,6 @@ type ServerSideSocketPublishInput = Readonly<{
 }>;
 
 type WorkerMessageEvent = Event & { data?: unknown };
-
-type SocketRuntimeDiagnostics = Readonly<{
-  enabled: boolean;
-  transport: 'node' | 'cloudflare';
-  path: string;
-  appKeyConfigured: boolean;
-}>;
-
-type SocketWorkerContext = Readonly<{
-  env?: unknown;
-  ctx?: unknown;
-}>;
-
-type SocketAuthorizationContext = Readonly<{
-  channelName: string;
-  socketId: string;
-  user: unknown;
-  channelData?: string;
-}>;
 
 type SubscribePayload = {
   channel?: unknown;
