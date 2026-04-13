@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/db-sqlite",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "SQLite database adapter for ZinTrust.",
   "private": false,
   "type": "module",

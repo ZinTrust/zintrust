@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/mail-smtp",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "SMTP mail driver for ZinTrust.",
   "private": false,
   "type": "module",

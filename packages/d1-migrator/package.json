@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/d1-migrator",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Resumable database migration toolkit for moving data to Cloudflare D1 with ZinTrust.",
   "private": false,
   "type": "module",
