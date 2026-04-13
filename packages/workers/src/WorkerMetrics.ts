@@ -444,7 +444,9 @@ const WorkerMetrics = Object.freeze({
       // Get data from sorted set
       const results = await client.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
 
-      const points: MetricPoint[] = results.map((data) => JSON.parse(data) as MetricPoint);
+      const points: MetricPoint[] = (results as string[]).map(
+        (data: string) => JSON.parse(data) as MetricPoint
+      );
 
       return {
         workerName,
@@ -629,7 +631,7 @@ const WorkerMetrics = Object.freeze({
 
       const results = await client.zrangebyscore(key, startTime, now);
 
-      return results.map((data) => JSON.parse(data) as WorkerHealthScore);
+      return (results as string[]).map((data: string) => JSON.parse(data) as WorkerHealthScore);
     } catch (error) {
       Logger.error(`Error retrieving health history for ${workerName}`, error);
       return [];
@@ -678,10 +680,12 @@ const WorkerMetrics = Object.freeze({
       // Find all unique worker names from health keys
       const pattern = `${RedisKeys.healthPrefix}*`;
       const keys = await client.keys(pattern);
-      const workerNames = keys.map((key) => key.replace(RedisKeys.healthPrefix, ''));
+      const workerNames = (keys as string[]).map((key: string) =>
+        key.replace(RedisKeys.healthPrefix, '')
+      );
 
       const summaries = await Promise.all(
-        workerNames.map(async (workerName) => {
+        workerNames.map(async (workerName: string) => {
           const now = new Date();
           const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 

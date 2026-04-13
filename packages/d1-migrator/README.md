@@ -2,6 +2,8 @@
 
 Migrate any database (MySQL, PostgreSQL, SQLite, SQL Server) to Cloudflare D1 with resumable operations, checkpoint recovery, and comprehensive data validation. Built for production use with careful attention to data integrity and operational safety.
 
+Docs: https://zintrust.com/package-d1-migrator
+
 [![NPM Version](https://img.shields.io/npm/v/@zintrust/d1-migrator)](https://www.npmjs.com/package/@zintrust/d1-migrator)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-green)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue)](https://www.typescriptlang.org/)

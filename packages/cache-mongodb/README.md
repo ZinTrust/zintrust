@@ -2,7 +2,7 @@
 
 MongoDB (Atlas Data API) cache driver for ZinTrust.
 
-- Docs: https://zintrust.com/cache
+Docs: https://zintrust.com/package-cache-mongodb
 
 ## Install
 

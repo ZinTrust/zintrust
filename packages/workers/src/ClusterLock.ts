@@ -405,7 +405,7 @@ export const ClusterLock = Object.freeze({
       const keys = await redisClient.keys(pattern);
 
       const locks = await Promise.all(
-        keys.map(async (key) => {
+        (keys as string[]).map(async (key: string) => {
           const owner = await redisClient?.get(key);
           const lockKey = key.replace(LOCK_PREFIX, '');
           const info = activeLocks.get(lockKey);
@@ -466,7 +466,7 @@ export const ClusterLock = Object.freeze({
       // Get latest entries (highest scores = most recent timestamps)
       const entries = await redisClient.zrevrange(auditKey, 0, limit - 1);
 
-      return entries.map((entry) => JSON.parse(entry) as AuditLogEntry);
+      return (entries as string[]).map((entry: string) => JSON.parse(entry) as AuditLogEntry);
     } catch (error) {
       Logger.error(`Error retrieving audit log for "${lockKey}"`, error);
       return [];

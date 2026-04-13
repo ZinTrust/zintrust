@@ -107,4 +107,4 @@ Use `@zintrust/d1-migrator` when you need to:
 ## Package
 
 - npm: [@zintrust/d1-migrator](https://www.npmjs.com/package/@zintrust/d1-migrator)
-- Source: [packages/d1-migrator/README.md](../packages/d1-migrator/README.md)
+- README: [@zintrust/d1-migrator README](https://www.npmjs.com/package/@zintrust/d1-migrator?activeTab=readme)

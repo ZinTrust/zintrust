@@ -94,6 +94,8 @@ export type {
   RequestContent,
   ScheduleContent,
   TraceConfigOverrides,
+  TraceContentDispatchConfig,
+  TraceContentDispatchWorkerConfig,
   ViewContent,
   WatcherToggles,
 } from './types';

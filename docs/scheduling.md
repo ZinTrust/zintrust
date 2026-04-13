@@ -39,7 +39,7 @@ Use the builder in `src/scheduler/Schedule.ts` (importable via `@scheduler/Sched
 In `app/Schedules/index.ts` you typically start with:
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
+import { Logger, Schedule } from '@zintrust/core';
 ```
 
 - `Schedule.define(name, handler)`
@@ -62,8 +62,7 @@ Below are practical examples you can drop into files like `app/Schedules/*.ts` a
 #### 1) Every minute (cron, UTC)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.everyMinute', async () => {
   Logger.info('demo.everyMinute fired', { at: new Date().toISOString() });
@@ -75,8 +74,7 @@ export default Schedule.define('demo.everyMinute', async () => {
 #### 2) Every 5 minutes (cron)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.every5Minutes', async () => {
   Logger.info('demo.every5Minutes fired', { at: new Date().toISOString() });
@@ -88,8 +86,7 @@ export default Schedule.define('demo.every5Minutes', async () => {
 #### 3) Daily at midnight (timezone-aware)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.midnightNy', async () => {
   Logger.info('demo.midnightNy fired', { at: new Date().toISOString() });
@@ -101,8 +98,7 @@ export default Schedule.define('demo.midnightNy', async () => {
 #### 4) Weekdays at 09:30 (Mon–Fri)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.weekdays0930', async () => {
   Logger.info('demo.weekdays0930 fired', { at: new Date().toISOString() });
@@ -114,8 +110,7 @@ export default Schedule.define('demo.weekdays0930', async () => {
 #### 5) Interval scheduling (every 10 minutes)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.every10MinInterval', async () => {
   Logger.info('demo.every10MinInterval fired', { at: new Date().toISOString() });
@@ -127,8 +122,7 @@ export default Schedule.define('demo.every10MinInterval', async () => {
 #### 6) Run on process start (then continue on interval)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.runOnStartThenHourly', async () => {
   Logger.info('demo.runOnStartThenHourly fired', { at: new Date().toISOString() });
@@ -141,8 +135,7 @@ export default Schedule.define('demo.runOnStartThenHourly', async () => {
 #### 7) Add jitter (spread load)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.jitteredCron', async () => {
   Logger.info('demo.jitteredCron fired', { at: new Date().toISOString() });
@@ -155,8 +148,7 @@ export default Schedule.define('demo.jitteredCron', async () => {
 #### 8) Backoff on failure (retry slower when it keeps failing)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.backoffOnFailure', async () => {
   Logger.info('demo.backoffOnFailure fired', { at: new Date().toISOString() });
@@ -170,8 +162,7 @@ export default Schedule.define('demo.backoffOnFailure', async () => {
 #### 9) Prevent overlap across instances (distributed lock)
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.noOverlap', async () => {
   Logger.info('demo.noOverlap fired', { at: new Date().toISOString() });
@@ -189,8 +180,7 @@ This schedule will NOT auto-run. Invoke it via:
 - or schedule RPC action `run`
 
 ```ts
-import { Schedule } from '@scheduler/Schedule';
-import { Logger } from '@config/logger';
+import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.manualOnly', async () => {
   Logger.info('demo.manualOnly fired', { at: new Date().toISOString() });

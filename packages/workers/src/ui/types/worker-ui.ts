@@ -25,10 +25,6 @@ declare global {
   // UIEventListener type for browser environment
   type UIEventListener = (evt: Event) => void;
 
-  interface Event {
-    target: EventTarget | null;
-  }
-
   interface Element {
     querySelector(selector: string): Element | null;
   }
@@ -93,10 +89,6 @@ export interface Element {
 
 export interface EventTarget {
   addEventListener(type: string, listener: UIEventListener): void;
-}
-
-export interface Event {
-  target: EventTarget | null;
 }
 
 // UIEventListener type for browser environment

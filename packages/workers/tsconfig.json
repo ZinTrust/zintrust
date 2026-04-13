@@ -2,9 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
-    "lib": ["es2023"],
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
+    "lib": ["es2023", "dom", "esnext.disposable"],
     "moduleResolution": "bundler",
     "rootDir": "./src",
     "outDir": "./dist",
@@ -13,6 +11,7 @@
     "sourceMap": false,
     "composite": false,
     "skipLibCheck": true,
+    "types": ["node"],
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "paths": {
       "@zintrust/queue-monitor": ["../queue-monitor/dist/index.d.ts"],

@@ -111,13 +111,13 @@ export { HttpClient } from '@httpClient/Http';
 export type { IHttpRequest, IHttpResponse } from '@httpClient/Http';
 
 // Database adapter types
+export { BaseAdapter } from '@orm/DatabaseAdapter';
 export type {
   DatabaseConfig,
   ID1Database,
   IDatabaseAdapter,
   QueryResult,
 } from '@orm/DatabaseAdapter';
-export { BaseAdapter } from '@orm/DatabaseAdapter';
 
 // Profiling
 export { MemoryProfiler } from '@profiling/MemoryProfiler';
@@ -157,6 +157,10 @@ export { ValidationError } from '@validation/ValidationError';
 export type { FieldError } from '@validation/ValidationError';
 export { Schema, Validator } from '@validation/Validator';
 export type { ISchema, SchemaType } from '@validation/Validator';
+
+// Scheduler
+
+export { Schedule } from '@scheduler/Schedule';
 
 // Security
 

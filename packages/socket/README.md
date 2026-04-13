@@ -2,6 +2,8 @@
 
 Unified websocket runtime for ZinTrust across Node.js and Cloudflare Workers.
 
+Docs: https://zintrust.com/package-socket
+
 This package gives you a Pusher-compatible socket surface without requiring you to hand-wire websocket upgrade routes into your app. On Node.js it handles raw `upgrade` requests directly in the core server. On Cloudflare Workers it uses a Durable Object hub so connected clients and publish requests share one coordination point instead of isolate-local memory.
 
 ## What You Get

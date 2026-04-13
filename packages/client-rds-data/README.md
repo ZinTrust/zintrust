@@ -2,6 +2,8 @@
 
 AWS RDS Data API and Secrets Manager helpers for ZinTrust.
 
+Docs: https://zintrust.com/package-client-rds-data
+
 ## Install
 
 ```bash

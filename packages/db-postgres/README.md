@@ -2,6 +2,8 @@
 
 PostgreSQL database adapter package for ZinTrust (uses `pg`).
 
+Docs: https://zintrust.com/package-db-postgres
+
 ## Install
 
 Recommended:

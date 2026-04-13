@@ -2,9 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
-    "lib": ["es2023", "dom"],
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
+    "lib": ["es2023", "dom", "esnext.disposable"],
     "moduleResolution": "bundler",
     "rootDir": "./src",
     "outDir": "./dist",
@@ -12,6 +10,7 @@
     "declarationMap": false,
     "sourceMap": false,
     "composite": false,
+    "types": ["node"],
     "skipLibCheck": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },

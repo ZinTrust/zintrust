@@ -2,7 +2,7 @@
 
 Core storage (disk driver) abstraction for ZinTrust with multipart form parsing support.
 
-- Docs: https://zintrust.com/storage
+Docs: https://zintrust.com/package-storage
 
 ## Install
 

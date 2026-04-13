@@ -2,6 +2,8 @@
 
 Cloudflare D1 database adapter package for ZinTrust.
 
+Docs: https://zintrust.com/package-db-d1
+
 ## Install
 
 ```bash

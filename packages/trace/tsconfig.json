@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
+    "lib": ["es2023", "dom", "esnext.disposable"],
     "paths": {},
     "rootDir": "./src",
     "outDir": "./dist",
@@ -10,6 +9,7 @@
     "declarationMap": false,
     "sourceMap": false,
     "composite": false,
+    "types": ["node"],
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],

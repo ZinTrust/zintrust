@@ -168,7 +168,7 @@ export const RemoteSignedJson = Object.freeze({
     try {
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...signed },
+        headers: { 'Content-Type': 'application/json', Connection: 'close', ...signed },
         body,
         signal: nativeSignal,
       });

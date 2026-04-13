@@ -2,6 +2,8 @@
 
 The `@zintrust/expose` package provides an official ZinTrust CLI extension to instantly expose your local development environment to the internet via secure tunnels.
 
+Docs: https://zintrust.com/package-expose
+
 It allows you to share your work with clients, test webhooks, or test on mobile devices without deploying your application.
 
 ## Prerequisites

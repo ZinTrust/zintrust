@@ -2,6 +2,8 @@
 
 SQLite database adapter package for ZinTrust (uses `better-sqlite3`).
 
+Docs: https://zintrust.com/package-db-sqlite
+
 ## Install
 
 Recommended:

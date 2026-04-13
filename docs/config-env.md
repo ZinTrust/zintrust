@@ -231,6 +231,35 @@ For the full workflow, Cloudflare examples, `.env.pack` local development suppor
 | `QUEUE_HTTP_PROXY_NONCE_TTL_MS`    | `120000`                     | Nonce TTL used for replay protection on queue gateway requests.                    |
 | `QUEUE_HTTP_PROXY_MIDDLEWARE`      | empty                        | Optional comma-separated middleware names applied to gateway route registration.   |
 
+## Trace
+
+| Key                                          | Default         | Description                                                                                  |
+| -------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------- |
+| `TRACE_ENABLED`                              | `false`         | Master switch for the trace runtime.                                                         |
+| `TRACE_DB_CONNECTION`                        | empty           | Database connection used to persist trace tables; falls back to `DB_CONNECTION` when unset.  |
+| `TRACE_QUERY_CONNECTION`                     | empty           | Separate app-data connection to observe for SQL traces when storage uses another connection. |
+| `TRACE_PRUNE_HOURS`                          | `24`            | Trace retention window in hours.                                                             |
+| `TRACE_SLOW_QUERY_MS`                        | `100`           | Query duration threshold that marks a query trace as slow.                                   |
+| `TRACE_LOG_LEVEL`                            | `info`          | Minimum application log level recorded by the trace log watcher.                             |
+| `TRACE_CACHE_PAYLOADS`                       | `false`         | Include cache payload values in cache trace entries.                                         |
+| `TRACE_QUERY_BINDINGS`                       | `true`          | Include SQL binding values in query trace entries.                                           |
+| `TRACE_AUTO_MOUNT`                           | `false`         | Auto-mount the trace dashboard during stock bootstrap.                                       |
+| `TRACE_BASE_PATH`                            | `/trace`        | Dashboard route base path used by the stock auto-mount flow.                                 |
+| `TRACE_MIDDLEWARE`                           | empty           | Comma-separated middleware names applied to auto-mounted trace routes.                       |
+| `TRACE_CONTENT_QUEUE_DRIVER`                 | empty           | Registered async queue driver used to offload trace content writes from the request path.    |
+| `TRACE_CONTENT_QUEUE_NAME`                   | `trace-content` | Queue name used for trace content offload jobs.                                              |
+| `TRACE_CONTENT_QUEUE_ENQUEUE_TIMEOUT_MS`     | `25`            | Max enqueue wait before trace falls back to fail-open persistence.                           |
+| `TRACE_CONTENT_QUEUE_WORKER_ENABLED`         | `true`          | Enable the internal trace queue drain worker.                                                |
+| `TRACE_CONTENT_QUEUE_WORKER_INTERVAL_MS`     | `1000`          | Poll interval in milliseconds for the internal trace queue drain worker.                     |
+| `TRACE_CONTENT_QUEUE_WORKER_MAX_DURATION_MS` | `250`           | Max duration in milliseconds for one internal trace worker drain pass.                       |
+| `TRACE_CONTENT_QUEUE_WORKER_CONCURRENCY`     | `1`             | Number of concurrent internal trace queue drain loops.                                       |
+| `TRACE_REDACT_KEYS`                          | package default | Extra recursive key names redacted before trace persistence.                                 |
+| `TRACE_REDACT_HEADERS`                       | package default | Header names redacted before trace persistence.                                              |
+| `TRACE_REDACT_BODY`                          | package default | Body-field names redacted before trace persistence.                                          |
+| `TRACE_REDACT_QUERY`                         | empty           | Query-string keys redacted before trace persistence.                                         |
+
+`TRACE_CONTENT_QUEUE_DRIVER` works with any queue driver already registered in the runtime. If you want first-class Cloudflare Queue support instead of generic driver wiring, add a dedicated Cloudflare Queue driver and register it in the queue runtime.
+
 ## Job tracking
 
 | Key                                        | Default                    | Description                                                                                                                              |

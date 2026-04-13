@@ -5,6 +5,8 @@ export type DashboardUiOptions = {
   appName?: string;
 };
 
+import { BrandFavicon } from './BrandFavicon';
+
 const resolveAppName = (appName?: string): string => {
   return typeof appName === 'string' && appName.trim() !== '' ? appName.trim() : 'ZinTrust';
 };
@@ -1359,6 +1361,7 @@ export const getDashboardHtml = (options: DashboardUiOptions): string => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${appName} Queue Monitor</title>
+    <link rel="icon" type="image/svg+xml" href="${BrandFavicon.forQueueMonitor()}">
     <style>
 ${getDashboardStyles()}
     </style>

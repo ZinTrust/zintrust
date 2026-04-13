@@ -1080,7 +1080,9 @@ const setCachedProcessor = (key: string, entry: CachedProcessor, maxSize: number
 };
 
 const isAllowedRemoteHost = (host: string): boolean => {
-  const allowlist = getProcessorSpecConfig().remoteAllowlist.map((value) => value.toLowerCase());
+  const allowlist = (getProcessorSpecConfig().remoteAllowlist as readonly string[]).map(
+    (value: string) => value.toLowerCase()
+  );
   return allowlist.includes(host.toLowerCase());
 };
 

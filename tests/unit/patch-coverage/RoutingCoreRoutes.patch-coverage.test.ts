@@ -248,4 +248,17 @@ describe('patch coverage: routing/CoreRoutes health', () => {
 
     expect(routeMiddleware3).toEqual(['auth', 'logging']);
   });
+
+  it('registers OPTIONS when Router.any is used', () => {
+    const router = Router.createRouter();
+
+    Router.any(router, '/wildcard', () => undefined);
+
+    expect(Router.match(router, 'GET', '/wildcard')).not.toBeNull();
+    expect(Router.match(router, 'POST', '/wildcard')).not.toBeNull();
+    expect(Router.match(router, 'PUT', '/wildcard')).not.toBeNull();
+    expect(Router.match(router, 'PATCH', '/wildcard')).not.toBeNull();
+    expect(Router.match(router, 'DELETE', '/wildcard')).not.toBeNull();
+    expect(Router.match(router, 'OPTIONS', '/wildcard')).not.toBeNull();
+  });
 });

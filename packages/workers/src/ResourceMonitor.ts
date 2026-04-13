@@ -222,11 +222,11 @@ const calculateCpuUsage = (): number => {
     let totalIdle = 0;
     let totalTick = 0;
 
-    cpus.forEach((cpu) => {
+    cpus.forEach((cpu: { times: Record<string, number> }) => {
       for (const type in cpu.times) {
-        totalTick += cpu.times[type as keyof typeof cpu.times];
+        totalTick += cpu.times[type];
       }
-      totalIdle += cpu.times.idle;
+      totalIdle += cpu.times['idle'];
     });
 
     const now = Date.now();
@@ -534,7 +534,7 @@ const calculateTrend = (
 
   // Simple linear regression for trend
   const firstValue = values[0];
-  const lastValue = values[values.length - 1] ?? values[0];
+  const lastValue = values.at(-1) ?? values[0];
   const changePercentage = ((lastValue - firstValue) / firstValue) * 100;
 
   let trend: ResourceTrend['trend'];

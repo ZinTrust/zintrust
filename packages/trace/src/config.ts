@@ -6,6 +6,7 @@ import type {
   TraceClientRequestCaptureRule,
   TraceClientRequestWatcherToggle,
   TraceConfigOverrides,
+  TraceContentDispatchConfig,
   TraceFilterRule,
   TraceRequestWatcherConfig,
   TraceWatcherToggle,
@@ -233,6 +234,25 @@ const mergeWatchers = (
   };
 };
 
+const mergeContentDispatch = (
+  base: TraceContentDispatchConfig,
+  override?: TraceConfigOverrides['contentDispatch']
+): TraceContentDispatchConfig => {
+  const workerOverride = override?.worker;
+
+  return {
+    ...base,
+    ...override,
+    worker:
+      workerOverride === undefined
+        ? base.worker
+        : {
+            ...base.worker,
+            ...workerOverride,
+          },
+  };
+};
+
 const DEFAULTS: ITraceConfig = Object.freeze({
   enabled: false,
   connection: undefined,
@@ -243,6 +263,17 @@ const DEFAULTS: ITraceConfig = Object.freeze({
   captureCachePayloads: false,
   captureQueryBindings: true,
   logMinLevel: 'info',
+  contentDispatch: {
+    driver: undefined,
+    queueName: 'trace-content',
+    enqueueTimeoutMs: 25,
+    worker: {
+      enabled: true,
+      intervalMs: 1000,
+      maxDurationMs: 250,
+      concurrency: 1,
+    },
+  },
   watchers: {},
   redaction: {
     keys: [
@@ -310,6 +341,7 @@ export const TraceConfig = Object.freeze({
     return Object.freeze({
       ...DEFAULTS,
       ...overrides,
+      contentDispatch: mergeContentDispatch(DEFAULTS.contentDispatch, overrides.contentDispatch),
       watchers: mergeWatchers(DEFAULTS.watchers, overrides.watchers),
       redaction: {
         keys: mergeStringLists(DEFAULTS.redaction.keys, overrides.redaction?.keys),

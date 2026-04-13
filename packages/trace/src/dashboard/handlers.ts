@@ -61,8 +61,20 @@ const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 100;
 const DEFAULT_REQUEST_PER_PAGE = 25;
 const MAX_REQUEST_PER_PAGE = 50;
+const DEFAULT_BATCH_PER_PAGE = 10;
+const MAX_BATCH_PER_PAGE = 25;
 const SUMMARY_TEXT_LIMIT = 280;
 const SUMMARY_ARRAY_LIMIT = 10;
+const REQUEST_BATCH_DEFAULT_EXCLUDED_TYPES: EntryTypeValue[] = [
+  'request',
+  'query',
+  'middleware',
+  'model',
+  'log',
+  'exception',
+  'client_request',
+  'cache',
+];
 
 type CompactTraceEntry = ITraceEntry<Record<string, unknown>> & {
   hasDetails: true;
@@ -195,6 +207,7 @@ export async function listEntries(req: IRequest, res: IResponse): Promise<void> 
       to: getNumericQueryParam(req, 'to'),
       page: Math.max(1, qpInt(req, 'page', 1)),
       perPage: resolvePerPage(req, type),
+      summary: true,
     };
     try {
       const result = await storage.queryEntries(opts);
@@ -240,8 +253,22 @@ export async function getBatch(req: IRequest, res: IResponse): Promise<void> {
   const batchId = req.getParam('batchId');
   if (batchId) {
     try {
-      const entries = await storage.getBatch(batchId);
-      res.json({ ok: true, entries });
+      const scope = qp(req, 'scope');
+      const type = qp(req, 'type') as EntryTypeValue | undefined;
+      const countsOnly = qp(req, 'countsOnly') === 'true';
+      const page = Math.max(1, qpInt(req, 'page', 1));
+      const perPage = Math.max(
+        1,
+        Math.min(qpInt(req, 'perPage', DEFAULT_BATCH_PER_PAGE), MAX_BATCH_PER_PAGE)
+      );
+      const result = await storage.queryBatchEntries(batchId, {
+        type,
+        excludeTypes: scope === 'other' ? REQUEST_BATCH_DEFAULT_EXCLUDED_TYPES : undefined,
+        page,
+        perPage,
+        countsOnly,
+      });
+      res.json({ ok: true, ...result });
       return;
     } catch (err) {
       res.setStatus(500).json({ error: (err as Error).message });

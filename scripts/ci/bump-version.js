@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
 // CI helper: compute and (optionally) apply a SemVer bump.
-// Default project policy is patch-only automation:
-// - any releasable commit (fix/feat/breaking) becomes a patch bump
-// - minor/major bumps must be done intentionally, not inferred automatically
+// Default project policy is conventional automation:
+// - fix -> patch
+// - feat -> minor
+// - breaking -> major
+// - custom carry rules apply to release numbers:
+//   - patch releases roll over at x.y.99 -> x.(y+1).0
+//   - minor releases roll over at x.9.z -> (x+1).0.0
 //
 // Designed for release -> master flow:
 // - compares commits in origin/master..HEAD
@@ -13,6 +17,7 @@
 //   node scripts/ci/bump-version.js --apply
 //   node scripts/ci/bump-version.js
 //   node scripts/ci/bump-version.js --strategy conventional
+//   node scripts/ci/bump-version.js --strategy patch-only
 
 import { execSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
@@ -28,7 +33,7 @@ function getArgValue(flag) {
 }
 
 const STRATEGY =
-  getArgValue('--strategy') ?? process.env.ZINTRUST_RELEASE_BUMP_STRATEGY ?? 'patch-only';
+  getArgValue('--strategy') ?? process.env.ZINTRUST_RELEASE_BUMP_STRATEGY ?? 'conventional';
 
 if (!['patch-only', 'conventional'].includes(STRATEGY)) {
   throw new Error(
@@ -117,11 +122,82 @@ function detectBump(messages, strategy) {
   return bump;
 }
 
+function parseSemver(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version).trim());
+  if (!match) return null;
+
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  };
+}
+
+function formatSemver(version) {
+  return `${version.major}.${version.minor}.${version.patch}`;
+}
+
+function incrementMajor(parsedVersion) {
+  return {
+    major: parsedVersion.major + 1,
+    minor: 0,
+    patch: 0,
+  };
+}
+
+function incrementMinor(parsedVersion) {
+  const nextMinor = parsedVersion.minor + 1;
+  if (nextMinor > 9) {
+    return incrementMajor(parsedVersion);
+  }
+
+  return {
+    major: parsedVersion.major,
+    minor: nextMinor,
+    patch: 0,
+  };
+}
+
+function incrementPatch(parsedVersion) {
+  const nextPatch = parsedVersion.patch + 1;
+  if (nextPatch > 99) {
+    return incrementMinor(parsedVersion);
+  }
+
+  return {
+    major: parsedVersion.major,
+    minor: parsedVersion.minor,
+    patch: nextPatch,
+  };
+}
+
+function resolveNextVersion(currentVersion, bumpType) {
+  const parsedVersion = parseSemver(currentVersion);
+  if (!parsedVersion) return null;
+
+  if (bumpType === 'major') {
+    return formatSemver(incrementMajor(parsedVersion));
+  }
+
+  if (bumpType === 'minor') {
+    return formatSemver(incrementMinor(parsedVersion));
+  }
+
+  if (bumpType === 'patch') {
+    return formatSemver(incrementPatch(parsedVersion));
+  }
+
+  return null;
+}
+
 function applyBump(bumpType) {
   if (bumpType === 'none') return null;
 
+  const currentVersion = readJson('./package.json').version;
+  const nextVersion = resolveNextVersion(currentVersion, bumpType) ?? currentVersion;
+
   // Update package.json + package-lock.json without creating a git tag.
-  run(`npm version ${bumpType} --no-git-tag-version`);
+  run(`npm version ${nextVersion} --no-git-tag-version`);
 
   // Keep all workspace package versions, peer ranges, and workspace lockfile entries aligned
   // with the new core version so the CI sync check remains green after the bump commit.
@@ -133,7 +209,7 @@ function applyBump(bumpType) {
   run('git add package.json package-lock.json packages/*/package.json');
 
   const pkg = readJson('./package.json');
-  return pkg.version;
+  return { version: pkg.version, appliedBumpType: bumpType };
 }
 
 // Ensure refs exist
@@ -155,11 +231,13 @@ if (!APPLY || bumpType === 'none') {
   process.exit(0);
 }
 
-const newVersion = applyBump(bumpType);
-if (!newVersion) {
+const result = applyBump(bumpType);
+if (!result) {
   process.exit(0);
 }
 
-setGithubOutput('new_version', newVersion);
-console.log(`Bumped version to: ${newVersion}`);
+setGithubOutput('applied_bump_type', result.appliedBumpType);
+setGithubOutput('new_version', result.version);
+console.log(`Applied bump: ${result.appliedBumpType}`);
+console.log(`Bumped version to: ${result.version}`);
 process.exit(0);

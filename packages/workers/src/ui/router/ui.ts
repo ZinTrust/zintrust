@@ -8,6 +8,7 @@ import {
   NodeSingletons,
   Router,
 } from '@zintrust/core';
+import { BrandFavicon } from '../BrandFavicon';
 import { INDEX_HTML, MAIN_JS, STYLES_CSS, ZINTRUST_SVG } from './EmbeddedAssets';
 
 const isCloudflare = ((): boolean => {
@@ -42,7 +43,7 @@ const getAssetsBinding = (): AssetsBinding | null => Cloudflare.getAssetsBinding
 const fetchAssetText = async (assetPath: string): Promise<string> => {
   const assets = getAssetsBinding();
   if (!assets) return '';
-  const url = new URL(assetPath, 'http://assets');
+  const url = new URL(assetPath, 'http://assets'); //NOSONAR
   const response = await assets.fetch(url);
   if (!response.ok) return '';
   return response.text();
@@ -51,7 +52,7 @@ const fetchAssetText = async (assetPath: string): Promise<string> => {
 const fetchAssetBytes = async (assetPath: string): Promise<Uint8Array | null> => {
   const assets = getAssetsBinding();
   if (!assets) return null;
-  const url = new URL(assetPath, 'http://assets');
+  const url = new URL(assetPath, 'http://assets'); //NOSONAR
   const response = await assets.fetch(url);
   if (!response.ok) return null;
   const buffer = await response.arrayBuffer();
@@ -69,10 +70,12 @@ const escapeHtml = (value: string): string => {
 
 const injectIndexAppName = (html: string): string => {
   const appName = Env.get('APP_NAME', 'ZinTrust').trim() || 'ZinTrust';
+  const faviconLink = `<link rel="icon" type="image/svg+xml" href="${BrandFavicon.forWorkersUi()}" />`;
 
   return html
     .replaceAll('__ZINTRUST_WORKERS_TITLE__', escapeHtml(`ZinTrust ${appName} Workers Dashboard`))
-    .replaceAll('__ZINTRUST_WORKERS_HEADING__', escapeHtml(`ZinTrust ${appName}'s Workers`));
+    .replaceAll('__ZINTRUST_WORKERS_HEADING__', escapeHtml(`ZinTrust ${appName}'s Workers`))
+    .replace('</head>', `    ${faviconLink}\n  </head>`);
 };
 
 const resolveEmbeddedAssetText = (assetPath: string): string | null => {

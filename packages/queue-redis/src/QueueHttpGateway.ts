@@ -218,8 +218,9 @@ const verifyRequest = async (
     headers: toIncomingHeaders(req),
     nowMs: nowMs(),
     windowMs: settings.signingWindowMs,
-    verifyNonce: async (keyId, nonce) => storeNonce(keyId, nonce, settings.nonceTtlMs),
-    getSecretForKeyId: async (keyId) => {
+    verifyNonce: async (keyId: string, nonce: string) =>
+      storeNonce(keyId, nonce, settings.nonceTtlMs),
+    getSecretForKeyId: async (keyId: string) => {
       if (keyId === settings.keyId) return settings.secret;
       return undefined;
     },

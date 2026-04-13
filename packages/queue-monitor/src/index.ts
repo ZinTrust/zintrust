@@ -471,7 +471,7 @@ function registerSnapshotApi(
   Router.get(
     router,
     `${settings.basePath}/api/snapshot`,
-    async (_req, res) => {
+    async (_req: IRequest, res: IResponse) => {
       const data = await getSnapshot();
       res.json(data);
     },
@@ -489,7 +489,7 @@ function registerJobsApi(
   Router.get(
     router,
     `${settings.basePath}/api/jobs/:queue`,
-    async (req, res) => {
+    async (req: IRequest, res: IResponse) => {
       await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
     },
     routeOptions
@@ -505,7 +505,7 @@ function registerLocksApi(
   Router.get(
     router,
     `${settings.basePath}/api/locks`,
-    async (req, res) => {
+    async (req: IRequest, res: IResponse) => {
       const query =
         typeof (req as { getQuery?: () => Record<string, string> }).getQuery === 'function'
           ? (req as { getQuery: () => Record<string, string> }).getQuery()
@@ -527,7 +527,7 @@ function registerRetryApi(
   Router.post(
     router,
     `${settings.basePath}/api/retry/:queue/:jobId`,
-    async (req, res) => {
+    async (req: IRequest, res: IResponse) => {
       await handleRetryEndpoint(req as RequestWithParams, res, driver);
     },
     routeOptions

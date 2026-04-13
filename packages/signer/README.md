@@ -2,6 +2,8 @@
 
 Zero-dependency WebCrypto library for signing and verifying HTTP requests using HMAC-SHA256. Works in browsers, Node.js 20+, and Cloudflare Workers — any runtime with `globalThis.crypto.subtle`.
 
+Docs: https://zintrust.com/package-signer
+
 Used by the [ZinTrust](https://github.com/ZinTrust/zintrust) Bulletproof Auth middleware to implement **proof-of-possession request signing**: a stolen JWT alone is not enough to access protected endpoints.
 
 ---

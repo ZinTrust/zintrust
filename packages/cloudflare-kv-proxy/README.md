@@ -2,6 +2,8 @@
 
 Cloudflare Worker service that exposes a small HTTPS API for KV operations.
 
+Docs: https://zintrust.com/package-cloudflare-kv-proxy
+
 This is intended for **server-to-server** use (e.g. a Node app running outside Cloudflare), via ZinTrust’s `kv-remote` cache driver.
 
 ## Endpoints

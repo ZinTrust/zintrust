@@ -20,8 +20,8 @@ const normalizeUrlSpec = (value: string): string => {
 };
 
 const isAllowedRemoteHost = (host: string): boolean => {
-  const allowlist = workersConfig.processorSpec.remoteAllowlist;
-  return allowlist.map((value) => value.toLowerCase()).includes(host.toLowerCase());
+  const allowlist = workersConfig.processorSpec.remoteAllowlist as readonly string[];
+  return allowlist.map((value: string) => value.toLowerCase()).includes(host.toLowerCase());
 };
 
 const decodeProcessorPath = (processor: string): string => {

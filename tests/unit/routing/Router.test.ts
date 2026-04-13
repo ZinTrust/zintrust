@@ -76,10 +76,10 @@ describe('Router', (): void => {
     Router.any(router, '/ping', handler);
 
     const routes = Router.getRoutes(router);
-    expect(routes).toHaveLength(5);
+    expect(routes).toHaveLength(6);
 
     const methods = routes.map((route) => route.method);
-    expect(methods).toEqual(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+    expect(methods).toEqual(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
 
     const routeMatch = Router.match(router, 'PATCH', '/ping');
     expect(routeMatch?.handler).toBe(handler);

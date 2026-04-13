@@ -2,7 +2,7 @@
 
 SMTP mail driver registration for ZinTrust.
 
-- Docs: https://zintrust.com/mail
+Docs: https://zintrust.com/package-mail-smtp
 
 ## Install
 

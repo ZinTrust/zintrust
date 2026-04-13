@@ -2,7 +2,7 @@
 
 Queue monitoring scaffolding for ZinTrust.
 
-- Docs: https://zintrust.com/queue
+Docs: https://zintrust.com/package-queue-monitor
 
 ## Install
 

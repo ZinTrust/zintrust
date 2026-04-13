@@ -2,7 +2,7 @@
 
 AWS S3 storage driver registration for ZinTrust.
 
-- Docs: https://zintrust.com/storage
+Docs: https://zintrust.com/package-storage-s3
 
 ## Install
 

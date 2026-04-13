@@ -125,7 +125,7 @@ const handleFileUpload = (
     ctx.rejectOnce(err);
   });
 
-  writeStream.on('error', (err) => {
+  writeStream.on('error', (err: Error) => {
     ctx.rejectOnce(err);
   });
 
@@ -308,5 +308,7 @@ export function registerStreamingMultipartParser(
   const tmpDir = options.tmpDir ?? defaultTmpDir();
   const filenamePrefix = options.filenamePrefix ?? 'upload-';
 
-  MultipartParserRegistry.register((input) => parseWithBusboy(input, { tmpDir, filenamePrefix }));
+  MultipartParserRegistry.register((input: MultipartParseInput) =>
+    parseWithBusboy(input, { tmpDir, filenamePrefix })
+  );
 }

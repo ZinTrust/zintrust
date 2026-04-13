@@ -195,11 +195,11 @@ const cleanupOldEntries = async (): Promise<number> => {
     const keys = await client.keys(pattern);
 
     const cleanedCounts = await Promise.all(
-      keys.map(async (key) => {
+      (keys as string[]).map(async (key: string) => {
         const oldEntries = await client.zrangebyscore(key, '-inf', cutoffTimestamp);
 
         await Promise.all(
-          oldEntries.map(async (entryJson) => {
+          (oldEntries as string[]).map(async (entryJson: string) => {
             const entry = JSON.parse(entryJson) as FailedJobEntry;
 
             if (policy.anonymizeInsteadOfDelete) {
@@ -345,7 +345,9 @@ export const DeadLetterQueue = Object.freeze({
       const key = getDLQKey(queueName);
       const entries = await redisClient.zrange(key, 0, -1);
 
-      const entry = entries.map((e) => JSON.parse(e) as FailedJobEntry).find((e) => e.id === jobId);
+      const entry = (entries as string[])
+        .map((e: string) => JSON.parse(e) as FailedJobEntry)
+        .find((e: FailedJobEntry) => e.id === jobId);
 
       if (entry) {
         await recordAuditEntry({
@@ -390,7 +392,7 @@ export const DeadLetterQueue = Object.freeze({
       // Get most recent failures first (highest scores)
       const entries = await redisClient.zrevrange(key, 0, limit - 1);
 
-      return entries.map((e) => JSON.parse(e) as FailedJobEntry);
+      return (entries as string[]).map((e: string) => JSON.parse(e) as FailedJobEntry);
     } catch (error) {
       Logger.error(`Failed to get DLQ entries for queue: ${queueName}`, error);
       return [];
@@ -577,7 +579,7 @@ export const DeadLetterQueue = Object.freeze({
       const auditKey = getAuditKey(failedJobId);
       const entries = await redisClient.zrevrange(auditKey, 0, limit - 1);
 
-      return entries.map((e) => JSON.parse(e) as ComplianceAuditEntry);
+      return (entries as string[]).map((e: string) => JSON.parse(e) as ComplianceAuditEntry);
     } catch (error) {
       Logger.error(`Failed to get audit log for: ${failedJobId}`, error);
       return [];
@@ -598,13 +600,13 @@ export const DeadLetterQueue = Object.freeze({
       const keys = await client.keys(pattern);
 
       const entriesByQueue = await Promise.all(
-        keys.map(async (key) => {
+        (keys as string[]).map(async (key: string) => {
           const queueName = key.replace(getDLQPrefix(), '');
           const entries = await client.zrange(key, 0, -1);
           return {
             queueName,
             count: entries.length,
-            entries: entries.map((e) => JSON.parse(e) as FailedJobEntry),
+            entries: (entries as string[]).map((e: string) => JSON.parse(e) as FailedJobEntry),
           };
         })
       );
@@ -626,7 +628,7 @@ export const DeadLetterQueue = Object.freeze({
         stats.totalFailed += count;
         stats.byQueue[queueName] = count;
 
-        entries.forEach((entry) => {
+        entries.forEach((entry: FailedJobEntry) => {
           stats.byWorker[entry.workerName] = (stats.byWorker[entry.workerName] || 0) + 1;
           stats.byErrorType[entry.error.name] = (stats.byErrorType[entry.error.name] || 0) + 1;
 
