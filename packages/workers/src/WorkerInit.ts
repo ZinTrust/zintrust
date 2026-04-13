@@ -346,6 +346,16 @@ const autoStartOneWorker = async (
     return { name: record.name, started: true, skipped: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+
+    if (
+      message.includes(
+        'was removed because its processorSpec no longer resolves to a live worker module.'
+      )
+    ) {
+      Logger.info(`Auto-start purged stale worker ${record.name}: ${message}`);
+      return { name: record.name, started: false, skipped: true };
+    }
+
     Logger.warn(`Auto-start failed for worker ${record.name}: ${message}`);
     return { name: record.name, started: false, skipped: false };
   }
