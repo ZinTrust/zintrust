@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/governance",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "ESLint and governance tooling package for ZinTrust.",
   "private": false,
   "type": "module",
