@@ -972,12 +972,36 @@ const resolveStartFromPersistedProcessor = async (
   }
 
   if (!processor) {
-    throw ErrorFactory.createConfigError(
+    const unresolvedError = ErrorFactory.createConfigError(
       `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorSpec.`
     );
+
+    (unresolvedError as Error & { code?: string }).code = 'WORKER_PROCESSOR_UNRESOLVABLE';
+    (unresolvedError as Error & { processorSpec?: string | null }).processorSpec = spec ?? null;
+    (
+      unresolvedError as Error & { isPersistedWorkerProcessorMissing?: boolean }
+    ).isPersistedWorkerProcessorMissing = spec !== undefined && !discovered && !isUrlSpec(spec);
+
+    throw unresolvedError;
   }
 
   return processor;
+};
+
+type UnresolvablePersistedProcessorError = Error & {
+  code?: string;
+  processorSpec?: string | null;
+  isPersistedWorkerProcessorMissing?: boolean;
+};
+
+const isUnresolvablePersistedProcessorError = (
+  value: unknown
+): value is UnresolvablePersistedProcessorError => {
+  return (
+    isObject(value) &&
+    value['code'] === 'WORKER_PROCESSOR_UNRESOLVABLE' &&
+    value['isPersistedWorkerProcessorMissing'] === true
+  );
 };
 
 const discoverFileBackedWorkers = async (): Promise<DiscoveredFileWorker[]> => {
@@ -1080,8 +1104,8 @@ const setCachedProcessor = (key: string, entry: CachedProcessor, maxSize: number
 };
 
 const isAllowedRemoteHost = (host: string): boolean => {
-  const allowlist = (getProcessorSpecConfig().remoteAllowlist as readonly string[]).map(
-    (value: string) => value.toLowerCase()
+  const allowlist = getProcessorSpecConfig().remoteAllowlist.map((value: string) =>
+    value.toLowerCase()
   );
   return allowlist.includes(host.toLowerCase());
 };
@@ -3386,7 +3410,24 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
     }
 
-    const processor = await resolveStartFromPersistedProcessor(name, record, discovered);
+    let processor: WorkerFactoryConfig['processor'];
+    try {
+      processor = await resolveStartFromPersistedProcessor(name, record, discovered);
+    } catch (error) {
+      if (isUnresolvablePersistedProcessorError(error)) {
+        Logger.warn(
+          `Purging stale persisted worker "${name}" because its processorSpec is no longer resolvable`,
+          {
+            processorSpec: record.processorSpec ?? null,
+          }
+        );
+        await WorkerFactory.remove(name, persistenceOverride);
+        throw ErrorFactory.createNotFoundError(
+          `Worker "${name}" was removed because its processorSpec no longer resolves to a live worker module.`
+        );
+      }
+      throw error;
+    }
 
     await WorkerFactory.create({
       name: record.name,
@@ -3444,8 +3485,7 @@ export const WorkerFactory = Object.freeze({
    */
   async remove(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
-    // Validate that worker exists in the store we are trying to remove from
-    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
+    const store = await getStoreForWorker(instance?.config, persistenceOverride);
 
     if (instance) {
       await WorkerFactory.stop(name, persistenceOverride);
@@ -3465,7 +3505,17 @@ export const WorkerFactory = Object.freeze({
       workers.delete(name);
     }
 
-    await store.remove(name);
+    try {
+      const persisted = await store.get(name);
+      if (persisted) {
+        await store.remove(name);
+      }
+    } finally {
+      if (Cloudflare.getWorkersEnv() !== null && store.close) {
+        await store.close();
+      }
+    }
+
     Logger.info(`Worker removed: ${name}`);
   },
 

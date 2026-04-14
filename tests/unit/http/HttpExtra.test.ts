@@ -23,10 +23,11 @@ describe('HttpClient (extra tests)', () => {
     );
   });
 
-  it('asForm sets content-type header when sending', async () => {
+  it('asForm serializes plain-object bodies as form data', async () => {
     const fetchMock = vi.fn(async (_url: string, init: any) => {
-      // Ensure header was set
       expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+      expect(init.body).toBeInstanceOf(URLSearchParams);
+      expect(init.body.toString()).toBe('grant_type=client_credentials&scope=openid');
       return {
         status: 200,
         ok: true,
@@ -38,15 +39,45 @@ describe('HttpClient (extra tests)', () => {
     // @ts-ignore
     vi.stubGlobal('fetch', fetchMock);
 
-    await HttpClient.get('https://example.com').asForm().send();
+    await HttpClient.post('https://example.com', {
+      grant_type: 'client_credentials',
+      scope: 'openid',
+    })
+      .asForm()
+      .send();
     expect(fetchMock).toHaveBeenCalled();
   });
 
-  it('delete with data sets JSON content-type (body not sent for DELETE)', async () => {
+  it('asForm preserves URLSearchParams bodies', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: any) => {
+      expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+      expect(init.body).toBeInstanceOf(URLSearchParams);
+      expect(init.body.toString()).toBe('client_id=abc&client_secret=def');
+
+      return {
+        status: 200,
+        ok: true,
+        text: async () => '{}',
+        headers: new Map(),
+      } as any as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    await HttpClient.post(
+      'https://example.com',
+      new URLSearchParams({ client_id: 'abc', client_secret: 'def' })
+    )
+      .asForm()
+      .send();
+
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it('delete with data sets JSON content-type and sends the body', async () => {
     const fetchMock = vi.fn(async (_url: string, init: any) => {
       expect(init.headers['Content-Type']).toBe('application/json');
-      // DELETE does not set body in this implementation
-      expect(init.body).toBeUndefined();
+      expect(init.body).toBe('{"foo":"bar"}');
 
       return {
         status: 200,
@@ -60,6 +91,35 @@ describe('HttpClient (extra tests)', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await HttpClient.delete('https://example.com', { foo: 'bar' }).send();
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it('asCustom lets callers define a custom body serializer and content type', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: any) => {
+      expect(init.headers['Content-Type']).toBe('text/plain');
+      expect(init.body).toBe('mode=custom&payload=%7B%22foo%22%3A%22bar%22%7D');
+
+      return {
+        status: 200,
+        ok: true,
+        text: async () => '{}',
+        headers: new Map(),
+      } as any as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    await HttpClient.post('https://example.com', { foo: 'bar' })
+      .asCustom({
+        contentType: 'text/plain',
+        serializeBody: (body) => {
+          const payload =
+            body instanceof URLSearchParams ? body.toString() : JSON.stringify(body ?? {});
+          return 'mode=custom&payload=' + encodeURIComponent(payload);
+        },
+      })
+      .send();
+
     expect(fetchMock).toHaveBeenCalled();
   });
 });

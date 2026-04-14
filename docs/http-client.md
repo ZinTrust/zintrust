@@ -18,7 +18,13 @@ export interface IHttpRequest {
   withTimeout(ms: number): IHttpRequest;
   asJson(): IHttpRequest;
   asForm(): IHttpRequest;
+  asCustom(mode: {
+    contentType?: string;
+    serializeBody?: (body: HttpRequestBody | null | undefined) => BodyInit | null | undefined;
+  }): IHttpRequest;
   send(): Promise\<IHttpResponse>;
+  sendRaw(): Promise\<Response>;
+  sendStream(): Promise\<{ response: Response; stream: ReadableStream\<Uint8Array> | null }>;
 }
 
 export interface IHttpResponse {
@@ -39,6 +45,8 @@ export interface IHttpResponse {
 - ✅ **Authentication** – Bearer tokens, Basic auth, custom headers
 - ✅ **Timeouts** – Request timeouts with automatic abort
 - ✅ **Convenience Methods** – GET, POST, PUT, PATCH, DELETE
+- ✅ **Form Requests** – `application/x-www-form-urlencoded` from plain objects or `URLSearchParams`
+- ✅ **Custom Body Modes** – Provide your own serializer and content type with `asCustom(...)`
 - ✅ **JSON Parsing** – Automatic JSON response parsing
 - ✅ **Response Utilities** – Status helpers, error throwing
 - ✅ **Works Everywhere** – Node.js, Cloudflare Workers, Serverless
@@ -91,7 +99,74 @@ await HttpClient.patch('https://api.example.com/users/1', {
 
 // Delete a resource
 await HttpClient.delete('https://api.example.com/users/1').send();
+
+// Delete with an explicit JSON body when the upstream API expects one
+await HttpClient.delete('https://api.example.com/users/1', {
+  reason: 'duplicate-account',
+}).send();
 ```
+
+## Body Encoding Modes
+
+### Form Requests from Plain Objects
+
+`asForm()` now serializes plain objects into a real `URLSearchParams` payload before the request is sent.
+
+```typescript
+const response = await HttpClient.post('https://oauth.example.com/token', {
+  grant_type: 'client_credentials',
+  scope: 'openid profile',
+})
+  .asForm()
+  .withAuth(Env.get('OAUTH_BASIC_TOKEN'), 'Basic')
+  .send();
+
+const token = response.json<{ access_token: string }>();
+```
+
+### Form Requests from URLSearchParams
+
+If you already have `URLSearchParams`, `asForm()` preserves them directly instead of routing them through JSON first.
+
+```typescript
+const payload = new URLSearchParams({
+  client_id: Env.get('CLIENT_ID'),
+  client_secret: Env.get('CLIENT_SECRET'),
+  grant_type: 'client_credentials',
+});
+
+await HttpClient.post('https://oauth.example.com/token', payload).asForm().send();
+```
+
+### Custom Request Modes with `asCustom(...)`
+
+Use `asCustom(...)` when a provider expects a non-standard payload shape but you still want to stay on the shared ZinTrust client and trace path.
+
+```typescript
+await HttpClient.post('https://provider.example.com/submit', {
+  customerId: 'cus_123',
+  amount: 5000,
+})
+  .asCustom({
+    contentType: 'text/plain',
+    serializeBody: (body) => {
+      return 'mode=custom&payload=' + encodeURIComponent(JSON.stringify(body ?? {}));
+    },
+  })
+  .withTimeout(5000)
+  .send();
+```
+
+### Raw Body Inputs
+
+The fluent builder now supports these request body inputs across `POST`, `PUT`, `PATCH`, and `DELETE`:
+
+- Plain objects
+- Strings
+- `URLSearchParams`
+- `FormData`
+- `ArrayBuffer` and typed array views
+- `Blob`
 
 ## Authentication
 

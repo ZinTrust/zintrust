@@ -11,9 +11,24 @@ import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isArray, isDate, isObject } from '@helper/index';
 import { createHttpResponse, type IHttpResponse } from '@httpClient/HttpResponse';
 
 export type { IHttpResponse } from '@httpClient/HttpResponse';
+
+export type HttpRequestBody =
+  | Record<string, unknown>
+  | string
+  | ArrayBuffer
+  | ArrayBufferView
+  | Blob
+  | FormData
+  | URLSearchParams;
+
+export type HttpRequestCustomMode = Readonly<{
+  contentType?: string;
+  serializeBody?: (body: HttpRequestBody | null | undefined) => BodyInitLocal | null | undefined;
+}>;
 
 /**
  * HTTP Request builder interface
@@ -26,6 +41,7 @@ export interface IHttpRequest {
   withTimeout(ms: number): IHttpRequest;
   asJson(): IHttpRequest;
   asForm(): IHttpRequest;
+  asCustom(mode: HttpRequestCustomMode): IHttpRequest;
   send(): Promise<IHttpResponse>;
   sendRaw(): Promise<Response>;
   sendStream(): Promise<{ response: Response; stream: ReadableStream<Uint8Array> | null }>;
@@ -34,15 +50,16 @@ export interface IHttpRequest {
 /**
  * Internal request state
  */
-type BodyInitLocal = string | ArrayBuffer | Blob | FormData | URLSearchParams;
+type BodyInitLocal = NonNullable<RequestInit['body']>;
 
 interface RequestState {
   method: string;
   url: string;
   headers: Record<string, string>;
-  body?: BodyInitLocal | null;
+  body?: HttpRequestBody | null;
   timeout?: number;
-  contentType?: 'json' | 'form';
+  contentType?: 'json' | 'form' | 'custom';
+  customMode?: HttpRequestCustomMode;
 }
 
 const headersToRecord = (
@@ -79,7 +96,7 @@ const headersToRecord = (
   return {};
 };
 
-const bodyToTracePayload = (body: BodyInitLocal | null | undefined): unknown => {
+const bodyToTracePayload = (body: HttpRequestBody | BodyInitLocal | null | undefined): unknown => {
   if (body === null || body === undefined) return undefined;
   if (typeof body === 'string') {
     try {
@@ -94,17 +111,110 @@ const bodyToTracePayload = (body: BodyInitLocal | null | undefined): unknown => 
   if (typeof FormData !== 'undefined' && body instanceof FormData) {
     return Array.from(body.entries()).map(([key, value]) => [key, String(value)]);
   }
+  if (ArrayBuffer.isView(body) || body instanceof ArrayBuffer) {
+    return '[binary]';
+  }
+  if (isObject(body)) {
+    return body;
+  }
   return '[stream]';
+};
+
+const appendFormValue = (params: URLSearchParams, key: string, value: unknown): void => {
+  if (value === undefined || value === null) {
+    return;
+  }
+
+  if (isArray(value)) {
+    for (const item of value) {
+      appendFormValue(params, key, item);
+    }
+    return;
+  }
+
+  if (isDate(value)) {
+    params.append(key, value.toISOString());
+    return;
+  }
+
+  if (isObject(value)) {
+    params.append(key, JSON.stringify(value));
+    return;
+  }
+
+  params.append(key, String(value));
+};
+
+const normalizeBodyInit = (body: BodyInitLocal | HttpRequestBody): BodyInitLocal => {
+  if (ArrayBuffer.isView(body) && !(body instanceof DataView)) {
+    return new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+  }
+
+  return body as BodyInitLocal;
+};
+
+const serializeFormBody = (
+  body: HttpRequestBody | null | undefined
+): BodyInitLocal | null | undefined => {
+  if (body === null || body === undefined) return body;
+  if (typeof body === 'string' || body instanceof URLSearchParams) return body;
+  if (
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body) ||
+    body instanceof Blob ||
+    (typeof FormData !== 'undefined' && body instanceof FormData)
+  ) {
+    return normalizeBodyInit(body);
+  }
+  if (isObject(body)) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body)) {
+      appendFormValue(params, key, value);
+    }
+    return params;
+  }
+  return body;
+};
+
+const serializeJsonBody = (
+  body: HttpRequestBody | null | undefined
+): BodyInitLocal | null | undefined => {
+  if (body === null || body === undefined) return body;
+  if (typeof body === 'string' || body instanceof URLSearchParams) return body;
+  if (
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body) ||
+    body instanceof Blob ||
+    (typeof FormData !== 'undefined' && body instanceof FormData)
+  ) {
+    return normalizeBodyInit(body);
+  }
+  return JSON.stringify(body);
+};
+
+const serializeRequestBody = (state: RequestState): BodyInitLocal | null | undefined => {
+  if (state.contentType === 'custom') {
+    const customBody = state.customMode?.serializeBody?.(state.body);
+    return customBody ?? serializeJsonBody(state.body);
+  }
+  if (state.contentType === 'form') {
+    return serializeFormBody(state.body);
+  }
+  if (state.contentType === 'json') {
+    return serializeJsonBody(state.body);
+  }
+  return serializeJsonBody(state.body);
 };
 
 const emitHttpClientTrace = (input: {
   state: RequestState;
+  requestBody?: BodyInitLocal | null;
   durationMs: number;
   response?: Response;
   responseBody?: string;
   error?: string;
 }): void => {
-  const { state, durationMs, response, responseBody, error } = input;
+  const { state, requestBody, durationMs, response, responseBody, error } = input;
 
   SystemTraceBridge.emitHttpClient({
     source: 'http-client',
@@ -113,7 +223,7 @@ const emitHttpClientTrace = (input: {
     requestHeaders: { ...state.headers },
     responseStatus: response?.status,
     duration: durationMs,
-    requestBody: bodyToTracePayload(state.body),
+    requestBody: bodyToTracePayload(requestBody ?? state.body),
     responseHeaders: headersToRecord(response?.headers),
     responseBody,
     error,
@@ -143,18 +253,21 @@ async function performRequest(state: RequestState): Promise<IHttpResponse> {
   return createHttpResponse(response, bodyText);
 }
 
-async function performRequestRaw(
-  state: RequestState
-): Promise<{ response: Response; bodyText: string; durationMs: number }> {
-  const { response, durationMs } = await performFetch(state);
+async function performRequestRaw(state: RequestState): Promise<{
+  response: Response;
+  bodyText: string;
+  durationMs: number;
+  requestBody?: BodyInitLocal | null;
+}> {
+  const { response, durationMs, requestBody } = await performFetch(state);
   const bodyText = await response.text();
-  emitHttpClientTrace({ state, response, responseBody: bodyText, durationMs });
-  return { response, bodyText, durationMs };
+  emitHttpClientTrace({ state, requestBody, response, responseBody: bodyText, durationMs });
+  return { response, bodyText, durationMs, requestBody };
 }
 
 async function performFetch(
   state: RequestState
-): Promise<{ response: Response; durationMs: number }> {
+): Promise<{ response: Response; durationMs: number; requestBody?: BodyInitLocal | null }> {
   const timeout = state.timeout ?? Env.getInt('HTTP_TIMEOUT', 30000);
   const controller = new AbortController();
 
@@ -163,10 +276,12 @@ async function performFetch(
     timeoutId = globalThis.setTimeout(() => controller.abort(), timeout);
   }
 
-  const buildInit = (): RequestInit => {
+  const buildInit = (): { init: RequestInit; requestBody?: BodyInitLocal | null } => {
     if (OpenTelemetry.isEnabled()) {
       OpenTelemetry.injectTraceHeaders(state.headers);
     }
+
+    const requestBody = serializeRequestBody(state);
 
     const init: RequestInit = {
       method: state.method,
@@ -175,27 +290,28 @@ async function performFetch(
     };
 
     if (
-      state.body !== undefined &&
-      state.body !== null &&
-      ['POST', 'PUT', 'PATCH'].includes(state.method)
+      requestBody !== undefined &&
+      requestBody !== null &&
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(state.method)
     ) {
-      init.body = state.body;
+      init.body = requestBody;
     }
 
-    return init;
+    return { init, requestBody };
   };
 
   const startTime = Date.now();
 
   try {
-    const init = buildInit();
+    const { init, requestBody } = buildInit();
     const response = await globalThis.fetch(state.url, init);
     const duration = Date.now() - startTime;
-    return { response, durationMs: duration };
+    return { response, durationMs: duration, requestBody };
   } catch (error) {
     const duration = Date.now() - startTime;
     emitHttpClientTrace({
       state,
+      requestBody: serializeRequestBody(state),
       durationMs: duration,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -226,7 +342,7 @@ async function performFetch(
 function createRequestBuilder(
   method: string,
   url: string,
-  initialBody?: Record<string, unknown> | null
+  initialBody?: HttpRequestBody | null
 ): IHttpRequest {
   const state: RequestState = {
     method,
@@ -234,7 +350,7 @@ function createRequestBuilder(
     headers: {
       'User-Agent': 'ZinTrust/1.0',
     },
-    body: initialBody ? JSON.stringify(initialBody) : undefined,
+    body: initialBody ?? undefined,
   };
 
   const self: IHttpRequest = {
@@ -276,21 +392,32 @@ function createRequestBuilder(
       return self;
     },
 
+    asCustom(mode: HttpRequestCustomMode): IHttpRequest {
+      state.contentType = 'custom';
+      state.customMode = mode;
+
+      if (typeof mode.contentType === 'string' && mode.contentType.trim() !== '') {
+        state.headers['Content-Type'] = mode.contentType;
+      }
+
+      return self;
+    },
+
     async send(): Promise<IHttpResponse> {
       return performRequest(state);
     },
 
     async sendRaw(): Promise<Response> {
-      const { response, durationMs } = await performFetch(state);
+      const { response, durationMs, requestBody } = await performFetch(state);
       const responseBody = await captureTraceResponseBody(response);
-      emitHttpClientTrace({ state, response, responseBody, durationMs });
+      emitHttpClientTrace({ state, requestBody, response, responseBody, durationMs });
       return response;
     },
 
     async sendStream(): Promise<{ response: Response; stream: ReadableStream<Uint8Array> | null }> {
-      const { response, durationMs } = await performFetch(state);
+      const { response, durationMs, requestBody } = await performFetch(state);
       const responseBody = await captureTraceResponseBody(response);
-      emitHttpClientTrace({ state, response, responseBody, durationMs });
+      emitHttpClientTrace({ state, requestBody, response, responseBody, durationMs });
       return { response, stream: response.body };
     },
   };
@@ -312,9 +439,9 @@ export const HttpClient = Object.freeze({
   /**
    * Make POST request
    */
-  post(url: string, data?: Record<string, unknown>): IHttpRequest {
+  post(url: string, data?: HttpRequestBody | null): IHttpRequest {
     const builder = createRequestBuilder('POST', url, data);
-    if (data) {
+    if (isObject(data)) {
       builder.asJson();
     }
     return builder;
@@ -323,9 +450,9 @@ export const HttpClient = Object.freeze({
   /**
    * Make PUT request
    */
-  put(url: string, data?: Record<string, unknown>): IHttpRequest {
+  put(url: string, data?: HttpRequestBody | null): IHttpRequest {
     const builder = createRequestBuilder('PUT', url, data);
-    if (data) {
+    if (isObject(data)) {
       builder.asJson();
     }
     return builder;
@@ -334,9 +461,9 @@ export const HttpClient = Object.freeze({
   /**
    * Make PATCH request
    */
-  patch(url: string, data?: Record<string, unknown>): IHttpRequest {
+  patch(url: string, data?: HttpRequestBody | null): IHttpRequest {
     const builder = createRequestBuilder('PATCH', url, data);
-    if (data) {
+    if (isObject(data)) {
       builder.asJson();
     }
     return builder;
@@ -345,9 +472,9 @@ export const HttpClient = Object.freeze({
   /**
    * Make DELETE request
    */
-  delete(url: string, data?: Record<string, unknown>): IHttpRequest {
+  delete(url: string, data?: HttpRequestBody | null): IHttpRequest {
     const builder = createRequestBuilder('DELETE', url, data);
-    if (data) {
+    if (isObject(data)) {
       builder.asJson();
     }
     return builder;
