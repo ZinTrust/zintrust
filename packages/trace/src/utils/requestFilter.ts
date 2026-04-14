@@ -2,7 +2,7 @@ import { TraceContext } from '../context';
 
 type RequestIgnoreRules = {
   ignoreRoutes?: string[];
-  ignorePath?: string[];
+  ignorePaths?: string[];
 };
 
 const normalizePath = (input: string): string => {
@@ -20,28 +20,28 @@ const normalizeContainsPattern = (input: string): string => {
 
 const resolveRules = (
   ignoreRoutesOrRules: string[] | RequestIgnoreRules,
-  ignorePath?: string[]
+  ignorePaths?: string[]
 ): Required<RequestIgnoreRules> => {
   if (Array.isArray(ignoreRoutesOrRules)) {
     return {
       ignoreRoutes: ignoreRoutesOrRules,
-      ignorePath: ignorePath ?? [],
+      ignorePaths: ignorePaths ?? [],
     };
   }
 
   return {
     ignoreRoutes: ignoreRoutesOrRules.ignoreRoutes ?? [],
-    ignorePath: ignoreRoutesOrRules.ignorePath ?? [],
+    ignorePaths: ignoreRoutesOrRules.ignorePaths ?? [],
   };
 };
 
 const matchesIgnoredPath = (
   path: string,
   ignoreRoutesOrRules: string[] | RequestIgnoreRules,
-  ignorePath?: string[]
+  ignorePaths?: string[]
 ): boolean => {
   const normalizedPath = normalizePath(path);
-  const rules = resolveRules(ignoreRoutesOrRules, ignorePath);
+  const rules = resolveRules(ignoreRoutesOrRules, ignorePaths);
 
   if (
     rules.ignoreRoutes.some((route) => {
@@ -57,7 +57,7 @@ const matchesIgnoredPath = (
     return true;
   }
 
-  return rules.ignorePath.some((route) => {
+  return rules.ignorePaths.some((route) => {
     const containsPattern = normalizeContainsPattern(route);
     if (containsPattern === '') return false;
     return normalizedPath.includes(containsPattern);
@@ -66,11 +66,11 @@ const matchesIgnoredPath = (
 
 const shouldIgnoreCurrentRequest = (
   ignoreRoutesOrRules: string[] | RequestIgnoreRules,
-  ignorePath?: string[]
+  ignorePaths?: string[]
 ): boolean => {
   const currentPath = TraceContext.getRequestPath();
   if (typeof currentPath !== 'string' || currentPath === '') return false;
-  return matchesIgnoredPath(currentPath, ignoreRoutesOrRules, ignorePath);
+  return matchesIgnoredPath(currentPath, ignoreRoutesOrRules, ignorePaths);
 };
 
 export const RequestFilter = Object.freeze({

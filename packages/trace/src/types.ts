@@ -406,7 +406,7 @@ export interface ITraceConfig {
   observeConnection?: string;
   pruneAfterHours: number;
   ignoreRoutes: string[];
-  ignorePath: string[];
+  ignorePaths: string[];
   slowQueryThreshold: number;
   captureCachePayloads: boolean;
   captureQueryBindings: boolean;

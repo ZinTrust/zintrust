@@ -259,7 +259,7 @@ const DEFAULTS: ITraceConfig = Object.freeze({
   observeConnection: undefined,
   pruneAfterHours: 24,
   ignoreRoutes: ['/trace', '/health', '/ping'],
-  ignorePath: [],
+  ignorePaths: [],
   slowQueryThreshold: 100,
   captureCachePayloads: false,
   captureQueryBindings: true,
@@ -351,7 +351,7 @@ export const TraceConfig = Object.freeze({
         query: mergeStringLists(DEFAULTS.redaction.query, overrides.redaction?.query),
       },
       ignoreRoutes: overrides.ignoreRoutes ?? DEFAULTS.ignoreRoutes,
-      ignorePath: overrides.ignorePath ?? DEFAULTS.ignorePath,
+      ignorePaths: overrides.ignorePaths ?? DEFAULTS.ignorePaths,
     });
   },
 

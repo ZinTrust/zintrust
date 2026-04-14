@@ -6,12 +6,12 @@ import { RequestFilter } from '../utils/requestFilter';
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _enabled = false;
 let _ignoreRoutes: string[] = [];
-let _ignorePath: string[] = [];
+let _ignorePaths: string[] = [];
 
 /** Explicitly opt-in (enabled only when config.watchers.dump === true, not just non-false). */
 const emit = (value: unknown, file?: string, line?: number): void => {
   if (!_storage || !_enabled) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const content: DumpContent = { value, file, line, hostname: TraceContext.getHostname() };
   _storage
     .writeEntry({
@@ -34,12 +34,12 @@ export const DumpWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze(
     _storage = storage;
     _enabled = true;
     _ignoreRoutes = config.ignoreRoutes;
-    _ignorePath = config.ignorePath;
+    _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
       _enabled = false;
       _ignoreRoutes = [];
-      _ignorePath = [];
+      _ignorePaths = [];
     };
   },
 });

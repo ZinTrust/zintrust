@@ -14,25 +14,25 @@ describe('RequestFilter', () => {
     );
   });
 
-  it('supports contains-based ignorePath matching', () => {
+  it('supports contains-based ignorePaths matching', () => {
     expect(
       RequestFilter.matchesIgnoredPath('/queue-monitor/api/events', {
         ignoreRoutes: ['/trace'],
-        ignorePath: ['queue-monitor'],
+        ignorePaths: ['queue-monitor'],
       })
     ).toBe(true);
 
     expect(
       RequestFilter.matchesIgnoredPath('/workers/main.js?v=1', {
         ignoreRoutes: [],
-        ignorePath: ['.js'],
+        ignorePaths: ['.js'],
       })
     ).toBe(true);
 
     expect(
       RequestFilter.matchesIgnoredPath('/api/users', {
         ignoreRoutes: ['/trace'],
-        ignorePath: ['queue-monitor'],
+        ignorePaths: ['queue-monitor'],
       })
     ).toBe(false);
   });

@@ -7,7 +7,7 @@ import { RequestFilter } from '../utils/requestFilter';
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _redactKeys: string[] = [];
 let _ignoreRoutes: string[] = [];
-let _ignorePath: string[] = [];
+let _ignorePaths: string[] = [];
 
 const emit = (
   name: string,
@@ -17,7 +17,7 @@ const emit = (
   output?: string
 ): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const tags = [name];
   if (exitCode !== 0) tags.push('failed');
   const content: CommandContent = {
@@ -48,11 +48,11 @@ export const CommandWatcher: ITraceWatcher & { emit: typeof emit } = Object.free
     _storage = storage;
     _redactKeys = [...(config.redaction?.keys ?? []), ...(config.redaction?.body ?? [])];
     _ignoreRoutes = config.ignoreRoutes;
-    _ignorePath = config.ignorePath;
+    _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
       _ignoreRoutes = [];
-      _ignorePath = [];
+      _ignorePaths = [];
     };
   },
 });

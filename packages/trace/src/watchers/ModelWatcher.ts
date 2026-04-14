@@ -5,7 +5,7 @@ import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _ignoreRoutes: string[] = [];
-let _ignorePath: string[] = [];
+let _ignorePaths: string[] = [];
 
 type GlobalModelTraceState = {
   __zintrust_trace_model_emit__?: typeof emit;
@@ -18,7 +18,7 @@ const emit = (
   changes?: Record<string, unknown>
 ): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const content: ModelContent = {
     action,
     model,
@@ -45,7 +45,7 @@ export const ModelWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
     if (config.watchers.model === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
-    _ignorePath = config.ignorePath;
+    _ignorePaths = config.ignorePaths;
     (globalThis as unknown as GlobalModelTraceState).__zintrust_trace_model_emit__ = emit;
     return () => {
       const globalState = globalThis as unknown as GlobalModelTraceState;
@@ -54,7 +54,7 @@ export const ModelWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
       }
       _storage = null;
       _ignoreRoutes = [];
-      _ignorePath = [];
+      _ignorePaths = [];
     };
   },
 });

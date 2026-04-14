@@ -5,11 +5,11 @@ import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _ignoreRoutes: string[] = [];
-let _ignorePath: string[] = [];
+let _ignorePaths: string[] = [];
 
 const emit = (template: string, duration: number): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const content: ViewContent = { template, duration, hostname: TraceContext.getHostname() };
   _storage
     .writeEntry({
@@ -30,11 +30,11 @@ export const ViewWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze(
     if (config.watchers.view === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
-    _ignorePath = config.ignorePath;
+    _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
       _ignoreRoutes = [];
-      _ignorePath = [];
+      _ignorePaths = [];
     };
   },
 });

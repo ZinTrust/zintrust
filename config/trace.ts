@@ -25,7 +25,7 @@ export default {
   ignoreRoutes: ['/trace', '/health', '/ping'],
 
   // Contains-based ignore list for URLs such as /queue-monitor/api/events or /workers/main.js.
-  ignorePath: [],
+  ignorePaths: ['/workers/events', '/queue-monitor', '.js', '.css'],
 
   slowQueryThreshold: Env.getInt('TRACE_SLOW_QUERY_MS', 100),
 

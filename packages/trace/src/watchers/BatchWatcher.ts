@@ -5,7 +5,7 @@ import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _ignoreRoutes: string[] = [];
-let _ignorePath: string[] = [];
+let _ignorePaths: string[] = [];
 
 const emit = (
   name: string,
@@ -15,7 +15,7 @@ const emit = (
   status: BatchContent['status']
 ): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const tags = [name];
   if (failed > 0) tags.push('failed');
   const content: BatchContent = {
@@ -45,11 +45,11 @@ export const BatchWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
     if (config.watchers.batch === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
-    _ignorePath = config.ignorePath;
+    _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
       _ignoreRoutes = [];
-      _ignorePath = [];
+      _ignorePaths = [];
     };
   },
 });

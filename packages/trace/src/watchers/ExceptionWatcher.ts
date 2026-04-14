@@ -50,7 +50,7 @@ const buildContent = (err: Error, context?: ExceptionCaptureContext): ExceptionC
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _listenerRefCount = 0;
 let _ignoreRoutes: string[] = [];
-let _ignorePath: string[] = [];
+let _ignorePaths: string[] = [];
 
 const handleUncaughtException = (error: unknown): void => {
   captureException(error);
@@ -77,8 +77,8 @@ const captureException = (err: unknown, context?: ExceptionCaptureContext): void
   if (!storage) return;
   if (!(err instanceof Error)) return;
   if (context?.path !== undefined) {
-    if (RequestFilter.matchesIgnoredPath(context.path, _ignoreRoutes, _ignorePath)) return;
-  } else if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) {
+    if (RequestFilter.matchesIgnoredPath(context.path, _ignoreRoutes, _ignorePaths)) return;
+  } else if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) {
     return;
   }
 
@@ -110,7 +110,7 @@ export const ExceptionWatcher: ITraceWatcher & {
     if (config.watchers.exception === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
-    _ignorePath = config.ignorePath;
+    _ignorePaths = config.ignorePaths;
 
     if (_listenerRefCount === 0) {
       registerProcessListeners();
@@ -124,7 +124,7 @@ export const ExceptionWatcher: ITraceWatcher & {
       }
       _storage = null;
       _ignoreRoutes = [];
-      _ignorePath = [];
+      _ignorePaths = [];
     };
   },
 });

@@ -33,7 +33,7 @@ const isTraceStorageQuery = (sql: string): boolean => {
 
 const emit = (query: string, params: unknown[], duration: number, connection = 'default'): void => {
   if (_storage === null || _config === null) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_config.ignoreRoutes, _config.ignorePath)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_config.ignoreRoutes, _config.ignorePaths)) return;
   if (isTraceStorageQuery(query)) return;
 
   const batchId = TraceContext.getBatchId();

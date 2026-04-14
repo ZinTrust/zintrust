@@ -972,15 +972,17 @@ const resolveStartFromPersistedProcessor = async (
   }
 
   if (!processor) {
-    const unresolvedError = ErrorFactory.createConfigError(
-      `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorSpec.`
-    );
+    const details = {
+      kind: 'worker_processor_unresolvable',
+      workerName: name,
+      processorSpec: spec ?? null,
+      isPersistedWorkerProcessorMissing: spec !== undefined && !discovered && !isUrlSpec(spec),
+    } as const;
 
-    (unresolvedError as Error & { code?: string }).code = 'WORKER_PROCESSOR_UNRESOLVABLE';
-    (unresolvedError as Error & { processorSpec?: string | null }).processorSpec = spec ?? null;
-    (
-      unresolvedError as Error & { isPersistedWorkerProcessorMissing?: boolean }
-    ).isPersistedWorkerProcessorMissing = spec !== undefined && !discovered && !isUrlSpec(spec);
+    const unresolvedError = ErrorFactory.createConfigError(
+      `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorSpec.`,
+      details
+    );
 
     throw unresolvedError;
   }
@@ -989,9 +991,12 @@ const resolveStartFromPersistedProcessor = async (
 };
 
 type UnresolvablePersistedProcessorError = Error & {
-  code?: string;
-  processorSpec?: string | null;
-  isPersistedWorkerProcessorMissing?: boolean;
+  details?: {
+    kind?: string;
+    workerName?: string;
+    processorSpec?: string | null;
+    isPersistedWorkerProcessorMissing?: boolean;
+  };
 };
 
 const isUnresolvablePersistedProcessorError = (
@@ -999,8 +1004,9 @@ const isUnresolvablePersistedProcessorError = (
 ): value is UnresolvablePersistedProcessorError => {
   return (
     isObject(value) &&
-    value['code'] === 'WORKER_PROCESSOR_UNRESOLVABLE' &&
-    value['isPersistedWorkerProcessorMissing'] === true
+    isObject(value['details']) &&
+    value['details']['kind'] === 'worker_processor_unresolvable' &&
+    value['details']['isPersistedWorkerProcessorMissing'] === true
   );
 };
 
@@ -3415,15 +3421,21 @@ export const WorkerFactory = Object.freeze({
       processor = await resolveStartFromPersistedProcessor(name, record, discovered);
     } catch (error) {
       if (isUnresolvablePersistedProcessorError(error)) {
+        const staleDetails = error.details;
         Logger.warn(
           `Purging stale persisted worker "${name}" because its processorSpec is no longer resolvable`,
           {
-            processorSpec: record.processorSpec ?? null,
+            processorSpec: staleDetails?.processorSpec ?? record.processorSpec ?? null,
           }
         );
         await WorkerFactory.remove(name, persistenceOverride);
         throw ErrorFactory.createNotFoundError(
-          `Worker "${name}" was removed because its processorSpec no longer resolves to a live worker module.`
+          `Worker "${name}" was removed because its processorSpec no longer resolves to a live worker module.`,
+          {
+            kind: 'stale_persisted_worker_purged',
+            workerName: name,
+            processorSpec: staleDetails?.processorSpec ?? record.processorSpec ?? null,
+          }
         );
       }
       throw error;

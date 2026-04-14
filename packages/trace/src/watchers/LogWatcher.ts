@@ -82,7 +82,7 @@ export const LogWatcher: ITraceWatcher = Object.freeze({
     const unsubscribe = loggerWithSink.addSink(
       (level: string, message: string, context?: Record<string, unknown>) => {
         if ((LEVEL_PRIORITY[level] ?? 0) < minPriority) return;
-        if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes, config.ignorePath))
+        if (RequestFilter.shouldIgnoreCurrentRequest(config.ignoreRoutes, config.ignorePaths))
           return;
         if (shouldSkipTraceInfrastructureLog(message, context)) return;
 

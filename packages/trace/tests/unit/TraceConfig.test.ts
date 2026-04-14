@@ -100,13 +100,13 @@ describe('TraceConfig', () => {
     expect(config.observeConnection).toBe('primary');
   });
 
-  it('accepts contains-based ignorePath filters separately from ignoreRoutes', () => {
+  it('accepts contains-based ignorePaths filters separately from ignoreRoutes', () => {
     const config = TraceConfig.merge({
       ignoreRoutes: ['/trace'],
-      ignorePath: ['queue-monitor', '.js'],
+      ignorePaths: ['queue-monitor', '.js'],
     });
 
     expect(config.ignoreRoutes).toEqual(['/trace']);
-    expect(config.ignorePath).toEqual(['queue-monitor', '.js']);
+    expect(config.ignorePaths).toEqual(['queue-monitor', '.js']);
   });
 });

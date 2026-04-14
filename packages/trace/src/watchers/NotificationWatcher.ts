@@ -8,7 +8,7 @@ import { RequestFilter } from '../utils/requestFilter';
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _redactionFields: string[] = [];
 let _ignoreRoutes: string[] = [];
-let _ignorePath: string[] = [];
+let _ignorePaths: string[] = [];
 
 const emit = (
   notification: string,
@@ -18,7 +18,7 @@ const emit = (
   payload?: unknown
 ): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const content: NotificationContent = {
     notification,
     channels,
@@ -49,12 +49,12 @@ export const NotificationWatcher: ITraceWatcher & { emit: typeof emit } = Object
     _storage = storage;
     _redactionFields = [...config.redaction.keys, ...config.redaction.body];
     _ignoreRoutes = config.ignoreRoutes;
-    _ignorePath = config.ignorePath;
+    _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
       _redactionFields = [];
       _ignoreRoutes = [];
-      _ignorePath = [];
+      _ignorePaths = [];
     };
   },
 });
