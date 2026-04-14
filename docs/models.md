@@ -122,7 +122,7 @@ export const User = Model.define(
 
 ### Safe Mass Assignment (fillable)
 
-`fillable` is a **mass-assignment allow-list** used by `Model.create({...})` and `model.fill({...})`.
+`fillable` is a **mass-assignment allow-list** used by `Model.create({...})`, `Model.make({...})`, `Model.new({...})`, and `model.fill({...})`.
 
 - If `fillable` contains keys, only those keys are accepted.
 - If `fillable` is an empty array (`[]`), **all keys are accepted**.
@@ -207,7 +207,7 @@ await ExternalUser.query().where('is_active', true).get();
 await ExternalUser.db('external_db').query().where('is_active', true).get();
 
 // Works for creates too
-await ExternalUser.db('external_db').create({ name: 'Jane', email: 'jane@example.com' }).save();
+await ExternalUser.db('external_db').create({ name: 'Jane', email: 'jane@example.com' });
 ````
 
 ````
@@ -409,8 +409,14 @@ For polymorphic relations (morphOne, morphMany, morphTo) and through relations (
 
 ```typescript
 // Create
-const user = User.create({ name: 'John' });
-await user.save();
+const user = await User.create({ name: 'John' });
+
+// Build without persisting yet
+const draftUser = User.make({ name: 'Draft' });
+// Alias: User.new({ name: 'Draft' })
+
+draftUser.setAttribute('email', 'draft@example.com');
+await draftUser.save();
 
 // Update
 user.setAttribute('name', 'Jane');
@@ -520,12 +526,10 @@ const schema = Schema.create()
 
 Validator.validate(data, schema);
 
-const user = User.create(data);
-await user.save();
+const user = await User.create(data);
 
 // ❌ Avoid - save invalid data
-const user = User.create(req.getBody());
-await user.save();
+const user = await User.create(req.getBody());
 ```
 
 ### 5. Handle Timestamps Automatically
@@ -542,7 +546,7 @@ export const Post = Model.define(
 );
 
 // ❌ Avoid - manual timestamp management
-const post = Post.create({ title: 'Test' });
+const post = Post.make({ title: 'Test' });
 post.setAttribute('created_at', new Date().toISOString());
 post.setAttribute('updated_at', new Date().toISOString());
 await post.save();
@@ -632,16 +636,14 @@ describe('User Model', () => {
   });
 
   it('creates a user with valid data', async () => {
-    const user = User.create({ name: 'John', email: 'john@example.com' });
-    await user.save();
+    const user = await User.create({ name: 'John', email: 'john@example.com' });
 
     expect(user.getAttribute('id')).toBeDefined();
     expect(user.getAttribute('name')).toBe('John');
   });
 
   it('soft-deletes user without removing data', async () => {
-    const user = User.create({ name: 'John', email: 'john@example.com' });
-    await user.save();
+    const user = await User.create({ name: 'John', email: 'john@example.com' });
     const id = user.getAttribute('id');
 
     await user.delete();

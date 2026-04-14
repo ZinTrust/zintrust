@@ -17,7 +17,7 @@ describe('Model Branch Logic', () => {
       casts: {},
     });
 
-    const model = TestModel.create({ name: 'test' });
+    const model = TestModel.make({ name: 'test' });
     expect(model).toBeDefined();
     expect(model.getTable()).toBe('test_models');
     expect(model.getAttribute('name')).toBe('test');
@@ -32,7 +32,7 @@ describe('Model Branch Logic', () => {
       casts: {},
     });
 
-    const model = TestModel.create();
+    const model = TestModel.make();
     model.setAttribute('name', 'test');
     expect(model.getAttribute('name')).toBe('test');
   });
@@ -46,7 +46,7 @@ describe('Model Branch Logic', () => {
       casts: {},
     });
 
-    const model = TestModel.create();
+    const model = TestModel.make();
     expect(model).toBeDefined();
   });
 });

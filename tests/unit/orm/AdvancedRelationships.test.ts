@@ -643,7 +643,7 @@ describe('Polymorphic relations (morphOne, morphMany, morphTo)', () => {
       casts: {},
     });
 
-    const post = Post.create({ id: 1, title: 'Test' });
+    const post = Post.make({ id: 1, title: 'Test' });
     const imageRel = post.morphOne(Image, 'imageable');
 
     expect(imageRel.type).toBe('morphOne');
@@ -668,7 +668,7 @@ describe('Polymorphic relations (morphOne, morphMany, morphTo)', () => {
       casts: {},
     });
 
-    const post = Post.create({ id: 1, title: 'Test' });
+    const post = Post.make({ id: 1, title: 'Test' });
     const commentsRel = post.morphMany(Comment, 'commentable');
 
     expect(commentsRel.type).toBe('morphMany');
@@ -701,7 +701,7 @@ describe('Polymorphic relations (morphOne, morphMany, morphTo)', () => {
       casts: {},
     });
 
-    const comment = Comment.create({
+    const comment = Comment.make({
       id: 1,
       body: 'Test comment',
       commentable_type: 'posts',
@@ -833,7 +833,7 @@ describe('Through relations (hasManyThrough, hasOneThrough)', () => {
       casts: {},
     });
 
-    const country = Country.create({ id: 1, name: 'USA' });
+    const country = Country.make({ id: 1, name: 'USA' });
     const postsRel = country.hasManyThrough(Post, User);
 
     expect(postsRel.type).toBe('hasManyThrough');
@@ -921,7 +921,7 @@ describe('Through relations (hasManyThrough, hasOneThrough)', () => {
       casts: {},
     });
 
-    const country = Country.create({ id: 1, name: 'USA' });
+    const country = Country.make({ id: 1, name: 'USA' });
     const profileRel = country.hasOneThrough(Profile, User);
 
     expect(profileRel.type).toBe('hasOneThrough');

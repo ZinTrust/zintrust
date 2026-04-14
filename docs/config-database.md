@@ -92,7 +92,7 @@ After application boot, this works:
 import { User } from '@app/Models/User';
 
 await User.db('mysql3').query().where('id', 1).first();
-await User.db('mysql3').create({ name: 'Jane' }).save();
+await User.db('mysql3').create({ name: 'Jane' });
 ```
 
 If you call `User.db('unknown')...` (or `useDatabase(undefined, 'unknown')`) and that name is not configured/registered, ZinTrust throws.

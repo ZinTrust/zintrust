@@ -236,8 +236,7 @@ export const ShardRouter = {
 
 ```typescript
 // Create user in users_db
-const user = User.create({ name, email });
-await user.save();
+const user = await User.create({ name, email });
 
 // Create order in orders_db with transaction
 const ordersDb = await useEnsureDbConnected(undefined, 'orders_db');

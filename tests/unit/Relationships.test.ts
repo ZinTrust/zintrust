@@ -35,7 +35,7 @@ describe('Relationships', (): void => {
         {}
       );
 
-      const post = PostModel.create({ id: 1 });
+      const post = PostModel.make({ id: 1 });
       const relationship = post.belongsToMany(TagModel);
 
       // The relationship object should be usable
@@ -52,7 +52,7 @@ describe('Relationships', (): void => {
         {}
       );
 
-      const post = PostModel.create({ id: 1 });
+      const post = PostModel.make({ id: 1 });
       const relationship = post.belongsToMany(TagModel, 'post_tag_pivot');
 
       // The relationship object should be usable
@@ -69,7 +69,7 @@ describe('Relationships', (): void => {
         {}
       );
 
-      const post = PostModel.create({ id: 1 });
+      const post = PostModel.make({ id: 1 });
       const relationship = post.belongsToMany(TagModel);
 
       // Test the relationship is created successfully

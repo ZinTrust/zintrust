@@ -8,7 +8,7 @@ describe('app models', () => {
   it('User model helpers and relationships', async () => {
     const { User } = await import('@app/Models/User');
 
-    const user = User.create();
+    const user = User.make();
 
     expect(user.profile()).toBeUndefined();
     expect(user.posts()).toBeDefined();
@@ -26,7 +26,7 @@ describe('app models', () => {
   it('Post model author relationship', async () => {
     const { Post } = await import('@app/Models/Post');
 
-    const post = Post.create();
+    const post = Post.make();
     expect(post.author()).toBeDefined();
   });
 });

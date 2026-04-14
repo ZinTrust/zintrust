@@ -96,7 +96,7 @@ describe('Model', () => {
 
   it('fills attributes, applies casts, respects fillable and hidden', async (): Promise<void> => {
     const TestModel = Model.define(baseConfig);
-    const m = TestModel.create({
+    const m = TestModel.make({
       name: 'John',
       email: 'john@example.com',
       password: fakePass,
@@ -127,7 +127,7 @@ describe('Model', () => {
       casts: {},
     });
 
-    const m1 = Limited.create({ name: 'A', email: 'nope' });
+    const m1 = Limited.make({ name: 'A', email: 'nope' });
     expect(m1.getAttribute('name')).toBe('A');
     expect(m1.getAttribute('email')).toBeUndefined();
 
@@ -140,13 +140,13 @@ describe('Model', () => {
       casts: {},
     });
 
-    const m2 = Open.create({ name: 'B', email: 'yes' });
+    const m2 = Open.make({ name: 'B', email: 'yes' });
     expect(m2.getAttribute('email')).toBe('yes');
   });
 
   it('tracks dirty state and existence', async (): Promise<void> => {
     const TestModel = Model.define({ ...baseConfig, casts: {} });
-    const m = TestModel.create({ name: 'A' });
+    const m = TestModel.make({ name: 'A' });
 
     expect(m.isDirty()).toBe(false);
     expect(m.isDirty('name')).toBe(false);
@@ -160,7 +160,7 @@ describe('Model', () => {
     expect(m.exists()).toBe(true);
   });
 
-  it('save throws when DB not initialized; save persists inserts and sets timestamps when enabled', async (): Promise<void> => {
+  it('create throws when DB not initialized; create persists inserts and sets timestamps when enabled', async (): Promise<void> => {
     const dbMod = (await import('@orm/Database')) as unknown as {
       __setDb: (next: unknown) => void;
     };
@@ -168,15 +168,13 @@ describe('Model', () => {
     const TestModel = Model.define({ ...baseConfig, casts: {} });
 
     dbMod.__setDb(undefined);
-    const noDbModel = TestModel.create({ name: 'A' });
-    await expect(noDbModel.save()).rejects.toMatchObject({ code: 'DATABASE_ERROR' });
+    await expect(TestModel.create({ name: 'A' })).rejects.toMatchObject({ code: 'DATABASE_ERROR' });
 
     dbMod.__setDb({});
-    const m = TestModel.create({ name: 'A' });
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+    const m = await TestModel.create({ name: 'A' });
 
-    await expect(m.save()).resolves.toBe(true);
     const qb = (await import('@orm/QueryBuilder')) as unknown as {
       __getLastBuilder: () => MockBuilder | undefined;
     };
@@ -191,7 +189,7 @@ describe('Model', () => {
 
   it('delete returns false when not exists; true when exists and db present', async (): Promise<void> => {
     const TestModel = Model.define({ ...baseConfig, casts: {} });
-    const m = TestModel.create({ name: 'A' });
+    const m = TestModel.make({ name: 'A' });
 
     await expect(m.delete()).resolves.toBe(false);
 
@@ -285,7 +283,7 @@ describe('Model', () => {
       }
     );
 
-    const m = Test.create({ name: 'Zin' });
+    const m = Test.make({ name: 'Zin' });
     expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Zin');
   });
 
@@ -294,7 +292,7 @@ describe('Model', () => {
       greet: (prefix: string): string => `${prefix} ${String(m.getAttribute('name'))}`,
     }));
 
-    const m = Test.create({ name: 'Plan' });
+    const m = Test.make({ name: 'Plan' });
     expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Plan');
   });
 
@@ -311,7 +309,7 @@ describe('Model', () => {
       },
     });
 
-    const m = Test.create({ name: '  zin  ' });
+    const m = Test.make({ name: '  zin  ' });
     expect(m.getAttribute('name')).toBe('hello ZIN');
 
     m.setAttribute('name', '  trust ');
@@ -333,7 +331,7 @@ describe('Model', () => {
       },
     });
 
-    const created = Test.create({ id: 1, secret: 'plain' });
+    const created = Test.make({ id: 1, secret: 'plain' });
     expect(created.getAttributes()['secret']).toBe('enc:plain');
 
     const hydrated = Test.hydrate({ id: 1, secret: 'enc:plain' });
@@ -471,7 +469,7 @@ describe('Model', () => {
       observers: [{ saving, creating, created, saved, deleting, deleted }],
     });
 
-    const m = Test.create({ name: 'A' });
+    const m = Test.make({ name: 'A' });
 
     await m.save();
     expect(saving).toHaveBeenCalledTimes(1);
@@ -629,7 +627,7 @@ describe('Model', () => {
       query: (): unknown => relatedBuilder,
     };
 
-    const m = Test.create({ id: '5', user_id: '9' });
+    const m = Test.make({ id: '5', user_id: '9' });
 
     const relatedModel = Related as unknown as ModelStatic;
 

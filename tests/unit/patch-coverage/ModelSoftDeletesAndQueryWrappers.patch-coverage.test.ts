@@ -39,7 +39,7 @@ sqliteDescribe('patch coverage: Model soft deletes + query wrappers', () => {
   });
 
   it('restore() and isDeleted() behave for soft delete models', async () => {
-    const m = Model.create(config, { id: 1, deleted_at: '2024-01-01T00:00:00.000Z' });
+    const m = Model.make(config, { id: 1, deleted_at: '2024-01-01T00:00:00.000Z' });
 
     // Not persisted yet
     expect(await m.restore()).toBe(false);
@@ -70,7 +70,7 @@ sqliteDescribe('patch coverage: Model soft deletes + query wrappers', () => {
       ],
     };
 
-    const m = Model.create(cfg, { id: 1 });
+    const m = Model.make(cfg, { id: 1 });
     m.setExists(true);
 
     expect(await m.forceDelete()).toBe(true);
@@ -90,7 +90,7 @@ sqliteDescribe('patch coverage: Model soft deletes + query wrappers', () => {
     );
     await useDatabase().query('INSERT INTO users (id, name) VALUES (?, ?)', [1, 'Alice']);
 
-    const m = Model.create(
+    const m = Model.make(
       {
         table: 'users',
         fillable: ['id', 'name'],
@@ -115,7 +115,7 @@ sqliteDescribe('patch coverage: Model soft deletes + query wrappers', () => {
       }
     ).__zintrust_trace_model_emit__ = emit;
 
-    const m = Model.create(config, { id: 7 });
+    const m = Model.make(config, { id: 7 });
     m.setExists(true);
 
     expect(await m.forceDelete()).toBe(true);

@@ -154,19 +154,19 @@ export const database: DatabaseConfig = {
 ## Transactions
 
 ```typescript
-import { Database } from '@zintrust/core';
+import { Database, QueryBuilder } from '@zintrust/core';
 
 // Simple transaction
 await Database.transaction(async (trx) => {
-  await User.create({ name: 'John' }, { transaction: trx });
-  await User.create({ name: 'Jane' }, { transaction: trx });
+  await QueryBuilder.create('users', trx).insert({ name: 'John' });
+  await QueryBuilder.create('users', trx).insert({ name: 'Jane' });
 });
 
 // Manual transaction control
 const trx = await Database.beginTransaction();
 try {
-  await User.create({ name: 'John' }, { transaction: trx });
-  await User.create({ name: 'Jane' }, { transaction: trx });
+  await QueryBuilder.create('users', trx).insert({ name: 'John' });
+  await QueryBuilder.create('users', trx).insert({ name: 'Jane' });
   await trx.commit();
 } catch (error) {
   await trx.rollback();

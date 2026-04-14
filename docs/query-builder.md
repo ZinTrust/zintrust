@@ -31,8 +31,7 @@ The `QueryBuilder` detects if an operation is a "read" (SELECT) and routes it to
 const users = await User.query().get();
 
 // Routed to the master host
-const user = new User({ name: 'John' });
-await user.save();
+const user = await User.create({ name: 'John' });
 ```
 
 ## Where Clauses

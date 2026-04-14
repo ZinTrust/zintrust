@@ -198,9 +198,7 @@ const users = await User.where('active', true)
   .get();
 
 // Subqueries
-const activeUsers = await User.where('id', 'IN', 
-  User.where('active', true).select('id')
-).get();
+const activeUsers = await User.where('id', 'IN', User.where('active', true).select('id')).get();
 
 // Joins
 const usersWithProfiles = await User.select('users.*', 'profiles.bio')
@@ -213,24 +211,30 @@ const usersWithProfiles = await User.select('users.*', 'profiles.bio')
 
 ```typescript
 // Execute raw SQL
-const results = await Model.raw(`
-  SELECT u.*, p.bio 
-  FROM users u 
-  LEFT JOIN profiles p ON u.id = p.user_id 
+const results = await Model.raw(
+  `
+  SELECT u.*, p.bio
+  FROM users u
+  LEFT JOIN profiles p ON u.id = p.user_id
   WHERE u.active = ?
-`, [true]);
+`,
+  [true]
+);
 
 // Execute stored procedures
 const procedureResult = await Model.raw('CALL get_user_by_email(?)', ['john@example.com']);
 
 // Batch SQL execution
-const batchResults = await Model.batch([
-  'INSERT INTO users (name, email) VALUES (?, ?)',
-  'INSERT INTO profiles (user_id, bio) VALUES (?, ?)',
-], [
-  ['John Doe', 'john@example.com'],
-  [1, 'Software developer']
-]);
+const batchResults = await Model.batch(
+  [
+    'INSERT INTO users (name, email) VALUES (?, ?)',
+    'INSERT INTO profiles (user_id, bio) VALUES (?, ?)',
+  ],
+  [
+    ['John Doe', 'john@example.com'],
+    [1, 'Software developer'],
+  ]
+);
 ```
 
 ## Transactions
@@ -238,11 +242,14 @@ const batchResults = await Model.batch([
 ### Simple Transactions
 
 ```typescript
-import { Database } from '@zintrust/core';
+import { Database, QueryBuilder } from '@zintrust/core';
 
 await Database.transaction(async (trx) => {
-  const user = await User.create({ name: 'John', email: 'john@example.com' }, { transaction: trx });
-  await Profile.create({ user_id: user.id, bio: 'Developer' }, { transaction: trx });
+  const user = await QueryBuilder.create('users', trx).insert({
+    name: 'John',
+    email: 'john@example.com',
+  });
+  await QueryBuilder.create('profiles', trx).insert({ user_id: user.id, bio: 'Developer' });
 });
 ```
 
@@ -251,8 +258,11 @@ await Database.transaction(async (trx) => {
 ```typescript
 const trx = await Database.beginTransaction();
 try {
-  await User.create({ name: 'John', email: 'john@example.com' }, { transaction: trx });
-  await Profile.create({ user_id: 1, bio: 'Developer' }, { transaction: trx });
+  const user = await QueryBuilder.create('users', trx).insert({
+    name: 'John',
+    email: 'john@example.com',
+  });
+  await QueryBuilder.create('profiles', trx).insert({ user_id: user.id, bio: 'Developer' });
   await trx.commit();
 } catch (error) {
   await trx.rollback();
@@ -264,12 +274,15 @@ try {
 
 ```typescript
 await Database.transaction(async (trx) => {
-  const user = await User.create({ name: 'John', email: 'john@example.com' }, { transaction: trx });
-  
+  const user = await QueryBuilder.create('users', trx).insert({
+    name: 'John',
+    email: 'john@example.com',
+  });
+
   await trx.savepoint('user_created');
-  
+
   try {
-    await Profile.create({ user_id: user.id, bio: 'Developer' }, { transaction: trx });
+    await QueryBuilder.create('profiles', trx).insert({ user_id: user.id, bio: 'Developer' });
     await trx.release('user_created');
   } catch (error) {
     await trx.rollbackToSavepoint('user_created');
@@ -361,11 +374,7 @@ export const database: DatabaseConfig = {
       queryValidation: {
         enabled: true,
         allowedOperations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
-        blockedPatterns: [
-          /DROP\s+TABLE/i,
-          /TRUNCATE/i,
-          /ALTER\s+TABLE/i,
-        ],
+        blockedPatterns: [/DROP\s+TABLE/i, /TRUNCATE/i, /ALTER\s+TABLE/i],
         maxQueryLength: 10000,
       },
       parameterValidation: {
@@ -389,9 +398,9 @@ const metrics = new RDSDataMetrics();
 
 // Get performance metrics
 const performanceMetrics = await metrics.getPerformanceMetrics();
-// Returns: { 
-//   totalQueries: number, 
-//   averageQueryTime: number, 
+// Returns: {
+//   totalQueries: number,
+//   averageQueryTime: number,
 //   slowQueries: number,
 //   errorRate: number,
 //   connectionPoolUtilization: number
@@ -399,8 +408,8 @@ const performanceMetrics = await metrics.getPerformanceMetrics();
 
 // Get database statistics
 const dbStats = await metrics.getDatabaseStats();
-// Returns: { 
-//   activeConnections: number, 
+// Returns: {
+//   activeConnections: number,
 //   totalConnections: number,
 //   queryCount: number,
 //   averageExecutionTime: number
@@ -446,10 +455,10 @@ export const database: DatabaseConfig = {
       console.log('RDS Data query error:', error.message);
       console.log('Query:', query);
       console.log('Params:', params);
-      
+
       // Log to monitoring system
       logError(error, { query, params });
-      
+
       // Send alert for critical errors
       if (error.severity === 'critical') {
         sendAlert('RDS Data API error', error);
@@ -518,7 +527,10 @@ const testRDS = new TestRDSData({
 });
 
 // Setup test data
-await testRDS.query('INSERT INTO users (name, email) VALUES (?, ?)', ['Test User', 'test@example.com']);
+await testRDS.query('INSERT INTO users (name, email) VALUES (?, ?)', [
+  'Test User',
+  'test@example.com',
+]);
 
 // Run tests
 const result = await testRDS.query('SELECT * FROM users');

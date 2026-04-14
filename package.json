@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -217,6 +217,7 @@
   "overrides": {
     "ajv": "^8.18.0",
     "axios": "^1.15.0",
+    "follow-redirects": "^1.16.0",
     "@tootallnate/once": "^3.0.1",
     "node-forge": "^1.4.0",
     "brace-expansion": "^5.0.5",

@@ -702,22 +702,19 @@ describe('Polymorphic Relations', () => {
   });
 
   it('loads morphMany relationship', async () => {
-    const post = Post.create({ title: 'Test Post' });
-    await post.save();
+    const post = await Post.create({ title: 'Test Post' });
 
-    const comment1 = Comment.create({
+    const comment1 = await Comment.create({
       body: 'Comment 1',
       commentable_id: post.getAttribute('id'),
       commentable_type: 'Post',
     });
-    await comment1.save();
 
-    const comment2 = Comment.create({
+    const comment2 = await Comment.create({
       body: 'Comment 2',
       commentable_id: post.getAttribute('id'),
       commentable_type: 'Post',
     });
-    await comment2.save();
 
     await Post.query().load([post], 'comments');
     const comments = post.getAttribute('comments') as IModel[];
@@ -728,15 +725,13 @@ describe('Polymorphic Relations', () => {
   });
 
   it('loads morphTo relationship', async () => {
-    const post = Post.create({ title: 'Test Post' });
-    await post.save();
+    const post = await Post.create({ title: 'Test Post' });
 
-    const comment = Comment.create({
+    const comment = await Comment.create({
       body: 'Test Comment',
       commentable_id: post.getAttribute('id'),
       commentable_type: 'Post',
     });
-    await comment.save();
 
     await Comment.query().load([comment], 'commentable');
     const parent = comment.getAttribute('commentable') as IModel;
@@ -801,17 +796,15 @@ async function createPostWithTags(postData: Record<string, unknown>, tagNames: s
 
   await db.transaction(async () => {
     // Create post
-    const post = Post.create(postData);
-    await post.save();
+    const post = await Post.create(postData);
 
     // Create tags (polymorphic)
     for (const tagName of tagNames) {
-      const tag = Tag.create({
+      const tag = await Tag.create({
         name: tagName,
         taggable_id: post.getAttribute('id'),
         taggable_type: 'Post',
       });
-      await tag.save();
     }
   });
 }
