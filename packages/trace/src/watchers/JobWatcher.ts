@@ -12,6 +12,7 @@ import { parseStackFrameLine } from '../utils/stackFrame';
 // Module-level storage ref so emit helpers can be called from outside.
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _ignoreRoutes: string[] = [];
+let _ignorePath: string[] = [];
 const MAX_TRACKED_JOBS = 1000;
 
 type PendingJob = { uuid: string; content: JobContent };
@@ -43,7 +44,7 @@ const takePendingJob = (name: string): PendingJob | null => {
 
 const emitDispatch = (name: string, queue: string, connection: string, data?: unknown): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
   const uuid = crypto.randomUUID();
   const content: JobContent = {
     status: 'pending',
@@ -112,9 +113,11 @@ export const JobWatcher: ITraceWatcher & {
     if (config.watchers.job === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
+    _ignorePath = config.ignorePath;
     return () => {
       _storage = null;
       _ignoreRoutes = [];
+      _ignorePath = [];
       pendingJobs.clear();
     };
   },

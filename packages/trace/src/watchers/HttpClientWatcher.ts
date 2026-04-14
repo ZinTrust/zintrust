@@ -16,6 +16,7 @@ let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _redactHeaderNames: string[] = [];
 let _redactBodyFields: string[] = [];
 let _ignoreRoutes: string[] = [];
+let _ignorePath: string[] = [];
 let _clientRequestWatcher: TraceClientRequestWatcherConfig | undefined;
 
 const isObjectValue = (value: unknown): value is Record<string, unknown> => {
@@ -158,7 +159,7 @@ const emit = ({
   error,
 }: ClientRequestTraceInput): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
   const normalizedSource = resolveSource(source);
   const sourceRule = resolveSourceRule(normalizedSource);
   if (sourceRule?.enabled === false) return;
@@ -206,11 +207,13 @@ export const HttpClientWatcher: ITraceWatcher & { emit: typeof emit } = Object.f
     _redactHeaderNames = [...(config.redaction?.keys ?? []), ...(config.redaction?.headers ?? [])];
     _redactBodyFields = [...(config.redaction?.keys ?? []), ...(config.redaction?.body ?? [])];
     _ignoreRoutes = config.ignoreRoutes;
+    _ignorePath = config.ignorePath;
     return () => {
       _storage = null;
       _clientRequestWatcher = undefined;
       _redactBodyFields = [];
       _ignoreRoutes = [];
+      _ignorePath = [];
     };
   },
 });

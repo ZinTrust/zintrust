@@ -13,6 +13,7 @@ let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _config: ITraceWatcherConfig['config'] | null = null;
 let _redactionFields: string[] = [];
 let _ignoreRoutes: string[] = [];
+let _ignorePath: string[] = [];
 
 const emit = (
   operation: CacheContent['operation'],
@@ -24,7 +25,7 @@ const emit = (
   ttl?: number
 ): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePath)) return;
   const safeKey = redactString(key, _redactionFields);
   const shouldLogPayload = _config?.captureCachePayloads === true;
   const content: CacheContent = {
@@ -60,10 +61,12 @@ export const CacheWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
     _config = config;
     _redactionFields = config.redaction.query;
     _ignoreRoutes = config.ignoreRoutes;
+    _ignorePath = config.ignorePath;
     return () => {
       _storage = null;
       _config = null;
       _ignoreRoutes = [];
+      _ignorePath = [];
     };
   },
 });

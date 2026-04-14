@@ -164,7 +164,7 @@ const buildEntry = (
 };
 
 const shouldIgnore = (req: IRequest, config: ITraceConfig): boolean => {
-  return RequestFilter.matchesIgnoredPath(req.getPath(), config.ignoreRoutes);
+  return RequestFilter.matchesIgnoredPath(req.getPath(), config);
 };
 
 const isWatcherEnabled = (config: ITraceConfig): boolean => config.watchers.request !== false;
