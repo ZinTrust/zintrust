@@ -10,11 +10,7 @@
     }
   },
   "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=20.0.0"
-  },
+    "version": "0.5.9",
   "keywords": [
     "zintrust",
     "signing",
