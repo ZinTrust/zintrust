@@ -187,6 +187,25 @@ describe('Model', () => {
     vi.useRealTimers();
   });
 
+  it('top-level create persists and defined new returns an unsaved model', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+
+    const created = await Model.create(config, { name: 'Root' });
+
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith(expect.objectContaining({ name: 'Root' }));
+    expect(created.exists()).toBe(true);
+
+    const TestModel = Model.define(config);
+    const draft = TestModel.new({ name: 'Draft' });
+
+    expect(draft.exists()).toBe(false);
+    expect(draft.getAttribute('name')).toBe('Draft');
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledTimes(1);
+  });
+
   it('delete returns false when not exists; true when exists and db present', async (): Promise<void> => {
     const TestModel = Model.define({ ...baseConfig, casts: {} });
     const m = TestModel.make({ name: 'A' });
