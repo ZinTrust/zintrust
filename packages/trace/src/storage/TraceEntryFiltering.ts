@@ -6,6 +6,11 @@ import { RequestFilter } from '../utils/requestFilter';
 
 const MAX_IGNORED_BATCHES = 512;
 
+interface IIgnoredBatchTracker {
+  has(batchId: string): boolean;
+  remember(batchId: string): void;
+}
+
 const isObjectValue = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 };
@@ -18,7 +23,7 @@ const getEntryUri = (entry: ITraceEntry): string | undefined => {
   return typeof uri === 'string' && uri.trim() !== '' ? uri : undefined;
 };
 
-const createIgnoredBatchTracker = () => {
+const createIgnoredBatchTracker = (): IIgnoredBatchTracker => {
   const ignoredBatchIds = new Set<string>();
   const ignoredBatchOrder: string[] = [];
 
@@ -46,7 +51,7 @@ const createIgnoredBatchTracker = () => {
 const shouldDropForIgnoredRequest = (
   entry: ITraceEntry,
   config: ITraceConfig,
-  tracker: ReturnType<typeof createIgnoredBatchTracker>
+  tracker: IIgnoredBatchTracker
 ): boolean => {
   if (tracker.has(entry.batchId)) {
     return true;
@@ -77,7 +82,7 @@ export const TraceEntryFiltering = Object.freeze({
 
     return Object.freeze({
       ...storage,
-      async writeEntry(entry: ITraceEntry) {
+      async writeEntry(entry: ITraceEntry): Promise<void> {
         if (shouldDropForIgnoredRequest(entry, config, ignoredBatchTracker)) return;
         if (!TraceEntryFilter.shouldCapture(entry, config)) return;
         await storage.writeEntry(entry);
