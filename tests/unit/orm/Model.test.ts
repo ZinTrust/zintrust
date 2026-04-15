@@ -195,7 +195,9 @@ describe('Model', () => {
 
     const created = await Model.create(config, { name: 'Root' });
 
-    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith(expect.objectContaining({ name: 'Root' }));
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Root' })
+    );
     expect(created.exists()).toBe(true);
 
     const TestModel = Model.define(config);

@@ -10,7 +10,11 @@
     }
   },
   "files": [
-    "version": "0.5.9",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "keywords": [
     "zintrust",
     "signing",
@@ -23,6 +27,6 @@
     "type-check": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.5.8"
+    "@zintrust/core": "^0.5.9"
   }
 }
