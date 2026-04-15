@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   }),
   httpRegister: vi.fn(),
   noopRegister: vi.fn(),
+  startupConfigHas: vi.fn(() => true),
+  startupConfigPreload: vi.fn(async () => undefined),
   resolveStorage: vi.fn((db: unknown) => ({ db })),
   startupConfigGet: vi.fn(() => undefined),
   useDatabase: vi.fn((_: unknown, connection?: string) => ({
@@ -54,6 +56,8 @@ vi.mock('@zintrust/core', async () => {
       Trace: 'config/trace.ts',
     },
     StartupConfigFileRegistry: {
+      has: (file: string) => state.startupConfigHas(file),
+      preload: (files: readonly string[]) => state.startupConfigPreload(files),
       get: (file: string) => state.startupConfigGet(file),
     },
     useDatabase: (config?: unknown, connection?: string) => state.useDatabase(config, connection),
@@ -154,6 +158,7 @@ describe('trace register startup config loading', () => {
     delete (globalThis as Record<string, unknown>).__zintrust_system_trace_register_initialized__;
     delete (globalThis as Record<string, unknown>).__zintrust_system_trace_plugin_requested__;
     const traceConfigModule = await import('../../../../config/trace.ts');
+    state.startupConfigHas.mockReturnValue(true);
     state.startupConfigGet.mockReturnValue(traceConfigModule.default);
   });
 
@@ -164,6 +169,21 @@ describe('trace register startup config loading', () => {
 
     await import('../../src/register');
 
+    expect(state.httpRegister).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          ignorePaths: ['/workers/events', '/queue-monitor', '.js', '.css'],
+        }),
+      })
+    );
+  });
+
+  it('preloads trace startup overrides when the registry was not preloaded yet', async () => {
+    state.startupConfigHas.mockReturnValue(false);
+
+    await import('../../src/register');
+
+    expect(state.startupConfigPreload).toHaveBeenCalledWith(['config/trace.ts']);
     expect(state.httpRegister).toHaveBeenCalledWith(
       expect.objectContaining({
         config: expect.objectContaining({

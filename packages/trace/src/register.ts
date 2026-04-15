@@ -72,7 +72,9 @@ type CoreApi = {
     Trace?: string;
   };
   StartupConfigFileRegistry?: {
+    preload?(files: readonly string[]): Promise<void>;
     get<T>(file: string): T | undefined;
+    has?(file: string): boolean;
   };
 };
 
@@ -181,11 +183,18 @@ const parseEnvBool = (rawValue: string): boolean | undefined => {
   return undefined;
 };
 
-const resolveTraceStartupOverrides = (core: CoreApi): TraceConfigOverrides | undefined => {
+const resolveTraceStartupOverrides = async (
+  core: CoreApi
+): Promise<TraceConfigOverrides | undefined> => {
   const traceConfigFile = core.StartupConfigFile?.Trace;
   if (typeof traceConfigFile !== 'string' || traceConfigFile.trim() === '') return undefined;
 
-  const overrides = core.StartupConfigFileRegistry?.get<unknown>(traceConfigFile);
+  const registry = core.StartupConfigFileRegistry;
+  if (registry?.has?.(traceConfigFile) !== true && typeof registry?.preload === 'function') {
+    await registry.preload([traceConfigFile]);
+  }
+
+  const overrides = registry?.get<unknown>(traceConfigFile);
   return isObjectValue(overrides) ? (overrides as TraceConfigOverrides) : undefined;
 };
 
@@ -296,7 +305,7 @@ const assertTraceStorageReady = async (
 
 const core = (await importCore()) as CoreApi;
 const Env = core.Env;
-const startupOverrides = resolveTraceStartupOverrides(core);
+const startupOverrides = await resolveTraceStartupOverrides(core);
 
 if (!traceAlreadyInitialized && Env) {
   const enabled = startupOverrides?.enabled === true || Env.getBool('TRACE_ENABLED', false);
