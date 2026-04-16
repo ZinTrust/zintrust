@@ -12,8 +12,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@zintrust/core": "^{{coreVersion}}",
-    "@zintrust/d1-migrator": "^0.4.6"
+    "@zintrust/core": "^{{coreVersion}}"
   },
   "devDependencies": {
     "@zintrust/governance": "{{governanceVersion}}",

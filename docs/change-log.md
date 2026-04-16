@@ -1,3 +1,6 @@
+- Removed the default `@zintrust/d1-migrator` dependency from freshly scaffolded apps, since it is an optional CLI extension rather than a runtime requirement.
+- Updated the publish smoke workflow to install only runtime dependencies for fresh-app cold-start validation, which avoids pre-publish failures on dev-only packages that have not been released yet.
+
 # Developer Docs Updates
 
 This page tracks developer-visible documentation changes.

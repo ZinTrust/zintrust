@@ -45,7 +45,8 @@ describe('ProjectScaffolder extra tests', () => {
     ) as {
       dependencies?: Record<string, string>;
     };
-    expect(packageJson.dependencies?.['@zintrust/d1-migrator']).toBeDefined();
+    expect(packageJson.dependencies?.['@zintrust/core']).toBeDefined();
+    expect(packageJson.dependencies?.['@zintrust/d1-migrator']).toBeUndefined();
 
     // cleanup
     await fsPromises.rm(projectPath, { recursive: true, force: true });

@@ -77,8 +77,10 @@ jobs:
           npm install --no-audit --no-fund "$ROOT/dist" || \
             npm install --no-audit --no-fund --legacy-peer-deps "$ROOT/dist"
 
-          # Install the rest of the scaffolded dependencies.
-          npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+          # Install only runtime deps for the cold-start smoke check.
+          # Dev tooling like @zintrust/governance is validated elsewhere and may not be published yet.
+          npm install --omit=dev --no-audit --no-fund || \
+            npm install --omit=dev --no-audit --no-fund --legacy-peer-deps
 
           echo "---- DEBUG: installed @zintrust/core resolution ----"
           node -e "const fs=require('fs');const p='node_modules/@zintrust/core';console.log('template=',process.env.SMOKE_TEMPLATE);console.log('app=',process.env.SMOKE_APP_NAME);console.log('realpath=',fs.realpathSync(p));const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));console.log('smoke-app @zintrust/core dep=',pkg.dependencies?.['@zintrust/core']);"
