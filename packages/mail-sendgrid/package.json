@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/mail-sendgrid",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "description": "SendGrid mail driver for ZinTrust.",
   "private": false,
   "type": "module",
