@@ -3,6 +3,7 @@ import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 const COVERAGE_STRICT = process.env.COVERAGE_STRICT === 'true';
+const COVERAGE_REPORTS_DIRECTORY = process.env.ZINTRUST_COVERAGE_REPORTS_DIR?.trim() || 'coverage';
 const coverageThresholds = COVERAGE_STRICT
   ? {
       lines: 83,
@@ -120,6 +121,7 @@ export default defineConfig({
     setupFiles: ['tests/vitest.setup.ts'],
     coverage: {
       provider: 'v8',
+      reportsDirectory: COVERAGE_REPORTS_DIRECTORY,
       reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts'],
       exclude: [

@@ -38,6 +38,19 @@ type FileStats = {
 };
 
 const repoRoot = process.cwd();
+const coverageReportsDirectory = process.env.ZINTRUST_COVERAGE_REPORTS_DIR?.trim();
+
+const resolveCoveragePath = (): string => {
+  if (!coverageReportsDirectory) {
+    return path.join(repoRoot, 'coverage', 'coverage-final.json');
+  }
+
+  const reportsDirectory = path.isAbsolute(coverageReportsDirectory)
+    ? coverageReportsDirectory
+    : path.join(repoRoot, coverageReportsDirectory);
+
+  return path.join(reportsDirectory, 'coverage-final.json');
+};
 
 const normalizeRel = (p: string): string => {
   const rel = path.isAbsolute(p) ? path.relative(repoRoot, p) : p;
@@ -66,7 +79,7 @@ const parseHunkNewStart = (line: string): number | undefined => {
   // @@ -oldStart,oldCount +newStart,newCount @@
   const m = /^@@ .* \+(\d+)(?:,(\d+))? @@/.exec(line); // NOSONAR
   if (!m) return undefined;
-  return Number.parseInt(m[1]!, 10);
+  return Number.parseInt(m[1], 10);
 };
 
 const loadCoverage = (coveragePath: string): IstanbulCoverage => {
@@ -278,7 +291,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const coveragePath = path.join(repoRoot, 'coverage', 'coverage-final.json');
+  const coveragePath = resolveCoveragePath();
   if (!fs.existsSync(coveragePath)) {
     console.error(`Missing coverage file: ${coveragePath}`);
     process.exitCode = 2;
