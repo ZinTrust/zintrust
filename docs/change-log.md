@@ -7,6 +7,9 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-17
 
+- Locked in the ORM model creation contract so `Model.create(...)` is explicitly covered as equivalent to `make(...)` plus `save()` for fillable filtering, mutators, casts, create-time observers, and accessor-visible hydrated state. The new regression coverage protects model-owned encryption, normalization, boolean coercion, and observer-assigned identifiers from drifting out of the create path.
+- Fixed migration scaffolding so generated migration files keep importing `MigrationSchema`, `Blueprint`, and `IDatabase` from `@zintrust/core` in packaged CLI builds instead of being rewritten to a relative `../../index.js` path.
+
 - Fixed release artifact versioning so local/dist builds now stay on the checked-in repository version instead of auto-incrementing from the latest npm-published core package. This prevents release smoke scaffolds from minting phantom versions such as `0.8.0` while the repo is still on the `0.7.x` line.
 - Fixed governance scaffolding to resolve the actual bundled `@zintrust/governance` version instead of deriving it from the core version. Fresh projects now request the real governance release line and no longer generate non-existent ranges like `@zintrust/governance@^0.8.0` when governance has not moved in lockstep with core.
 - Disabled npm publish entrypoints and the old publish workflow for this repository. Release verification still builds and smoke-tests the framework, but package publishing now stops with an explicit "push changes to git instead" message.

@@ -337,6 +337,86 @@ describe('Model', () => {
     expect(m.getAttribute('name')).toBe('hello TRUST');
   });
 
+  it('create applies the same mutator, accessor, and observer contract as make plus save', async (): Promise<void> => {
+    const creating = vi.fn((model: IModel) => {
+      model.setAttribute('slug', 'created-from-observer');
+    });
+
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'name', 'slug', 'active'],
+      hidden: [],
+      casts: {
+        active: 'boolean',
+      },
+      timestamps: false,
+      mutators: {
+        name: (value) => String(value).trim().toUpperCase(),
+        slug: (value) => `slug:${String(value).trim().toLowerCase()}`,
+      },
+      accessors: {
+        name: (value) => `hello ${String(value)}`,
+        slug: (value) => String(value).replace(/^slug:/, ''),
+      },
+      observers: [{ creating }],
+    });
+
+    const created = await Test.create({
+      name: '  zintrust  ',
+      active: '1',
+      ignored: 'nope',
+    } as Record<string, unknown>);
+
+    expect(creating).toHaveBeenCalledTimes(1);
+    expect(created.getAttributes()).toEqual({
+      id: 1,
+      name: 'ZINTRUST',
+      slug: 'slug:created-from-observer',
+      active: true,
+    });
+    expect(created.getAttribute('name')).toBe('hello ZINTRUST');
+    expect(created.getAttribute('slug')).toBe('created-from-observer');
+    expect((created as IModel & { slug: string }).slug).toBe('created-from-observer');
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith({
+      name: 'ZINTRUST',
+      slug: 'slug:created-from-observer',
+      active: true,
+    });
+  });
+
+  it('root Model.create matches make plus save for model-owned transforms', async (): Promise<void> => {
+    const config: ModelConfig = {
+      ...baseConfig,
+      table: 'root_models',
+      fillable: ['id', 'secret', 'active'],
+      hidden: [],
+      casts: {
+        active: 'boolean',
+      },
+      timestamps: false,
+      mutators: {
+        secret: (value) => `enc:${String(value).trim()}`,
+      },
+      accessors: {
+        secret: (value) => String(value).replace(/^enc:/, ''),
+      },
+    };
+
+    const created = await Model.create(config, { secret: 'abc', active: '1' });
+    const manual = Model.make(config, { secret: 'abc', active: '1' });
+    await manual.save();
+
+    expect(created.getAttributes()).toEqual(manual.getAttributes());
+    expect(created.getAttribute('secret')).toBe('abc');
+    expect(manual.getAttribute('secret')).toBe('abc');
+    expect(created.getAttribute('active')).toBe(true);
+    expect(manual.getAttribute('active')).toBe(true);
+  });
+
   it('hydrate assigns raw stored attributes without re-running mutators', async (): Promise<void> => {
     const Test = Model.define({
       ...baseConfig,
