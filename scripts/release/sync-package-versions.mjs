@@ -228,8 +228,9 @@ async function syncPackageJson(pkgPath, coreName, coreVersion, publishedCoreVers
       pkg.peerDependencies = {};
     }
 
-    // Keep adapter packages installable against the currently published core line.
-    pkg.peerDependencies[coreName] = normalizePeerRange(publishedCoreVersion, pkg.name);
+    // Keep workspace peers aligned to the local core line so monorepo installs do not
+    // warn or override peers before the next core version is published.
+    pkg.peerDependencies[coreName] = normalizePeerRange(coreVersion, pkg.name);
 
     // Keep workspace packages in exact lockstep with the core version.
     if (typeof pkg.version === 'string' && pkg.version !== coreVersion) {
@@ -428,7 +429,7 @@ function collectDistLockIssues({
   }
 }
 
-function syncWorkspaceLockEntry(lockEntry, pkg, coreName, publishedCoreVersion) {
+function syncWorkspaceLockEntry(lockEntry, pkg, coreName, coreVersion) {
   let didChange = false;
 
   const keysToMirror = ['name', 'version'];
@@ -439,7 +440,7 @@ function syncWorkspaceLockEntry(lockEntry, pkg, coreName, publishedCoreVersion) 
     }
   }
 
-  const expectedPeerRange = normalizePeerRange(publishedCoreVersion, pkg.name);
+  const expectedPeerRange = normalizePeerRange(coreVersion, pkg.name);
   if (
     typeof pkg.version === 'string' &&
     lockEntry.peerDependencies?.[coreName] !== expectedPeerRange
@@ -476,7 +477,7 @@ function syncPackageLock(
   packageInfos,
   dependencyVersions,
   coreName,
-  publishedCoreVersion
+  coreVersion
 ) {
   let didChange = syncRootLockEntry(rootLock, rootPkg, dependencyVersions);
 
@@ -502,7 +503,7 @@ function syncPackageLock(
   for (const pkgInfo of packageInfos) {
     const lockKey = `packages/${pkgInfo.dirName}`;
     const lockEntry = rootLock.packages[lockKey] ?? (rootLock.packages[lockKey] = {});
-    if (syncWorkspaceLockEntry(lockEntry, pkgInfo, coreName, publishedCoreVersion)) {
+    if (syncWorkspaceLockEntry(lockEntry, pkgInfo, coreName, coreVersion)) {
       didChange = true;
     }
 
@@ -599,14 +600,7 @@ async function syncPackages(packageDirs, coreName, coreVersion, publishedCoreVer
   const rootLock = await readJsonIfExists(rootLockPath);
   if (
     rootLock !== undefined &&
-    syncPackageLock(
-      rootLock,
-      rootPkg,
-      packageInfos,
-      dependencyVersions,
-      coreName,
-      publishedCoreVersion
-    )
+    syncPackageLock(rootLock, rootPkg, packageInfos, dependencyVersions, coreName, coreVersion)
   ) {
     await writeJson(rootLockPath, rootLock);
     touched.add(path.relative(repoRoot, rootLockPath));
@@ -794,7 +788,7 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
     packageInfos.push({ dirName, name: pkg.name, version: pkg.version });
 
     const relPkgPath = path.relative(repoRoot, pkgPath);
-    const expectedPeerRange = normalizePeerRange(publishedCoreVersion, pkg.name);
+    const expectedPeerRange = normalizePeerRange(coreVersion, pkg.name);
     collectPackageManifestIssues({
       issues,
       relPkgPath,
@@ -879,7 +873,7 @@ async function main() {
   );
 
   process.stdout.write(
-    `Synced ${touched.length} package(s) to ${coreName}@${coreVersion} (internal dependency ranges pinned to published npm versions)\n` +
+    `Synced ${touched.length} package(s) to ${coreName}@${coreVersion} (workspace peers follow local core; published dependency ranges stay pinned to npm)\n` +
       touched.map((p) => `- ${p}`).join('\n') +
       (touched.length ? '\n' : '')
   );
