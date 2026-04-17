@@ -85,19 +85,38 @@ const ensureDevDependency = (
   }
 };
 
+const getBundledGovernanceVersion = (): string => {
+  try {
+    const pkgUrl = new URL('../../../packages/governance/package.json', import.meta.url);
+    const raw = FileGenerator.readFile(pkgUrl.toString());
+    const parsed = JSON.parse(raw) as { version?: unknown };
+    return typeof parsed.version === 'string' && parsed.version.trim() !== ''
+      ? toCompatibleGovernanceVersion(parsed.version)
+      : '^0.4.0';
+  } catch {
+    return '^0.4.0';
+  }
+};
+
 const inferGovernanceVersion = (pkg: PackageJson): string => {
+  const devDeps = getStringRecord(pkg.devDependencies);
+  const existingGovernance = devDeps?.['@zintrust/governance'];
+  if (typeof existingGovernance === 'string' && existingGovernance.trim() !== '') {
+    return existingGovernance;
+  }
+
   const deps = getStringRecord(pkg.dependencies);
   const core = deps?.['@zintrust/core'];
   if (typeof core === 'string' && core.trim() !== '') {
-    return toCompatibleGovernanceVersion(core);
+    return getBundledGovernanceVersion();
   }
 
   const currentVersion = VersionChecker.getCurrentVersion().trim();
   if (currentVersion !== '' && currentVersion !== '0.0.0') {
-    return toCompatibleGovernanceVersion(currentVersion);
+    return getBundledGovernanceVersion();
   }
 
-  return '^0.4.0';
+  return getBundledGovernanceVersion();
 };
 
 const writeEslintConfig = (projectRoot: string): string[] => {

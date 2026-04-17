@@ -7,6 +7,10 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-17
 
+- Fixed release artifact versioning so local/dist builds now stay on the checked-in repository version instead of auto-incrementing from the latest npm-published core package. This prevents release smoke scaffolds from minting phantom versions such as `0.8.0` while the repo is still on the `0.7.x` line.
+- Fixed governance scaffolding to resolve the actual bundled `@zintrust/governance` version instead of deriving it from the core version. Fresh projects now request the real governance release line and no longer generate non-existent ranges like `@zintrust/governance@^0.8.0` when governance has not moved in lockstep with core.
+- Disabled npm publish entrypoints and the old publish workflow for this repository. Release verification still builds and smoke-tests the framework, but package publishing now stops with an explicit "push changes to git instead" message.
+
 - Added a first Plug & Play auth/login runtime contract through `LoginFlow`. Core now exposes explicit login provider, issuer, and auditor registration, a staged `identify() -> verify() -> issue() -> audit() -> run()` flow, a built-in `jwt` issuer backed by `JwtManager.signAccessToken(...)`, and a built-in trace auditor for normalized success and failure audit hooks. The new docs section also now documents real auth/login Plug & Play examples instead of only a target design.
 - Added a first Plug & Play notification orchestration contract through `Notification.compose(...)`. Core now exposes explicit channel registration, fluent `email()/push()/sms()/webhook()/channel()` composition, required-versus-best-effort delivery policy, normalized per-channel results, and a dedicated docs page for the new composer contract.
 - Added a first Plug & Play context assembly contract through `ContextLoader.create()`. Core now exposes dependency-ordered `.load(...)` resolution, request-scoped resolve memoization, optional shared `.batch(...)`/`.fromBatch(...)` fan-out loading, and a new docs page for the context loader pattern.
