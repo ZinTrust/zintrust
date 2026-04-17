@@ -75,6 +75,7 @@ async function discoverQueuesFromRedis(
   return Array.from(found.values());
 }
 
+// eslint-disable-next-line max-lines-per-function
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
   const queues = new Map<string, Queue>();
   const redis = createRedisConnection(config, 3, { subsystem: 'queue-monitor' });

@@ -82,11 +82,15 @@ const isLoginFlowUnauthorizedFailure = (error: unknown): boolean => {
   }
 
   const nested = (details as Record<string, unknown>)['error'];
-  return (
+  if (
     typeof nested === 'object' &&
     nested !== null &&
-    (nested as { statusCode?: unknown }).statusCode === 401
-  );
+    (nested as Record<string, unknown>)['statusCode'] === 401
+  ) {
+    return true;
+  }
+
+  return (error as { statusCode?: unknown }).statusCode === 401;
 };
 
 const passwordLoginProvider = Object.freeze({

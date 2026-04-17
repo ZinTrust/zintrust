@@ -44,7 +44,7 @@ describe('AuthController targeted branches', () => {
       getValidatedBody: () => ({ email: 'a@b', password: pwd }),
     }));
     vi.doMock('@app/Models/User', () => ({
-      User: { where: () => ({ limit: () => ({ first: async () => null }) }) },
+      User: { where: () => ({ limit: () => ({ first: async () => null }), first: async () => null }) },
     }));
     const { default: AuthController } = await import('@app/Controllers/AuthController');
     const { req, res } = makeReqRes();
@@ -59,7 +59,7 @@ describe('AuthController targeted branches', () => {
     }));
     vi.doMock('@app/Models/User', () => ({
       User: {
-        where: () => ({ limit: () => ({ first: async () => ({ id: '1', password: pwd }) }) }),
+        where: () => ({ limit: () => ({ first: async () => ({ id: '1', password: pwd }) }), first: async () => ({ id: '1', password: pwd }) }),
       },
     }));
     vi.doMock('@auth/Auth', () => ({ Auth: { compare: async () => false } }));
@@ -80,6 +80,7 @@ describe('AuthController targeted branches', () => {
           limit: () => ({
             first: async () => ({ id: null, password: pwd, name: 'N', email: 'a@b' }),
           }),
+          first: async () => ({ id: null, password: pwd, name: 'N', email: 'a@b' }),
         }),
       },
     }));

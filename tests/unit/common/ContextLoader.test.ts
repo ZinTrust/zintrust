@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { describe, expect, it, vi } from 'vitest';
 
 import { ContextLoader } from '@common/ContextLoader';

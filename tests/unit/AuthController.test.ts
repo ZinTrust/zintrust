@@ -22,6 +22,7 @@ describe('AuthController.login', () => {
           limit: () => ({
             first: async () => fakeUser,
           }),
+          first: async () => fakeUser,
         }),
       },
     }));

@@ -1,3 +1,4 @@
+import { ErrorFactory } from "@zintrust/core";
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const addMock = vi.fn();
@@ -92,7 +93,7 @@ describe('queue-monitor driver retryJob', () => {
   it('returns not_retryable with a reason when BullMQ rejects retry', async () => {
     getJobMock.mockResolvedValueOnce({
       retry: vi.fn(async () => {
-        throw new Error('Job is not in a failed state');
+        throw ErrorFactory.createTryCatchError('Job is not in a failed state');
       }),
     });
 
