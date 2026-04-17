@@ -217,6 +217,7 @@
   "overrides": {
     "ajv": "^8.18.0",
     "axios": "^1.15.0",
+    "@eslint/plugin-kit": "^0.7.1",
     "follow-redirects": "^1.16.0",
     "@tootallnate/once": "^3.0.1",
     "node-forge": "^1.4.0",
