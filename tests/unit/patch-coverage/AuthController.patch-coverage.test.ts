@@ -98,11 +98,11 @@ describe('patch coverage: AuthController (new file)', () => {
         }),
       }),
       first: async () => ({
-          id: { nested: true },
-          name: 'A',
-          email: 'a@b.com',
-          password: 'hash',
-        })
+        id: { nested: true },
+        name: 'A',
+        email: 'a@b.com',
+        password: 'hash',
+      }),
     }));
     vi.mocked(Auth.compare as any).mockResolvedValue(true);
     vi.mocked(JwtManager.signAccessToken as any).mockReturnValue('tk');

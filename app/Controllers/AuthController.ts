@@ -4,8 +4,8 @@
  */
 
 import { Auth } from '@/auth/Auth';
-import { LoginFlow } from '@/auth/LoginFlow';
 import type { LoginFlowProvider } from '@/auth/LoginFlow';
+import { LoginFlow } from '@/auth/LoginFlow';
 import { isUndefinedOrNull } from '@/helper';
 import { User } from '@app/Models/User';
 import type { AuthControllerApi, JsonRecord, UserRow } from '@app/Types/controller';

@@ -55,7 +55,9 @@ describe('AuthController extra branches', () => {
       getValidatedBody: () => ({ email: 'a', password: passD }),
     }));
     vi.doMock('@app/Models/User', () => ({
-      User: { where: () => ({ limit: () => ({ first: async () => null }), first: async () => null }) },
+      User: {
+        where: () => ({ limit: () => ({ first: async () => null }), first: async () => null }),
+      },
     }));
     vi.doMock('@security/Auth', () => ({ Auth: { compare: async () => false } }));
     vi.doMock('@config/logger', () => ({
