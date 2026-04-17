@@ -459,6 +459,8 @@ function syncRootPackageLink(rootLock, rootPkg) {
   const lockKey = `node_modules/${rootPkg.name}`;
   const currentEntry = rootLock.packages[lockKey];
   const expectedEntry = {
+    name: rootPkg.name,
+    version: rootPkg.version,
     resolved: '.',
     link: true,
   };
@@ -663,6 +665,8 @@ function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, depend
   if (
     rootPackageLink &&
     (rootPackageLink.link !== true ||
+      rootPackageLink.name !== rootPkg.name ||
+      rootPackageLink.version !== rootPkg.version ||
       !['', '.'].includes(
         typeof rootPackageLink.resolved === 'string' ? rootPackageLink.resolved : ''
       ))
@@ -670,7 +674,7 @@ function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, depend
     pushIssue(
       issues,
       relRootLockPath,
-      `lockfile node_modules entry for ${rootPkg.name} must be a link resolved to "" or "."`
+      `lockfile node_modules entry for ${rootPkg.name} must match the root package identity and be a link resolved to "" or "."`
     );
   }
 }

@@ -7,6 +7,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-17
 
+- Fixed the root workspace lockfile self-link for `@zintrust/core` so CI `npm ci` can validate the active `0.7.0` release line without treating the root package link as an unversioned dependency. The version sync script now stamps the root `node_modules/@zintrust/core` lock entry with the root package name and version and verifies that identity during `--check` runs.
 - Fixed stale Queue Monitor retry actions so retry requests now return distinct outcomes for missing jobs, non-retryable live jobs, and successfully re-queued jobs. The BullMQ driver now reports structured retry state, the retry API returns `404` when a historical row points at a job that no longer exists and `409` when BullMQ refuses retry because the job is in the wrong state, and the package tests lock in all three paths.
 - Extended the core ORM model surface so hydrated models expose accessor-backed attribute values on direct property reads in addition to `getAttribute(...)`. Accessor-backed properties now stay live after model extension and hydration, property writes still flow through mutators and casts, and raw `getAttributes()` output remains unchanged for compatibility.
 - Hardened the package release publish script so `--help` and `--version` now exit without attempting npm publishes, and package publish runs now recreate the temporary core shim before each package copy instead of assuming a prior package left that temp directory intact.
