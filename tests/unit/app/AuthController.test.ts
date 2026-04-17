@@ -123,8 +123,7 @@ describe('AuthController', () => {
     vi.resetModules();
 
     const mockUserFirst = async () => null;
-    const mockUserLimit = () => ({ first: mockUserFirst });
-    const mockUserWhere = () => ({ limit: mockUserLimit });
+    const mockUserWhere = () => ({ first: mockUserFirst });
 
     vi.doMock('@app/Models/User', () => ({
       User: {
@@ -153,8 +152,7 @@ describe('AuthController', () => {
     vi.resetModules();
 
     const mockUserFirst = async () => ({ id: 1, email: 'a@example.com', password: 'hash' });
-    const mockUserLimit = () => ({ first: mockUserFirst });
-    const mockUserWhere = () => ({ limit: mockUserLimit });
+    const mockUserWhere = () => ({ first: mockUserFirst });
 
     vi.doMock('@app/Models/User', () => ({
       User: {
@@ -190,8 +188,7 @@ describe('AuthController', () => {
       email: 'a@example.com',
       password: 'hash',
     });
-    const mockUserLimit = () => ({ first: mockUserFirst });
-    const mockUserWhere = () => ({ limit: mockUserLimit });
+    const mockUserWhere = () => ({ first: mockUserFirst });
 
     vi.doMock('@app/Models/User', () => ({
       User: {

@@ -298,7 +298,7 @@ export const ShardController = {
       const userId = req.params.id;
 
       // Query users_db shard database
-      const user = await query('users', 'users_db').where('id', '=', userId).limit(1).first();
+      const user = await query('users', 'users_db').where('id', '=', userId).first();
 
       if (!user) {
         return res.setStatus(404).json({ error: 'User not found' });

@@ -100,7 +100,18 @@ export {
   Utilities,
   type UtilitiesType,
 } from '@/common/utility';
+export { ContextLoader } from '@common/ContextLoader';
 export { delay, ensureDirSafe } from '@common/index';
+export type {
+  ContextLoaderBatchHandler,
+  ContextLoaderBatchKey,
+  ContextLoaderBatchResult,
+  ContextLoaderContext,
+  ContextLoaderInstance,
+  ContextLoaderMode,
+  ContextLoaderPlan,
+  ContextLoaderResolver,
+} from '@common/ContextLoader';
 
 // Collections
 export { collect, Collection } from '@/collections/index';
@@ -367,7 +378,17 @@ export { sendSlackWebhook } from '@tools/notification/drivers/Slack';
 export { TermiiDriver } from '@tools/notification/drivers/Termii';
 export { sendSms } from '@tools/notification/drivers/Twilio';
 export { Notification } from '@tools/notification/Notification';
+export { NotificationComposer } from '@tools/notification/Composer';
 export { NotificationRegistry } from '@tools/notification/Registry';
+export type {
+  NotificationChannelHandler,
+  NotificationComposeBuilder,
+  NotificationComposeChannelResult,
+  NotificationComposeError,
+  NotificationComposeOptions,
+  NotificationComposePolicy,
+  NotificationComposeResult,
+} from '@tools/notification/Composer';
 
 // Templates
 export { MarkdownRenderer } from '@tools/templates';
@@ -433,6 +454,21 @@ export * as NodeSingletons from '@node-singletons/index';
 
 // Auth features
 export { Auth } from '@/auth/Auth';
+export { LoginFlow } from '@auth/LoginFlow';
+export type {
+  LoginFlowAuditEvent,
+  LoginFlowAuditor,
+  LoginFlowBuilder,
+  LoginFlowCreateOptions,
+  LoginFlowError,
+  LoginFlowIdentity,
+  LoginFlowIssuer,
+  LoginFlowIssuerInput,
+  LoginFlowProvider,
+  LoginFlowResult,
+  LoginFlowStage,
+  LoginFlowVerifiedRecord,
+} from '@auth/LoginFlow';
 
 // Microservice utilities
 export { MicroserviceGenerator } from '@microservices/MicroserviceGenerator';
@@ -457,6 +493,16 @@ export { PluginRegistry } from '@runtime/PluginRegistry';
 export { nowIso } from '@common/utility';
 export type { SanitizerError } from '@exceptions/ZintrustError';
 export { randomBytes } from '@node-singletons/crypto';
+export {
+  SecurePayload,
+  type SecurePayloadCoercionShape,
+  type SecurePayloadCoercionType,
+  type SecurePayloadDecodeOptions,
+  type SecurePayloadDecryptor,
+  type SecurePayloadPipeline,
+  type SecurePayloadPipelineIssue,
+  type SecurePayloadPipelineStage,
+} from '@security/SecurePayload';
 
 //New Start Confing
 

@@ -142,13 +142,6 @@ function getPublishedWorkspaceDependencyVersion(packageName, fallbackVersion) {
     return fallbackVersion;
   }
 
-  if (
-    typeof fallbackVersion === 'string' &&
-    compareVersions(fallbackVersion, publishedVersion) > 0
-  ) {
-    return fallbackVersion;
-  }
-
   return publishedVersion;
 }
 
@@ -240,9 +233,9 @@ async function syncPackageJson(pkgPath, coreName, coreVersion, publishedCoreVers
       pkg.peerDependencies = {};
     }
 
-    // Keep workspace peers aligned to the local core line so monorepo installs do not
-    // warn or override peers before the next core version is published.
-    pkg.peerDependencies[coreName] = normalizePeerRange(coreVersion, pkg.name);
+    // Keep workspace peers aligned to the latest published version on npm
+    // so that CI `npm ci` does not fail due to missing target versions.
+    pkg.peerDependencies[coreName] = normalizePeerRange(publishedCoreVersion, pkg.name);
 
     // Keep workspace packages on the active release line, but allow package-only
     // patch releases to stay ahead of the root core version when needed.

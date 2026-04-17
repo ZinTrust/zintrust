@@ -2,6 +2,8 @@
 
 ZinTrust provides a flexible authentication system that supports multiple drivers, including JWT and Session-based auth.
 
+For reusable login orchestration, ZinTrust also provides `LoginFlow`. Use it when you want account lookup, credential verification, token or session issuance, and audit hooks to live in one reusable flow instead of being rebuilt in each controller. See [plug-and-play-auth-login](/plug-and-play-auth-login).
+
 ## Configuration
 
 JWT auth is configured primarily via environment variables (see `src/config/security.ts`):
@@ -48,6 +50,52 @@ if (await Auth.check()) {
   // ...
 }
 ```
+
+## Plug & Play LoginFlow
+
+Use `LoginFlow` when you want a reusable login contract but still need application-owned account lookup and credential verification.
+
+```ts
+import { Auth, ErrorFactory, LoginFlow } from '@zintrust/core';
+
+LoginFlow.registerProvider('password', {
+  identify: async ({ email }) => User.where('email', '=', email).first(),
+  verify: async (user, { password }) => {
+    if (!user) {
+      throw ErrorFactory.createUnauthorizedError('Invalid credentials');
+    }
+
+    const ok = await Auth.compare(password, String(user.password ?? ''));
+    if (!ok) {
+      throw ErrorFactory.createUnauthorizedError('Invalid credentials');
+    }
+
+    return {
+      user,
+      subject: String(user.id),
+      claims: {
+        sub: String(user.id),
+        email: String(user.email),
+      },
+    };
+  },
+});
+
+const result = await LoginFlow.create({
+  provider: 'password',
+  context: { requestId: req.getHeader('x-request-id') },
+})
+  // LoginFlow passes these values directly into the provider callbacks.
+  .identify({ email })
+  .verify({ password })
+  .issue('jwt')
+  .audit()
+  .run();
+
+res.json({ token: result.issued, user: result.verified.user });
+```
+
+The built-in `jwt` issuer uses `JwtManager.signAccessToken(...)`. The built-in `.audit()` path uses the core trace auditor; register a custom auditor when you need application-specific logging or compliance sinks.
 
 ## Protecting Routes
 
