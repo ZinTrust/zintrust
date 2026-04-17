@@ -109,7 +109,9 @@ function createJsonResponse(): JsonResponse {
 }
 
 function getRetryHandler() {
-  const route = testState.routerPost.mock.calls.find((call) => String(call[1]).includes('/api/retry/'));
+  const route = testState.routerPost.mock.calls.find((call) =>
+    String(call[1]).includes('/api/retry/')
+  );
   return route?.[2] as ((req: unknown, res: unknown) => Promise<void>) | undefined;
 }
 
@@ -135,6 +137,8 @@ describe('queue-monitor retry API', () => {
   });
 
   it('returns 404 when retry is attempted from stale history and the live job is missing', async () => {
+    testState.metrics.getRecentJobs = vi.fn(async () => []);
+    testState.metrics.getFailedJobs = vi.fn(async () => []);
     testState.currentDriver.retryJob = vi.fn(async () => ({
       ok: false as const,
       status: 'missing' as const,
@@ -153,6 +157,52 @@ describe('queue-monitor retry API', () => {
 
     expect(response.statusCode).toBe(404);
     expect(response.payload).toEqual({ error: 'Job job-1 no longer exists', status: 'missing' });
+  });
+
+  it('requeues from a retained failed snapshot when the live job record is gone', async () => {
+    testState.metrics.getRecentJobs = vi.fn(async () => []);
+    testState.metrics.getFailedJobs = vi.fn(async () => [
+      {
+        id: 'job-9',
+        name: 'email-job',
+        queue: 'emails',
+        data: { userId: 'u-9' },
+        opts: { attempts: 5 },
+        attempts: 1,
+        status: 'failed',
+        failedReason: 'boom',
+        timestamp: 123,
+      },
+    ]);
+    testState.currentDriver.retryJob = vi.fn(async () => ({
+      ok: true as const,
+      status: 'requeued_from_snapshot' as const,
+      newJobId: 'job-9b',
+    }));
+
+    const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
+    monitor.registerRoutes({} as never);
+    const handler = getRetryHandler();
+    expect(handler).toBeTypeOf('function');
+
+    const response = createJsonResponse();
+    await handler?.(
+      { getParam: (name: string) => (name === 'queue' ? 'emails' : 'job-9') },
+      response.res
+    );
+
+    expect(testState.currentDriver.retryJob).toHaveBeenCalledWith('emails', 'job-9', {
+      name: 'email-job',
+      data: { userId: 'u-9' },
+      opts: { attempts: 5 },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.payload).toEqual({
+      ok: true,
+      status: 'requeued_from_snapshot',
+      message: 'Job job-9 re-queued from monitor snapshot',
+      newJobId: 'job-9b',
+    });
   });
 
   it('returns 409 when the job exists but BullMQ refuses retry in its current state', async () => {

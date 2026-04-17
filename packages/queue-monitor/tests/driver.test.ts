@@ -53,6 +53,42 @@ describe('queue-monitor driver retryJob', () => {
     });
   });
 
+  it('returns requeued_from_snapshot when the live job is gone but a retry snapshot exists', async () => {
+    getJobMock.mockResolvedValueOnce(undefined);
+    addMock.mockResolvedValueOnce({ id: 'job-4b' });
+
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    await expect(
+      driver.retryJob('emails', 'job-4', {
+        name: 'email-job',
+        data: { userId: 'u-1' },
+        opts: { attempts: 3 },
+      })
+    ).resolves.toEqual({
+      ok: true,
+      status: 'requeued_from_snapshot',
+      newJobId: 'job-4b',
+    });
+    expect(addMock).toHaveBeenCalledWith('email-job', { userId: 'u-1' }, { attempts: 3 });
+  });
+
+  it('returns not_retryable when snapshot requeue fails', async () => {
+    getJobMock.mockResolvedValueOnce(undefined);
+    addMock.mockRejectedValueOnce(new Error('Redis unavailable'));
+
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    await expect(
+      driver.retryJob('emails', 'job-5', {
+        name: 'email-job',
+        data: { userId: 'u-2' },
+      })
+    ).resolves.toEqual({
+      ok: false,
+      status: 'not_retryable',
+      reason: 'Redis unavailable',
+    });
+  });
+
   it('returns not_retryable with a reason when BullMQ rejects retry', async () => {
     getJobMock.mockResolvedValueOnce({
       retry: vi.fn(async () => {

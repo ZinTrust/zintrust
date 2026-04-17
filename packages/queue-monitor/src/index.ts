@@ -12,7 +12,7 @@ import {
 } from '@zintrust/core';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
-import { createBullMQDriver, type QueueDriver } from './driver';
+import { createBullMQDriver, type QueueDriver, type RetrySnapshot } from './driver';
 import { createMetrics, type Metrics } from './metrics';
 import { getRecentJobsForSelection, QueueMonitoringStream } from './QueueMonitoringService';
 
@@ -319,7 +319,8 @@ async function handleRetryEndpoint(
     status: (code: number) => { json: (data: unknown) => void };
     json: (data: unknown) => void;
   },
-  driver: QueueDriver
+  driver: QueueDriver,
+  metrics: Metrics
 ): Promise<void> {
   const queueName = extractQueueParam(req);
   const jobId =
@@ -330,9 +331,30 @@ async function handleRetryEndpoint(
     return;
   }
 
-  const result = await driver.retryJob(queueName, jobId);
+  const recentJobs = await getRecentJobsForSelection(queueName, metrics, driver);
+  const snapshotCandidate = recentJobs.find((job) => String(job.id) === jobId);
+  const retrySnapshot =
+    snapshotCandidate === undefined
+      ? undefined
+      : ({
+          name: snapshotCandidate.name,
+          data: snapshotCandidate.data,
+          opts: snapshotCandidate.opts,
+        } satisfies RetrySnapshot);
+
+  const result = await driver.retryJob(queueName, jobId, retrySnapshot);
   if (result.ok) {
-    res.json({ ok: true, status: result.status, message: `Job ${jobId} queued for retry` });
+    res.json({
+      ok: true,
+      status: result.status,
+      message:
+        result.status === 'requeued_from_snapshot'
+          ? `Job ${jobId} re-queued from monitor snapshot`
+          : `Job ${jobId} queued for retry`,
+      ...(result.status === 'requeued_from_snapshot' && result.newJobId
+        ? { newJobId: result.newJobId }
+        : {}),
+    });
     return;
   }
 
@@ -468,7 +490,7 @@ function registerApiRoutes(
   registerSnapshotApi(router, settings, routeOptions, getSnapshot);
   registerJobsApi(router, settings, routeOptions, metrics, driver);
   registerLocksApi(router, settings, routeOptions, getLocks);
-  registerRetryApi(router, settings, routeOptions, driver);
+  registerRetryApi(router, settings, routeOptions, driver, metrics);
   registerEventsApi(router, settings, routeOptions, getSnapshot, getLocks, metrics, driver);
 }
 
@@ -532,13 +554,14 @@ function registerRetryApi(
   router: IRouter,
   settings: { basePath: string },
   routeOptions: RouteOptions,
-  driver: QueueDriver
+  driver: QueueDriver,
+  metrics: Metrics
 ): void {
   Router.post(
     router,
     `${settings.basePath}/api/retry/:queue/:jobId`,
     async (req: IRequest, res: IResponse) => {
-      await handleRetryEndpoint(req as RequestWithParams, res, driver);
+      await handleRetryEndpoint(req as RequestWithParams, res, driver, metrics);
     },
     routeOptions
   );

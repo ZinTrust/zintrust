@@ -100,6 +100,16 @@ function getLocalFileDependencyInstallTargets(pkgDir, pkg) {
     .map((spec) => path.resolve(pkgDir, spec.slice('file:'.length)));
 }
 
+async function getLocalFileDependencyVersion(pkgDir, dependencySpec) {
+  if (typeof dependencySpec !== 'string' || !dependencySpec.startsWith('file:')) {
+    return undefined;
+  }
+
+  const dependencyDir = path.resolve(pkgDir, dependencySpec.slice('file:'.length));
+  const dependencyPkg = await loadPackageJson(path.join(dependencyDir, 'package.json'));
+  return typeof dependencyPkg?.version === 'string' ? dependencyPkg.version : undefined;
+}
+
 async function buildLocalFileDependencies(pkgDir, pkg, coreVersion, buildStack = new Set()) {
   const dependencyDirs = getLocalFileDependencyInstallTargets(pkgDir, pkg);
 
@@ -221,6 +231,7 @@ async function assertCoreShimHasRequiredExports() {
       'EventEmitter: any;',
       'randomBytes: (size: number) => any;',
       'createHash: (algorithm: string) => any;',
+      'export type SocketAuthorizationContext = any;',
       'export type SocketAuthorizationDecision = any;',
       'export declare const SocketFeature: {',
       'export type SocketFeatureSettings = any;',
@@ -229,7 +240,9 @@ async function assertCoreShimHasRequiredExports() {
       'export type SocketPublishPolicy = any;',
       'export type SocketPublishPolicyHandler = any;',
       'export type SocketRouteRegistrar = any;',
+      'export type SocketRuntimeDiagnostics = any;',
       'export type SocketRuntime = any;',
+      'export type SocketWorkerContext = any;',
       'export declare const SocketRuntimeRegistry: {',
       'export declare const MultipartParserRegistry: any;',
       'export declare const LocalD1Resolver: {',
@@ -325,12 +338,11 @@ function createSameMinorRange(version) {
 }
 
 function getPublishedCorePeerRange(packageName, coreVersion) {
-  const publishedCoreVersion = getPublishedVersion('@zintrust/core') ?? coreVersion;
   if (packageName === '@zintrust/workers') {
-    return createSameMinorRange(publishedCoreVersion);
+    return createSameMinorRange(coreVersion);
   }
 
-  return `^${publishedCoreVersion}`;
+  return `^${coreVersion}`;
 }
 
 function isPublishablePackageVersion(packageVersion, coreVersion) {
@@ -521,7 +533,7 @@ function maybeSkipBecausePublished({ pkg }) {
   }
 }
 
-function transformPackageForPublish(pkg, coreVersion) {
+async function transformPackageForPublish(pkg, pkgDir, coreVersion) {
   const transformed = { ...pkg };
 
   if (typeof transformed.peerDependencies?.['@zintrust/core'] === 'string') {
@@ -543,10 +555,19 @@ function transformPackageForPublish(pkg, coreVersion) {
       '@zintrust/db-d1',
     ];
 
-    fileDeps.forEach((dep) => {
+    for (const dep of fileDeps) {
       if (!transformed.dependencies[dep]?.startsWith('file:')) return;
 
-      const expectedVersion = coreVersion;
+      const expectedVersion = await getLocalFileDependencyVersion(
+        pkgDir,
+        transformed.dependencies[dep]
+      );
+      if (typeof expectedVersion !== 'string' || expectedVersion.length === 0) {
+        throw new Error(
+          `Unable to resolve publish version for ${dep} from ${transformed.dependencies[dep]}`
+        );
+      }
+
       const publishedExpectedVersion = isPublishedOnNpm({
         packageName: dep,
         version: expectedVersion,
@@ -560,7 +581,7 @@ function transformPackageForPublish(pkg, coreVersion) {
       }
 
       transformed.dependencies[dep] = expectedVersion;
-    });
+    }
   }
 
   return transformed;
@@ -596,7 +617,7 @@ async function processPackageDir({ dirName, coreVersion, failures, successes, ch
   announcePublishAttempt({ pkg, coreVersion });
 
   try {
-    publishPkg = transformPackageForPublish(pkg, coreVersion);
+    publishPkg = await transformPackageForPublish(pkg, pkgDir, coreVersion);
     publishPkgText = JSON.stringify(publishPkg, null, 2);
 
     await buildLocalFileDependencies(pkgDir, pkg, coreVersion);
@@ -809,6 +830,7 @@ export type RedisConfig = any;
 export type IRouter = any;
 export type IRequest = any;
 export type IResponse = any;
+export type SocketAuthorizationContext = any;
 export type SocketAuthorizer = any;
 export type SocketAuthorizerHandler = any;
 export type SocketFeatureSettings = any;
@@ -817,7 +839,9 @@ export type SocketPublishDecision = any;
 export type SocketPublishPolicy = any;
 export type SocketPublishPolicyHandler = any;
 export type SocketRouteRegistrar = any;
+export type SocketRuntimeDiagnostics = any;
 export type SocketRuntime = any;
+export type SocketWorkerContext = any;
 export type AssetsBinding = any;
 export type UploadedFile = any;
 export type MultipartFieldValue = any;

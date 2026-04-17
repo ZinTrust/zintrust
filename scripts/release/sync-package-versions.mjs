@@ -137,7 +137,19 @@ function getPublishedWorkspaceDependencyVersion(packageName, fallbackVersion) {
     return fallbackVersion;
   }
 
-  return getPublishedNpmVersion(packageName) ?? fallbackVersion;
+  const publishedVersion = getPublishedNpmVersion(packageName);
+  if (typeof publishedVersion !== 'string' || publishedVersion.length === 0) {
+    return fallbackVersion;
+  }
+
+  if (
+    typeof fallbackVersion === 'string' &&
+    compareVersions(fallbackVersion, publishedVersion) > 0
+  ) {
+    return fallbackVersion;
+  }
+
+  return publishedVersion;
 }
 
 function getPublishedCoreVersion(coreName, coreVersion) {
@@ -232,8 +244,13 @@ async function syncPackageJson(pkgPath, coreName, coreVersion, publishedCoreVers
     // warn or override peers before the next core version is published.
     pkg.peerDependencies[coreName] = normalizePeerRange(coreVersion, pkg.name);
 
-    // Keep workspace packages in exact lockstep with the core version.
-    if (typeof pkg.version === 'string' && pkg.version !== coreVersion) {
+    // Keep workspace packages on the active release line, but allow package-only
+    // patch releases to stay ahead of the root core version when needed.
+    if (
+      typeof pkg.version !== 'string' ||
+      pkg.version.length === 0 ||
+      compareVersions(coreVersion, pkg.version) > 0
+    ) {
       pkg.version = coreVersion;
     }
 

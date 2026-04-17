@@ -362,6 +362,7 @@ export async function getRecentJobsForQueue(
       name: job.name,
       queue: queueName,
       data: job.data,
+      opts: job.opts,
       attempts: job.attemptsMade,
       status,
       failedReason: job.failedReason || undefined,

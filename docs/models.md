@@ -8,6 +8,7 @@ ZinTrust features a powerful, zero-dependency ORM that provides a clean, ActiveR
   - [Table of Contents](#table-of-contents)
   - [Interface Reference](#interface-reference)
   - [Defining Models](#defining-models)
+    - [Reading Attributes](#reading-attributes)
     - [Safe Mass Assignment (fillable)](#safe-mass-assignment-fillable)
     - [Custom Methods](#custom-methods)
     - [Using Models in Controllers \& Services](#using-models-in-controllers--services)
@@ -118,6 +119,49 @@ export const User = Model.define(
     },
   }
 );
+```
+
+### Reading Attributes
+
+Hydrated model instances expose attribute values in three useful ways:
+
+```typescript
+const wallet = await Wallet.where('id', '=', walletId).first();
+
+if (!wallet) {
+  return null;
+}
+
+wallet.amount;
+wallet.getAttribute('amount');
+wallet.getAttributes().amount;
+```
+
+Use them intentionally:
+
+- `wallet.amount`: direct property read on the hydrated model. This is the most ergonomic option in controllers and services and it returns the same accessor-aware value surface as `getAttribute(...)`.
+- `wallet.getAttribute('amount')`: explicit accessor-aware read. Prefer this when you want the ORM boundary to stay obvious inside reusable helpers, generic utilities, or shared model logic.
+- `wallet.getAttributes().amount`: raw stored attribute value. This bypasses accessors and is useful when you need the persisted value for debugging, diffing, or low-level persistence work.
+
+Example with an accessor-backed value:
+
+```typescript
+const Wallet = Model.define({
+  table: 'wallets',
+  fillable: ['amount_cents'],
+  hidden: [],
+  timestamps: false,
+  casts: {},
+  accessors: {
+    amount_cents: (value) => Number(value) / 100,
+  },
+});
+
+const wallet = Wallet.hydrate({ amount_cents: 1250 });
+
+wallet.amount_cents; // 12.5
+wallet.getAttribute('amount_cents'); // 12.5
+wallet.getAttributes().amount_cents; // 1250
 ```
 
 ### Safe Mass Assignment (fillable)

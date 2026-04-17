@@ -76,6 +76,7 @@ describe('QueueMonitoringService', () => {
         id: 'retained-1',
         name: 'smartq-job',
         data: { smartId: '12dcdb41-01a0-4ac5-ba1f-5956d01d2f10' },
+        opts: { attempts: 2 },
         attemptsMade: 1,
         timestamp: 100,
         processedOn: 110,
@@ -87,6 +88,7 @@ describe('QueueMonitoringService', () => {
         id: 'retained-2',
         name: 'asset-hold-job',
         data: { holdId: 'hold-1' },
+        opts: { removeOnFail: false },
         attemptsMade: 2,
         timestamp: 90,
         processedOn: 95,
@@ -120,6 +122,7 @@ describe('QueueMonitoringService', () => {
       expect.objectContaining({
         id: 'retained-1',
         queue: 'smartq',
+        opts: { attempts: 2 },
         status: 'completed',
         processedOn: 110,
         finishedOn: 125,
@@ -127,6 +130,7 @@ describe('QueueMonitoringService', () => {
       expect.objectContaining({
         id: 'retained-2',
         queue: 'smartq',
+        opts: { removeOnFail: false },
         status: 'failed',
         failedReason: 'wallet mismatch',
       }),
@@ -211,7 +215,7 @@ describe('QueueMonitoringService', () => {
         paused: 0,
       })),
       getRecentJobs: vi.fn(async () => []),
-      retryJob: vi.fn(async () => true),
+      retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       getQueues: vi.fn(async () => ['alpha']),
       close: vi.fn(async () => undefined),
     };
