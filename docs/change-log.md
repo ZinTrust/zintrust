@@ -69,6 +69,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-04-07
 
+- Hardened `scripts/ci/install-deps.sh` for release-line workspace installs. CI now retries `npm ci` with `--legacy-peer-deps` before falling back to `npm install`, which prevents fresh checkouts from failing when workspace packages temporarily peer on a newer local `@zintrust/core` line than the one already published to npm.
 - Fixed release workspace version sync so package `peerDependencies` on `@zintrust/core` now follow the local repo core version during monorepo installs and CI, while package publish still rewrites those peers to the currently published npm core line. This removes the recurring `ERESOLVE overriding peer dependency` noise from `scripts/ci/install-deps.sh` on release branches before the new core version is live on npm.
 - Updated the shared Wrangler proxy launcher so `zin proxy:d1` and `zin proxy:kv` now load the developer root `.env` before resolving proxy defaults and also materialize Wrangler `.dev.vars` from that same root env during local dev. This fixes the recent behavior where proxy commands were falling back to generated defaults instead of honoring root env values such as app signing/config secrets.
 - Fixed the global `zin` launcher handoff so commands like `zin s` now wait for the project-local CLI child to finish shutting down before the wrapper exits. This avoids the recent Ctrl+C behavior where the shell prompt returned early while the handed-off local watcher process was still printing shutdown logs.
