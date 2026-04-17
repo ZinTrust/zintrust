@@ -165,9 +165,13 @@ function printHelp() {
   process.stdout.write('  --dry-run                   Build and pack without publishing to npm\n');
   process.stdout.write('  --tag <tag>                 Publish with a custom npm dist-tag\n');
   process.stdout.write('  --only-unpublished          Skip packages that already exist on npm\n');
-  process.stdout.write('  --verify-core-on-npm        Require the root core version to exist on npm first\n');
+  process.stdout.write(
+    '  --verify-core-on-npm        Require the root core version to exist on npm first\n'
+  );
   process.stdout.write('  --continue-on-error         Continue after a package publish failure\n');
-  process.stdout.write('  --no-fail                   Exit zero even when publish failures are reported\n');
+  process.stdout.write(
+    '  --no-fail                   Exit zero even when publish failures are reported\n'
+  );
   process.stdout.write('  --report-file <path>        Write the publish report to a custom path\n');
   process.stdout.write('  --help, -h                  Show this help text and exit\n');
   process.stdout.write('  --version, -v               Print the root package version and exit\n');
