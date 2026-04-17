@@ -208,6 +208,27 @@ describe('Model', () => {
     expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledTimes(1);
   });
 
+  it('top-level make/new stay unsaved and bulk insert proxies to insert', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+
+    const draft = Model.make(config, { name: 'Draft make' });
+    const draftAlias = Model.new(config, { name: 'Draft new' });
+
+    expect(draft.exists()).toBe(false);
+    expect(draftAlias.exists()).toBe(false);
+    expect(draft.getAttribute('name')).toBe('Draft make');
+    expect(draftAlias.getAttribute('name')).toBe('Draft new');
+
+    await expect(Model.bulkInsert(config, [{ name: 'A' }, { name: 'B' }])).resolves.toEqual({
+      id: 1,
+      affectedRows: 1,
+    });
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith([{ name: 'A' }, { name: 'B' }]);
+  });
+
   it('delete returns false when not exists; true when exists and db present', async (): Promise<void> => {
     const TestModel = Model.define({ ...baseConfig, casts: {} });
     const m = TestModel.make({ name: 'A' });

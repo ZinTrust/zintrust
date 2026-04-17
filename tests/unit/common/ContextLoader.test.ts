@@ -99,4 +99,36 @@ describe('ContextLoader', () => {
 
     expect(() => plan.load('user', async () => ({ id: 'u2' }))).toThrow(/already registered/i);
   });
+
+  it('supports sequential fromBatch and batch registry lifecycle helpers', async () => {
+    const loader = ContextLoader.create()
+      .batch('profilesByUserId', async (ids) => new Map(ids.map((id) => [id, { id }])))
+      .batch('walletsByUserId', async () => new Map());
+
+    expect(loader.hasBatch('profilesByUserId')).toBe(true);
+    expect(loader.listBatches()).toEqual(['profilesbyuserid', 'walletsbyuserid']);
+
+    await expect(loader.fromBatch('profilesByUserId', 'u1')).resolves.toEqual({ id: 'u1' });
+
+    loader.unregisterBatch('walletsByUserId');
+    expect(loader.hasBatch('walletsByUserId')).toBe(false);
+
+    loader.clearBatches();
+    expect(loader.listBatches()).toEqual([]);
+  });
+
+  it('validates batch inputs and throws for missing batch handlers', async () => {
+    const loader = ContextLoader.create();
+
+    await expect(loader.fromBatch('missing', 'u1')).rejects.toThrow(/not registered/i);
+    expect(() => loader.batch('', async () => new Map())).toThrow(
+      /batch name must be a non-empty string/i
+    );
+    expect(() => loader.batch('ok', undefined as never)).toThrow(
+      /batch handler must be a function/i
+    );
+    await expect(
+      loader.batch('ok', async () => new Map()).fromBatch('ok', '' as never)
+    ).rejects.toThrow(/batch key must be a non-empty string or finite number/i);
+  });
 });

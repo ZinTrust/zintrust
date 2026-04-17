@@ -109,4 +109,66 @@ describe('SecurePayload', () => {
     expect(SecurePayload.unregisterDecryptor('one')).toBe(true);
     expect(SecurePayload.listDecryptors()).toEqual(['two']);
   });
+
+  it('covers decryptor validation and common coercion branches', async () => {
+    expect(() => SecurePayload.registerDecryptor('', async (raw) => raw)).toThrow(
+      /decryptor name must be provided/i
+    );
+
+    await expect(SecurePayload.decode('payload').decrypt().typed()).rejects.toThrow(
+      /No decryptor was provided/i
+    );
+
+    await expect(
+      SecurePayload.decode('payload', { decryptor: 'missing' }).decrypt().typed()
+    ).rejects.toThrow(/Unknown decryptor/i);
+
+    await expect(
+      SecurePayload.decode('123', { decryptor: async () => 123 as never })
+        .decrypt()
+        .json()
+        .typed()
+    ).rejects.toThrow(/JSON parsing requires a string payload/i);
+
+    await expect(
+      SecurePayload.decode('{"flag":"maybe"}', { decryptor: async (raw) => raw })
+        .decrypt()
+        .json()
+        .coerce({ flag: 'boolean' })
+        .typed()
+    ).rejects.toThrow(/Boolean coercion failed/i);
+
+    await expect(
+      SecurePayload.decode('{"count":"1.5"}', { decryptor: async (raw) => raw })
+        .decrypt()
+        .json()
+        .coerce({ count: 'integer' })
+        .typed()
+    ).rejects.toThrow(/Integer coercion failed/i);
+  });
+
+  it('handles string coercion, null passthrough, and envelope decryptor wrapping', async () => {
+    const envelopeDecryptor = SecurePayload.createEnvelopeDecryptor({
+      cipher: 'aes-256-cbc',
+      key: keyB64,
+      previousKeys: [keyB64],
+    });
+
+    const ciphertext = EncryptedEnvelope.encryptString('{"wrapped":true}', {
+      cipher: 'aes-256-cbc',
+      key: keyB64,
+    });
+    const wrapped = await envelopeDecryptor(ciphertext);
+    expect(wrapped).toBe('{"wrapped":true}');
+
+    const payload = await SecurePayload.decode('{"name":123,"note":null}', {
+      decryptor: async (raw) => raw,
+    })
+      .decrypt()
+      .json()
+      .coerce({ name: 'string', note: 'string' })
+      .typed<{ name: string; note: null }>();
+
+    expect(payload).toEqual({ name: '123', note: null });
+  });
 });

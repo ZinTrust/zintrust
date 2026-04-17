@@ -1,0 +1,92 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.4 [39m[90m/opt/homebrew/var/www/Sites/zintrust[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m tests/unit/cli/scaffolding/GovernanceScaffolder.patch-coverage.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+[90mstdout[2m | tests/unit/AuthController.test.ts[2m > [22m[2mAuthController.login[2m > [22m[2muses numeric id subject when id is number
+[22m[39m[1m[96m[INFO][0m AuthController.login: successful login {
+  userId: [32m'123'[39m,
+  email: [32m'a'[39m,
+  ip: [32m'1.2.3.4'[39m,
+  timestamp: [32m'2026-04-17T19:59:20.035Z'[39m
+}
+
+ [32m✓[39m tests/unit/common/ContextLoader.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m tests/unit/auth/LoginFlow.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+[90mstderr[2m | tests/unit/AuthController.test.ts[2m > [22m[2mAuthController.login[2m > [22m[2mreturns 500 when validation body missing
+[22m[39m[1m[91m[ERROR][0m AuthController.login: validation middleware did not populate req.validated.body 
+
+ [32m✓[39m tests/unit/orm/Model.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [31m❯[39m tests/unit/security/SecurePayload.test.ts [2m([22m[2m8 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 10[2mms[22m[39m
+     [32m✓[39m decodes an encrypted envelope with a registered decryptor, coercion, and validation[32m 3[2mms[22m[39m
+     [32m✓[39m supports an inline decryptor with request-scoped context[32m 0[2mms[22m[39m
+     [32m✓[39m fails with a normalized json-stage error when payload parsing fails[32m 1[2mms[22m[39m
+     [32m✓[39m fails with a normalized coerce-stage error when coercion cannot complete[32m 0[2mms[22m[39m
+     [32m✓[39m fails with a normalized validate-stage error when schema validation fails[32m 0[2mms[22m[39m
+     [32m✓[39m tracks registered decryptors without retaining per-request state[32m 1[2mms[22m[39m
+     [32m✓[39m covers decryptor validation and common coercion branches[32m 1[2mms[22m[39m
+[31m     [31m×[31m handles string coercion, null passthrough, and envelope decryptor wrapping[39m[32m 2[2mms[22m[39m
+[90mstderr[2m | tests/unit/AuthController.test.ts[2m > [22m[2mAuthController.login[2m > [22m[2mregister: returns 500 when validation body missing
+[22m[39m[1m[91m[ERROR][0m AuthController.register: validation middleware did not populate req.validated.body 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Context and Preparation Paths[2m > [22m[2mshould return true for existing directory
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/existing-app 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Scaffolding Execution[2m > [22m[2mshould create project directories
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+
+ [32m✓[39m tests/unit/notification/Notification.compose.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Scaffolding Execution[2m > [22m[2mshould create project files
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+
+[90mstderr[2m | tests/unit/AuthController.test.ts[2m > [22m[2mAuthController.login[2m > [22m[2mreturns 500 when the login flow returns an invalid issued token payload
+[22m[39m[1m[91m[ERROR][0m AuthController.login: unexpected error {"email":"a","ip":"1.2.3.4","error":"LoginFlow jwt issuer returned an invalid access token","timestamp":"2026-04-17T19:59:20.152Z"}
+
+ [32m✓[39m tests/unit/AuthController.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 264[2mms[22m[39m
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Scaffolding Execution[2m > [22m[2mshould render template variables in files
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Configuration[2m > [22m[2mshould create .zintrust.json
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Configuration[2m > [22m[2mshould create .env file
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Configuration[2m > [22m[2mshould backfill .env defaults when .env already exists
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Database Configuration[2m > [22m[2mshould create PostgreSQL env for PostgreSQL projects
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Database Configuration[2m > [22m[2mshould create SQLite env for SQLite projects
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Overwrite[2m > [22m[2mshould fail if directory exists without overwrite
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/existing 
+
+[90mstdout[2m | tests/cli/ProjectScaffolder.test.ts[2m > [22m[2mProjectScaffolder Overwrite[2m > [22m[2mshould succeed with overwrite option
+[22m[39m[1m[96m[INFO][0m Created directory: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app 
+[1m[96m[INFO][0m Created file: /opt/homebrew/var/www/Sites/zintrust/tests/cli/test-projects/my-app/old-file.txt 
+
+ [32m✓[39m tests/cli/ProjectScaffolder.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 190[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/unit/security/SecurePayload.test.ts[2m > [22mSecurePayload[2m > [22mhandles string coercion, null passthrough, and envelope decryptor wrapping
+[31m[1mTypeError[22m: Cannot redefine property: decryptString[39m
+[36m [2m❯[22m tests/unit/security/SecurePayload.test.ts:[2m148:27[22m[39m
+    [90m146|[39m
+    [90m147|[39m   it('handles string coercion, null passthrough, and envelope decrypto…
+    [90m148|[39m     [35mconst[39m decryptSpy [33m=[39m vi[33m.[39m[34mspyOn[39m([33mEncryptedEnvelope[39m[33m,[39m [32m'decryptString'[39m)[33m;[39m
+    [90m   |[39m                           [31m^[39m
+    [90m149|[39m
+    [90m150|[39m     [35mconst[39m envelopeDecryptor [33m=[39m [33mSecurePayload[39m[33m.[39m[34mcreateEnvelopeDecryptor[39m({
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m7 passed[39m[22m[90m (8)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m94 passed[39m[22m[90m (95)[39m
+[2m   Start at [22m 20:59:19
+[2m   Duration [22m 891ms[2m (transform 1.39s, setup 457ms, import 1.55s, tests 575ms, environment 1ms)[22m
+

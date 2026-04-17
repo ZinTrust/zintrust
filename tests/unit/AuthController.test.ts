@@ -81,4 +81,103 @@ describe('AuthController.login', () => {
     expect(res.payload.status).toBe(500);
     expect(res.payload.body).toEqual({ error: 'Internal server error' });
   });
+
+  it('returns 401 when the login flow reports unauthorized credentials', async () => {
+    vi.resetModules();
+    vi.doMock('../../src/http/ValidationHelper', () => ({
+      getValidatedBody: () => ({ email: 'a', password: 'b' }),
+    }));
+    vi.doMock('@app/Models/User', () => ({
+      User: {
+        where: () => ({ first: async () => null, limit: () => ({ first: async () => null }) }),
+      },
+    }));
+    vi.doMock('@auth/Auth', () => ({ Auth: { compare: vi.fn() } }));
+    vi.doMock('@auth/LoginFlow', () => ({
+      LoginFlow: {
+        create: () => ({
+          identify: () => ({
+            verify: () => ({
+              issue: () => ({
+                audit: () => ({
+                  run: async () => {
+                    throw { details: { error: { statusCode: 401 } } };
+                  },
+                }),
+              }),
+            }),
+          }),
+        }),
+      },
+    }));
+
+    const { AuthController } = await import('../../app/Controllers/AuthController');
+
+    const req: any = {
+      getRaw: () => ({ socket: { remoteAddress: '1.2.3.4' } }),
+      getHeader: () => 'req-1',
+    };
+    const res: any = {
+      setStatus: (s: number) => ({ json: (p: any) => (res.payload = { status: s, body: p }) }),
+    };
+
+    await AuthController.create().login(req, res);
+
+    expect(res.payload).toEqual({
+      status: 401,
+      body: { error: 'Invalid credentials' },
+    });
+  });
+
+  it('returns 500 when the login flow returns an invalid issued token payload', async () => {
+    vi.resetModules();
+    vi.doMock('../../src/http/ValidationHelper', () => ({
+      getValidatedBody: () => ({ email: 'a', password: 'b' }),
+    }));
+    vi.doMock('@app/Models/User', () => ({
+      User: {
+        where: () => ({ first: async () => null, limit: () => ({ first: async () => null }) }),
+      },
+    }));
+    vi.doMock('@auth/Auth', () => ({ Auth: { compare: vi.fn() } }));
+    vi.doMock('@auth/LoginFlow', () => ({
+      LoginFlow: {
+        create: () => ({
+          identify: () => ({
+            verify: () => ({
+              issue: () => ({
+                audit: () => ({
+                  run: async () => ({
+                    verified: {
+                      user: { id: 'u-1', name: 'User', email: 'u@example.com' },
+                      claims: { sub: 'u-1', deviceId: 'dev-u-1' },
+                    },
+                    issued: { token: 'bad' },
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      },
+    }));
+
+    const { AuthController } = await import('../../app/Controllers/AuthController');
+
+    const req: any = {
+      getRaw: () => ({ socket: { remoteAddress: '1.2.3.4' } }),
+      getHeader: () => undefined,
+    };
+    const res: any = {
+      setStatus: (s: number) => ({ json: (p: any) => (res.payload = { status: s, body: p }) }),
+      json: (p: any) => (res.payload = { status: 200, body: p }),
+    };
+
+    await AuthController.create().login(req, res);
+
+    expect(res.payload).toEqual({
+      status: 500,
+      body: { error: 'Login failed' },
+    });
+  });
 });

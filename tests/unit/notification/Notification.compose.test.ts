@@ -111,4 +111,41 @@ describe('Notification.compose', () => {
     expect(Notification.hasChannel('email')).toBe(true);
     expect(Notification.listChannels()).toEqual(['email', 'push']);
   });
+
+  it('supports sms/webhook aliases and channel registry cleanup', async () => {
+    const smsSpy = vi.fn(async () => ({ queued: true }));
+    const webhookSpy = vi.fn(async () => ({ delivered: true }));
+
+    Notification.registerChannel('sms', smsSpy);
+    Notification.registerChannel('webhook', webhookSpy);
+
+    const result = await Notification.compose()
+      .sms({ to: '+2340000000000', message: 'ping' })
+      .webhook({ url: 'https://example.com/hook' })
+      .send();
+
+    expect(result.ok).toBe(true);
+    expect(result.results).toEqual([
+      expect.objectContaining({ channel: 'sms', policy: 'required', ok: true }),
+      expect.objectContaining({ channel: 'webhook', policy: 'required', ok: true }),
+    ]);
+
+    Notification.unregisterChannel('sms');
+    expect(Notification.hasChannel('sms')).toBe(false);
+
+    Notification.clearChannels();
+    expect(Notification.listChannels()).toEqual([]);
+  });
+
+  it('validates compose inputs before sending', async () => {
+    expect(() => Notification.registerChannel('email', undefined as never)).toThrow(
+      /handler must be a function/i
+    );
+    expect(() => Notification.compose().channel('  ', { ok: true })).toThrow(
+      /channel name must be a non-empty string/i
+    );
+    expect(() => Notification.compose().required('email' as never)).toThrow(/must be an array/i);
+
+    await expect(Notification.compose().send()).rejects.toThrow(/at least one channel/i);
+  });
 });

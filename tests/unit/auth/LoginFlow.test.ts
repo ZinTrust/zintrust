@@ -183,4 +183,51 @@ describe('LoginFlow', () => {
     expect(LoginFlow.hasIssuer('jwt')).toBe(true);
     expect(LoginFlow.hasAuditor('trace')).toBe(true);
   });
+
+  it('registers and unregisters named providers, issuers, and auditors', async () => {
+    const provider = {
+      identify: async () => ({ id: 'user-9' }),
+      verify: async () => ({ subject: 'user-9' }),
+    };
+    const issuer = vi.fn(async () => 'issued:custom');
+    const auditor = vi.fn(async () => undefined);
+
+    LoginFlow.registerProvider('custom', provider);
+    LoginFlow.registerIssuer('custom', issuer);
+    LoginFlow.registerAuditor('custom', auditor);
+
+    expect(LoginFlow.hasProvider('custom')).toBe(true);
+    expect(LoginFlow.hasIssuer('custom')).toBe(true);
+    expect(LoginFlow.hasAuditor('custom')).toBe(true);
+
+    const result = await LoginFlow.create({ provider: 'custom', context: { requestId: 'r9' } })
+      .identify({ email: 'custom@example.com' })
+      .verify({ password: 'secret' })
+      .issue('custom')
+      .audit('custom')
+      .run();
+
+    expect(result.issued).toBe('issued:custom');
+    expect(issuer).toHaveBeenCalledWith({
+      verified: { subject: 'user-9' },
+      context: { requestId: 'r9' },
+    });
+    expect(auditor).toHaveBeenCalledWith({
+      status: 'success',
+      provider: 'custom',
+      issuer: 'custom',
+      identity: { id: 'user-9' },
+      verified: { subject: 'user-9' },
+      issued: 'issued:custom',
+      context: { requestId: 'r9' },
+    });
+
+    LoginFlow.unregisterProvider('custom');
+    LoginFlow.unregisterIssuer('custom');
+    LoginFlow.unregisterAuditor('custom');
+
+    expect(LoginFlow.hasProvider('custom')).toBe(false);
+    expect(LoginFlow.hasIssuer('custom')).toBe(false);
+    expect(LoginFlow.hasAuditor('custom')).toBe(false);
+  });
 });
