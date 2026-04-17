@@ -30,7 +30,7 @@
     "@zintrust/core": "^0.7.0"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.2.3",
+    "@cloudflare/containers": "^0.3.2",
     "@cloudflare/workers-types": "^4.20260405.1"
   },
   "scripts": {
