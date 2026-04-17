@@ -6,11 +6,12 @@ import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _ignoreRoutes: string[] = [];
+let _ignorePaths: string[] = [];
 
 /** Emit a redis command trace. Key/value payload is intentionally omitted for security. */
 const emit = (command: string, duration: number): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const content: RedisContent = { command, duration, hostname: TraceContext.getHostname() };
   _storage
     .writeEntry({
@@ -31,9 +32,11 @@ export const RedisWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
     if (config.watchers.redis === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
+    _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
       _ignoreRoutes = [];
+      _ignorePaths = [];
     };
   },
 });

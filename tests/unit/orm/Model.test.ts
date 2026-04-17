@@ -96,7 +96,7 @@ describe('Model', () => {
 
   it('fills attributes, applies casts, respects fillable and hidden', async (): Promise<void> => {
     const TestModel = Model.define(baseConfig);
-    const m = TestModel.create({
+    const m = TestModel.make({
       name: 'John',
       email: 'john@example.com',
       password: fakePass,
@@ -127,7 +127,7 @@ describe('Model', () => {
       casts: {},
     });
 
-    const m1 = Limited.create({ name: 'A', email: 'nope' });
+    const m1 = Limited.make({ name: 'A', email: 'nope' });
     expect(m1.getAttribute('name')).toBe('A');
     expect(m1.getAttribute('email')).toBeUndefined();
 
@@ -140,13 +140,13 @@ describe('Model', () => {
       casts: {},
     });
 
-    const m2 = Open.create({ name: 'B', email: 'yes' });
+    const m2 = Open.make({ name: 'B', email: 'yes' });
     expect(m2.getAttribute('email')).toBe('yes');
   });
 
   it('tracks dirty state and existence', async (): Promise<void> => {
     const TestModel = Model.define({ ...baseConfig, casts: {} });
-    const m = TestModel.create({ name: 'A' });
+    const m = TestModel.make({ name: 'A' });
 
     expect(m.isDirty()).toBe(false);
     expect(m.isDirty('name')).toBe(false);
@@ -160,7 +160,7 @@ describe('Model', () => {
     expect(m.exists()).toBe(true);
   });
 
-  it('save throws when DB not initialized; save persists inserts and sets timestamps when enabled', async (): Promise<void> => {
+  it('create throws when DB not initialized; create persists inserts and sets timestamps when enabled', async (): Promise<void> => {
     const dbMod = (await import('@orm/Database')) as unknown as {
       __setDb: (next: unknown) => void;
     };
@@ -168,15 +168,13 @@ describe('Model', () => {
     const TestModel = Model.define({ ...baseConfig, casts: {} });
 
     dbMod.__setDb(undefined);
-    const noDbModel = TestModel.create({ name: 'A' });
-    await expect(noDbModel.save()).rejects.toMatchObject({ code: 'DATABASE_ERROR' });
+    await expect(TestModel.create({ name: 'A' })).rejects.toMatchObject({ code: 'DATABASE_ERROR' });
 
     dbMod.__setDb({});
-    const m = TestModel.create({ name: 'A' });
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+    const m = await TestModel.create({ name: 'A' });
 
-    await expect(m.save()).resolves.toBe(true);
     const qb = (await import('@orm/QueryBuilder')) as unknown as {
       __getLastBuilder: () => MockBuilder | undefined;
     };
@@ -189,9 +187,51 @@ describe('Model', () => {
     vi.useRealTimers();
   });
 
+  it('top-level create persists and defined new returns an unsaved model', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+
+    const created = await Model.create(config, { name: 'Root' });
+
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Root' })
+    );
+    expect(created.exists()).toBe(true);
+
+    const TestModel = Model.define(config);
+    const draft = TestModel.new({ name: 'Draft' });
+
+    expect(draft.exists()).toBe(false);
+    expect(draft.getAttribute('name')).toBe('Draft');
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('top-level make/new stay unsaved and bulk insert proxies to insert', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+
+    const draft = Model.make(config, { name: 'Draft make' });
+    const draftAlias = Model.new(config, { name: 'Draft new' });
+
+    expect(draft.exists()).toBe(false);
+    expect(draftAlias.exists()).toBe(false);
+    expect(draft.getAttribute('name')).toBe('Draft make');
+    expect(draftAlias.getAttribute('name')).toBe('Draft new');
+
+    await expect(Model.bulkInsert(config, [{ name: 'A' }, { name: 'B' }])).resolves.toEqual({
+      id: 1,
+      affectedRows: 1,
+    });
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith([{ name: 'A' }, { name: 'B' }]);
+  });
+
   it('delete returns false when not exists; true when exists and db present', async (): Promise<void> => {
     const TestModel = Model.define({ ...baseConfig, casts: {} });
-    const m = TestModel.create({ name: 'A' });
+    const m = TestModel.make({ name: 'A' });
 
     await expect(m.delete()).resolves.toBe(false);
 
@@ -285,7 +325,7 @@ describe('Model', () => {
       }
     );
 
-    const m = Test.create({ name: 'Zin' });
+    const m = Test.make({ name: 'Zin' });
     expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Zin');
   });
 
@@ -294,7 +334,7 @@ describe('Model', () => {
       greet: (prefix: string): string => `${prefix} ${String(m.getAttribute('name'))}`,
     }));
 
-    const m = Test.create({ name: 'Plan' });
+    const m = Test.make({ name: 'Plan' });
     expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Plan');
   });
 
@@ -311,11 +351,91 @@ describe('Model', () => {
       },
     });
 
-    const m = Test.create({ name: '  zin  ' });
+    const m = Test.make({ name: '  zin  ' });
     expect(m.getAttribute('name')).toBe('hello ZIN');
 
     m.setAttribute('name', '  trust ');
     expect(m.getAttribute('name')).toBe('hello TRUST');
+  });
+
+  it('create applies the same mutator, accessor, and observer contract as make plus save', async (): Promise<void> => {
+    const creating = vi.fn((model: IModel) => {
+      model.setAttribute('slug', 'created-from-observer');
+    });
+
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'name', 'slug', 'active'],
+      hidden: [],
+      casts: {
+        active: 'boolean',
+      },
+      timestamps: false,
+      mutators: {
+        name: (value) => String(value).trim().toUpperCase(),
+        slug: (value) => `slug:${String(value).trim().toLowerCase()}`,
+      },
+      accessors: {
+        name: (value) => `hello ${String(value)}`,
+        slug: (value) => String(value).replace(/^slug:/, ''),
+      },
+      observers: [{ creating }],
+    });
+
+    const created = await Test.create({
+      name: '  zintrust  ',
+      active: '1',
+      ignored: 'nope',
+    } as Record<string, unknown>);
+
+    expect(creating).toHaveBeenCalledTimes(1);
+    expect(created.getAttributes()).toEqual({
+      id: 1,
+      name: 'ZINTRUST',
+      slug: 'slug:created-from-observer',
+      active: true,
+    });
+    expect(created.getAttribute('name')).toBe('hello ZINTRUST');
+    expect(created.getAttribute('slug')).toBe('created-from-observer');
+    expect((created as IModel & { slug: string }).slug).toBe('created-from-observer');
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith({
+      name: 'ZINTRUST',
+      slug: 'slug:created-from-observer',
+      active: true,
+    });
+  });
+
+  it('root Model.create matches make plus save for model-owned transforms', async (): Promise<void> => {
+    const config: ModelConfig = {
+      ...baseConfig,
+      table: 'root_models',
+      fillable: ['id', 'secret', 'active'],
+      hidden: [],
+      casts: {
+        active: 'boolean',
+      },
+      timestamps: false,
+      mutators: {
+        secret: (value) => `enc:${String(value).trim()}`,
+      },
+      accessors: {
+        secret: (value) => String(value).replace(/^enc:/, ''),
+      },
+    };
+
+    const created = await Model.create(config, { secret: 'abc', active: '1' });
+    const manual = Model.make(config, { secret: 'abc', active: '1' });
+    await manual.save();
+
+    expect(created.getAttributes()).toEqual(manual.getAttributes());
+    expect(created.getAttribute('secret')).toBe('abc');
+    expect(manual.getAttribute('secret')).toBe('abc');
+    expect(created.getAttribute('active')).toBe(true);
+    expect(manual.getAttribute('active')).toBe(true);
   });
 
   it('hydrate assigns raw stored attributes without re-running mutators', async (): Promise<void> => {
@@ -333,12 +453,17 @@ describe('Model', () => {
       },
     });
 
-    const created = Test.create({ id: 1, secret: 'plain' });
+    const created = Test.make({ id: 1, secret: 'plain' });
     expect(created.getAttributes()['secret']).toBe('enc:plain');
 
     const hydrated = Test.hydrate({ id: 1, secret: 'enc:plain' });
     expect(hydrated.getAttributes()['secret']).toBe('enc:plain');
     expect(hydrated.getAttribute('secret')).toBe('plain');
+    expect((hydrated as IModel & { secret: string }).secret).toBe('plain');
+
+    (hydrated as IModel & { secret: string }).secret = 'next';
+    expect(hydrated.getAttributes()['secret']).toBe('enc:next');
+    expect((hydrated as IModel & { secret: string }).secret).toBe('next');
   });
 
   it('hydrates first() and firstOrFail() results like get()', async (): Promise<void> => {
@@ -396,6 +521,7 @@ describe('Model', () => {
     expect(first).not.toBeNull();
     expect(first?.exists()).toBe(true);
     expect(first?.getAttribute('secret')).toBe('alpha');
+    expect((first as IModel & { secret: string }).secret).toBe('alpha');
     expect(first?.greet()).toBe('hi alpha');
 
     (
@@ -429,6 +555,7 @@ describe('Model', () => {
     >();
     expect(firstOrFail.exists()).toBe(true);
     expect(firstOrFail.getAttribute('secret')).toBe('beta');
+    expect((firstOrFail as IModel & { secret: string }).secret).toBe('beta');
     expect(firstOrFail.greet()).toBe('hi beta');
   });
 
@@ -471,7 +598,7 @@ describe('Model', () => {
       observers: [{ saving, creating, created, saved, deleting, deleted }],
     });
 
-    const m = Test.create({ name: 'A' });
+    const m = Test.make({ name: 'A' });
 
     await m.save();
     expect(saving).toHaveBeenCalledTimes(1);
@@ -629,7 +756,7 @@ describe('Model', () => {
       query: (): unknown => relatedBuilder,
     };
 
-    const m = Test.create({ id: '5', user_id: '9' });
+    const m = Test.make({ id: '5', user_id: '9' });
 
     const relatedModel = Related as unknown as ModelStatic;
 

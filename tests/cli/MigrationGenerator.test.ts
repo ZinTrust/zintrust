@@ -352,6 +352,8 @@ describe('MigrationGenerator Content and Structure', () => {
     expect(content).toContain('up(db: IDatabase)');
     expect(content).toContain('down(db: IDatabase)');
     expect(content).toContain('export const migration');
+    expect(content).toContain("from '@zintrust/core'");
+    expect(content).not.toContain("from '../../index.js'");
   });
 
   it('should handle underscores in migration name', async () => {

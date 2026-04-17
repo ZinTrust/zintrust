@@ -180,8 +180,7 @@ export const UserController = {
         password: string;
       };
 
-      const user = User.create({ name, email, password });
-      await user.save();
+      const user = await User.create({ name, email, password });
 
       res.setStatus(201).json({
         message: 'User created',
@@ -590,8 +589,7 @@ export const ProductController = {
    * POST /products - Create new product
    */
   async store(req: IRequest, res: IResponse): Promise<void> {
-    const product = Product.create(req.getBody());
-    await product.save();
+    const product = await Product.create(req.getBody());
 
     res.setStatus(201).json({
       message: 'Product created',

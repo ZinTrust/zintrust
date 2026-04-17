@@ -99,4 +99,14 @@ describe('TraceConfig', () => {
     expect(config.captureQueryBindings).toBe(false);
     expect(config.observeConnection).toBe('primary');
   });
+
+  it('accepts contains-based ignorePaths filters separately from ignoreRoutes', () => {
+    const config = TraceConfig.merge({
+      ignoreRoutes: ['/trace'],
+      ignorePaths: ['queue-monitor', '.js'],
+    });
+
+    expect(config.ignoreRoutes).toEqual(['/trace']);
+    expect(config.ignorePaths).toEqual(['queue-monitor', '.js']);
+  });
 });

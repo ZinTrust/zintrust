@@ -67,6 +67,7 @@ describe('ProjectScaffolder Templates', () => {
     expect(packageJson).toContain('"lint": "eslint ."');
     expect(packageJson).toContain('"@zintrust/governance": "{{governanceVersion}}"');
     expect(packageJson).toContain('"eslint": "^10.0.0"');
+    expect(packageJson).not.toContain('"tsx":');
 
     const eslintConfig = template?.files['eslint.config.mjs'] ?? '';
     expect(eslintConfig).toContain("from '@zintrust/governance/eslint'");
@@ -94,6 +95,17 @@ describe('ProjectScaffolder Templates', () => {
     const bootEntrypoint = template?.files['src/boot/bootstrap.ts'] ?? '';
     expect(bootEntrypoint).toContain("'@zintrust/core/boot'");
     expect(bootEntrypoint).toContain('export {};');
+  });
+
+  it('namespace scaffold delegates to the exported factory and returns the resolved project path', async () => {
+    const result = await ProjectScaffolder.scaffold(testDir, { name: 'delegated-app' });
+
+    expect(result.success).toBe(true);
+    expect(result.projectPath).toBe(path.join(testDir, 'delegated-app'));
+
+    const scaffolder = ProjectScaffolder.create(testDir);
+    scaffolder.prepareContext({ name: 'path-app' });
+    expect(scaffolder.getProjectPath()).toBe(path.join(testDir, 'path-app'));
   });
 });
 

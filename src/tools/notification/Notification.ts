@@ -5,6 +5,7 @@
  */
 
 import { NotificationService } from '@notification/Service';
+import { NotificationComposer } from '@notification/Composer';
 
 export const Notification = Object.freeze({
   send: NotificationService.send,
@@ -49,6 +50,12 @@ export const Notification = Object.freeze({
       send: async (recipient: string, message: string, options?: Record<string, unknown>) =>
         NotificationService.sendVia(name, recipient, message, options),
     }),
+  compose: NotificationComposer.compose,
+  registerChannel: NotificationComposer.registerChannel,
+  unregisterChannel: NotificationComposer.unregisterChannel,
+  hasChannel: NotificationComposer.hasChannel,
+  listChannels: NotificationComposer.listChannels,
+  clearChannels: NotificationComposer.clearChannels,
   listDrivers: NotificationService.listDrivers,
 });
 

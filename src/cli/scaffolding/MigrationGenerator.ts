@@ -192,6 +192,7 @@ function generateMigrationContent(options: {
 }
 
 function resolveMigrationImportBlock(migrationsPath: string): string {
+  const coreImportSpecifier = ['@zintrust', 'core'].join('/');
   const projectRoot = path.resolve(migrationsPath, '..', '..');
   const packageJsonPath = path.join(projectRoot, 'package.json');
 
@@ -207,7 +208,7 @@ function resolveMigrationImportBlock(migrationsPath: string): string {
     }
   }
 
-  return `import { MigrationSchema, type Blueprint, type IDatabase } from '@zintrust/core';`;
+  return `import { MigrationSchema, type Blueprint, type IDatabase } from '${coreImportSpecifier}';`;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { RedisKeys } from '@zintrust/core';
-import { type Job } from 'bullmq';
+import { type Job, type JobsOptions } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';
 
 export type JobStatus = 'completed' | 'failed';
@@ -9,6 +9,7 @@ export type JobSummary = {
   name: string;
   queue?: string;
   data: unknown;
+  opts?: JobsOptions;
   attempts: number;
   status?: string;
   failedReason?: string;
@@ -56,6 +57,7 @@ const recordJobImpl = async (
     id: job.id,
     name: job.name,
     data: job.data,
+    opts: job.opts,
     attempts: job.attemptsMade,
     failedReason: job.failedReason || error?.message,
     timestamp: Date.now(),

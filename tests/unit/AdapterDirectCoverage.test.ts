@@ -303,7 +303,7 @@ describe('Model Module Direct Coverage', () => {
       timestamps: false,
       casts: {},
     });
-    const instance = TestModel.create();
+    const instance = TestModel.make();
     expect(instance.save).toBeDefined();
     expect(typeof instance.save).toBe('function');
   });
@@ -317,7 +317,7 @@ describe('Model Module Direct Coverage', () => {
       timestamps: false,
       casts: {},
     });
-    const instance = TestModel.create();
+    const instance = TestModel.make();
     expect(instance.delete).toBeDefined();
     expect(typeof instance.delete).toBe('function');
   });

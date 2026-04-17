@@ -43,6 +43,8 @@ vi.mock('@cli/services/VersionChecker', () => ({
   },
 }));
 
+const bundledGovernancePackageUrl = `file://${process.cwd()}/packages/governance/package.json`;
+
 vi.mock('@config/logger', () => ({
   Logger: {
     info: vi.fn(),
@@ -218,5 +220,76 @@ describe('GovernanceScaffolder patch coverage', () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toContain('Failed to install governance dependencies');
+  });
+
+  it('preserves an existing governance devDependency and falls back when bundled metadata is blank', async () => {
+    vi.resetModules();
+
+    existingFiles.clear();
+    writtenFiles.clear();
+
+    const projectRoot = '/tmp/existing-governance';
+    const pkgPath = `${projectRoot}/package.json`;
+    existingFiles.add(pkgPath);
+    writtenFiles.set(
+      pkgPath,
+      JSON.stringify({
+        dependencies: {
+          '@zintrust/core': '^1.2.3',
+        },
+        devDependencies: {
+          '@zintrust/governance': '^9.9.9',
+        },
+      })
+    );
+    writtenFiles.set(bundledGovernancePackageUrl, JSON.stringify({ version: '' }));
+
+    const { GovernanceScaffolder } = await import('@cli/scaffolding/GovernanceScaffolder');
+
+    const result = await GovernanceScaffolder.scaffold(projectRoot, {
+      writeArchTests: false,
+      writeEslintConfig: false,
+    });
+
+    expect(result.success).toBe(true);
+
+    const updatedRaw = writtenFiles.get(pkgPath);
+    expect(updatedRaw).toBeTruthy();
+    const updated = JSON.parse(updatedRaw ?? '{}') as any;
+    expect(updated.devDependencies['@zintrust/governance']).toBe('^9.9.9');
+  });
+
+  it('falls back to the default governance range and npm install command when no versions are available', async () => {
+    vi.resetModules();
+
+    existingFiles.clear();
+    writtenFiles.clear();
+    spawnAndWait.mockResolvedValueOnce(0);
+    resolvePackageManager.mockReturnValueOnce('npm');
+    getCurrentVersion.mockReturnValueOnce('0.0.0');
+
+    const projectRoot = '/tmp/fallback-governance';
+    const pkgPath = `${projectRoot}/package.json`;
+    existingFiles.add(pkgPath);
+    writtenFiles.set(pkgPath, JSON.stringify({ devDependencies: {} }));
+    writtenFiles.set(bundledGovernancePackageUrl, JSON.stringify({ version: '' }));
+
+    const { GovernanceScaffolder } = await import('@cli/scaffolding/GovernanceScaffolder');
+
+    const result = await GovernanceScaffolder.scaffold(projectRoot, {
+      install: true,
+      writeArchTests: false,
+      writeEslintConfig: false,
+    });
+
+    expect(result.success).toBe(true);
+
+    const updated = JSON.parse(writtenFiles.get(pkgPath) ?? '{}') as any;
+    expect(updated.devDependencies['@zintrust/governance']).toBe('^0.4.0');
+    expect(spawnAndWait).toHaveBeenCalledWith({
+      command: 'npm',
+      args: ['install', '--save-dev', 'eslint', '@zintrust/governance@^0.4.0'],
+      cwd: projectRoot,
+    });
   });
 });

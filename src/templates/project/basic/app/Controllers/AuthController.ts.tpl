@@ -8,14 +8,14 @@ import type { AuthControllerApi, JsonRecord, UserRow } from '@app/Types/controll
 import type { IRequest, IResponse } from '@zintrust/core';
 import {
   Auth,
+  ErrorFactory,
   JwtManager,
+  LoginFlow,
   Logger,
   getString,
   getValidatedBody,
   isUndefinedOrNull,
 } from '@zintrust/core';
-
-
 
 const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: string } => {
   return {
@@ -24,6 +24,115 @@ const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: strin
     email: getString(row.email),
   };
 };
+
+type PasswordLoginContext = {
+  email: string;
+  ipAddress: string;
+  requestId?: string;
+};
+
+const toSubject = (id: unknown): string | undefined => {
+  if (typeof id === 'string' && id.length > 0) return id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return undefined;
+};
+
+const toDeviceId = (subject: string | undefined): string | undefined => {
+  return isUndefinedOrNull(subject) ? undefined : `dev-${subject}`;
+};
+
+const getClaimString = (claims: unknown, key: string): string | undefined => {
+  if (typeof claims !== 'object' || claims === null) {
+    return undefined;
+  }
+
+  const value = (claims as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+};
+
+const getIssuedToken = (issued: unknown): string => {
+  if (typeof issued === 'string' && issued.trim() !== '') {
+    return issued;
+  }
+
+  throw ErrorFactory.createSecurityError('LoginFlow jwt issuer returned an invalid access token');
+};
+
+const isLoginFlowUnauthorizedFailure = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const details = (error as { details?: unknown }).details;
+  if (typeof details !== 'object' || details === null) {
+    return false;
+  }
+
+  const nested = (details as Record<string, unknown>)['error'];
+  return (
+    typeof nested === 'object' &&
+    nested !== null &&
+    (nested as { statusCode?: unknown }).statusCode === 401
+  );
+};
+
+const passwordLoginProvider = Object.freeze({
+  async identify(
+    input: { email: string },
+    context: PasswordLoginContext
+  ): Promise<UserRow | null> {
+    const existing = await User.where('email', '=', input.email).first<UserRow>();
+
+    if (existing === null) {
+      Logger.warn('AuthController.login: failed login attempt', {
+        email: context.email,
+        ip: context.ipAddress,
+        reason: 'user_not_found',
+        ...(context.requestId ? { requestId: context.requestId } : {}),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return existing;
+  },
+
+  async verify(
+    identity: UserRow | null,
+    input: { password: string },
+    context: PasswordLoginContext
+  ) {
+    if (identity === null) {
+      throw ErrorFactory.createUnauthorizedError('Invalid credentials');
+    }
+
+    const passwordHash = getString(identity.password);
+    const ok = await Auth.compare(input.password, passwordHash);
+    if (!ok) {
+      Logger.warn('AuthController.login: failed login attempt', {
+        email: context.email,
+        ip: context.ipAddress,
+        reason: 'invalid_password',
+        ...(context.requestId ? { requestId: context.requestId } : {}),
+        timestamp: new Date().toISOString(),
+      });
+      throw ErrorFactory.createUnauthorizedError('Invalid credentials');
+    }
+
+    const user = pickPublicUser(identity);
+    const subject = toSubject(user.id);
+    const deviceId = toDeviceId(subject);
+
+    return {
+      user,
+      subject,
+      claims: {
+        sub: subject,
+        email: user.email,
+        ...(isUndefinedOrNull(deviceId) ? {} : { deviceId }),
+      },
+    };
+  },
+});
 
 /**
  * Authenticates a user by email and password.
@@ -42,58 +151,29 @@ async function login(req: IRequest, res: IResponse): Promise<void> {
   const email = getString(body['email']);
   const password = getString(body['password']);
   const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
+  const requestId = typeof req.getHeader === 'function' ? req.getHeader('x-request-id') : undefined;
 
   try {
-    const existing = await User.where('email', '=', email).limit(1).first<UserRow>();
+    const result = await LoginFlow.create({
+      provider: passwordLoginProvider,
+      context: Object.freeze({ email, ipAddress, requestId }),
+    })
+      .identify({ email })
+      .verify({ password })
+      .issue('jwt')
+      .audit()
+      .run();
 
-    if (existing === null) {
-      Logger.warn('AuthController.login: failed login attempt', {
-        email,
-        ip: ipAddress,
-        reason: 'user_not_found',
-        timestamp: new Date().toISOString(),
-      });
-      res.setStatus(401).json({ error: 'Invalid credentials' });
-      return;
-    }
-
-    const passwordHash = getString(existing.password);
-    const ok = await Auth.compare(password, passwordHash);
-    if (!ok) {
-      Logger.warn('AuthController.login: failed login attempt', {
-        email,
-        ip: ipAddress,
-        reason: 'invalid_password',
-        timestamp: new Date().toISOString(),
-      });
-      res.setStatus(401).json({ error: 'Invalid credentials' });
-      return;
-    }
-
-    const user = pickPublicUser(existing);
-
-    const subject = ((): string | undefined => {
-      const id = user.id;
-      if (typeof id === 'string' && id.length > 0) return id;
-      if (typeof id === 'number' && Number.isFinite(id)) return String(id);
-      return undefined;
-    })();
-
-    // Bulletproof Auth (device binding) expects a device id header to match a JWT claim.
-    // For the example app, we mint a stable device id derived from the subject.
-    // Production apps should issue a per-device id and manage a per-device signing secret.
-    const deviceId = isUndefinedOrNull(subject) ? undefined : `dev-${subject}`;
-
-    const token = await JwtManager.signAccessToken({
-      sub: subject,
-      email,
-      ...(isUndefinedOrNull(deviceId) ? {} : { deviceId }),
-    });
+    const user = result.verified.user as { id: unknown; name: string; email: string };
+    const subject = getClaimString(result.verified.claims, 'sub');
+    const deviceId = getClaimString(result.verified.claims, 'deviceId');
+    const token = getIssuedToken(result.issued);
 
     Logger.info('AuthController.login: successful login', {
       userId: subject,
       email,
       ip: ipAddress,
+      ...(requestId ? { requestId } : {}),
       timestamp: new Date().toISOString(),
     });
 
@@ -104,9 +184,15 @@ async function login(req: IRequest, res: IResponse): Promise<void> {
       user,
     });
   } catch (error) {
+    if (isLoginFlowUnauthorizedFailure(error)) {
+      res.setStatus(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+
     Logger.error('AuthController.login: unexpected error', {
       email,
       ip: ipAddress,
+      ...(requestId ? { requestId } : {}),
       error: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString(),
     });

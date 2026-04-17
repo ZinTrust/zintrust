@@ -100,36 +100,19 @@ function getLatestNpmVersion(packageName) {
   }
 }
 
-// 1. Determine next version
+// 1. Determine dist version from the checked-in repo version only.
 const isCi = process.env.CI === 'true' || process.env.CI === '1';
 const skipNpmVersionCheck = process.env.DIST_SKIP_NPM_VERSION_CHECK === 'true';
 const workspacePackageVersions = skipNpmVersionCheck
   ? getWorkspacePackageVersions()
   : getPublishedWorkspacePackageVersions(getWorkspacePackageVersions());
 
-const latestPublished = skipNpmVersionCheck ? null : getLatestNpmVersion(rootPackage.name);
-let finalVersion = rootPackage.version;
+const finalVersion = rootPackage.version;
 
-if (latestPublished) {
-  const nextPatch = incrementPatch(latestPublished);
-  // Use the higher of (npm + 1) or (local version)
-  if (isGreater(nextPatch, finalVersion)) {
-    finalVersion = nextPatch;
-  }
-}
+console.log(`📦 Repo version:   ${rootPackage.version}`);
+console.log(`🚀 Dist version:   ${finalVersion}`);
 
-console.log(`📦 Local version:  ${rootPackage.version}`);
-console.log(`🌐 NPM version:    ${latestPublished || 'not published'}`);
-console.log(`🚀 Final version:  ${finalVersion}`);
-
-// 2. Update root package.json if version changed (skip in CI / when requested)
-if (!isCi && !skipNpmVersionCheck && finalVersion !== rootPackage.version) {
-  rootPackage.version = finalVersion;
-  fs.writeFileSync(rootPackagePath, JSON.stringify(rootPackage, null, 2) + '\n');
-  console.log('✅ Root package.json updated');
-}
-
-// 3. Prepare dist package.json
+// 2. Prepare dist package.json
 const distPackage = {
   name: rootPackage.name,
   version: finalVersion,

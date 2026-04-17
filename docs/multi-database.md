@@ -155,8 +155,7 @@ export const User = Model.define(
 // All queries automatically use 'users_db' connection
 const user = await User.find(1);
 const admins = await User.where('is_admin', '=', 1).get();
-const newUser = await User.create({ name: 'John', email: 'john@example.com' });
-await newUser.save(); // Saves to users_db
+const newUser = await User.create({ name: 'John', email: 'john@example.com' }); // Saves to users_db
 ```
 
 ### Method 2: Switch Connection at Runtime with `.db()`
@@ -299,7 +298,7 @@ export const ShardController = {
       const userId = req.params.id;
 
       // Query users_db shard database
-      const user = await query('users', 'users_db').where('id', '=', userId).limit(1).first();
+      const user = await query('users', 'users_db').where('id', '=', userId).first();
 
       if (!user) {
         return res.setStatus(404).json({ error: 'User not found' });
@@ -378,8 +377,7 @@ export const MultiDbController = Object.freeze({
           };
 
           // Create user in users_db (defined in model config)
-          const user = User.create({ name, email });
-          await user.save();
+          const user = await User.create({ name, email });
 
           // Log event in analytics database
           const analyticsDb = await useEnsureDbConnected(undefined, 'analytics');
@@ -917,9 +915,8 @@ export const TransactionController = {
         orders: Array\<{ product_id: number; quantity: number }>;
       };
 
-      // Transaction 1: User creation
+      // Write 1: user creation in the users database
       const user = await User.create({ name, email });
-      await user.save(); // Implicit transaction
 
       // Transaction 2: Order creation in separate shard
       const ordersDb = await useEnsureDbConnected(undefined, 'orders_db');

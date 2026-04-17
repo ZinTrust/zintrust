@@ -24,6 +24,9 @@ export default {
 
   ignoreRoutes: ['/trace', '/health', '/ping'],
 
+  // Contains-based ignore list for URLs such as /queue-monitor/api/events or /workers/main.js.
+  ignorePaths: ['/workers/events', '/queue-monitor', '.js', '.css'],
+
   slowQueryThreshold: Env.getInt('TRACE_SLOW_QUERY_MS', 100),
 
   logMinLevel: Env.get('TRACE_LOG_LEVEL', 'info') as 'debug' | 'info' | 'warn' | 'error' | 'fatal',
@@ -33,7 +36,7 @@ export default {
     // All watchers are enabled by default when trace is enabled.
     // Include/exclude filters are contains-based and can be applied per watcher.
     // request: {
-    //   get: { exclude: ['report'] },
+    //   get: { exclude: ['report','workers/events'] },
     //   post: { include: ['auth'] },
     //   patch: { include: ['profile'] },
     //   delete: { exclude: ['internal'] },

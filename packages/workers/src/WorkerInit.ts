@@ -8,7 +8,7 @@
  * - Ensures graceful startup and shutdown
  */
 
-import { Env, Logger } from '@zintrust/core';
+import { Env, isObject, Logger } from '@zintrust/core';
 import { ResourceMonitor } from './ResourceMonitor';
 import type { WorkerPersistenceConfig } from './WorkerFactory';
 import { WorkerFactory } from './WorkerFactory';
@@ -71,6 +71,24 @@ const state: IInitState = {
   healthMonitoring: false,
   autoScaling: false,
   shutdownHandlersRegistered: false,
+};
+
+type StalePersistedWorkerPurgedError = Error & {
+  details?: {
+    kind?: string;
+    workerName?: string;
+    processorSpec?: string | null;
+  };
+};
+
+const isStalePersistedWorkerPurgedError = (
+  value: unknown
+): value is StalePersistedWorkerPurgedError => {
+  return (
+    isObject(value) &&
+    isObject(value['details']) &&
+    value['details']['kind'] === 'stale_persisted_worker_purged'
+  );
 };
 
 // ============================================================================
@@ -347,11 +365,7 @@ const autoStartOneWorker = async (
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    if (
-      message.includes(
-        'was removed because its processorSpec no longer resolves to a live worker module.'
-      )
-    ) {
+    if (isStalePersistedWorkerPurgedError(error)) {
       Logger.info(`Auto-start purged stale worker ${record.name}: ${message}`);
       return { name: record.name, started: false, skipped: true };
     }

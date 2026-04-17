@@ -1020,9 +1020,12 @@ const getRetryJobFunction = (): string => `
                 const res = await fetch(API_BASE + '/api/retry/' + queueName + '/' + jobId, {
                     method: 'POST'
                 });
+                const payload = await res.json().catch(() => null);
 
                 if (res.ok) {
-                    btn.textContent = '✓ Retried';
+                    btn.textContent = payload && payload.status === 'requeued_from_snapshot'
+                        ? '✓ Requeued'
+                        : '✓ Retried';
                     setTimeout(() => {
                         console.log('HTTP jobs polling disabled - using SSE only');
                         // fetchJobs(currentQueue);

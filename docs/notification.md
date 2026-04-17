@@ -2,6 +2,8 @@
 
 ZinTrust includes a small notification toolkit with pluggable drivers and a built-in Markdown template registry.
 
+For multi-channel orchestration, use [plug-and-play-notification-composer](/plug-and-play-notification-composer). `Notification.compose(...)` sits above the transport layer so application code can mark channels as required or best-effort without rebuilding that orchestration in each service.
+
 ## Core API
 
 Send a notification:

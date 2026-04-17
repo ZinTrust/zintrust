@@ -8,6 +8,7 @@ ZinTrust features a powerful, zero-dependency ORM that provides a clean, ActiveR
   - [Table of Contents](#table-of-contents)
   - [Interface Reference](#interface-reference)
   - [Defining Models](#defining-models)
+    - [Reading Attributes](#reading-attributes)
     - [Safe Mass Assignment (fillable)](#safe-mass-assignment-fillable)
     - [Custom Methods](#custom-methods)
     - [Using Models in Controllers \& Services](#using-models-in-controllers--services)
@@ -120,9 +121,52 @@ export const User = Model.define(
 );
 ```
 
+### Reading Attributes
+
+Hydrated model instances expose attribute values in three useful ways:
+
+```typescript
+const wallet = await Wallet.where('id', '=', walletId).first();
+
+if (!wallet) {
+  return null;
+}
+
+wallet.amount;
+wallet.getAttribute('amount');
+wallet.getAttributes().amount;
+```
+
+Use them intentionally:
+
+- `wallet.amount`: direct property read on the hydrated model. This is the most ergonomic option in controllers and services and it returns the same accessor-aware value surface as `getAttribute(...)`.
+- `wallet.getAttribute('amount')`: explicit accessor-aware read. Prefer this when you want the ORM boundary to stay obvious inside reusable helpers, generic utilities, or shared model logic.
+- `wallet.getAttributes().amount`: raw stored attribute value. This bypasses accessors and is useful when you need the persisted value for debugging, diffing, or low-level persistence work.
+
+Example with an accessor-backed value:
+
+```typescript
+const Wallet = Model.define({
+  table: 'wallets',
+  fillable: ['amount_cents'],
+  hidden: [],
+  timestamps: false,
+  casts: {},
+  accessors: {
+    amount_cents: (value) => Number(value) / 100,
+  },
+});
+
+const wallet = Wallet.hydrate({ amount_cents: 1250 });
+
+wallet.amount_cents; // 12.5
+wallet.getAttribute('amount_cents'); // 12.5
+wallet.getAttributes().amount_cents; // 1250
+```
+
 ### Safe Mass Assignment (fillable)
 
-`fillable` is a **mass-assignment allow-list** used by `Model.create({...})` and `model.fill({...})`.
+`fillable` is a **mass-assignment allow-list** used by `Model.create({...})`, `Model.make({...})`, `Model.new({...})`, and `model.fill({...})`.
 
 - If `fillable` contains keys, only those keys are accepted.
 - If `fillable` is an empty array (`[]`), **all keys are accepted**.
@@ -207,7 +251,7 @@ await ExternalUser.query().where('is_active', true).get();
 await ExternalUser.db('external_db').query().where('is_active', true).get();
 
 // Works for creates too
-await ExternalUser.db('external_db').create({ name: 'Jane', email: 'jane@example.com' }).save();
+await ExternalUser.db('external_db').create({ name: 'Jane', email: 'jane@example.com' });
 ````
 
 ````
@@ -409,8 +453,14 @@ For polymorphic relations (morphOne, morphMany, morphTo) and through relations (
 
 ```typescript
 // Create
-const user = User.create({ name: 'John' });
-await user.save();
+const user = await User.create({ name: 'John' });
+
+// Build without persisting yet
+const draftUser = User.make({ name: 'Draft' });
+// Alias: User.new({ name: 'Draft' })
+
+draftUser.setAttribute('email', 'draft@example.com');
+await draftUser.save();
 
 // Update
 user.setAttribute('name', 'Jane');
@@ -520,12 +570,10 @@ const schema = Schema.create()
 
 Validator.validate(data, schema);
 
-const user = User.create(data);
-await user.save();
+const user = await User.create(data);
 
 // ❌ Avoid - save invalid data
-const user = User.create(req.getBody());
-await user.save();
+const user = await User.create(req.getBody());
 ```
 
 ### 5. Handle Timestamps Automatically
@@ -542,7 +590,7 @@ export const Post = Model.define(
 );
 
 // ❌ Avoid - manual timestamp management
-const post = Post.create({ title: 'Test' });
+const post = Post.make({ title: 'Test' });
 post.setAttribute('created_at', new Date().toISOString());
 post.setAttribute('updated_at', new Date().toISOString());
 await post.save();
@@ -632,16 +680,14 @@ describe('User Model', () => {
   });
 
   it('creates a user with valid data', async () => {
-    const user = User.create({ name: 'John', email: 'john@example.com' });
-    await user.save();
+    const user = await User.create({ name: 'John', email: 'john@example.com' });
 
     expect(user.getAttribute('id')).toBeDefined();
     expect(user.getAttribute('name')).toBe('John');
   });
 
   it('soft-deletes user without removing data', async () => {
-    const user = User.create({ name: 'John', email: 'john@example.com' });
-    await user.save();
+    const user = await User.create({ name: 'John', email: 'john@example.com' });
     const id = user.getAttribute('id');
 
     await user.delete();

@@ -598,6 +598,7 @@ type AttributeApiContext = {
   getOriginal: () => Record<string, unknown>;
   exists: () => boolean;
   setExists: (exists: boolean) => void;
+  syncReadableProperty: (key: string) => void;
 };
 
 type LifecycleApiContext = {
@@ -631,6 +632,7 @@ const createAttributeApi = (
     fillAttributes(config, attrs, newAttrs);
     const original = context.getOriginal();
     for (const key of Object.keys(newAttrs)) {
+      context.syncReadableProperty(key);
       if (attrs[key] !== original[key]) {
         context.dirtyFields.add(key);
       }
@@ -642,6 +644,7 @@ const createAttributeApi = (
     const nextValue = mutator ? mutator(value, attrs) : value;
     const castedValue = castAttribute(config, key, nextValue);
     attrs[key] = castedValue;
+    context.syncReadableProperty(key);
 
     const original = context.getOriginal();
     if (original[key] === castedValue) {
@@ -659,6 +662,7 @@ const createAttributeApi = (
   getAttributes: (): Record<string, unknown> => ({ ...attrs }),
   setRelation: (name: string, value: unknown): void => {
     relations[name] = value;
+    context.syncReadableProperty(name);
   },
   getRelation: <T>(name: string): T | undefined => relations[name] as T,
   toJSON: (): Record<string, unknown> => createModelJSON(config, attrs),
@@ -713,6 +717,38 @@ const createLifecycleApi = (
   },
 });
 
+const defineReadableProperty = (
+  model: IModel,
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  relations: Record<string, unknown>,
+  key: string
+): void => {
+  if (key.length === 0 || key in model) {
+    return;
+  }
+
+  Object.defineProperty(model, key, {
+    configurable: true,
+    enumerable: true,
+    get: (): unknown => {
+      if (relations[key] !== undefined) {
+        return relations[key];
+      }
+
+      return applyAccessor(config, key, attrs);
+    },
+    set: (value: unknown): void => {
+      if (relations[key] !== undefined) {
+        relations[key] = value;
+        return;
+      }
+
+      model.setAttribute(key, value);
+    },
+  });
+};
+
 /**
  * Create a new model instance
  */
@@ -738,6 +774,11 @@ export const createModel = (
   original = { ...attrs };
 
   let modelApi = {} as IModel;
+  const syncReadableProperty = (key: string): void => {
+    if (key in attrs || key in relations) {
+      defineReadableProperty(modelApi, config, attrs, relations, key);
+    }
+  };
 
   modelApi = {
     ...createAttributeApi(config, attrs, relations, {
@@ -748,6 +789,7 @@ export const createModel = (
       setExists: (exists) => {
         isExists = exists;
       },
+      syncReadableProperty,
     }),
     ...createLifecycleApi(config, attrs, getDb, {
       dirtyFields,
@@ -763,8 +805,18 @@ export const createModel = (
   } as IModel;
 
   Object.assign(modelApi, createModelRelationships(config));
+  Object.keys(attrs).forEach(syncReadableProperty);
 
   return modelApi;
+};
+
+const createPersistedModel = async (
+  config: ModelConfig,
+  attributes: Record<string, unknown> = {}
+): Promise<IModel> => {
+  const model = createModel(config, attributes);
+  await model.save();
+  return model;
 };
 
 /**
@@ -824,7 +876,7 @@ const bindUnboundMethods = <T extends UnboundModelMethods>(
 };
 
 const extendModel = <T extends BoundModelMethods>(model: IModel, methods: T): IModel & T => {
-  const extended = { ...model } as Record<string, unknown>;
+  const extended = Object.create(model as object) as Record<string, unknown>;
   for (const [name, method] of Object.entries(methods)) {
     extended[name] = method;
   }
@@ -832,7 +884,9 @@ const extendModel = <T extends BoundModelMethods>(model: IModel, methods: T): IM
 };
 
 export type DefinedModel<T extends BoundModelMethods> = {
-  create: (attributes?: Record<string, unknown> | undefined) => IModel & T;
+  create: (attributes?: Record<string, unknown> | undefined) => Promise<IModel & T>;
+  make: (attributes?: Record<string, unknown> | undefined) => IModel & T;
+  new: (attributes?: Record<string, unknown> | undefined) => IModel & T;
   hydrate: (attributes: Record<string, unknown>) => IModel & T;
   hydrateWithRelations(
     attributes: Record<string, unknown>,
@@ -1211,7 +1265,7 @@ const createQueryBuilderMethods = (
   hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
 ): Omit<
   DefinedModel<BoundModelMethods>,
-  'create' | 'hydrate' | 'hydrateWithRelations' | 'find' | 'all' | 'raw' | 'db'
+  'create' | 'make' | 'new' | 'hydrate' | 'hydrateWithRelations' | 'find' | 'all' | 'raw' | 'db'
 > => {
   const wrappedBuilder = (): IQueryBuilder => {
     const builder = createModelBuilder(cfg);
@@ -1271,10 +1325,21 @@ const createDefinedModelInternal = (
 ): DefinedModel<BoundModelMethods> => {
   const relationMapping = createRelationMapping(cfg, resolveMethods);
   const hydrateModel = createHydrator(cfg, attach);
+  const makeModel = (attributes: Record<string, unknown> = {}): IModel & BoundModelMethods =>
+    attach(createModel(cfg, attributes));
 
   return {
-    create: (attributes: Record<string, unknown> = {}): IModel & BoundModelMethods =>
-      attach(createModel(cfg, attributes)),
+    create: async (
+      attributes: Record<string, unknown> = {}
+    ): Promise<IModel & BoundModelMethods> => {
+      const model = makeModel(attributes);
+      await model.save();
+      return model;
+    },
+    make: (attributes: Record<string, unknown> = {}): IModel & BoundModelMethods =>
+      makeModel(attributes),
+    new: (attributes: Record<string, unknown> = {}): IModel & BoundModelMethods =>
+      makeModel(attributes),
     hydrate: (attributes: Record<string, unknown>): IModel & BoundModelMethods =>
       hydrateModel(attributes),
     find: async (id: unknown): Promise<(IModel & BoundModelMethods) | null> => {
@@ -1383,7 +1448,9 @@ const bulkInsert = async (
  * @see FRAMEWORK_REFACTOR_FUNCTION_PATTERN.md for Pattern 2 details
  */
 export const Model = Object.freeze({
-  create: createModel,
+  create: createPersistedModel,
+  make: createModel,
+  new: createModel,
   query,
   find,
   all,

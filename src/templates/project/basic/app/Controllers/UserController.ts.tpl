@@ -64,7 +64,7 @@ const userControllerMethods: IUserController = {
         res.status(422).json({ error: 'Name is required' });
         return;
       }
-      const user = User.create(body);
+      const user = await User.create(body);
       res.status(201).json({ message: 'User created', user });
     } catch (error) {
       Logger.error('Error creating user:', error);

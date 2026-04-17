@@ -5,6 +5,7 @@ import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _ignoreRoutes: string[] = [];
+let _ignorePaths: string[] = [];
 
 const emit = (
   ability: string,
@@ -13,7 +14,7 @@ const emit = (
   subject?: string
 ): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const tags: string[] = [ability, result];
   if (userId) tags.push(`Auth:${userId}`);
   const content: GateContent = {
@@ -42,9 +43,11 @@ export const GateWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze(
     if (config.watchers.gate === false) return () => undefined;
     _storage = storage;
     _ignoreRoutes = config.ignoreRoutes;
+    _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
       _ignoreRoutes = [];
+      _ignorePaths = [];
     };
   },
 });

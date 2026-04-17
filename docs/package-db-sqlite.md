@@ -212,12 +212,12 @@ const searchResults = await Model.raw(
 ## Transactions
 
 ```typescript
-import { Database } from '@zintrust/core';
+import { Database, QueryBuilder } from '@zintrust/core';
 
 // Simple transaction
 await Database.transaction(async (trx) => {
-  await User.create({ name: 'John' }, { transaction: trx });
-  await User.create({ name: 'Jane' }, { transaction: trx });
+  await QueryBuilder.create('users', trx).insert({ name: 'John' });
+  await QueryBuilder.create('users', trx).insert({ name: 'Jane' });
 });
 
 // Savepoints
@@ -225,7 +225,7 @@ await Database.transaction(async (trx) => {
   await trx.savepoint('user_created');
 
   try {
-    await User.create({ name: 'Bob' }, { transaction: trx });
+    await QueryBuilder.create('users', trx).insert({ name: 'Bob' });
     await trx.release('user_created');
   } catch (error) {
     await trx.rollbackToSavepoint('user_created');

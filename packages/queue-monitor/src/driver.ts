@@ -7,12 +7,24 @@ export type JobPayload<T = unknown> = T;
 
 export type JobCounts = Record<string, number>;
 
+export type RetrySnapshot = {
+  name?: string;
+  data: unknown;
+  opts?: JobsOptions;
+};
+
+export type RetryJobResult =
+  | { ok: true; status: 'retried' }
+  | { ok: true; status: 'requeued_from_snapshot'; newJobId?: string }
+  | { ok: false; status: 'missing' }
+  | { ok: false; status: 'not_retryable'; reason?: string };
+
 export type QueueDriver = {
   enqueue<T>(name: string, payload: T, options?: JobsOptions): Promise<string>;
   getJob(queueName: string, jobId: string): Promise<Job | undefined>;
   getJobCounts(queueName: string): Promise<JobCounts>;
   getRecentJobs(queueName: string, limit?: number): Promise<Job[]>;
-  retryJob(queueName: string, jobId: string): Promise<boolean>;
+  retryJob(queueName: string, jobId: string, snapshot?: RetrySnapshot): Promise<RetryJobResult>;
   getQueues(): Promise<string[]>;
   close(): Promise<void>;
 };
@@ -63,6 +75,7 @@ async function discoverQueuesFromRedis(
   return Array.from(found.values());
 }
 
+// eslint-disable-next-line max-lines-per-function
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
   const queues = new Map<string, Queue>();
   const redis = createRedisConnection(config, 3, { subsystem: 'queue-monitor' });
@@ -103,6 +116,27 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     return queue.getJobCounts();
   };
 
+  const requeueFromSnapshot = async (
+    queue: Queue,
+    snapshot: RetrySnapshot
+  ): Promise<RetryJobResult> => {
+    try {
+      const requeued = await queue.add(snapshot.name ?? 'default', snapshot.data, snapshot.opts);
+      return {
+        ok: true,
+        status: 'requeued_from_snapshot',
+        newJobId:
+          requeued.id === undefined || requeued.id === null ? undefined : String(requeued.id),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 'not_retryable',
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    }
+  };
+
   const getRecentJobs = async (queueName: string, limit = 100): Promise<Job[]> => {
     const queue = getQueue(queueName);
     const jobs = await queue.getJobs(
@@ -118,15 +152,28 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     return jobs;
   };
 
-  const retryJob = async (queueName: string, jobId: string): Promise<boolean> => {
+  const retryJob = async (
+    queueName: string,
+    jobId: string,
+    snapshot?: RetrySnapshot
+  ): Promise<RetryJobResult> => {
+    const queue = getQueue(queueName);
     const job = await getJob(queueName, jobId);
-    if (!job) return false;
+    if (!job) {
+      if (snapshot) return requeueFromSnapshot(queue, snapshot);
+
+      return { ok: false, status: 'missing' };
+    }
 
     try {
       await job.retry();
-      return true;
-    } catch {
-      return false;
+      return { ok: true, status: 'retried' };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 'not_retryable',
+        reason: error instanceof Error ? error.message : String(error),
+      };
     }
   };
 

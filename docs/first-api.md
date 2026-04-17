@@ -72,8 +72,7 @@ export const TaskController = {
   },
 
   async store(req: IRequest, res: IResponse): Promise<void> {
-    const task = Task.create(req.getBody() as Record<string, unknown>);
-    await task.save();
+    const task = await Task.create(req.getBody() as Record<string, unknown>);
     Controller.json(res, { data: task }, 201);
   },
 };

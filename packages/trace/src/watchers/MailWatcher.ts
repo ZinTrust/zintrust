@@ -10,6 +10,7 @@ import { RequestFilter } from '../utils/requestFilter';
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _redactionFields: string[] = [];
 let _ignoreRoutes: string[] = [];
+let _ignorePaths: string[] = [];
 
 const emit = (
   to: string,
@@ -19,7 +20,7 @@ const emit = (
   html?: string
 ): void => {
   if (!_storage) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes)) return;
+  if (RequestFilter.shouldIgnoreCurrentRequest(_ignoreRoutes, _ignorePaths)) return;
   const content: MailContent = {
     to,
     subject,
@@ -53,10 +54,12 @@ export const MailWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze(
     _storage = storage;
     _redactionFields = [...config.redaction.keys, ...config.redaction.body];
     _ignoreRoutes = config.ignoreRoutes;
+    _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
       _redactionFields = [];
       _ignoreRoutes = [];
+      _ignorePaths = [];
     };
   },
 });

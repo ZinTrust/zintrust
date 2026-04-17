@@ -137,7 +137,12 @@ function getPublishedWorkspaceDependencyVersion(packageName, fallbackVersion) {
     return fallbackVersion;
   }
 
-  return getPublishedNpmVersion(packageName) ?? fallbackVersion;
+  const publishedVersion = getPublishedNpmVersion(packageName);
+  if (typeof publishedVersion !== 'string' || publishedVersion.length === 0) {
+    return fallbackVersion;
+  }
+
+  return publishedVersion;
 }
 
 function getPublishedCoreVersion(coreName, coreVersion) {
@@ -228,11 +233,17 @@ async function syncPackageJson(pkgPath, coreName, coreVersion, publishedCoreVers
       pkg.peerDependencies = {};
     }
 
-    // Keep adapter packages installable against the currently published core line.
+    // Keep workspace peers aligned to the latest published version on npm
+    // so that CI `npm ci` does not fail due to missing target versions.
     pkg.peerDependencies[coreName] = normalizePeerRange(publishedCoreVersion, pkg.name);
 
-    // Keep workspace packages in exact lockstep with the core version.
-    if (typeof pkg.version === 'string' && pkg.version !== coreVersion) {
+    // Keep workspace packages on the active release line, but allow package-only
+    // patch releases to stay ahead of the root core version when needed.
+    if (
+      typeof pkg.version !== 'string' ||
+      pkg.version.length === 0 ||
+      compareVersions(coreVersion, pkg.version) > 0
+    ) {
       pkg.version = coreVersion;
     }
 
@@ -428,7 +439,7 @@ function collectDistLockIssues({
   }
 }
 
-function syncWorkspaceLockEntry(lockEntry, pkg, coreName, publishedCoreVersion) {
+function syncWorkspaceLockEntry(lockEntry, pkg, coreName, coreVersion) {
   let didChange = false;
 
   const keysToMirror = ['name', 'version'];
@@ -439,7 +450,7 @@ function syncWorkspaceLockEntry(lockEntry, pkg, coreName, publishedCoreVersion) 
     }
   }
 
-  const expectedPeerRange = normalizePeerRange(publishedCoreVersion, pkg.name);
+  const expectedPeerRange = normalizePeerRange(coreVersion, pkg.name);
   if (
     typeof pkg.version === 'string' &&
     lockEntry.peerDependencies?.[coreName] !== expectedPeerRange
@@ -458,6 +469,8 @@ function syncRootPackageLink(rootLock, rootPkg) {
   const lockKey = `node_modules/${rootPkg.name}`;
   const currentEntry = rootLock.packages[lockKey];
   const expectedEntry = {
+    name: rootPkg.name,
+    version: rootPkg.version,
     resolved: '.',
     link: true,
   };
@@ -476,7 +489,7 @@ function syncPackageLock(
   packageInfos,
   dependencyVersions,
   coreName,
-  publishedCoreVersion
+  coreVersion
 ) {
   let didChange = syncRootLockEntry(rootLock, rootPkg, dependencyVersions);
 
@@ -502,7 +515,7 @@ function syncPackageLock(
   for (const pkgInfo of packageInfos) {
     const lockKey = `packages/${pkgInfo.dirName}`;
     const lockEntry = rootLock.packages[lockKey] ?? (rootLock.packages[lockKey] = {});
-    if (syncWorkspaceLockEntry(lockEntry, pkgInfo, coreName, publishedCoreVersion)) {
+    if (syncWorkspaceLockEntry(lockEntry, pkgInfo, coreName, coreVersion)) {
       didChange = true;
     }
 
@@ -599,14 +612,7 @@ async function syncPackages(packageDirs, coreName, coreVersion, publishedCoreVer
   const rootLock = await readJsonIfExists(rootLockPath);
   if (
     rootLock !== undefined &&
-    syncPackageLock(
-      rootLock,
-      rootPkg,
-      packageInfos,
-      dependencyVersions,
-      coreName,
-      publishedCoreVersion
-    )
+    syncPackageLock(rootLock, rootPkg, packageInfos, dependencyVersions, coreName, coreVersion)
   ) {
     await writeJson(rootLockPath, rootLock);
     touched.add(path.relative(repoRoot, rootLockPath));
@@ -669,6 +675,8 @@ function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, depend
   if (
     rootPackageLink &&
     (rootPackageLink.link !== true ||
+      rootPackageLink.name !== rootPkg.name ||
+      rootPackageLink.version !== rootPkg.version ||
       !['', '.'].includes(
         typeof rootPackageLink.resolved === 'string' ? rootPackageLink.resolved : ''
       ))
@@ -676,7 +684,7 @@ function collectRootLockIssues({ issues, repoRootPath, rootPkg, rootLock, depend
     pushIssue(
       issues,
       relRootLockPath,
-      `lockfile node_modules entry for ${rootPkg.name} must be a link resolved to "" or "."`
+      `lockfile node_modules entry for ${rootPkg.name} must match the root package identity and be a link resolved to "" or "."`
     );
   }
 }
@@ -794,7 +802,7 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
     packageInfos.push({ dirName, name: pkg.name, version: pkg.version });
 
     const relPkgPath = path.relative(repoRoot, pkgPath);
-    const expectedPeerRange = normalizePeerRange(publishedCoreVersion, pkg.name);
+    const expectedPeerRange = normalizePeerRange(coreVersion, pkg.name);
     collectPackageManifestIssues({
       issues,
       relPkgPath,
@@ -879,7 +887,7 @@ async function main() {
   );
 
   process.stdout.write(
-    `Synced ${touched.length} package(s) to ${coreName}@${coreVersion} (internal dependency ranges pinned to published npm versions)\n` +
+    `Synced ${touched.length} package(s) to ${coreName}@${coreVersion} (workspace peers follow local core; published dependency ranges stay pinned to npm)\n` +
       touched.map((p) => `- ${p}`).join('\n') +
       (touched.length ? '\n' : '')
   );

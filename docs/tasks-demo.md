@@ -206,7 +206,7 @@ export async function login(email: string, password: string) {
   if (email.trim() === '') throw ErrorFactory.createValidationError('Email required');
 
   // Lookup in User model (auth DB)
-  const user = await User.query().where('email', email).limit(1).first();
+  const user = await User.query().where('email', email).first();
   if (!user) throw ErrorFactory.createAuthError('Invalid credentials');
 
   // Compare password (pseudo-code)
@@ -214,7 +214,7 @@ export async function login(email: string, password: string) {
 
   // Demo-only: try to read from 'login' DB
   // This proves 'login' DB is distinct from 'register' DB
-  const replicaUser = await User.db('login').query().where('email', email).limit(1).first();
+  const replicaUser = await User.db('login').query().where('email', email).first();
   // Logger.info('Replica user found:', replicaUser.length > 0);
 
   return { token: 'demo-token', user };

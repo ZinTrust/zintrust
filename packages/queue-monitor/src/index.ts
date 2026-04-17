@@ -1,6 +1,5 @@
 import {
   Env,
-  isArray,
   isNonEmptyString,
   Logger,
   queueConfig,
@@ -13,7 +12,7 @@ import {
 } from '@zintrust/core';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
-import { createBullMQDriver, type QueueDriver } from './driver';
+import { createBullMQDriver, type QueueDriver, type RetrySnapshot } from './driver';
 import { createMetrics, type Metrics } from './metrics';
 import { getRecentJobsForSelection, QueueMonitoringStream } from './QueueMonitoringService';
 
@@ -129,8 +128,10 @@ function normalizeQueueNames(queueNames: ReadonlyArray<unknown>): string[] {
   return Array.from(
     new Set(
       queueNames
-        .map((queueName) => queueName)
-        .filter(isNonEmptyString)
+        .filter(
+          (queueName): queueName is string =>
+            typeof queueName === 'string' && isNonEmptyString(queueName)
+        )
         .map((name) => name.trim())
     )
   )
@@ -148,7 +149,7 @@ async function resolveKnownQueues(
     return normalizeQueueNames(await knownQueues());
   }
 
-  if (isArray(knownQueues)) {
+  if (Array.isArray(knownQueues)) {
     return normalizeQueueNames(knownQueues);
   }
 
@@ -318,7 +319,8 @@ async function handleRetryEndpoint(
     status: (code: number) => { json: (data: unknown) => void };
     json: (data: unknown) => void;
   },
-  driver: QueueDriver
+  driver: QueueDriver,
+  metrics: Metrics
 ): Promise<void> {
   const queueName = extractQueueParam(req);
   const jobId =
@@ -329,12 +331,42 @@ async function handleRetryEndpoint(
     return;
   }
 
-  const success = await driver.retryJob(queueName, jobId);
-  if (success) {
-    res.json({ ok: true, message: `Job ${jobId} queued for retry` });
-  } else {
-    res.status(404).json({ error: 'Job not found or cannot be retried' });
+  const recentJobs = await getRecentJobsForSelection(queueName, metrics, driver);
+  const snapshotCandidate = recentJobs.find((job) => String(job.id) === jobId);
+  const retrySnapshot =
+    snapshotCandidate === undefined
+      ? undefined
+      : ({
+          name: snapshotCandidate.name,
+          data: snapshotCandidate.data,
+          opts: snapshotCandidate.opts,
+        } satisfies RetrySnapshot);
+
+  const result = await driver.retryJob(queueName, jobId, retrySnapshot);
+  if (result.ok) {
+    res.json({
+      ok: true,
+      status: result.status,
+      message:
+        result.status === 'requeued_from_snapshot'
+          ? `Job ${jobId} re-queued from monitor snapshot`
+          : `Job ${jobId} queued for retry`,
+      ...(result.status === 'requeued_from_snapshot' && result.newJobId
+        ? { newJobId: result.newJobId }
+        : {}),
+    });
+    return;
   }
+
+  if (result.status === 'missing') {
+    res.status(404).json({ error: `Job ${jobId} no longer exists`, status: result.status });
+    return;
+  }
+
+  res.status(409).json({
+    error: result.reason ?? `Job ${jobId} cannot be retried in its current state`,
+    status: result.status,
+  });
 }
 
 function buildSettings(config: QueueMonitorConfig): {
@@ -458,7 +490,7 @@ function registerApiRoutes(
   registerSnapshotApi(router, settings, routeOptions, getSnapshot);
   registerJobsApi(router, settings, routeOptions, metrics, driver);
   registerLocksApi(router, settings, routeOptions, getLocks);
-  registerRetryApi(router, settings, routeOptions, driver);
+  registerRetryApi(router, settings, routeOptions, driver, metrics);
   registerEventsApi(router, settings, routeOptions, getSnapshot, getLocks, metrics, driver);
 }
 
@@ -522,13 +554,14 @@ function registerRetryApi(
   router: IRouter,
   settings: { basePath: string },
   routeOptions: RouteOptions,
-  driver: QueueDriver
+  driver: QueueDriver,
+  metrics: Metrics
 ): void {
   Router.post(
     router,
     `${settings.basePath}/api/retry/:queue/:jobId`,
     async (req: IRequest, res: IResponse) => {
-      await handleRetryEndpoint(req as RequestWithParams, res, driver);
+      await handleRetryEndpoint(req as RequestWithParams, res, driver, metrics);
     },
     routeOptions
   );

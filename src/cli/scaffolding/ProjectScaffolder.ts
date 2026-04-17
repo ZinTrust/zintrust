@@ -75,6 +75,16 @@ const loadCoreVersion = (): string => {
   }
 };
 
+const loadGovernanceVersion = (): string => {
+  try {
+    const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
+    const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
+    return typeof packageJson.version === 'string' ? packageJson.version : '^0.4.0';
+  } catch {
+    return '^0.4.0';
+  }
+};
+
 const createDirectories = (projectPath: string, directories: string[]): number => {
   let count = 0;
   if (!fs.existsSync(projectPath)) {
@@ -617,7 +627,7 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
 
   state.variables = {
     coreVersion: loadCoreVersion(),
-    governanceVersion: toCompatibleGovernanceVersion(loadCoreVersion()),
+    governanceVersion: toCompatibleGovernanceVersion(loadGovernanceVersion()),
     projectName: options.name,
     projectSlug: options.name,
     author: options.author ?? 'Your Name',
