@@ -1,6 +1,5 @@
 import {
   Env,
-  isArray,
   isNonEmptyString,
   Logger,
   queueConfig,
@@ -129,8 +128,10 @@ function normalizeQueueNames(queueNames: ReadonlyArray<unknown>): string[] {
   return Array.from(
     new Set(
       queueNames
-        .map((queueName) => queueName)
-        .filter(isNonEmptyString)
+        .filter(
+          (queueName): queueName is string =>
+            typeof queueName === 'string' && isNonEmptyString(queueName)
+        )
         .map((name) => name.trim())
     )
   )
@@ -148,7 +149,7 @@ async function resolveKnownQueues(
     return normalizeQueueNames(await knownQueues());
   }
 
-  if (isArray(knownQueues)) {
+  if (Array.isArray(knownQueues)) {
     return normalizeQueueNames(knownQueues);
   }
 
@@ -329,12 +330,21 @@ async function handleRetryEndpoint(
     return;
   }
 
-  const success = await driver.retryJob(queueName, jobId);
-  if (success) {
-    res.json({ ok: true, message: `Job ${jobId} queued for retry` });
-  } else {
-    res.status(404).json({ error: 'Job not found or cannot be retried' });
+  const result = await driver.retryJob(queueName, jobId);
+  if (result.ok) {
+    res.json({ ok: true, status: result.status, message: `Job ${jobId} queued for retry` });
+    return;
   }
+
+  if (result.status === 'missing') {
+    res.status(404).json({ error: `Job ${jobId} no longer exists`, status: result.status });
+    return;
+  }
+
+  res.status(409).json({
+    error: result.reason ?? `Job ${jobId} cannot be retried in its current state`,
+    status: result.status,
+  });
 }
 
 function buildSettings(config: QueueMonitorConfig): {

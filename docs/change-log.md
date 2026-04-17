@@ -5,6 +5,12 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-04-17
+
+- Fixed stale Queue Monitor retry actions so retry requests now return distinct outcomes for missing jobs, non-retryable live jobs, and successfully re-queued jobs. The BullMQ driver now reports structured retry state, the retry API returns `404` when a historical row points at a job that no longer exists and `409` when BullMQ refuses retry because the job is in the wrong state, and the package tests lock in all three paths.
+- Extended the core ORM model surface so hydrated models expose accessor-backed attribute values on direct property reads in addition to `getAttribute(...)`. Accessor-backed properties now stay live after model extension and hydration, property writes still flow through mutators and casts, and raw `getAttributes()` output remains unchanged for compatibility.
+- Hardened the package release publish script so `--help` and `--version` now exit without attempting npm publishes, and package publish runs now recreate the temporary core shim before each package copy instead of assuming a prior package left that temp directory intact.
+
 ## 2026-04-13
 
 - Added first-class form and custom body serialization support to the shared `HttpClient`. `asForm()` now sends real `application/x-www-form-urlencoded` payloads for plain-object bodies, preserves `URLSearchParams` inputs without routing them through JSON first, and the request builder now supports raw body inputs such as `string`, `URLSearchParams`, `FormData`, and `DELETE` request bodies across the standard verbs. A new `asCustom(...)` mode lets applications provide their own serializer and content type for provider-specific request formats while keeping the shared fluent client and trace instrumentation path.

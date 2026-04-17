@@ -358,6 +358,11 @@ describe('Model', () => {
     const hydrated = Test.hydrate({ id: 1, secret: 'enc:plain' });
     expect(hydrated.getAttributes()['secret']).toBe('enc:plain');
     expect(hydrated.getAttribute('secret')).toBe('plain');
+    expect((hydrated as IModel & { secret: string }).secret).toBe('plain');
+
+    (hydrated as IModel & { secret: string }).secret = 'next';
+    expect(hydrated.getAttributes()['secret']).toBe('enc:next');
+    expect((hydrated as IModel & { secret: string }).secret).toBe('next');
   });
 
   it('hydrates first() and firstOrFail() results like get()', async (): Promise<void> => {
@@ -415,6 +420,7 @@ describe('Model', () => {
     expect(first).not.toBeNull();
     expect(first?.exists()).toBe(true);
     expect(first?.getAttribute('secret')).toBe('alpha');
+    expect((first as IModel & { secret: string }).secret).toBe('alpha');
     expect(first?.greet()).toBe('hi alpha');
 
     (
@@ -448,6 +454,7 @@ describe('Model', () => {
     >();
     expect(firstOrFail.exists()).toBe(true);
     expect(firstOrFail.getAttribute('secret')).toBe('beta');
+    expect((firstOrFail as IModel & { secret: string }).secret).toBe('beta');
     expect(firstOrFail.greet()).toBe('hi beta');
   });
 

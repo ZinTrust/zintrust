@@ -598,6 +598,7 @@ type AttributeApiContext = {
   getOriginal: () => Record<string, unknown>;
   exists: () => boolean;
   setExists: (exists: boolean) => void;
+  syncReadableProperty: (key: string) => void;
 };
 
 type LifecycleApiContext = {
@@ -631,6 +632,7 @@ const createAttributeApi = (
     fillAttributes(config, attrs, newAttrs);
     const original = context.getOriginal();
     for (const key of Object.keys(newAttrs)) {
+      context.syncReadableProperty(key);
       if (attrs[key] !== original[key]) {
         context.dirtyFields.add(key);
       }
@@ -642,6 +644,7 @@ const createAttributeApi = (
     const nextValue = mutator ? mutator(value, attrs) : value;
     const castedValue = castAttribute(config, key, nextValue);
     attrs[key] = castedValue;
+    context.syncReadableProperty(key);
 
     const original = context.getOriginal();
     if (original[key] === castedValue) {
@@ -659,6 +662,7 @@ const createAttributeApi = (
   getAttributes: (): Record<string, unknown> => ({ ...attrs }),
   setRelation: (name: string, value: unknown): void => {
     relations[name] = value;
+    context.syncReadableProperty(name);
   },
   getRelation: <T>(name: string): T | undefined => relations[name] as T,
   toJSON: (): Record<string, unknown> => createModelJSON(config, attrs),
@@ -713,6 +717,38 @@ const createLifecycleApi = (
   },
 });
 
+const defineReadableProperty = (
+  model: IModel,
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  relations: Record<string, unknown>,
+  key: string
+): void => {
+  if (key.length === 0 || key in model) {
+    return;
+  }
+
+  Object.defineProperty(model, key, {
+    configurable: true,
+    enumerable: true,
+    get: (): unknown => {
+      if (relations[key] !== undefined) {
+        return relations[key];
+      }
+
+      return applyAccessor(config, key, attrs);
+    },
+    set: (value: unknown): void => {
+      if (relations[key] !== undefined) {
+        relations[key] = value;
+        return;
+      }
+
+      model.setAttribute(key, value);
+    },
+  });
+};
+
 /**
  * Create a new model instance
  */
@@ -738,6 +774,11 @@ export const createModel = (
   original = { ...attrs };
 
   let modelApi = {} as IModel;
+  const syncReadableProperty = (key: string): void => {
+    if (key in attrs || key in relations) {
+      defineReadableProperty(modelApi, config, attrs, relations, key);
+    }
+  };
 
   modelApi = {
     ...createAttributeApi(config, attrs, relations, {
@@ -748,6 +789,7 @@ export const createModel = (
       setExists: (exists) => {
         isExists = exists;
       },
+      syncReadableProperty,
     }),
     ...createLifecycleApi(config, attrs, getDb, {
       dirtyFields,
@@ -763,6 +805,7 @@ export const createModel = (
   } as IModel;
 
   Object.assign(modelApi, createModelRelationships(config));
+  Object.keys(attrs).forEach(syncReadableProperty);
 
   return modelApi;
 };
@@ -833,7 +876,10 @@ const bindUnboundMethods = <T extends UnboundModelMethods>(
 };
 
 const extendModel = <T extends BoundModelMethods>(model: IModel, methods: T): IModel & T => {
-  const extended = { ...model } as Record<string, unknown>;
+  const extended = Object.create(
+    Object.getPrototypeOf(model),
+    Object.getOwnPropertyDescriptors(model)
+  ) as Record<string, unknown>;
   for (const [name, method] of Object.entries(methods)) {
     extended[name] = method;
   }

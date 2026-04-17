@@ -14,6 +14,8 @@ const continueOnError = cliArgs.includes('--continue-on-error');
 const noFail = cliArgs.includes('--no-fail');
 const onlyUnpublished = cliArgs.includes('--only-unpublished');
 const verifyCoreOnNpm = cliArgs.includes('--verify-core-on-npm');
+const showHelp = cliArgs.includes('--help') || cliArgs.includes('-h');
+const showVersion = cliArgs.includes('--version') || cliArgs.includes('-v');
 const isCi = process.env.CI === 'true' || process.env.CI === '1';
 
 function getArgValue(flag) {
@@ -98,7 +100,7 @@ function getLocalFileDependencyInstallTargets(pkgDir, pkg) {
     .map((spec) => path.resolve(pkgDir, spec.slice('file:'.length)));
 }
 
-async function buildLocalFileDependencies(pkgDir, pkg, buildStack = new Set()) {
+async function buildLocalFileDependencies(pkgDir, pkg, coreVersion, buildStack = new Set()) {
   const dependencyDirs = getLocalFileDependencyInstallTargets(pkgDir, pkg);
 
   for (const dependencyDir of dependencyDirs) {
@@ -113,9 +115,9 @@ async function buildLocalFileDependencies(pkgDir, pkg, buildStack = new Set()) {
     if (!dependencyPkg) continue;
 
     buildStack.add(dependencyDir);
-    await buildLocalFileDependencies(dependencyDir, dependencyPkg, buildStack);
+    await buildLocalFileDependencies(dependencyDir, dependencyPkg, coreVersion, buildStack);
     installBuildDependenciesIntoPackage(dependencyDir, dependencyPkg);
-    await installCoreShimIntoPackage(dependencyDir);
+    await installCoreShimIntoPackage(dependencyDir, coreVersion);
 
     if (dependencyPkg.scripts?.build) {
       buildPackage(dependencyDir);
@@ -127,7 +129,7 @@ async function buildLocalFileDependencies(pkgDir, pkg, buildStack = new Set()) {
 }
 
 function installBuildDependenciesIntoPackage(pkgDir, pkg) {
-  const installTargets = [shimDir, ...getLocalFileDependencyInstallTargets(pkgDir, pkg)];
+  const installTargets = getLocalFileDependencyInstallTargets(pkgDir, pkg);
 
   if (installTargets.length === 0) return;
 
@@ -148,11 +150,27 @@ function installBuildDependenciesIntoPackage(pkgDir, pkg) {
   );
 }
 
-async function installCoreShimIntoPackage(pkgDir) {
+async function installCoreShimIntoPackage(pkgDir, coreVersion) {
+  await createCoreShim(coreVersion);
   const targetDir = path.join(pkgDir, 'node_modules', '@zintrust', 'core');
   await fs.rm(targetDir, { recursive: true, force: true }).catch(() => {});
   await fs.mkdir(path.dirname(targetDir), { recursive: true });
   await fs.cp(shimDir, targetDir, { recursive: true });
+}
+
+function printHelp() {
+  process.stdout.write('Usage: node scripts/release/publish-packages.mjs [options]\n\n');
+  process.stdout.write('Options:\n');
+  process.stdout.write('  --only <dir[,dir...]>       Publish only specific package directories\n');
+  process.stdout.write('  --dry-run                   Build and pack without publishing to npm\n');
+  process.stdout.write('  --tag <tag>                 Publish with a custom npm dist-tag\n');
+  process.stdout.write('  --only-unpublished          Skip packages that already exist on npm\n');
+  process.stdout.write('  --verify-core-on-npm        Require the root core version to exist on npm first\n');
+  process.stdout.write('  --continue-on-error         Continue after a package publish failure\n');
+  process.stdout.write('  --no-fail                   Exit zero even when publish failures are reported\n');
+  process.stdout.write('  --report-file <path>        Write the publish report to a custom path\n');
+  process.stdout.write('  --help, -h                  Show this help text and exit\n');
+  process.stdout.write('  --version, -v               Print the root package version and exit\n');
 }
 
 function postProcessBuiltPackage(pkgDir) {
@@ -577,9 +595,9 @@ async function processPackageDir({ dirName, coreVersion, failures, successes, ch
     publishPkg = transformPackageForPublish(pkg, coreVersion);
     publishPkgText = JSON.stringify(publishPkg, null, 2);
 
-    await buildLocalFileDependencies(pkgDir, pkg);
+    await buildLocalFileDependencies(pkgDir, pkg, coreVersion);
     installBuildDependenciesIntoPackage(pkgDir, pkg);
-    await installCoreShimIntoPackage(pkgDir);
+    await installCoreShimIntoPackage(pkgDir, coreVersion);
     buildPackage(pkgDir);
 
     // d1-migrator builds against local file: adapters, then publishes with semver deps.
@@ -1254,10 +1272,20 @@ export const SigningService = {
 }
 
 async function main() {
-  removeDevRoutesForCiReleaseBuilds();
-
   const rootPkg = JSON.parse(await fs.readFile(path.join(repoRoot, 'package.json'), 'utf8'));
   const version = rootPkg.version;
+
+  if (showVersion) {
+    process.stdout.write(`${version}\n`);
+    return;
+  }
+
+  if (showHelp) {
+    printHelp();
+    return;
+  }
+
+  removeDevRoutesForCiReleaseBuilds();
 
   if (verifyCoreOnNpm || onlyUnpublished) {
     verifyCorePublishedOrThrow(version);

@@ -51,7 +51,7 @@ describe('QueueMonitoringService', () => {
         paused: 0,
       })),
       getRecentJobs: vi.fn(async () => []),
-      retryJob: vi.fn(async () => true),
+      retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       getQueues: vi.fn(async () => ['alpha', 'beta']),
       close: vi.fn(async () => undefined),
     };
@@ -108,7 +108,7 @@ describe('QueueMonitoringService', () => {
         paused: 0,
       })),
       getRecentJobs: driverRecentJobs,
-      retryJob: vi.fn(async () => true),
+      retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       getQueues: vi.fn(async () => ['smartq']),
       close: vi.fn(async () => undefined),
     };
@@ -154,7 +154,7 @@ describe('QueueMonitoringService', () => {
         paused: 0,
       })),
       getRecentJobs: vi.fn(async () => []),
-      retryJob: vi.fn(async () => true),
+      retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       getQueues: vi.fn(async () => ['alpha']),
       close: vi.fn(async () => undefined),
     };
