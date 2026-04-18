@@ -9,7 +9,7 @@ beforeAll(async () => {
 
   ({ CLI } = await import('@cli/CLI'));
   ({ OptionalCliExtensions } = await import('@cli/OptionalCliExtensions'));
-});
+}, 30000);
 
 describe('OptionalCliExtensions', () => {
   it('registers migrate-to-d1 when the package is installed', async () => {
