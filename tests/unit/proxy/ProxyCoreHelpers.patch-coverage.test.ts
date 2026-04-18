@@ -51,6 +51,21 @@ const createProxyCoreEnvModule = (): { Env: Record<string, unknown> } => ({
   },
 });
 
+const createProxyCoreEnvModuleWithDebug = (envKey: string, envValue: string): {
+  Env: Record<string, unknown>;
+} => ({
+  Env: {
+    HOST: '127.0.0.1',
+    PORT: 7772,
+    MAX_BODY_SIZE: 12345,
+    APP_NAME: 'ZinTrust',
+    APP_KEY: 'app-secret',
+    get: vi.fn((key: string, fallback?: string) => (key === envKey ? envValue : (fallback ?? ''))),
+    getInt: vi.fn(readEnvIntFallback),
+    getBool: vi.fn(readEnvBoolFallback),
+  },
+});
+
 const createLoggerModule = (
   debug: unknown,
   warn: unknown
@@ -244,20 +259,7 @@ describe('Proxy signing/config helpers patch coverage', () => {
     const gatedDebug = vi.fn();
     const gatedWarn = vi.fn();
 
-    vi.doMock('@config/env', () => ({
-      Env: {
-        HOST: '127.0.0.1',
-        PORT: 7772,
-        MAX_BODY_SIZE: 12345,
-        APP_NAME: 'ZinTrust',
-        APP_KEY: 'app-secret',
-        get: vi.fn((key: string, fallback?: string) =>
-          key === 'POSTGRES_PROXY_DEBUG' ? 'yes' : (fallback ?? '')
-        ),
-        getInt: vi.fn(readEnvIntFallback),
-        getBool: vi.fn(readEnvBoolFallback),
-      },
-    }));
+    vi.doMock('@config/env', () => createProxyCoreEnvModuleWithDebug('POSTGRES_PROXY_DEBUG', 'yes'));
     vi.doMock('@config/logger', () => createLoggerModule(gatedDebug, gatedWarn));
     vi.doMock('@proxy/ProxySigningConfigResolver', createSigningConfigResolverModule);
     vi.doMock('@proxy/ProxySigningRequest', createProxySigningRequestSuccessModule);
