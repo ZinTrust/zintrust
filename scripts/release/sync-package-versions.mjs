@@ -125,7 +125,10 @@ function getPublishedNpmVersion(packageName) {
       resolvedVersion = publishedVersion;
     }
   } catch {
-    resolvedVersion = undefined;
+    // If fetching the version from npm fails (e.g. package not published, or network issues),
+    // use '*' instead so that CI doesn't hard-fail trying to install a non-existent explicit version
+    // while keeping local workspace linkability intact for tests.
+    resolvedVersion = '*';
   }
 
   npmVersionCache.set(packageName, resolvedVersion);
@@ -319,7 +322,12 @@ function syncPublishedZintrustDependencySection(deps, dependencyVersions) {
 }
 
 function syncPublishedZintrustDependencies(pkg, dependencyVersions) {
-  const dependencySections = ['dependencies', 'devDependencies', 'optionalDependencies'];
+  const dependencySections = [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ];
 
   return dependencySections.some((section) =>
     syncPublishedZintrustDependencySection(pkg[section], dependencyVersions)
