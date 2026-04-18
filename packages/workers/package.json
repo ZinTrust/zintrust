@@ -40,9 +40,9 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "0.7.0",
-    "@zintrust/queue-monitor": "0.7.0",
-    "@zintrust/queue-redis": "0.7.0"
+    "@zintrust/core": "*",
+    "@zintrust/queue-monitor": "*",
+    "@zintrust/queue-redis": "*"
   },
   "peerDependenciesMeta": {
     "@zintrust/queue-monitor": {

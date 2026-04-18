@@ -64,13 +64,7 @@ function createSameMinorRange(version) {
 }
 
 function normalizePeerRange(version, packageName) {
-  // Workers is a transitive runtime dependency of @zintrust/core, so its core peer
-  // must stay installable across the published patch line while core depends on it.
-  if (packageName === '@zintrust/workers') {
-    return createSameMinorRange(version);
-  }
-
-  return `^${version}`;
+  return '*';
 }
 
 function normalizeWorkspaceDependencyRange(version) {
@@ -326,7 +320,6 @@ function syncPublishedZintrustDependencies(pkg, dependencyVersions) {
     'dependencies',
     'devDependencies',
     'optionalDependencies',
-    'peerDependencies',
   ];
 
   return dependencySections.some((section) =>
@@ -546,7 +539,6 @@ function syncRootWorkspaceDependencies(rootPkg, dependencyVersions) {
     'dependencies',
     'devDependencies',
     'optionalDependencies',
-    'peerDependencies',
   ];
 
   for (const section of dependencySections) {
@@ -770,7 +762,6 @@ function collectRootWorkspaceDependencyIssues({ issues, rootPkg, dependencyVersi
     'dependencies',
     'devDependencies',
     'optionalDependencies',
-    'peerDependencies',
   ];
 
   for (const section of dependencySections) {
