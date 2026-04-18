@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-sqs",
-  "version": "1.0.4",
+  "version": "0.7.0",
   "description": "Amazon SQS queue driver for ZinTrust.",
   "private": false,
   "type": "module",
@@ -30,7 +30,7 @@
     "flatted": "^3.4.2"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.7.0"
+    "@zintrust/core": "0.7.0"
   },
   "publishConfig": {
     "access": "public"
