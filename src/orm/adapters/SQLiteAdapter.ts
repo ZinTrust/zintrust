@@ -207,7 +207,7 @@ async function rawQuerySQLite<T>(
   const currentDb = requireDb(state.db);
 
   if (!isTraceStorageQuery(sql)) {
-    Logger.warn(`Raw SQL Query executed: ${sql}`);
+    Logger.warn(`Raw SQL Query executed: ${sql}`, Logger.withTraceSkipContext({ sql }));
   }
 
   try {

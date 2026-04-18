@@ -270,7 +270,7 @@ async function rawQuery<T>(state: AdapterState, sql: string, parameters?: unknow
   const pool = ensurePool(state);
 
   try {
-    Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+    Logger.warn(`Raw SQL Query executed: ${sql}`, Logger.withTraceSkipContext({ sql, parameters }));
     const [rows] = await pool.execute(sql, parameters ?? []);
     if (Array.isArray(rows)) return rows as T[];
     return [] as T[];

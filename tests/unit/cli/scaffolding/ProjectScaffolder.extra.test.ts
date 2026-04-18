@@ -133,6 +133,7 @@ describe('ProjectScaffolder extra tests', () => {
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
     expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
@@ -174,6 +175,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
@@ -210,6 +212,7 @@ describe('ProjectScaffolder extra tests', () => {
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
     expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');

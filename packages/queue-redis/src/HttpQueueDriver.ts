@@ -325,9 +325,11 @@ export const HttpQueueDriver = Object.freeze({
       );
     } catch (error) {
       Logger.warn('HTTP queue enqueue failed; storing tracker fallback in memory', {
-        queue,
-        fallbackJobId,
-        error: error instanceof Error ? error.message : String(error),
+        ...Logger.withTraceSkipContext({
+          queue,
+          fallbackJobId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
       });
 
       await markPendingRecoveryFallback({
@@ -338,8 +340,10 @@ export const HttpQueueDriver = Object.freeze({
       });
 
       Logger.warn('Job marked pending recovery in tracker', {
-        queue,
-        jobId: fallbackJobId,
+        ...Logger.withTraceSkipContext({
+          queue,
+          jobId: fallbackJobId,
+        }),
       });
 
       return fallbackJobId;

@@ -5,6 +5,8 @@ const addSink = vi.fn();
 vi.mock('@zintrust/core', () => ({
   Logger: {
     addSink,
+    shouldSkipTraceLogContext: (context?: Record<string, unknown>) =>
+      context?.['__zintrustSkipTraceLog'] === true,
   },
 }));
 
@@ -84,6 +86,32 @@ describe('LogWatcher', () => {
         }),
       })
     );
+  });
+
+  it('skips logs marked with the trace-skip metadata contract', async () => {
+    vi.resetModules();
+
+    let sink:
+      | ((level: string, message: string, context?: Record<string, unknown>) => void)
+      | undefined;
+    addSink.mockImplementation((callback) => {
+      sink = callback;
+      return () => undefined;
+    });
+
+    const { LogWatcher } = await import('../../src/watchers/LogWatcher');
+    const storage = createStorage();
+    const config = { watchers: { log: true }, logMinLevel: 'info', ignoreRoutes: [] } as any;
+
+    LogWatcher.register({ storage, config } as any);
+
+    sink?.('warn', 'temporary infrastructure diagnostic', {
+      __zintrustSkipTraceLog: true,
+      subsystem: 'proxy',
+    });
+    await flushAsync();
+
+    expect(storage.writeEntry).not.toHaveBeenCalled();
   });
 
   it('skips trace storage query execution logs to avoid recursive trace writes', async () => {

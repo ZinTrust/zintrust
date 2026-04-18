@@ -77,6 +77,7 @@ describe('TraceWriteDiagnostics', () => {
 
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith('[trace] Trace storage write degraded', {
+      __zintrustSkipTraceLog: true,
       connectionName: 'mysql-trace',
       error: 'MySQL proxy error (MYSQL_ERROR: Access denied for user trace_writer)',
       errorDetails: {
@@ -107,6 +108,7 @@ describe('TraceWriteDiagnostics', () => {
 
     expect(logger.warn).toHaveBeenCalledTimes(2);
     expect(logger.warn).toHaveBeenLastCalledWith('[trace] Trace storage write degraded', {
+      __zintrustSkipTraceLog: true,
       connectionName: 'mysql-trace',
       error: 'MySQL proxy error (MYSQL_ERROR: Access denied for user trace_writer)',
       errorDetails: {

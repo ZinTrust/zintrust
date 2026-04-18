@@ -838,6 +838,19 @@ const createLoggerScope = (scope: string): ILogger => {
  */
 export type LogSink = (level: LogLevel, message: string, context?: Record<string, unknown>) => void;
 
+const TRACE_SKIP_LOG_CONTEXT_KEY = '__zintrustSkipTraceLog' as const;
+
+const withTraceSkipContext = (context?: Record<string, unknown>): Record<string, unknown> => {
+  return {
+    ...(context ?? {}),
+    [TRACE_SKIP_LOG_CONTEXT_KEY]: true,
+  };
+};
+
+const shouldSkipTraceLogContext = (context?: Record<string, unknown>): boolean => {
+  return context?.[TRACE_SKIP_LOG_CONTEXT_KEY] === true;
+};
+
 const loggerSinks: LogSink[] = [];
 
 const dispatchToSinks = (level: LogLevel, message: string, data?: unknown): void => {
@@ -893,6 +906,8 @@ export const Logger = Object.freeze({
   cleanLogsOnce,
   scope: createLoggerScope,
   addSink,
+  withTraceSkipContext,
+  shouldSkipTraceLogContext,
 });
 
 export default Logger;

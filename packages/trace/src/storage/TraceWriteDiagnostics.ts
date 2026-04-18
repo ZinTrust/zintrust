@@ -101,6 +101,24 @@ const withOptionalDetail = (
   return { ...context, errorDetails };
 };
 
+const TRACE_SKIP_LOG_CONTEXT_KEY = '__zintrustSkipTraceLog';
+
+const withTraceSkipContext = (
+  logger: TraceLogger | undefined,
+  context: Record<string, unknown>
+): Record<string, unknown> => {
+  const loggerWithTraceSkip = logger as TraceLogger & {
+    withTraceSkipContext?: (ctx?: Record<string, unknown>) => Record<string, unknown>;
+  };
+
+  return (
+    loggerWithTraceSkip.withTraceSkipContext?.(context) ?? {
+      ...context,
+      [TRACE_SKIP_LOG_CONTEXT_KEY]: true,
+    }
+  );
+};
+
 const getErrorMessage = (error: unknown): string => {
   let baseMessage = '';
   if (error instanceof Error && error.message.trim() !== '') {
@@ -163,16 +181,19 @@ const reportFailure = (
   diagnosticsState.lastLoggedAtByFingerprint.set(fingerprint, now);
   logger.warn(
     '[trace] Trace storage write degraded',
-    withOptionalDetail(
-      {
-        connectionName: context.connectionName,
-        error: errorMessage,
-        lastFailureAt: now,
-        operation: context.operation,
-        totalFailures: diagnosticsState.totalFailures,
-        watcherType: context.watcherType ?? null,
-      },
-      errorDetails
+    withTraceSkipContext(
+      logger,
+      withOptionalDetail(
+        {
+          connectionName: context.connectionName,
+          error: errorMessage,
+          lastFailureAt: now,
+          operation: context.operation,
+          totalFailures: diagnosticsState.totalFailures,
+          watcherType: context.watcherType ?? null,
+        },
+        errorDetails
+      )
     )
   );
 };

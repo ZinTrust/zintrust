@@ -66,23 +66,27 @@ export const verifyRequestSignature = async (
   );
 
   Logger.debug(`[${serviceName}] Verifying request signature`, {
-    path: req.url ?? '',
-    method: req.method ?? 'POST',
-    requireSigning: config.signing.require,
-    hasAnySigningHeader,
-    configuredKeyId: config.signing.keyId,
-    hasConfiguredSecret: config.signing.secret.trim() !== '',
-    bodyBytes: body.length,
+    ...Logger.withTraceSkipContext({
+      path: req.url ?? '',
+      method: req.method ?? 'POST',
+      requireSigning: config.signing.require,
+      hasAnySigningHeader,
+      configuredKeyId: config.signing.keyId,
+      hasConfiguredSecret: config.signing.secret.trim() !== '',
+      bodyBytes: body.length,
+    }),
   });
 
   const verified = await verifyProxySignatureIfNeeded(req, body, config.signing);
   if (!verified.ok) {
     const error = verified.error ?? { status: 401, message: 'Unauthorized' };
     Logger.warn(`[${serviceName}] Signature verification failed`, {
-      path: req.url ?? '',
-      method: req.method ?? 'POST',
-      status: error.status,
-      message: error.message,
+      ...Logger.withTraceSkipContext({
+        path: req.url ?? '',
+        method: req.method ?? 'POST',
+        status: error.status,
+        message: error.message,
+      }),
     });
     return { ok: false, error };
   }

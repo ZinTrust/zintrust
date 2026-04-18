@@ -168,8 +168,6 @@ const createRemoteSettings = (settings: KvRemoteSettings): RemoteSignedJsonSetti
     forbidden: 'KV remote proxy forbidden',
     rateLimited: 'KV remote proxy rate limited',
     rejected: 'KV remote proxy rejected request',
-    error: 'KV remote proxy error',
-    timedOut: 'KV remote proxy request timed out',
   },
 });
 
@@ -307,6 +305,31 @@ const createCloudflareKvApiClient = (
   return { getJson, putJson, deleteKey };
 };
 
+const logKvRemoteProxyFallback = (operation: 'GET' | 'PUT' | 'DELETE', error: unknown): void => {
+  Logger.warn(
+    `KV remote proxy ${operation} failed; falling back to Cloudflare KV API`,
+    Logger.withTraceSkipContext({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  );
+};
+
+const clearKvRemoteDriver = async (): Promise<void> => {
+  Logger.warn('KV remote clear() is not implemented.');
+  await Promise.resolve();
+};
+
+const createKvRemoteHas = (
+  getJson: <T>(key: string) => Promise<T | null>
+): CacheDriver['has'] => {
+  return async function has(this: CacheDriver, key: string): Promise<boolean> {
+    if (!hasCloudflareApiCreds()) return (await this.get(key)) !== null;
+    const settings = getSettings();
+    if (!hasProxySigningCreds(settings)) return (await getJson<unknown>(key)) !== null;
+    return (await this.get(key)) !== null;
+  };
+};
+
 const createKvRemoteDriver = (): CacheDriver => {
   const resolveNamespaceId = createCloudflareNamespaceIdResolver();
   const cf = createCloudflareKvApiClient(resolveNamespaceId);
@@ -326,9 +349,7 @@ const createKvRemoteDriver = (): CacheDriver => {
         return (out.value as T | null) ?? null;
       } catch (error) {
         if (!hasCloudflareApiCreds()) throw error;
-        Logger.warn('KV remote proxy GET failed; falling back to Cloudflare KV API', {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        logKvRemoteProxyFallback('GET', error);
         return cf.getJson<T>(key);
       }
     },
@@ -350,9 +371,7 @@ const createKvRemoteDriver = (): CacheDriver => {
         });
       } catch (error) {
         if (!hasCloudflareApiCreds()) throw error;
-        Logger.warn('KV remote proxy PUT failed; falling back to Cloudflare KV API', {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        logKvRemoteProxyFallback('PUT', error);
         await cf.putJson(key, value, ttl);
       }
     },
@@ -372,24 +391,13 @@ const createKvRemoteDriver = (): CacheDriver => {
         });
       } catch (error) {
         if (!hasCloudflareApiCreds()) throw error;
-        Logger.warn('KV remote proxy DELETE failed; falling back to Cloudflare KV API', {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        logKvRemoteProxyFallback('DELETE', error);
         await cf.deleteKey(key);
       }
     },
 
-    async clear(): Promise<void> {
-      Logger.warn('KV remote clear() is not implemented.');
-      await Promise.resolve();
-    },
-
-    async has(key: string): Promise<boolean> {
-      if (!hasCloudflareApiCreds()) return (await this.get(key)) !== null;
-      const settings = getSettings();
-      if (!hasProxySigningCreds(settings)) return (await cf.getJson<unknown>(key)) !== null;
-      return (await this.get(key)) !== null;
-    },
+    clear: clearKvRemoteDriver,
+    has: createKvRemoteHas(cf.getJson),
   };
 };
 
