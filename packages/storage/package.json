@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/storage",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Storage abstraction and upload utilities for ZinTrust.",
   "private": false,
   "type": "module",
