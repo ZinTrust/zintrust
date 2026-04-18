@@ -86,7 +86,7 @@ describe('ProjectScaffolder extra tests', () => {
   });
 
   it('prefers the latest published governance version in scaffolded package.json', async () => {
-    const publishedGovernanceVersion = '0.6.0';
+    const publishedGovernanceVersion = '0.7.0';
     const publishedCoreVersion = '0.7.0';
     const projectPath = path.join(tmpRoot, `published-governance-${Date.now()}`);
 
@@ -132,14 +132,14 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.6.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
     vi.resetModules();
   });
 
-  it('falls back to ^0.6.0 when npm lookup fails and local governance version is missing', async () => {
+  it('falls back to ^0.7.0 when npm lookup fails and local governance version is missing', async () => {
     const projectPath = path.join(tmpRoot, `missing-governance-version-${Date.now()}`);
     vi.resetModules();
     mockChildProcessExecFileSync((command, args, options) => {
@@ -173,7 +173,7 @@ describe('ProjectScaffolder extra tests', () => {
       devDependencies?: Record<string, string>;
     };
 
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.6.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
@@ -270,7 +270,7 @@ describe('ProjectScaffolder extra tests', () => {
     vi.resetModules();
   });
 
-  it('falls back to ^0.6.0 when npm lookup fails and local governance package cannot be read', async () => {
+  it('falls back to ^0.7.0 when npm lookup fails and local governance package cannot be read', async () => {
     const projectPath = path.join(tmpRoot, `unreadable-governance-package-${Date.now()}`);
     vi.resetModules();
     mockChildProcessExecFileSync((command, args, options) => {
@@ -304,7 +304,7 @@ describe('ProjectScaffolder extra tests', () => {
       devDependencies?: Record<string, string>;
     };
 
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.6.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
