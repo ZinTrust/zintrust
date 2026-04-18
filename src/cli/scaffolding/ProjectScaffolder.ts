@@ -69,7 +69,9 @@ interface ScaffolderState {
   templateName: string;
 }
 
-const readBundledGovernancePackage = (): { version?: unknown; peerDependencies?: unknown } | undefined => {
+const readBundledGovernancePackage = ():
+  | { version?: unknown; peerDependencies?: unknown }
+  | undefined => {
   try {
     const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
     return JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as {
@@ -82,6 +84,8 @@ const readBundledGovernancePackage = (): { version?: unknown; peerDependencies?:
 };
 
 const SAFE_PATH = '/usr/local/bin:/usr/bin:/bin';
+const NPM_VIEW_TIMEOUT_MS = 1500;
+const publishedVersionCache = new Map<string, string | undefined>();
 
 const createSafeNpmEnv = (): NodeJS.ProcessEnv => ({
   ...process.env,
@@ -90,6 +94,10 @@ const createSafeNpmEnv = (): NodeJS.ProcessEnv => ({
 });
 
 const loadPublishedNpmVersion = (packageName: string): string | undefined => {
+  if (publishedVersionCache.has(packageName)) {
+    return publishedVersionCache.get(packageName);
+  }
+
   try {
     const raw = execFileSync(
       'npm',
@@ -98,11 +106,15 @@ const loadPublishedNpmVersion = (packageName: string): string | undefined => {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore'],
         env: createSafeNpmEnv(),
+        timeout: NPM_VIEW_TIMEOUT_MS,
       }
     ).trim();
     const resolved = JSON.parse(raw) as unknown;
-    return typeof resolved === 'string' && resolved.length > 0 ? resolved : undefined;
+    const version = typeof resolved === 'string' && resolved.length > 0 ? resolved : undefined;
+    publishedVersionCache.set(packageName, version);
+    return version;
   } catch {
+    publishedVersionCache.set(packageName, undefined);
     return undefined;
   }
 };
