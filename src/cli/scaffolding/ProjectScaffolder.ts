@@ -5,7 +5,10 @@
 
 import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { EnvData } from '@cli/scaffolding/env';
-import { toCompatibleGovernanceVersion } from '@cli/scaffolding/ScaffoldingVersionUtils';
+import {
+  extractMajorMinorVersion,
+  toCompatibleGovernanceVersion,
+} from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { randomBytes } from '@node-singletons/crypto';
@@ -66,13 +69,15 @@ interface ScaffolderState {
   templateName: string;
 }
 
-const loadCoreVersion = (): string => {
+const readBundledGovernancePackage = (): { version?: unknown; peerDependencies?: unknown } | undefined => {
   try {
-    const packageUrl = new URL('../../../package.json', import.meta.url);
-    const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
-    return typeof packageJson.version === 'string' ? packageJson.version : '0.0.0';
+    const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
+    return JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as {
+      version?: unknown;
+      peerDependencies?: unknown;
+    };
   } catch {
-    return '0.0.0';
+    return undefined;
   }
 };
 
@@ -102,19 +107,53 @@ const loadPublishedNpmVersion = (packageName: string): string | undefined => {
   }
 };
 
+const loadBundledPublishedCoreVersion = (): string | undefined => {
+  const bundledGovernancePackage = readBundledGovernancePackage();
+  const peerDependencies = bundledGovernancePackage?.peerDependencies;
+
+  if (typeof peerDependencies !== 'object' || peerDependencies === null) {
+    return undefined;
+  }
+
+  const corePeerRange = (peerDependencies as Record<string, unknown>)['@zintrust/core'];
+  if (typeof corePeerRange !== 'string' || corePeerRange.trim() === '') {
+    return undefined;
+  }
+
+  const publishedLineVersion = extractMajorMinorVersion(corePeerRange);
+  if (publishedLineVersion === undefined) {
+    return '0.6.0';
+  }
+
+  return `${publishedLineVersion.major}.${publishedLineVersion.minor}.0`;
+};
+
+const loadScaffoldCoreVersion = (): string => {
+  const publishedVersion = loadPublishedNpmVersion('@zintrust/core');
+  if (typeof publishedVersion === 'string') {
+    return publishedVersion;
+  }
+
+  const bundledPublishedCoreVersion = loadBundledPublishedCoreVersion();
+  if (typeof bundledPublishedCoreVersion === 'string') {
+    return bundledPublishedCoreVersion;
+  }
+
+  return '0.6.0';
+};
+
 const loadGovernanceVersion = (): string => {
   const publishedVersion = loadPublishedNpmVersion('@zintrust/governance');
   if (typeof publishedVersion === 'string') {
     return publishedVersion;
   }
 
-  try {
-    const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
-    const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
-    return typeof packageJson.version === 'string' ? packageJson.version : '^0.6.0';
-  } catch {
-    return '^0.6.0';
+  const bundledPublishedCoreVersion = loadBundledPublishedCoreVersion();
+  if (typeof bundledPublishedCoreVersion === 'string') {
+    return bundledPublishedCoreVersion;
   }
+
+  return '0.6.0';
 };
 
 const createDirectories = (projectPath: string, directories: string[]): number => {
@@ -658,7 +697,7 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     .slice(0, 14);
 
   state.variables = {
-    coreVersion: loadCoreVersion(),
+    coreVersion: loadScaffoldCoreVersion(),
     governanceVersion: toCompatibleGovernanceVersion(loadGovernanceVersion()),
     projectName: options.name,
     projectSlug: options.name,
