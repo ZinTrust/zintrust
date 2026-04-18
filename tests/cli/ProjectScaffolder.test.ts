@@ -584,12 +584,12 @@ describe('ProjectScaffolder Overwrite', () => {
 
   it('should fail if directory exists without overwrite', async () => {
     const projectPath = path.join(testDir, 'existing');
-    FileGenerator.createDirectory(projectPath);
+    fs.mkdirSync(projectPath, { recursive: true });
+    fs.writeFileSync(path.join(projectPath, 'sentinel.txt'), 'existing');
 
     const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
-      name: 'existing',
-      overwrite: false,
+      name: path.basename(projectPath),
     };
 
     const result = await scaffolder.scaffold(options);

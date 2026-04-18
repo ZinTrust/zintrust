@@ -9,9 +9,34 @@ import fs, { fsPromises } from '@node-singletons/fs';
 import os from '@node-singletons/os';
 import path from '@node-singletons/path';
 import { execFileSync } from 'node:child_process';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
 const tmpRoot = path.join(os.tmpdir(), `zintrust-scaffold-${Date.now()}`);
+
+const mockChildProcessExecFileSync = (
+  implementation: MockedFunction<typeof execFileSync>
+): void => {
+  vi.doMock('node:child_process', () => {
+    return { execFileSync: implementation };
+  });
+};
+
+const mockGovernancePackageRead = (
+  implementation: typeof fs.readFileSync
+): void => {
+  vi.doMock('@node-singletons/fs', async () => {
+    const actual = await vi.importActual<typeof import('@node-singletons/fs')>('@node-singletons/fs');
+
+    return {
+      ...actual,
+      readFileSync: implementation,
+      default: {
+        ...actual.default,
+        readFileSync: implementation,
+      },
+    };
+  });
+};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -61,7 +86,8 @@ describe('ProjectScaffolder extra tests', () => {
     const publishedGovernanceVersion = '0.7.0';
     const projectPath = path.join(tmpRoot, `published-governance-${Date.now()}`);
 
-    vi.spyOn({ execFileSync }, 'execFileSync').mockImplementation((command, args, options) => {
+    vi.resetModules();
+    mockChildProcessExecFileSync(vi.fn((command, args, options) => {
       if (
         command === 'npm' &&
         Array.isArray(args) &&
@@ -73,9 +99,13 @@ describe('ProjectScaffolder extra tests', () => {
       }
 
       return execFileSync(command, args as string[], options as Parameters<typeof execFileSync>[2]);
-    });
+    }));
 
-    const result = await createProjectScaffolder(tmpRoot).scaffold({
+    const { createProjectScaffolder: createMockedProjectScaffolder } = await import(
+      '@cli/scaffolding/ProjectScaffolder'
+    );
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
       name: path.basename(projectPath),
     });
 
@@ -90,6 +120,94 @@ describe('ProjectScaffolder extra tests', () => {
     expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+  });
+
+  it('falls back to ^0.6.0 when npm lookup fails and local governance version is missing', async () => {
+    const projectPath = path.join(tmpRoot, `missing-governance-version-${Date.now()}`);
+    vi.resetModules();
+    mockChildProcessExecFileSync(vi.fn((command, args, options) => {
+      if (command === 'npm') {
+        throw new Error('npm lookup failed');
+      }
+
+      return execFileSync(command, args as string[], options as Parameters<typeof execFileSync>[2]);
+    }));
+
+    mockGovernancePackageRead(((filePath, options) => {
+      if (String(filePath).endsWith('/packages/governance/package.json')) {
+        return '{}';
+      }
+
+      return fs.readFileSync(filePath, options as never);
+    }) as typeof fs.readFileSync);
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } = await import(
+      '@cli/scaffolding/ProjectScaffolder'
+    );
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.6.0');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.doUnmock('@node-singletons/fs');
+    vi.resetModules();
+  });
+
+  it('falls back to ^0.6.0 when npm lookup fails and local governance package cannot be read', async () => {
+    const projectPath = path.join(tmpRoot, `unreadable-governance-package-${Date.now()}`);
+    vi.resetModules();
+    mockChildProcessExecFileSync(vi.fn((command, args, options) => {
+      if (command === 'npm') {
+        throw new Error('npm lookup failed');
+      }
+
+      return execFileSync(command, args as string[], options as Parameters<typeof execFileSync>[2]);
+    }));
+
+    mockGovernancePackageRead(((filePath, options) => {
+      if (String(filePath).endsWith('/packages/governance/package.json')) {
+        throw new Error('package missing');
+      }
+
+      return fs.readFileSync(filePath, options as never);
+    }) as typeof fs.readFileSync);
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } = await import(
+      '@cli/scaffolding/ProjectScaffolder'
+    );
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.6.0');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.doUnmock('@node-singletons/fs');
+    vi.resetModules();
   });
 
   it('getAvailableTemplates contains basic template', () => {
