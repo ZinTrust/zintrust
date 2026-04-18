@@ -81,10 +81,10 @@ Configure a single shared signing secret for the Worker.
 
 ZinTrust will accept any `x-zt-key-id` as long as the signature matches this shared secret.
 
-### Source location in this repo
+### Source location in ZinTrust core
 
-- Core proxy entry (re-export): [src/proxy/d1/ZintrustD1Proxy.ts](src/proxy/d1/ZintrustD1Proxy.ts)
-- Implementation (package): [packages/cloudflare-d1-proxy/src/index.ts](packages/cloudflare-d1-proxy/src/index.ts)
+- Core proxy entry (re-export): `src/proxy/d1/ZintrustD1Proxy.ts`
+- Implementation (package): `packages/cloudflare-d1-proxy/src/index.ts`
 
 Notes:
 

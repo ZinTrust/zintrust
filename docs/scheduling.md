@@ -1,63 +1,52 @@
 # Scheduling
 
-## What exists today
+ZinTrust includes a lightweight, flexible schedule runner built directly into the framework. It handles recurrent background tasks, cron jobs, and interval-based execution without requiring external daemon processes. 
 
-ZinTrust includes a lightweight in-process schedule runner:
+The scheduler supports:
 
-- `src/scheduler/ScheduleRunner.ts`
-- Types: `src/scheduler/types.ts`
+- Registering schedules by name
+- Fixed interval execution (`intervalMs`)
+- Cron expressions with minute-resolution
+- Timezone-aware cron evaluation (IANA timezone strings)
+- Jitter (`jitterMs`) to spread execution loads
+- Failure backoff scheduling
+- Optional execution on process start
+- In-process overlap prevention (prevents concurrent runs in the same process)
+- Distributed locking (`withoutOverlapping()`) across multiple instances
+- Manual invocation
 
-It supports:
+## Location and Registration
 
-- Register schedules by name (`ISchedule`)
-- Run schedules on a fixed interval (`intervalMs`)
-- Run schedules using a 5-field cron expression (minute-resolution)
-- Timezone evaluation for cron via `Intl.DateTimeFormat` (IANA timezone strings)
-- Jitter (`jitterMs`) and failure backoff (`backoff`) for next-run scheduling
-- Optional `runOnStart`
-- In-process overlap prevention (won't run the same schedule concurrently within a single process)
-- Manual invocation via `runOnce(name)`
+Project schedules live in your application space. You export them from a central entry file at `app/Schedules/index.ts`.
 
-## What was missing (now added)
+> **Note:** If a schedule defined in your application uses the same name as a built-in core schedule, the application schedule will override the core schedule.
 
-### Developer schedule location
-
-Project schedules live in:
-
-- `app/Schedules/index.ts` (your app space; single entry file)
-
-If a schedule exists in both core and app with the same `name`, **app wins** (it overrides the core schedule).
-
-Export schedules from:
-
-- `app/Schedules/index.ts`
-
-### Schedule DSL
-
-Use the builder in `src/scheduler/Schedule.ts` (importable via `@scheduler/Schedule`):
-
-In `app/Schedules/index.ts` you typically start with:
+Use the `Schedule` builder imported from `@zintrust/core` to define your tasks. In `app/Schedules/index.ts` you typically begin with:
 
 ```ts
 import { Logger, Schedule } from '@zintrust/core';
 ```
 
-- `Schedule.define(name, handler)`
-- `everyMinute()` / `everyMinutes(n)`
-- `everyHour()` / `everyHours(n)`
-- `intervalMs(ms)`
-- `cron(expr, { timezone? })`
-- `timezone(tz)`
-- `jitterMs(ms)`
-- `backoff({ initialMs, maxMs, factor? })`
-- `leaderOnly()` (metadata for coordination)
-- `enabledWhen(bool)`
-- `runOnStart()`
-- `withoutOverlapping()` (distributed lock via lock provider when available)
+### Available Builder Methods
 
-### Examples (copy/paste)
+- `Schedule.define(name, handler)`: Starts the definition of a new schedule.
+- `everyMinute()` / `everyMinutes(n)`: Run on a fixed minute cadence.
+- `everyHour()` / `everyHours(n)`: Run on a fixed hourly cadence.
+- `intervalMs(ms)`: Run on a strictly defined millisecond interval.
+- `cron(expr, { timezone? })`: Run on a standard 5-field cron schedule.
+- `timezone(tz)`: Set the timezone for the execution.
+- `jitterMs(ms)`: Adds a random delay between 0 and `ms` before running, spreading out load.
+- `backoff({ initialMs, maxMs, factor? })`: Exponentially slows down retries if the schedule throws an error.
+- `leaderOnly()`: Only runs if the current instance holds the schedule leader lease.
+- `enabledWhen(bool)`: Conditionally enables or disables the schedule.
+- `runOnStart()`: Runs immediately when the application boots, and then follows its standard schedule.
+- `withoutOverlapping({ provider, ttlMs })`: Prevents overlapping runs across multiple server instances using a distributed lock.
 
-Below are practical examples you can drop into files like `app/Schedules/*.ts` and then export from `app/Schedules/index.ts`.
+---
+
+## Examples
+
+Below are practical examples you can drop into individual files (e.g., `app/Schedules/MySchedule.ts`) and then export from `app/Schedules/index.ts`.
 
 #### 1) Every minute (cron, UTC)
 
@@ -77,7 +66,7 @@ export default Schedule.define('demo.everyMinute', async () => {
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.every5Minutes', async () => {
-  Logger.info('demo.every5Minutes fired', { at: new Date().toISOString() });
+  Logger.info('demo.every5Minutes fired');
 })
   .cron('*/5 * * * *', { timezone: 'UTC' })
   .build();
@@ -89,7 +78,7 @@ export default Schedule.define('demo.every5Minutes', async () => {
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.midnightNy', async () => {
-  Logger.info('demo.midnightNy fired', { at: new Date().toISOString() });
+  Logger.info('demo.midnightNy fired');
 })
   .cron('0 0 * * *', { timezone: 'America/New_York' })
   .build();
@@ -101,7 +90,7 @@ export default Schedule.define('demo.midnightNy', async () => {
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.weekdays0930', async () => {
-  Logger.info('demo.weekdays0930 fired', { at: new Date().toISOString() });
+  Logger.info('demo.weekdays0930 fired');
 })
   .cron('30 9 * * 1-5', { timezone: 'UTC' })
   .build();
@@ -113,7 +102,7 @@ export default Schedule.define('demo.weekdays0930', async () => {
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.every10MinInterval', async () => {
-  Logger.info('demo.every10MinInterval fired', { at: new Date().toISOString() });
+  Logger.info('demo.every10MinInterval fired');
 })
   .everyMinutes(10)
   .build();
@@ -125,7 +114,7 @@ export default Schedule.define('demo.every10MinInterval', async () => {
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.runOnStartThenHourly', async () => {
-  Logger.info('demo.runOnStartThenHourly fired', { at: new Date().toISOString() });
+  Logger.info('demo.runOnStartThenHourly fired');
 })
   .runOnStart()
   .everyHour()
@@ -138,20 +127,20 @@ export default Schedule.define('demo.runOnStartThenHourly', async () => {
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.jitteredCron', async () => {
-  Logger.info('demo.jitteredCron fired', { at: new Date().toISOString() });
+  Logger.info('demo.jitteredCron fired');
 })
   .cron('*/1 * * * *', { timezone: 'UTC' })
   .jitterMs(15_000) // add 0..15s random delay to each run
   .build();
 ```
 
-#### 8) Backoff on failure (retry slower when it keeps failing)
+#### 8) Backoff on failure (retry slower when failing)
 
 ```ts
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.backoffOnFailure', async () => {
-  Logger.info('demo.backoffOnFailure fired', { at: new Date().toISOString() });
+  Logger.info('demo.backoffOnFailure fired');
   // throw new Error('simulate failure');
 })
   .everyMinute()
@@ -161,56 +150,68 @@ export default Schedule.define('demo.backoffOnFailure', async () => {
 
 #### 9) Prevent overlap across instances (distributed lock)
 
+If your application runs across multiple instances, use `withoutOverlapping` to ensure a task only runs on one server at a time.
+
 ```ts
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.noOverlap', async () => {
-  Logger.info('demo.noOverlap fired', { at: new Date().toISOString() });
+  Logger.info('demo.noOverlap fired');
 })
   .everyMinutes(5)
   .withoutOverlapping({ provider: 'redis', ttlMs: 5 * 60_000 })
   .build();
 ```
 
-#### 10) Manual-only schedule (no cron/interval)
+#### 10) Manual-only schedule
 
-This schedule will NOT auto-run. Invoke it via:
-
-- `zin schedule:run --name demo.manualOnly`
-- or schedule RPC action `run`
+This schedule will NOT auto-run. You must invoke it manually via CLI or RPC.
 
 ```ts
 import { Logger, Schedule } from '@zintrust/core';
 
 export default Schedule.define('demo.manualOnly', async () => {
-  Logger.info('demo.manualOnly fired', { at: new Date().toISOString() });
+  Logger.info('demo.manualOnly fired');
 }).build();
 ```
 
-### HTTP schedule gateway (for Docker/Workers-style cron)
+## HTTP Schedule Gateway
 
-The API server exposes a signed internal endpoint:
+When deploying to serverless or containerized environments (like Cloudflare Workers or Docker), the system needs a way to remotely trigger schedules.
+
+The API exposes a signed endpoint for managing and triggering schedules:
 
 - `POST /api/_sys/schedule/rpc`
 
-Actions:
+Supported actions:
 
-- `list`
-- `run` (by schedule name)
+- `list`: Retrieve registered schedules.
+- `run`: Trigger a schedule by name.
 
-Signing uses the same `SignedRequest` scheme as the queue gateway.
+Requests to this endpoint must be signed using the `SignedRequest` scheme (the same signature implementation used by the queue gateway).
 
-### CLI
+## CLI Management
 
-- `zin schedule:list`
-- `zin schedule:run --name <schedule>`
+You can inspect and execute schedules from the command line:
 
-`schedule:list` includes best-effort runtime state (when available):
+To view all schedules and their state:
 
-- `lastSuccessAt`, `lastErrorAt`, `nextRunAt`, `consecutiveFailures`
+```bash
+zin schedule:list
+```
 
-## Leader gating (multi-instance)
+> **Note:** `schedule:list` includes best-effort runtime states, including `lastSuccessAt`, `lastErrorAt`, `nextRunAt`, and `consecutiveFailures`.
 
-To ensure only one instance is actively scheduling timers (recommended when you run multiple replicas), enable leader lease gating:
+To run a specific schedule immediately:
 
-- `SCHEDULE_LEADER_ENABLED=true`
+```bash
+zin schedule:run --name demo.manualOnly
+```
+
+## Multi-Instance Leader Gating
+
+If you run multiple instances of your application, you can ensure only one instance actively dispatches scheduled timers by enabling leader lease gating in your environment configuration:
+
+```env
+SCHEDULE_LEADER_ENABLED=true
+```

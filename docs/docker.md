@@ -1,6 +1,6 @@
 # Docker
 
-This repository includes a ready-to-use `Dockerfile` and `docker-compose.yml` for containerized development and production builds.
+ZinTrust projects typically include a ready-to-use `Dockerfile` and `docker-compose.yml` for containerized development and production builds.
 
 ## Quick start (recommended)
 

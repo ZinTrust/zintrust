@@ -165,13 +165,13 @@ BullMQ-backed queue payloads support a deduplication collision policy:
 
 ```typescript
 await Queue.enqueue('balance-updates', {
-	accountId: 'acct-123',
-	delta: -25,
-	deduplication: {
-		id: 'acct-123',
-		ttl: 30000,
-		collisionBehavior: 'enqueue',
-	},
+  accountId: 'acct-123',
+  delta: -25,
+  deduplication: {
+    id: 'acct-123',
+    ttl: 30000,
+    collisionBehavior: 'enqueue',
+  },
 });
 ```
 
@@ -229,8 +229,7 @@ Note: This driver uses `rPush`/`lPop` semantics; `ack()` is a no-op for this sim
 
 ## CI integration
 
-- A GitHub Actions workflow is provided at `.github/workflows/redis-integration.yml` to run the Redis integration test when a Redis endpoint is configured in the repository secrets as `INTEGRATION_REDIS_URL`.
-- To enable: add a repository secret `INTEGRATION_REDIS_URL` with a value like `redis://:password@host:6379` and the workflow will run automatically on push/pull_request, or you can trigger it manually via "Run workflow" in the Actions tab.
+- If your application is tested against a real Redis instance in GitHub Actions, you can configure a repository secret (e.g. `INTEGRATION_REDIS_URL`) and pass it to your workflow.
 - For self-hosted Redis in CI you can use a managed host (Upstash/Redis Cloud) and set the connection URL as the secret.
 
 ## Integration testing

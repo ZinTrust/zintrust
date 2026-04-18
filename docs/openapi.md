@@ -65,7 +65,7 @@ APP_VERSION=1.2.3
 
 Treat the generated OpenAPI as a contract.
 
-This repo includes a snapshot test that generates the OpenAPI document from the registered routes and asserts it matches a committed snapshot:
+ZinTrust projects typically include a snapshot test that generates the OpenAPI document from the registered routes and asserts it matches a committed snapshot:
 
 - `tests/unit/openapi/OpenApiSpec.snapshot.test.ts`
 
