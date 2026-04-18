@@ -95,7 +95,7 @@ describe('ProjectScaffolder missing-line coverage', () => {
     vars['circular'] = circular;
 
     // published-version fallback branch when npm lookup and bundled governance metadata are unavailable
-    expect(vars['coreVersion']).toBe('0.6.0');
+    expect(vars['coreVersion']).toBe('0.7.0');
 
     // Exercise file rendering
     // Exercise unknown-db env branch (dbLines default return [])
