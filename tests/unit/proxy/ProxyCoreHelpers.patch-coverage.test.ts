@@ -54,10 +54,14 @@ const createProxyCoreEnvModule = (): { Env: Record<string, unknown> } => ({
 const createLoggerModule = (
   debug: unknown,
   warn: unknown
-): { Logger: { debug: unknown; warn: unknown } } => ({
+): { Logger: { debug: unknown; warn: unknown; withTraceSkipContext: unknown } } => ({
   Logger: {
     debug,
     warn,
+    withTraceSkipContext: (context?: Record<string, unknown>) => ({
+      ...(context ?? {}),
+      __zintrustSkipTraceLog: true,
+    }),
   },
 });
 
