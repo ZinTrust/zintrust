@@ -234,6 +234,64 @@ describe('ProjectScaffolder extra tests', () => {
     vi.resetModules();
   });
 
+  it('reuses the live governance release line for microservice scaffolds when core lookup misses', async () => {
+    const projectPath = path.join(tmpRoot, `microservice-published-fallback-${Date.now()}`);
+    const publishedGovernanceVersion = '0.7.0';
+
+    vi.resetModules();
+    mockChildProcessExecFileSync((command, args, options) => {
+      if (
+        command === 'npm' &&
+        Array.isArray(args) &&
+        args[0] === 'view' &&
+        args[1] === '@zintrust/core' &&
+        args[2] === 'version'
+      ) {
+        throw new Error('core lookup failed');
+      }
+
+      if (
+        command === 'npm' &&
+        Array.isArray(args) &&
+        args[0] === 'view' &&
+        args[1] === '@zintrust/governance' &&
+        args[2] === 'version'
+      ) {
+        return JSON.stringify(publishedGovernanceVersion);
+      }
+
+      return execFileSync(
+        command,
+        args as string[],
+        options as Parameters<typeof execFileSync>[2]
+      );
+    });
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } =
+      await import('@cli/scaffolding/ProjectScaffolder');
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+      template: 'microservice',
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+  });
+
   it('falls back to ^0.6.0 when npm lookup fails and local governance package cannot be read', async () => {
     const projectPath = path.join(tmpRoot, `unreadable-governance-package-${Date.now()}`);
     vi.resetModules();

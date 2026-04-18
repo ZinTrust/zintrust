@@ -146,6 +146,11 @@ const loadScaffoldCoreVersion = (): string => {
     return publishedVersion;
   }
 
+  const publishedGovernanceVersion = loadPublishedNpmVersion('@zintrust/governance');
+  if (typeof publishedGovernanceVersion === 'string') {
+    return publishedGovernanceVersion;
+  }
+
   const bundledPublishedCoreVersion = loadBundledPublishedCoreVersion();
   if (typeof bundledPublishedCoreVersion === 'string') {
     return bundledPublishedCoreVersion;
