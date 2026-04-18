@@ -233,6 +233,97 @@ For project-level overrides, keep the package defaults in the package and adjust
 - Leave `TRACE_ENABLED=false` unless you actively need the trace.
 - Review the default redaction lists before enabling the trace on sensitive endpoints.
 
+## Marking logs as non-traceable
+
+Most application logs should remain traceable. Only mark a log as non-traceable when that log is about the trace transport itself, a low-level proxy/queue transport, or another internal diagnostic path that would otherwise create trace recursion or excessive self-noise.
+
+The reserved context flag is `__zintrustSkipTraceLog: true`. In normal framework or app code, prefer the public helper instead of setting that key by hand:
+
+```ts
+import { Logger } from '@config/logger';
+
+Logger.warn('HTTP queue enqueue failed; storing tracker fallback in memory', {
+  ...Logger.withTraceSkipContext({
+    queue,
+    fallbackJobId,
+    error: error instanceof Error ? error.message : String(error),
+  }),
+});
+```
+
+Use this for logs such as:
+
+- Low-level proxy request failures
+- Raw SQL transport diagnostics emitted below the normal query watcher layer
+- Queue fallback and recovery warnings
+- Trace storage degradation warnings
+
+Avoid using it for normal controller, service, middleware, auth, or domain logs. Those logs are usually the ones developers want to see inside the trace dashboard.
+
+### Local wrapper pattern
+
+Sometimes a module wants a small local helper that always carries the reserved flag and keeps module-specific call sites short. The proxy layer uses that pattern in `ProxyServerUtils.ts` with `withTraceSkipProxyContext(...)`:
+
+```ts
+const withTraceSkipProxyContext = (context: Record<string, unknown>): Record<string, unknown> => ({
+  ...context,
+  __zintrustSkipTraceLog: true,
+});
+
+Logger.warn(`[${serviceName}] Signature verification failed`, {
+  ...withTraceSkipProxyContext({
+    path: req.url ?? '',
+    method: req.method ?? 'POST',
+    status: error.status,
+    message: error.message,
+  }),
+});
+```
+
+That local wrapper is useful when:
+
+- A module emits several related low-level diagnostics
+- The module wants a domain-specific helper name such as `withTraceSkipProxyContext(...)`
+- Test doubles or local typing are easier with a tiny wrapper than with repeated direct logger helper calls
+
+If you do not need a module-specific wrapper, use `Logger.withTraceSkipContext(...)` directly.
+
+### Useful examples
+
+Proxy transport failure:
+
+```ts
+Logger.error('[MySQLProxyAdapter] Proxy request failed', {
+  ...Logger.withTraceSkipContext({
+    path,
+    baseUrl: state.settings.baseUrl,
+    timeoutMs: state.settings.timeoutMs,
+    error: loggedError.message,
+  }),
+});
+```
+
+Queue fallback warning:
+
+```ts
+Logger.warn('Job marked pending recovery in tracker', {
+  ...Logger.withTraceSkipContext({
+    queue,
+    jobId: fallbackJobId,
+  }),
+});
+```
+
+Raw SQL transport diagnostic:
+
+```ts
+Logger.warn(`Raw SQL Query executed: ${sql}`, Logger.withTraceSkipContext({ sql, parameters }));
+```
+
+### Rule of thumb
+
+Ask one question before using the helper: if this log is captured by trace, will it create a feedback loop, duplicate a lower-level signal, or flood the dashboard with transport noise? If the answer is yes, mark it with the trace-skip context. Otherwise, leave it as a normal traceable log.
+
 ## When to use it
 
 Use `@zintrust/trace` when you want:

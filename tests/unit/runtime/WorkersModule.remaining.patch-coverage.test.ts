@@ -1,5 +1,5 @@
 import * as nodePath from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 function existsSyncWorkersPath(pathValue: string): boolean {
@@ -43,8 +43,12 @@ const listEntryFiles = (): Array<{
 
 const createPathModule = (): typeof import('node:path') => nodePath;
 
-const createUrlModule = (): { pathToFileURL: typeof import('node:url').pathToFileURL } => ({
+const createUrlModule = (): {
+  pathToFileURL: typeof import('node:url').pathToFileURL;
+  fileURLToPath: typeof import('node:url').fileURLToPath;
+} => ({
   pathToFileURL,
+  fileURLToPath,
 });
 
 const createWorkersFsModule = (): Record<string, unknown> => ({

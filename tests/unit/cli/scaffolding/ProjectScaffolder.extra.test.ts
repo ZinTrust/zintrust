@@ -541,6 +541,7 @@ describe('ProjectScaffolder extra tests', () => {
   it('scaffold returns error if directory exists and supports overwrite option', async () => {
     const projectPath = path.join(tmpRoot, `exist-project-${Date.now()}`);
     await fsPromises.mkdir(projectPath, { recursive: true });
+    await fsPromises.writeFile(path.join(projectPath, 'sentinel.txt'), 'existing');
 
     const scaffolder = createProjectScaffolder(tmpRoot);
     const r1 = await scaffolder.scaffold({ name: path.basename(projectPath) });
