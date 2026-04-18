@@ -170,4 +170,38 @@ describe('ScheduleCliSupport', () => {
 
     process.argv = originalArgv;
   });
+
+  it('re-enters through the current packaged CLI when the project has no source bin entrypoint', async () => {
+    const originalArgv = process.argv;
+    process.argv = [
+      'node',
+      '/project/node_modules/@zintrust/core/bin/zin.js',
+      'schedule:list',
+      '--json',
+    ];
+
+    mocked.useFileLoader.mockImplementation((relativePath: string) => {
+      if (relativePath === 'app/Schedules/index.ts') {
+        return createLoader({ path: '/project/app/Schedules/index.ts', exists: true });
+      }
+
+      return createLoader({ path: '/project/app/Schedules.ts' });
+    });
+    mocked.existsSync.mockImplementation((candidate: string) => {
+      return candidate === '/project/node_modules/@zintrust/core/bin/zin.js';
+    });
+
+    const { ScheduleCliSupport } = await import('@cli/commands/schedule/ScheduleCliSupport');
+    await expect(ScheduleCliSupport.ensureProjectSourceContext()).resolves.toBe(true);
+
+    expect(mocked.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'tsx',
+        args: ['node_modules/@zintrust/core/bin/zin.js', 'schedule:list', '--json'],
+        cwd: '/project',
+      })
+    );
+
+    process.argv = originalArgv;
+  });
 });

@@ -8,7 +8,10 @@ describe('Wrangler --config options (patch coverage)', () => {
     dirname: (value: string) => value.split('/').slice(0, -1).join('/') || '/',
     relative: (from: string, to: string) => to.replace(`${from}/`, ''),
     resolve: (...parts: string[]) => {
-      const normalized = parts.filter((part) => part.length > 0).join('/').replaceAll(/\/+/g, '/');
+      const normalized = parts
+        .filter((part) => part.length > 0)
+        .join('/')
+        .replaceAll(/\/+/g, '/');
       return normalized.startsWith('/') ? normalized : `/${normalized}`;
     },
     isAbsolute: (value: string) => value.startsWith('/'),

@@ -52,15 +52,35 @@ const getProjectSourceCliEntry = (projectRoot: string): string | undefined => {
   return undefined;
 };
 
-const isRunningProjectSourceCli = (projectRoot: string): boolean => {
+const getCurrentCliScript = (): string | undefined => {
   const script = String(process.argv[1] ?? '').trim();
-  if (script.length === 0) return false;
+  if (script.length === 0) return undefined;
 
   const resolvedScript = path.resolve(script);
+  return existsSync(resolvedScript) ? resolvedScript : undefined;
+};
+
+const isRunningProjectSourceCli = (projectRoot: string): boolean => {
+  const resolvedScript = getCurrentCliScript();
+  if (resolvedScript === undefined) return false;
+
   const sourceCliEntry = getProjectSourceCliEntry(projectRoot);
   if (sourceCliEntry === undefined) return false;
 
   return resolvedScript === path.resolve(sourceCliEntry);
+};
+
+const getScheduleReentryScript = (projectRoot: string): string | undefined => {
+  const sourceCliEntry = getProjectSourceCliEntry(projectRoot);
+  if (sourceCliEntry !== undefined) {
+    return path.relative(projectRoot, sourceCliEntry);
+  }
+
+  const currentCliScript = getCurrentCliScript();
+  if (currentCliScript === undefined) return undefined;
+
+  const relativeCurrentScript = path.relative(projectRoot, currentCliScript);
+  return relativeCurrentScript.startsWith('..') ? currentCliScript : relativeCurrentScript;
 };
 
 const getExistingProjectSchedulePath = (): string | undefined => {
@@ -143,17 +163,16 @@ const ensureProjectSourceContext = async (): Promise<boolean> => {
     return false;
   }
 
-  const sourceCliEntry = getProjectSourceCliEntry(projectRoot);
-  if (sourceCliEntry === undefined) {
+  const reentryScript = getScheduleReentryScript(projectRoot);
+  if (reentryScript === undefined) {
     throw ErrorFactory.createCliError(
-      'Source schedules require a project CLI entrypoint at bin/zin.ts or bin/zintrust.ts'
+      'Source schedules require either a project CLI entrypoint at bin/zin.ts or bin/zintrust.ts, or a resolvable current CLI script.'
     );
   }
 
-  const relativeSourceCliEntry = path.relative(projectRoot, sourceCliEntry);
   const exitCode = await SpawnUtil.spawnAndWait({
     command: 'tsx',
-    args: [relativeSourceCliEntry, ...process.argv.slice(2)],
+    args: [reentryScript, ...process.argv.slice(2)],
     cwd: projectRoot,
     env: {
       ...process.env,
