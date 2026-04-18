@@ -168,6 +168,8 @@ const createRemoteSettings = (settings: KvRemoteSettings): RemoteSignedJsonSetti
     forbidden: 'KV remote proxy forbidden',
     rateLimited: 'KV remote proxy rate limited',
     rejected: 'KV remote proxy rejected request',
+    error: 'KV remote proxy error',
+    timedOut: 'KV remote proxy request timed out',
   },
 });
 
