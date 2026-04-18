@@ -1,3 +1,9 @@
+# 2026-04-18
+
+- Added a dedicated Database Migrations guide and wired it into the docs sidebar plus the main CLI and getting-started docs. ZinTrust migration commands were already implemented, but the guidance had been split across multiple pages; the new page now centralizes create-table generation, add-column generation, migration execution, D1 notes, and the distinction between `zin s` and migration commands.
+
+- Removed the dead Snyk README badge links after the public `https://snyk.io/test/github/ZinTrust/ZinTrust` endpoint began returning `410 Gone`.
+
 - Removed the default `@zintrust/d1-migrator` dependency from freshly scaffolded apps, since it is an optional CLI extension rather than a runtime requirement.
 - Updated the publish smoke workflow to install only runtime dependencies for fresh-app cold-start validation, which avoids pre-publish failures on dev-only packages that have not been released yet.
 

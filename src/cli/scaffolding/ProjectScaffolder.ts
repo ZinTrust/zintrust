@@ -79,9 +79,9 @@ const loadGovernanceVersion = (): string => {
   try {
     const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
     const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
-    return typeof packageJson.version === 'string' ? packageJson.version : '^0.4.0';
+    return typeof packageJson.version === 'string' ? packageJson.version : '^1.0.0';
   } catch {
-    return '^0.4.0';
+    return '^1.0.0';
   }
 };
 

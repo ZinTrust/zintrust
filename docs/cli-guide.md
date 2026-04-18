@@ -144,6 +144,8 @@ zin migrate --rollback         # Undo last batch
 zin migrate --reset            # Undo all
 ```
 
+For migration generation, add-column patterns, and D1-specific notes, see the [Database Migrations guide](./migrations.md).
+
 ### Add Components
 
 The `add` command scaffolds various components for your application:
@@ -157,6 +159,8 @@ zin add migration custom_name  # Create a custom migration (advanced)
 zin add service auth           # Create a service under src/services
 zin add workflow               # Create deployment workflows
 ```
+
+For the full migration workflow, see the [Database Migrations guide](./migrations.md).
 
 For a full list of types, see the [CLI Reference](./cli-reference.md).
 
