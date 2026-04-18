@@ -21031,7 +21031,7 @@
     {
       "type": "library",
       "name": "module-details-from-path",
-      "version": "0.7.0",
+      "version": "^0.7.0",
       "bom-ref": "@zintrust/core@0.1.41|module-details-from-path@0.7.0",
       "licenses": [
         {
@@ -28827,7 +28827,7 @@
     {
       "type": "library",
       "name": "call-bound",
-      "version": "0.7.0",
+      "version": "^0.7.0",
       "bom-ref": "@zintrust/core@0.1.41|call-bound@0.7.0",
       "licenses": [
         {

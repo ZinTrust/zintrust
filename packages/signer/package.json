@@ -27,6 +27,6 @@
     "type-check": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.7.0"
+    "@zintrust/core": "0.7.0"
   }
 }

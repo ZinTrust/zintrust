@@ -27,7 +27,7 @@
     "workers"
   ],
   "peerDependencies": {
-    "@zintrust/core": "^0.7.0"
+    "@zintrust/core": "0.7.0"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.2.3",

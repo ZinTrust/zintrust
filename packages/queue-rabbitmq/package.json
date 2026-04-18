@@ -26,7 +26,7 @@
     "amqplib": "^1.0.3"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.7.0"
+    "@zintrust/core": "0.7.0"
   },
   "publishConfig": {
     "access": "public"
