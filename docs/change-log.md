@@ -1,5 +1,8 @@
 # 2026-04-18
 
+- Added `deduplication.collisionBehavior` to the shared queue contract and the BullMQ Redis adapter. Queue jobs can now keep the historical `suppress` behavior for true duplicate dropping or opt into `enqueue` to preserve an ordered same-key backlog while an overlap lock is already active.
+- Hardened scaffold-time `npm view` version lookups by forcing the child process `PATH` to fixed system directories and explicitly carrying `NODE_ENV`, which addresses the secure-process-environment warning without breaking the ProjectScaffolder type contract.
+
 - Added a dedicated Database Migrations guide and wired it into the docs sidebar plus the main CLI and getting-started docs. ZinTrust migration commands were already implemented, but the guidance had been split across multiple pages; the new page now centralizes create-table generation, add-column generation, migration execution, D1 notes, and the distinction between `zin s` and migration commands.
 
 - Removed the dead Snyk README badge links after the public `https://snyk.io/test/github/ZinTrust/ZinTrust` endpoint began returning `410 Gone`.

@@ -159,6 +159,27 @@ BULLMQ_REMOVE_ON_FAIL=5
 BULLMQ_BACKOFF_DELAY=500
 ```
 
+### Deduplication Collision Behavior
+
+BullMQ-backed queue payloads support a deduplication collision policy:
+
+```typescript
+await Queue.enqueue('balance-updates', {
+	accountId: 'acct-123',
+	delta: -25,
+	deduplication: {
+		id: 'acct-123',
+		ttl: 30000,
+		collisionBehavior: 'enqueue',
+	},
+});
+```
+
+- `collisionBehavior: 'suppress'` is the default and drops later matching work as a deduplicated success
+- `collisionBehavior: 'enqueue'` keeps later same-key jobs queued so workers can process them one-by-one behind the existing overlap lock
+
+Use `enqueue` for ordered mutation workloads such as balance-affecting debit/credit operations where backlog visibility matters.
+
 ### Install Redis driver
 
 ```bash

@@ -248,6 +248,24 @@ describe('AdvancedQueue', () => {
       expect(jobId2).toBe('deduplicated');
     });
 
+    it('enqueues later jobs when collisionBehavior is enqueue', async () => {
+      const options: AdvancedJobOptions = {
+        deduplication: {
+          id: 'serialized-key',
+          ttl: 30000,
+          collisionBehavior: 'enqueue',
+        },
+      };
+      const enqueueCallCountBefore = vi.mocked(Queue.enqueue).mock.calls.length;
+
+      const firstJobId = await advancedQueue.enqueue('test-queue', { data: 'test1' }, options);
+      const secondJobId = await advancedQueue.enqueue('test-queue', { data: 'test2' }, options);
+
+      expect(firstJobId).toBe('job-123');
+      expect(secondJobId).toBe('job-123');
+      expect(vi.mocked(Queue.enqueue).mock.calls).toHaveLength(enqueueCallCountBefore + 2);
+    });
+
     it('allows the same deduplication id across different queues', async () => {
       const options: AdvancedJobOptions = {
         deduplication: {

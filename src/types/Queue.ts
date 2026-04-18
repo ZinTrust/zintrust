@@ -9,6 +9,7 @@ export interface DeduplicationOptions {
   dontRelease?: boolean;
   replace?: boolean;
   releaseAfter?: string | number | ReleaseCondition;
+  collisionBehavior?: 'suppress' | 'enqueue';
 }
 
 export interface ReleaseCondition {

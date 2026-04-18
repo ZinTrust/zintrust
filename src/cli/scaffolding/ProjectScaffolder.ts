@@ -76,6 +76,14 @@ const loadCoreVersion = (): string => {
   }
 };
 
+const SAFE_PATH = '/usr/local/bin:/usr/bin:/bin';
+
+const createSafeNpmEnv = (): NodeJS.ProcessEnv => ({
+  ...process.env,
+  NODE_ENV: process.env['NODE_ENV'] ?? 'development',
+  PATH: SAFE_PATH,
+});
+
 const loadPublishedNpmVersion = (packageName: string): string | undefined => {
   try {
     const raw = execFileSync(
@@ -84,6 +92,7 @@ const loadPublishedNpmVersion = (packageName: string): string | undefined => {
       {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore'],
+        env: createSafeNpmEnv(),
       }
     ).trim();
     const resolved = JSON.parse(raw) as unknown;

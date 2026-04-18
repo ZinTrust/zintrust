@@ -7,6 +7,7 @@ This document describes the advanced queue patterns available in ZinTrust, inclu
 ZinTrust provides powerful advanced queue patterns that enable:
 
 - **Job Deduplication**: Prevent duplicate jobs from being processed
+- **Serialized Overlap Backlogs**: Keep same-key jobs queued in order instead of silently suppressing later work
 - **Custom Lock Management**: Fine-grained control over distributed locks
 - **TTL Control**: Configure expiration times for locks and jobs
 - **Cross-Service Coordination**: Coordinate tasks across multiple services
@@ -344,6 +345,43 @@ await Queue.enqueue(
   }
 );
 ```
+
+### 5. collisionBehavior Pattern
+
+**Purpose**: Choose whether an existing deduplication lock suppresses later jobs or allows them to queue behind the active backlog.
+
+**Modes**:
+
+- `suppress` keeps the historical deduplication behavior and remains the default
+- `enqueue` preserves ordered backlog semantics by still enqueueing later jobs that share the same deduplication key
+
+**Code Examples**:
+
+```typescript
+// Default duplicate suppression
+await Queue.enqueue('balance-updates', {
+  accountId: 'acct-123',
+  delta: -25,
+  deduplication: {
+    id: 'acct-123',
+    ttl: 30000,
+    collisionBehavior: 'suppress',
+  },
+});
+
+// Ordered backlog: keep every debit/credit job queued for the same account
+await Queue.enqueue('balance-updates', {
+  accountId: 'acct-123',
+  delta: 50,
+  deduplication: {
+    id: 'acct-123',
+    ttl: 30000,
+    collisionBehavior: 'enqueue',
+  },
+});
+```
+
+Use `collisionBehavior: 'enqueue'` for ordered mutation workloads where the same logical resource key must not run concurrently but every job still has to remain visible in the queue.
 
 ## Implementation Interfaces
 

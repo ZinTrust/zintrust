@@ -91,6 +91,26 @@ await Queue.process('email-queue', async (job) => {
 - **Cluster Support**: Redis Cluster support
 - **Pub/Sub**: Redis pub/sub for real-time notifications
 
+## Deduplication Collision Behavior
+
+The BullMQ-backed Redis adapter supports both duplicate suppression and serialized overlap queueing through `payload.deduplication.collisionBehavior`.
+
+```typescript
+await Queue.enqueue('ledger', {
+  entryId: 'entry-123',
+  deduplication: {
+    id: 'account-42',
+    ttl: 30000,
+    collisionBehavior: 'enqueue',
+  },
+});
+```
+
+- `suppress` remains the default and returns the deduplication id when a live lock already exists
+- `enqueue` keeps later same-key jobs in Redis so they wait behind the active lock instead of disappearing as hidden suppression
+
+Use `enqueue` when jobs must execute sequentially for the same logical resource key but every job still needs a real queue record.
+
 ## Advanced Configuration
 
 ### Redis Cluster

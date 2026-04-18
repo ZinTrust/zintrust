@@ -35,6 +35,11 @@ interface IBullMQRedisQueue extends IQueueDriver {
   getQueueNames(): string[];
 }
 
+type DeduplicationReleaseAfter = Exclude<
+  BullMQPayload['deduplication'],
+  undefined
+>['releaseAfter'];
+
 export const shouldUseHttpProxyDriver = (): boolean => {
   if (directModeDepth > 0) return false;
   const isCloudFlareWorkers = Cloudflare.getWorkersEnv() !== null;
@@ -434,7 +439,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   const attachWorkerSideReleaseMeta = (
     payload: BullMQPayload,
     deduplicationId: string,
-    releaseAfter: Exclude<BullMQPayload['deduplication'], undefined>['releaseAfter'],
+    releaseAfter: DeduplicationReleaseAfter,
     uniqueId: string | undefined
   ): BullMQPayload => {
     return {
@@ -445,6 +450,18 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         uniqueId,
       },
     };
+  };
+
+  const handleReleaseAfter = (
+    payload: BullMQPayload,
+    deduplicationId: string,
+    releaseAfter: DeduplicationReleaseAfter,
+    uniqueId?: string
+  ): BullMQPayload => {
+    if (releaseAfter !== undefined && releaseAfter !== null && typeof releaseAfter !== 'number') {
+      return attachWorkerSideReleaseMeta(payload, deduplicationId, releaseAfter, uniqueId);
+    }
+    return payload;
   };
 
   const handleDeduplication = async (
@@ -468,6 +485,8 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         ? deduplication.ttl
         : undefined;
     const replace = (deduplication as { replace?: boolean }).replace === true;
+    const collisionBehavior =
+      deduplication.collisionBehavior === 'enqueue' ? 'enqueue' : 'suppress';
     const jobId = jobOptions.jobId ?? generateUuid();
     jobOptions.jobId = jobId;
 
@@ -480,21 +499,24 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       queue,
       jobId
     );
-    if (hasExistingLock) {
+    if (hasExistingLock && collisionBehavior === 'suppress') {
       return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
     }
 
-    // Acquire lock
-    const lockAcquired = await acquireDeduplicationLock(
-      scopedDeduplicationKey,
-      deduplicationId,
-      provider,
-      ttl,
-      queue,
-      jobId
-    );
-    if (!lockAcquired) {
-      return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
+    let lockAcquired = false;
+    if (!hasExistingLock) {
+      // Acquire lock
+      lockAcquired = await acquireDeduplicationLock(
+        scopedDeduplicationKey,
+        deduplicationId,
+        provider,
+        ttl,
+        queue,
+        jobId
+      );
+      if (!lockAcquired && collisionBehavior === 'suppress') {
+        return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
+      }
     }
 
     // Keep jobs for deduplication tracking
@@ -504,23 +526,20 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     let payloadToSend: BullMQPayload = payloadData;
 
     // Handle releaseAfter numeric
-    if (typeof deduplication.releaseAfter === 'number' && deduplication.releaseAfter > 0) {
+    if (
+      lockAcquired &&
+      typeof deduplication.releaseAfter === 'number' &&
+      deduplication.releaseAfter > 0
+    ) {
       scheduleLockRelease(scopedDeduplicationKey, provider, ttl, deduplication.releaseAfter);
     }
 
-    // Handle releaseAfter non-numeric
-    if (
-      deduplication.releaseAfter !== undefined &&
-      deduplication.releaseAfter !== null &&
-      typeof deduplication.releaseAfter !== 'number'
-    ) {
-      payloadToSend = attachWorkerSideReleaseMeta(
-        payloadToSend,
-        deduplicationId,
-        deduplication.releaseAfter,
-        payloadData.uniqueId
-      );
-    }
+    payloadToSend = handleReleaseAfter(
+      payloadToSend,
+      deduplicationId,
+      deduplication.releaseAfter,
+      payloadData.uniqueId
+    );
 
     return { payloadToSend, shouldReturn: false };
   };
