@@ -12,6 +12,7 @@ import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { fileURLToPath } from '@node-singletons/url';
+import { execFileSync } from 'node:child_process';
 
 export interface ProjectScaffoldOptions {
   name: string;
@@ -75,13 +76,35 @@ const loadCoreVersion = (): string => {
   }
 };
 
+const loadPublishedNpmVersion = (packageName: string): string | undefined => {
+  try {
+    const raw = execFileSync(
+      'npm',
+      ['view', packageName, 'version', '--json', '--loglevel=silent'],
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }
+    ).trim();
+    const resolved = JSON.parse(raw) as unknown;
+    return typeof resolved === 'string' && resolved.length > 0 ? resolved : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const loadGovernanceVersion = (): string => {
+  const publishedVersion = loadPublishedNpmVersion('@zintrust/governance');
+  if (typeof publishedVersion === 'string') {
+    return publishedVersion;
+  }
+
   try {
     const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
     const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
-    return typeof packageJson.version === 'string' ? packageJson.version : '^1.0.0';
+    return typeof packageJson.version === 'string' ? packageJson.version : '^0.6.0';
   } catch {
-    return '^1.0.0';
+    return '^0.6.0';
   }
 };
 

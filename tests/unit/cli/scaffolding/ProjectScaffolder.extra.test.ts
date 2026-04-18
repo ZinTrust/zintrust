@@ -8,9 +8,14 @@ import {
 import fs, { fsPromises } from '@node-singletons/fs';
 import os from '@node-singletons/os';
 import path from '@node-singletons/path';
-import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const tmpRoot = path.join(os.tmpdir(), `zintrust-scaffold-${Date.now()}`);
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('ProjectScaffolder extra tests', () => {
   it('validateOptions returns errors for bad input', () => {
@@ -49,6 +54,41 @@ describe('ProjectScaffolder extra tests', () => {
     expect(packageJson.dependencies?.['@zintrust/d1-migrator']).toBeUndefined();
 
     // cleanup
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+  });
+
+  it('prefers the latest published governance version in scaffolded package.json', async () => {
+    const publishedGovernanceVersion = '0.7.0';
+    const projectPath = path.join(tmpRoot, `published-governance-${Date.now()}`);
+
+    vi.spyOn({ execFileSync }, 'execFileSync').mockImplementation((command, args, options) => {
+      if (
+        command === 'npm' &&
+        Array.isArray(args) &&
+        args[0] === 'view' &&
+        args[1] === '@zintrust/governance' &&
+        args[2] === 'version'
+      ) {
+        return JSON.stringify(publishedGovernanceVersion);
+      }
+
+      return execFileSync(command, args as string[], options as Parameters<typeof execFileSync>[2]);
+    });
+
+    const result = await createProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+
     await fsPromises.rm(projectPath, { recursive: true, force: true });
   });
 
