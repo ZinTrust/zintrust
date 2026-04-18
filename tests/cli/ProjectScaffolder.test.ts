@@ -68,6 +68,8 @@ describe('ProjectScaffolder Templates', () => {
     expect(packageJson).toContain('"@zintrust/governance": "{{governanceVersion}}"');
     expect(packageJson).toContain('"eslint": "^10.0.0"');
     expect(packageJson).not.toContain('"tsx":');
+    expect(packageJson).toContain('"overrides"');
+    expect(packageJson).toContain('"@zintrust/core": ">=0.6.0"');
 
     const eslintConfig = template?.files['eslint.config.mjs'] ?? '';
     expect(eslintConfig).toContain("from '@zintrust/governance/eslint'");

@@ -21,5 +21,10 @@
     "tsc-alias": "^1.8.16",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
+  },
+  "overrides": {
+    "@zintrust/governance": {
+      "@zintrust/core": ">=0.6.0"
+    }
   }
 }
