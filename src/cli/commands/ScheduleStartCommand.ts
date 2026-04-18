@@ -27,6 +27,10 @@ const execute = async (_options: Options): Promise<void> => {
     return;
   }
 
+  if (await ScheduleCliSupport.ensureProjectSourceContext()) {
+    return;
+  }
+
   await ScheduleCliSupport.registerAll();
 
   const registeredCount = SchedulerRuntime.list().length;

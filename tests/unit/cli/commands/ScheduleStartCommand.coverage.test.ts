@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@cli/commands/schedule/ScheduleCliSupport', () => ({
   ScheduleCliSupport: {
+    ensureProjectSourceContext: vi.fn(async () => false),
     registerAll: vi.fn(async () => undefined),
     shutdownCliResources: vi.fn(async () => undefined),
   },
