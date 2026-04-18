@@ -102,6 +102,31 @@ describe('SpawnUtil', () => {
     );
   });
 
+  it('falls back to the packaged core bin when the app root has no local binary', async () => {
+    (existsSync as any).mockImplementation((candidate: string) => {
+      if (candidate === '/test/node_modules/.bin/tsx') return false;
+      return candidate.endsWith('node_modules/.bin/tsx');
+    });
+
+    mockChild.once.mockImplementation((event, cb) => {
+      if (event === 'close') cb(0, null);
+    });
+
+    await SpawnUtil.spawnAndWait({
+      command: 'tsx',
+      args: ['runner.ts'],
+      cwd: '/test',
+    });
+
+    expect(spawn).toHaveBeenCalledWith(
+      expect.stringContaining('node_modules/.bin/tsx'),
+      ['runner.ts'],
+      expect.objectContaining({ cwd: '/test' })
+    );
+    expect(spawn).not.toHaveBeenCalledWith('tsx', ['runner.ts'], expect.any(Object));
+    expect((spawn as any).mock.calls[0]?.[0]).not.toContain('/test/node_modules/.bin/tsx');
+  });
+
   it('handles windows bin candidates', async () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'win32' });

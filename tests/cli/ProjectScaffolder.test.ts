@@ -600,6 +600,19 @@ describe('ProjectScaffolder Overwrite', () => {
     expect(result.message).toContain('already exists');
   });
 
+  it('should reuse an empty existing directory', async () => {
+    const projectPath = path.join(testDir, 'empty-app');
+    fs.mkdirSync(projectPath, { recursive: true });
+
+    const scaffolder = ProjectScaffolder.create(testDir);
+    const result = await scaffolder.scaffold({
+      name: 'empty-app',
+    });
+
+    expect(result.success).toBe(true);
+    expect(FileGenerator.fileExists(path.join(projectPath, 'package.json'))).toBe(true);
+  });
+
   it('should succeed with overwrite option', async () => {
     const projectPath = path.join(testDir, 'my-app');
     FileGenerator.createDirectory(projectPath);
@@ -614,6 +627,21 @@ describe('ProjectScaffolder Overwrite', () => {
     const result = await scaffolder.scaffold(options);
 
     expect(result.success).toBe(true);
+  });
+
+  it('should succeed with force option', async () => {
+    const projectPath = path.join(testDir, 'force-app');
+    FileGenerator.createDirectory(projectPath);
+    FileGenerator.writeFile(path.join(projectPath, 'old-file.txt'), 'old');
+
+    const scaffolder = ProjectScaffolder.create(testDir);
+    const result = await scaffolder.scaffold({
+      name: 'force-app',
+      force: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(FileGenerator.fileExists(path.join(projectPath, 'old-file.txt'))).toBe(false);
   });
 });
 

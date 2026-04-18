@@ -51,7 +51,10 @@ const createProxyCoreEnvModule = (): { Env: Record<string, unknown> } => ({
   },
 });
 
-const createProxyCoreEnvModuleWithDebug = (envKey: string, envValue: string): {
+const createProxyCoreEnvModuleWithDebug = (
+  envKey: string,
+  envValue: string
+): {
   Env: Record<string, unknown>;
 } => ({
   Env: {
@@ -259,7 +262,9 @@ describe('Proxy signing/config helpers patch coverage', () => {
     const gatedDebug = vi.fn();
     const gatedWarn = vi.fn();
 
-    vi.doMock('@config/env', () => createProxyCoreEnvModuleWithDebug('POSTGRES_PROXY_DEBUG', 'yes'));
+    vi.doMock('@config/env', () =>
+      createProxyCoreEnvModuleWithDebug('POSTGRES_PROXY_DEBUG', 'yes')
+    );
     vi.doMock('@config/logger', () => createLoggerModule(gatedDebug, gatedWarn));
     vi.doMock('@proxy/ProxySigningConfigResolver', createSigningConfigResolverModule);
     vi.doMock('@proxy/ProxySigningRequest', createProxySigningRequestSuccessModule);

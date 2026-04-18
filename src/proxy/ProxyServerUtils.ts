@@ -54,6 +54,11 @@ const resolveProxyDebugEnabled = (serviceName: string): boolean => {
   return false;
 };
 
+const withTraceSkipProxyContext = (context: Record<string, unknown>): Record<string, unknown> => ({
+  ...context,
+  __zintrustSkipTraceLog: true,
+});
+
 export const resolveBaseConfig = (
   overrides: BaseProxyOverrides,
   prefix: string,
@@ -100,7 +105,7 @@ export const verifyRequestSignature = async (
 
   if (resolveProxyDebugEnabled(serviceName)) {
     Logger.debug(`[${serviceName}] Verifying request signature`, {
-      ...Logger.withTraceSkipContext({
+      ...withTraceSkipProxyContext({
         path: req.url ?? '',
         method: req.method ?? 'POST',
         requireSigning: config.signing.require,
@@ -116,7 +121,7 @@ export const verifyRequestSignature = async (
   if (!verified.ok) {
     const error = verified.error ?? { status: 401, message: 'Unauthorized' };
     Logger.warn(`[${serviceName}] Signature verification failed`, {
-      ...Logger.withTraceSkipContext({
+      ...withTraceSkipProxyContext({
         path: req.url ?? '',
         method: req.method ?? 'POST',
         status: error.status,

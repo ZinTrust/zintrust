@@ -762,6 +762,14 @@ const createDirectoriesForState = (state: ScaffolderState): number => {
   return createDirectories(state.projectPath, template?.directories ?? []);
 };
 
+const canReuseExistingProjectPath = (projectPath: string): boolean => {
+  try {
+    return fs.statSync(projectPath).isDirectory() && fs.readdirSync(projectPath).length === 0;
+  } catch {
+    return false;
+  }
+};
+
 const createFilesForState = (state: ScaffolderState): number => {
   const template = resolveTemplate(state.templateName);
   const variables = state.variables;
@@ -831,8 +839,10 @@ const scaffoldWithState = async (
     prepareContext(state, options);
 
     if (fs.existsSync(state.projectPath)) {
-      if (options.overwrite === true) {
+      if (options.overwrite === true || options.force === true) {
         fs.rmSync(state.projectPath, { recursive: true, force: true });
+      } else if (canReuseExistingProjectPath(state.projectPath)) {
+        Logger.info(`Reusing empty project directory: ${state.projectPath}`);
       } else {
         return {
           success: false,

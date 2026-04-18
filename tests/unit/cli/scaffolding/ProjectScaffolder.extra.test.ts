@@ -28,7 +28,9 @@ const extractEnv = (options?: NodeJS.ProcessEnv | { env?: NodeJS.ProcessEnv } | 
 };
 
 const failUnexpectedExec = (command: string, args?: readonly string[]): never => {
-  throw new Error(`Unexpected execFileSync call in ProjectScaffolder test: ${command} ${args?.join(' ') ?? ''}`);
+  throw new Error(
+    `Unexpected execFileSync call in ProjectScaffolder test: ${command} ${args?.join(' ') ?? ''}`
+  );
 };
 
 const mockChildProcessExecFileSync = (implementation: ExecFileSyncImplementation): void => {

@@ -321,9 +321,7 @@ const clearKvRemoteDriver = async (): Promise<void> => {
   await Promise.resolve();
 };
 
-const createKvRemoteHas = (
-  getJson: <T>(key: string) => Promise<T | null>
-): CacheDriver['has'] => {
+const createKvRemoteHas = (getJson: <T>(key: string) => Promise<T | null>): CacheDriver['has'] => {
   return async function has(this: CacheDriver, key: string): Promise<boolean> {
     if (!hasCloudflareApiCreds()) return (await this.get(key)) !== null;
     const settings = getSettings();
