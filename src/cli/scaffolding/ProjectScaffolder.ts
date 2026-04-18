@@ -11,6 +11,7 @@ import {
 } from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isNonEmptyString } from '@helper/index';
 import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -86,12 +87,41 @@ const readBundledGovernancePackage = ():
 const SAFE_PATH = '/usr/local/bin:/usr/bin:/bin';
 const NPM_VIEW_TIMEOUT_MS = 1500;
 const publishedVersionCache = new Map<string, string | undefined>();
+const SAFE_NPM_ENV_KEYS = Object.freeze([
+  'HOME',
+  'USERPROFILE',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'npm_config_userconfig',
+  'npm_config_cache',
+  'NPM_CONFIG_CACHE',
+  'npm_config_registry',
+  'NPM_CONFIG_REGISTRY',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+  'SSL_CERT_FILE',
+  'NODE_EXTRA_CA_CERTS',
+] as const);
 
-const createSafeNpmEnv = (): NodeJS.ProcessEnv => ({
-  ...process.env,
-  NODE_ENV: process.env['NODE_ENV'] ?? 'development',
-  PATH: SAFE_PATH,
-});
+const createSafeNpmEnv = (): NodeJS.ProcessEnv => {
+  const env: NodeJS.ProcessEnv = {
+    NODE_ENV: process.env['NODE_ENV'] ?? 'development',
+    PATH: SAFE_PATH,
+  };
+
+  for (const key of SAFE_NPM_ENV_KEYS) {
+    const value = process.env[key];
+    if (isNonEmptyString(value)) {
+      env[key] = value;
+    }
+  }
+
+  return env;
+};
 
 const loadPublishedNpmVersion = (packageName: string): string | undefined => {
   if (publishedVersionCache.has(packageName)) {

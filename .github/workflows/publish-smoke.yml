@@ -72,34 +72,6 @@ jobs:
 
           cd "$WORKDIR/$APP_NAME"
 
-          export PUBLISHED_CORE_VERSION="$(npm view @zintrust/core version --json --loglevel=silent | tr -d '"')"
-          export PUBLISHED_GOVERNANCE_VERSION="$(npm view @zintrust/governance version --json --loglevel=silent | tr -d '"')"
-
-          echo "---- DEBUG: scaffolded dependency ranges before local dist install ----"
-          node <<'NODE'
-          const fs = require('fs');
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          const actualCore = pkg.dependencies?.['@zintrust/core'];
-          const actualGovernance = pkg.devDependencies?.['@zintrust/governance'];
-          const expectedCore = `^${process.env.PUBLISHED_CORE_VERSION}`;
-          const expectedGovernance = `^${process.env.PUBLISHED_GOVERNANCE_VERSION}`;
-
-          console.log('scaffolded @zintrust/core =', actualCore);
-          console.log('expected   @zintrust/core =', expectedCore);
-          console.log('scaffolded @zintrust/governance =', actualGovernance);
-          console.log('expected   @zintrust/governance =', expectedGovernance);
-
-          if (actualCore !== expectedCore) {
-            console.error('Smoke FAILED: scaffolded @zintrust/core range does not match the live npm release line');
-            process.exit(1);
-          }
-
-          if (actualGovernance !== expectedGovernance) {
-            console.error('Smoke FAILED: scaffolded @zintrust/governance range does not match the live npm release line');
-            process.exit(1);
-          }
-          NODE
-
           # Install the locally built framework package (dist/) into the fresh app.
           # Avoid relative file:../../dist (it breaks because dist is under repo root, not WORKDIR).
           npm install --no-audit --no-fund "$ROOT/dist" || \

@@ -121,6 +121,7 @@ describe('ProxyServerUtils (branches)', () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toEqual({ status: 401, message: 'Unauthorized' });
+    expect(mocked.debug).not.toHaveBeenCalled();
     expect(mocked.warn).toHaveBeenCalled();
   });
 
@@ -153,5 +154,31 @@ describe('ProxyServerUtils (branches)', () => {
         'svc'
       )
     ).resolves.toEqual({ ok: true });
+    expect(mocked.debug).not.toHaveBeenCalled();
+  });
+
+  it('verifyRequestSignature emits per-request diagnostics when proxy debug is enabled', async () => {
+    mocked.envGet.mockImplementation((key: string, fallback: string) =>
+      key === 'MYSQL_PROXY_DEBUG' ? 'true' : fallback
+    );
+    mocked.verifyProxySignatureIfNeeded.mockResolvedValueOnce({ ok: true });
+
+    await expect(
+      verifyRequestSignature(
+        { url: '/x', method: 'POST', headers: {} } as any,
+        'body',
+        { signing: { keyId: 'kid', secret: 'sec', require: true, windowMs: 1000 } as any },
+        'MySQLProxyServer'
+      )
+    ).resolves.toEqual({ ok: true });
+
+    expect(mocked.debug).toHaveBeenCalledWith(
+      '[MySQLProxyServer] Verifying request signature',
+      expect.objectContaining({
+        __zintrustSkipTraceLog: true,
+        path: '/x',
+        method: 'POST',
+      })
+    );
   });
 });
