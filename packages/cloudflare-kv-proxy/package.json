@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cloudflare-kv-proxy",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Cloudflare KV proxy package for ZinTrust.",
   "type": "module",
   "private": true,
