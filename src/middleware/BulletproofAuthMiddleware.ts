@@ -10,6 +10,7 @@ import {
   type MiddlewareFailureResponder,
 } from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
+import { BulletproofDeviceStore } from '@security/BulletproofDeviceStore';
 import type { JwtAlgorithm, JwtPayload } from '@security/JwtManager';
 import { JwtManager } from '@security/JwtManager';
 import { JwtSessions } from '@security/JwtSessions';
@@ -556,7 +557,11 @@ const resolveSigningConfig = (
   const hasCustomResolver = typeof options.getSecretForKeyId === 'function';
   const getSecretForKeyId = hasCustomResolver
     ? (options.getSecretForKeyId as BulletproofResolved['getSecretForKeyId'])
-    : (_keyId: string): string | undefined => (signingSecret === '' ? undefined : signingSecret);
+    : async (keyId: string): Promise<string | undefined> => {
+        const device = await BulletproofDeviceStore.findByDeviceId(keyId).catch(() => null);
+        if (device && typeof device.signingSecret === "string" && device.signingSecret !== "") return device.signingSecret;
+        return signingSecret === '' ? undefined : signingSecret;
+      };
 
   const verifyNonce: NonceReplayVerifier =
     options.verifyNonce ?? NonceReplay.createMemoryVerifier();

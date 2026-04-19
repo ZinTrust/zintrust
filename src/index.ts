@@ -193,6 +193,7 @@ export type {
   JwtPayload,
 } from '@security/JwtManager';
 export { JwtSessions } from '@security/JwtSessions';
+export { BulletproofDeviceStore } from '@security/BulletproofDeviceStore';
 export { PasswordResetTokenBroker } from '@security/PasswordResetTokenBroker';
 export type {
   IPasswordResetTokenBroker,
@@ -456,6 +457,7 @@ export * as NodeSingletons from '@node-singletons/index';
 export { Auth } from '@/auth/Auth';
 export { LoginFlow } from '@auth/LoginFlow';
 export type {
+  BulletproofJwtIssued,
   LoginFlowAuditEvent,
   LoginFlowAuditor,
   LoginFlowBuilder,

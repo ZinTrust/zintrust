@@ -34,6 +34,12 @@ vi.mock('@security/JwtManager', () => ({
   },
 }));
 
+vi.mock('@security/BulletproofDeviceStore', () => ({
+  BulletproofDeviceStore: {
+    upsert: vi.fn(async (record: Record<string, unknown>) => record),
+  },
+}));
+
 type MockRes = {
   setStatus: Mock;
   json: Mock;
@@ -213,12 +219,13 @@ describe('AuthController', () => {
     expect(JwtManager.signAccessToken).toHaveBeenCalledWith({
       sub: 'u1',
       email: 'a@example.com',
-      deviceId: 'dev-u1',
+      deviceId: expect.any(String),
     });
     expect(res.json).toHaveBeenCalledWith({
       token: 'signed-token',
       token_type: 'Bearer',
-      deviceId: 'dev-u1',
+      deviceId: expect.any(String),
+      deviceSecret: expect.stringMatching(/^hex:/),
       user: { id: 'u1', name: 'A', email: 'a@example.com' },
     });
   });

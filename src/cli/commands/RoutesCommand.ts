@@ -274,7 +274,7 @@ const loadProjectRouteRegistrar = async (): Promise<
   if (loader.exists()) {
     try {
       const routeModule = await loader.getModule<Record<string, unknown>>();
-      const registerRoutes = isObject(routeModule) ? routeModule.registerRoutes : undefined;
+      const registerRoutes = isObject(routeModule) ? routeModule['registerRoutes'] : undefined;
       if (typeof registerRoutes === 'function') {
         return registerRoutes as (router: ReturnType<typeof Router.createRouter>) => void;
       }
@@ -285,7 +285,7 @@ const loadProjectRouteRegistrar = async (): Promise<
 
   try {
     const routeModule = (await import('@routes/api')) as Record<string, unknown>;
-    const registerRoutes = isObject(routeModule) ? routeModule.registerRoutes : undefined;
+    const registerRoutes = isObject(routeModule) ? routeModule['registerRoutes'] : undefined;
     return typeof registerRoutes === 'function'
       ? (registerRoutes as (router: ReturnType<typeof Router.createRouter>) => void)
       : undefined;

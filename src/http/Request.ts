@@ -26,6 +26,7 @@ export interface IRequest {
   getHeaders(): http.IncomingHttpHeaders;
   readonly headers: http.IncomingHttpHeaders;
   getHeader(name: string): HeadParam;
+  header(name: string): HeadParam;
   getParams(): Record<string, string>;
   getParam(key: string): string | undefined;
   setParams(params: Record<string, string>): void;
@@ -59,7 +60,7 @@ export type ValidatedRequest<
   TBody = unknown,
   TQuery = unknown,
   TParams = unknown,
-  THeaders = unknown
+  THeaders = unknown,
 > = Omit<IRequest, 'validated'> & {
   validated: {
     body: TBody;
@@ -186,6 +187,7 @@ function createHttpHelpers(req: http.IncomingMessage): {
   getHeaders: () => http.IncomingHttpHeaders;
   headers: http.IncomingHttpHeaders;
   getHeader: (name: string) => HeadParam;
+  header: (name: string) => HeadParam;
 } {
   return {
     getMethod(): string {
@@ -202,6 +204,9 @@ function createHttpHelpers(req: http.IncomingMessage): {
       return req.headers;
     },
     getHeader(name: string): HeadParam {
+      return req.headers[name.toLowerCase()];
+    },
+    header(name: string): HeadParam {
       return req.headers[name.toLowerCase()];
     },
   };

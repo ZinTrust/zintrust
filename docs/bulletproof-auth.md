@@ -64,21 +64,21 @@ Client                                    Server
 
 ### 1. Register the middleware
 
-Add the `bulletproof` key to your middleware config (`config/middleware.ts`):
+Fresh ZinTrust apps already register the `bulletproof` middleware key in core. You only need to override it when you want custom failure payloads or a custom secret resolver.
+
+If you do override it in `config/middleware.ts`, use the core middleware and core device store:
 
 ```ts
-import { BulletproofAuthMiddleware } from '@middleware/BulletproofAuthMiddleware';
+import { BulletproofAuthMiddleware, BulletproofDeviceStore } from '@zintrust/core';
 
 export default {
-  // ... your other middleware
-
   bulletproof: BulletproofAuthMiddleware.create({
     /**
-     * Recommended: resolve a per-device secret by keyId.
-     * keyId === deviceId — look it up from your DB, cache, or KV store.
+     * Optional override: resolve a per-device secret by keyId.
+     * The built-in middleware already checks BulletproofDeviceStore first.
      */
     getSecretForKeyId: async (keyId) => {
-      const device = await DeviceRepository.findByDeviceId(keyId);
+      const device = await BulletproofDeviceStore.findByDeviceId(keyId);
       return device?.signingSecret ?? undefined;
     },
   }),
@@ -117,13 +117,12 @@ The built-in bulletproof responder currently uses the stable `reason` value `una
 
 ### 3. Login controller — full example
 
-This is where you issue a JWT **with a `deviceId` claim** and generate a per-device signing secret.
+Fresh apps can use the built-in `LoginFlow` Bulletproof issuer and the core-backed `BulletproofDeviceStore`. Run your normal migrations first so the `zintrust_bulletproof_devices` table exists.
 
 ```ts
 // app/Controllers/AuthController.ts
-import { Controller } from 'zintrust';
 import { Request, Response } from '@types/http';
-import { randomBytes } from 'node:crypto';
+import { LoginFlow } from '@zintrust/core';
 
 export class AuthController extends Controller {
   /**
@@ -135,40 +134,17 @@ export class AuthController extends Controller {
   async login(req: Request, res: Response) {
     const { email, password } = req.body as { email: string; password: string };
 
-    // 1. Verify credentials
-    const user = await UserRepository.findByEmail(email);
-    if (!user || !(await user.verifyPassword(password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    // 2. Assign a stable deviceId (or accept one from the client)
-    const deviceId: string =
-      (req.body as { deviceId?: string }).deviceId ?? `dev_${randomBytes(16).toString('hex')}`;
-
-    // 3. Generate a strong per-device signing secret
-    const deviceSecret = `base64:${randomBytes(32).toString('base64')}`;
-
-    // 4. Persist the device record
-    await DeviceRepository.upsert({
-      userId: user.id,
-      deviceId,
-      signingSecret: deviceSecret,
-      userAgent: req.headers['user-agent'] ?? '',
-      lastSeenAt: new Date(),
+    const result = await LoginFlow.create({
+      provider: passwordLoginProvider,
+      context: Object.freeze({ request: req, email }),
     });
+      .identify({ email })
+      .verify({ password })
+      .issue('bulletproof')
+      .audit()
+      .run();
 
-    // 5. Mint JWT — include deviceId so the middleware can validate binding
-    const jwt = await Jwt.sign({
-      sub: String(user.id),
-      email: user.email,
-      role: user.role,
-      deviceId,
-      // Optional extras for stronger binding (layers 8 + 9)
-      tz: req.headers['x-zt-timezone'] as string | undefined,
-      uaHash: req.headers['x-zt-user-agent-hash'] as string | undefined,
-    });
-
-    return res.json({ jwt, deviceId, deviceSecret });
+    return res.json(result.issued);
   }
 
   /**
@@ -176,12 +152,12 @@ export class AuthController extends Controller {
    * Revokes the JWT and removes the device record.
    */
   async logout(req: Request, res: Response) {
-    const token = (req.headers.authorization ?? '').replace('Bearer ', '');
+    const token = String(req.getHeader('authorization') ?? '').replace('Bearer ', '');
     await TokenRevocation.revoke(token);
 
     const deviceId = req.header('x-zt-device-id');
     if (deviceId) {
-      await DeviceRepository.removeByDeviceId(deviceId);
+      await BulletproofDeviceStore.removeByDeviceId(deviceId);
     }
 
     return res.json({ message: 'Logged out' });
@@ -200,7 +176,7 @@ Router.post('/auth/logout', 'AuthController.logout', {
 
 ### 4. Quick start — single shared secret
 
-For simple setups (e.g. server-to-server integrations), skip per-device secrets and use a single environment secret:
+For simple setups (e.g. server-to-server integrations), skip the core device store and use a single environment secret:
 
 ```bash
 # .env

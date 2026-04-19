@@ -1,5 +1,7 @@
 # 2026-04-19
 
+- Fixed Bulletproof auth for fresh/newstart apps by moving the missing device-secret path into core. ZinTrust now exposes `req.header(...)` as an alias of `req.getHeader(...)`, ships a built-in `BulletproofDeviceStore` backed by the new `zintrust_bulletproof_devices` migration, resolves Bulletproof middleware secrets from that store by default before falling back to the shared env secret, and adds a built-in `LoginFlow` issuer named `bulletproof` that returns `{ token, token_type, deviceId, deviceSecret }`. The default auth controller and fresh-project template now use that issuer, so normal migrations are enough to make the docs flow work.
+
 - Fixed CLI project-module discovery for fresh/newstart-style workspaces. `zin routes` now resolves the active project root first and loads `routes/api.ts` from the workspace filesystem instead of only relying on the core alias graph, `ScheduleCliSupport` now prefers project `app/Schedules` files before alias imports, and optional CLI extension discovery now climbs to the nearest project `package.json` when commands are launched from a subdirectory.
 
 - Stabilized the Husky pre-push `coverage:patch` path by giving a small set of import-heavy integration and worker coverage tests explicit 30s budgets, including the remaining broadcast worker coverage slice. This keeps the behavior checks intact while avoiding false-negative push failures from the default 10s Vitest timeout under aggregate patch-coverage runs.

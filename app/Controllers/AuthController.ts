@@ -42,16 +42,13 @@ type PasswordLoginContext = {
   email: string;
   ipAddress: string;
   requestId?: string;
+  request: IRequest;
 };
 
 const toSubject = (id: unknown): string | undefined => {
   if (typeof id === 'string' && id.length > 0) return id;
   if (typeof id === 'number' && Number.isFinite(id)) return String(id);
   return undefined;
-};
-
-const toDeviceId = (subject: string | undefined): string | undefined => {
-  return isUndefinedOrNull(subject) ? undefined : `dev-${subject}`;
 };
 
 const getClaimString = (claims: unknown, key: string): string | undefined => {
@@ -68,7 +65,23 @@ const getIssuedToken = (issued: unknown): string => {
     return issued;
   }
 
+  if (typeof issued === 'object' && issued !== null) {
+    const token = (issued as Record<string, unknown>)['token'];
+    if (typeof token === 'string' && token.trim() !== '') {
+      return token;
+    }
+  }
+
   throw ErrorFactory.createSecurityError('LoginFlow jwt issuer returned an invalid access token');
+};
+
+const getIssuedString = (issued: unknown, key: string): string | undefined => {
+  if (typeof issued !== 'object' || issued === null) {
+    return undefined;
+  }
+
+  const value = (issued as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
 };
 
 const isLoginFlowUnauthorizedFailure = (error: unknown): boolean => {
@@ -134,7 +147,6 @@ const passwordLoginProvider = Object.freeze({
 
     const user = pickPublicUser(identity);
     const subject = toSubject(user.id);
-    const deviceId = toDeviceId(subject);
 
     return {
       user,
@@ -142,7 +154,6 @@ const passwordLoginProvider = Object.freeze({
       claims: {
         sub: subject,
         email: user.email,
-        ...(isUndefinedOrNull(deviceId) ? {} : { deviceId }),
       },
     };
   },
@@ -175,17 +186,20 @@ async function login(req: IRequest, res: IResponse): Promise<void> {
   try {
     const result = await LoginFlow.create({
       provider: passwordLoginProvider,
-      context: Object.freeze({ email, ipAddress, requestId }),
+      context: Object.freeze({ email, ipAddress, requestId, request: req }),
     })
       .identify({ email })
       .verify({ password })
-      .issue('jwt')
+      .issue('bulletproof')
       .audit()
       .run();
 
     const user = result.verified.user as { id: unknown; name: string; email: string };
     const subject = getClaimString(result.verified.claims, 'sub');
-    const deviceId = getClaimString(result.verified.claims, 'deviceId');
+    const deviceId =
+      getIssuedString(result.issued, 'deviceId') ??
+      getClaimString(result.verified.claims, 'deviceId');
+    const deviceSecret = getIssuedString(result.issued, 'deviceSecret');
     const token = getIssuedToken(result.issued);
 
     Logger.info('AuthController.login: successful login', {
@@ -200,6 +214,7 @@ async function login(req: IRequest, res: IResponse): Promise<void> {
       token,
       token_type: 'Bearer',
       ...(isUndefinedOrNull(deviceId) ? {} : { deviceId }),
+      ...(isUndefinedOrNull(deviceSecret) ? {} : { deviceSecret }),
       user,
     });
   } catch (error) {
