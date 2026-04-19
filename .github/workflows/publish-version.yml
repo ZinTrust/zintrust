@@ -1,6 +1,12 @@
 name: Release Verification
 
 on:
+  workflow_run:
+    workflows: ['Publish Smoke Gate']
+    types:
+      - completed
+    branches:
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -79,6 +85,7 @@ jobs:
             npm install --no-save --no-audit --no-fund --legacy-peer-deps tsx
 
           export PORT=7777
+          export HOST=127.0.0.1
           export NODE_ENV=development
           export DB_CONNECTION=sqlite
           export WORKER_ENABLED=false
@@ -97,7 +104,7 @@ jobs:
           trap cleanup EXIT
 
           for i in {1..60}; do
-            if curl -fsS "http://127.0.0.1:7777/health" >/dev/null; then
+            if curl -fsS "http://${HOST}:${PORT}/health" >/dev/null; then
               echo "Smoke OK"
               exit 0
             fi
