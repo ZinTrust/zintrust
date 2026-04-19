@@ -3,6 +3,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { spawn } from '@node-singletons/child-process';
 import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 
 export interface SpawnAndWaitInput {
   command: string;
@@ -19,23 +20,31 @@ const getExitCode = (exitCode: number | null, signal: NodeJS.Signals | null): nu
   return 1;
 };
 
+const CURRENT_PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+
+const buildBinCandidates = (binDir: string, command: string): string[] =>
+  process.platform === 'win32'
+    ? [
+        path.join(binDir, `${command}.cmd`),
+        path.join(binDir, `${command}.exe`),
+        path.join(binDir, `${command}.bat`),
+        path.join(binDir, command),
+      ]
+    : [path.join(binDir, command)];
+
 const resolveLocalBin = (command: string, cwd: string): string => {
   // If command is already a path, leave it alone.
   if (command.includes('/') || command.includes('\\')) return command;
 
-  const binDir = path.join(cwd, 'node_modules', '.bin');
-  const candidates =
-    process.platform === 'win32'
-      ? [
-          path.join(binDir, `${command}.cmd`),
-          path.join(binDir, `${command}.exe`),
-          path.join(binDir, `${command}.bat`),
-          path.join(binDir, command),
-        ]
-      : [path.join(binDir, command)];
+  const binDirs = [
+    path.join(cwd, 'node_modules', '.bin'),
+    path.join(CURRENT_PACKAGE_ROOT, 'node_modules', '.bin'),
+  ].filter((value, index, items) => items.indexOf(value) === index);
 
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+  for (const binDir of binDirs) {
+    for (const candidate of buildBinCandidates(binDir, command)) {
+      if (existsSync(candidate)) return candidate;
+    }
   }
 
   return command;
@@ -46,7 +55,6 @@ const buildCommandNotFoundMessage = (command: string): string => {
     return [
       "Error: 'tsx' not found on PATH.",
       'Install it in the project with "npm install -D tsx".',
-      'If you want a machine-wide fallback, install it globally with "npm install -g tsx".',
     ].join(' ');
   }
 

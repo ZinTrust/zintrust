@@ -15,6 +15,7 @@ const mocked = vi.hoisted(() => ({
 vi.mock('@config/logger', () => ({ Logger: mocked.logger }));
 vi.mock('@cli/commands/schedule/ScheduleCliSupport', () => ({
   ScheduleCliSupport: {
+    ensureProjectSourceContext: vi.fn(async () => false),
     registerAll: (...args: any[]) => mocked.registerAll(...args),
     shutdownCliResources: (...args: any[]) => mocked.shutdown(...args),
   },

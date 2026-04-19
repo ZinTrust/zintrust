@@ -107,4 +107,4 @@ jobs:
 
       - name: Summarize release verification
         run: |
-          echo "Release verification completed. npm publishing is disabled for this repository."
+          echo "Release verification completed. Publish the verified core dist and workspace packages with npm run pub:ci and npm run release:publish-packages."

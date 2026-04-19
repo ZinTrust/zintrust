@@ -488,6 +488,8 @@ async function handleDeduplication(
   queueName: string
 ): Promise<JobResult> {
   const { id, ttl, replace } = deduplicationOptions;
+  const collisionBehavior =
+    deduplicationOptions.collisionBehavior === 'enqueue' ? 'enqueue' : 'suppress';
   const scopedLockKey = resolveScopedDeduplicationLockKey(queueName, id);
 
   try {
@@ -504,6 +506,12 @@ async function handleDeduplication(
           lockId: newLock.key,
           status: ZintrustLang.QUEUED,
         };
+      } else if (collisionBehavior === 'enqueue') {
+        return {
+          id,
+          deduplicated: false,
+          status: ZintrustLang.QUEUED,
+        };
       } else {
         // Job is deduplicated
         return {
@@ -516,6 +524,14 @@ async function handleDeduplication(
 
     // Acquire new lock
     const lock = await lockProvider.acquire(scopedLockKey, { ttl });
+
+    if (!lock.acquired && collisionBehavior === 'enqueue') {
+      return {
+        id,
+        deduplicated: false,
+        status: ZintrustLang.QUEUED,
+      };
+    }
 
     return {
       id,

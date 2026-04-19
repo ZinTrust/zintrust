@@ -9,6 +9,10 @@ type Options = CommandOptions & {
 };
 
 const execute = async (options: Options): Promise<void> => {
+  if (await ScheduleCliSupport.ensureProjectSourceContext()) {
+    return;
+  }
+
   try {
     await ScheduleCliSupport.registerAll();
 

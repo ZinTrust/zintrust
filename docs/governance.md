@@ -64,14 +64,14 @@ Having one blessed “team workflow” reduces governance friction:
 - CI and local runs match
 - PR reviews focus on product changes, not style/tooling debates
 
-## How this repo keeps governance maintainable
+## How ZinTrust projects keep governance maintainable
 
 ZinTrust tries to keep checks:
 
 - **fast by default** for local loops
 - **stricter in CI** (where runtime is acceptable)
 
-Examples in this repo include:
+Examples in the framework template include:
 
 - `templates:check` to ensure generated/template imports stay valid
 - duplication checks for staged files (`scripts/ci/duplication-check.mjs`)

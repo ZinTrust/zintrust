@@ -8,9 +8,56 @@ import {
 import fs, { fsPromises } from '@node-singletons/fs';
 import os from '@node-singletons/os';
 import path from '@node-singletons/path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const tmpRoot = path.join(os.tmpdir(), `zintrust-scaffold-${Date.now()}`);
+
+type ExecFileSyncImplementation = (
+  command: string,
+  args?: readonly string[],
+  options?: NodeJS.ProcessEnv | { env?: NodeJS.ProcessEnv } | unknown
+) => string | Buffer;
+
+const extractEnv = (options?: NodeJS.ProcessEnv | { env?: NodeJS.ProcessEnv } | unknown) => {
+  if (typeof options !== 'object' || options === null || !('env' in options)) {
+    return undefined;
+  }
+
+  const env = options.env;
+  return typeof env === 'object' && env !== null ? env : undefined;
+};
+
+const failUnexpectedExec = (command: string, args?: readonly string[]): never => {
+  throw new Error(
+    `Unexpected execFileSync call in ProjectScaffolder test: ${command} ${args?.join(' ') ?? ''}`
+  );
+};
+
+const mockChildProcessExecFileSync = (implementation: ExecFileSyncImplementation): void => {
+  vi.doMock('node:child_process', () => {
+    return { execFileSync: implementation };
+  });
+};
+
+const mockGovernancePackageRead = (implementation: typeof fs.readFileSync): void => {
+  vi.doMock('@node-singletons/fs', async () => {
+    const actual =
+      await vi.importActual<typeof import('@node-singletons/fs')>('@node-singletons/fs');
+
+    return {
+      ...actual,
+      readFileSync: implementation,
+      default: {
+        ...actual.default,
+        readFileSync: implementation,
+      },
+    };
+  });
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('ProjectScaffolder extra tests', () => {
   it('validateOptions returns errors for bad input', () => {
@@ -50,6 +97,276 @@ describe('ProjectScaffolder extra tests', () => {
 
     // cleanup
     await fsPromises.rm(projectPath, { recursive: true, force: true });
+  });
+
+  it('prefers the latest published governance version in scaffolded package.json', async () => {
+    const publishedGovernanceVersion = '0.7.0';
+    const publishedCoreVersion = '0.7.0';
+    const projectPath = path.join(tmpRoot, `published-governance-${Date.now()}`);
+
+    vi.resetModules();
+    mockChildProcessExecFileSync((command, args, _options) => {
+      if (
+        command === 'npm' &&
+        Array.isArray(args) &&
+        args[0] === 'view' &&
+        args[1] === '@zintrust/core' &&
+        args[2] === 'version'
+      ) {
+        return JSON.stringify(publishedCoreVersion);
+      }
+
+      if (
+        command === 'npm' &&
+        Array.isArray(args) &&
+        args[0] === 'view' &&
+        args[1] === '@zintrust/governance' &&
+        args[2] === 'version'
+      ) {
+        return JSON.stringify(publishedGovernanceVersion);
+      }
+
+      return failUnexpectedExec(command, args);
+    });
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } =
+      await import('@cli/scaffolding/ProjectScaffolder');
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+  });
+
+  it('uses a fixed PATH and whitelisted npm env for published version lookups', async () => {
+    const projectPath = path.join(tmpRoot, `safe-npm-env-${Date.now()}`);
+    const capturedEnv: NodeJS.ProcessEnv[] = [];
+
+    vi.resetModules();
+    vi.stubEnv('PATH', '/tmp/writable-bin:/usr/bin');
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('HOME', '/Users/tester');
+    vi.stubEnv('npm_config_registry', 'https://registry.npmjs.org/');
+    vi.stubEnv('SHELL', '/bin/zsh');
+
+    mockChildProcessExecFileSync((command, args, options) => {
+      if (command === 'npm' && Array.isArray(args) && args[0] === 'view') {
+        capturedEnv.push(extractEnv(options) ?? {});
+        return JSON.stringify('0.7.3');
+      }
+
+      return failUnexpectedExec(command, args);
+    });
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } =
+      await import('@cli/scaffolding/ProjectScaffolder');
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+    });
+
+    expect(result.success).toBe(true);
+    expect(capturedEnv[0]?.PATH).toBe('/usr/local/bin:/usr/bin:/bin');
+    expect(capturedEnv[0]?.NODE_ENV).toBe('production');
+    expect(capturedEnv[0]?.HOME).toBe('/Users/tester');
+    expect(capturedEnv[0]?.npm_config_registry).toBe('https://registry.npmjs.org/');
+    expect(capturedEnv[0]?.SHELL).toBeUndefined();
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('falls back to ^0.7.0 when npm lookup fails and local governance version is missing', async () => {
+    const projectPath = path.join(tmpRoot, `missing-governance-version-${Date.now()}`);
+    vi.resetModules();
+    mockChildProcessExecFileSync((command, args, _options) => {
+      if (command === 'npm') {
+        throw new Error('npm lookup failed');
+      }
+
+      return failUnexpectedExec(command, args);
+    });
+
+    mockGovernancePackageRead(((filePath, options) => {
+      if (String(filePath).endsWith('/packages/governance/package.json')) {
+        return '{}';
+      }
+
+      return fs.readFileSync(filePath, options as never);
+    }) as typeof fs.readFileSync);
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } =
+      await import('@cli/scaffolding/ProjectScaffolder');
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.doUnmock('@node-singletons/fs');
+    vi.resetModules();
+  });
+
+  it('falls back to the bundled published peer line when npm lookups fail but governance metadata is available', async () => {
+    const projectPath = path.join(tmpRoot, `bundled-published-line-${Date.now()}`);
+    vi.resetModules();
+    mockChildProcessExecFileSync((command, args, _options) => {
+      if (command === 'npm') {
+        throw new Error('npm lookup failed');
+      }
+
+      return failUnexpectedExec(command, args);
+    });
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } =
+      await import('@cli/scaffolding/ProjectScaffolder');
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+  });
+
+  it('reuses the live governance release line for microservice scaffolds when core lookup misses', async () => {
+    const projectPath = path.join(tmpRoot, `microservice-published-fallback-${Date.now()}`);
+    const publishedGovernanceVersion = '0.7.0';
+
+    vi.resetModules();
+    mockChildProcessExecFileSync((command, args, _options) => {
+      if (
+        command === 'npm' &&
+        Array.isArray(args) &&
+        args[0] === 'view' &&
+        args[1] === '@zintrust/core' &&
+        args[2] === 'version'
+      ) {
+        throw new Error('core lookup failed');
+      }
+
+      if (
+        command === 'npm' &&
+        Array.isArray(args) &&
+        args[0] === 'view' &&
+        args[1] === '@zintrust/governance' &&
+        args[2] === 'version'
+      ) {
+        return JSON.stringify(publishedGovernanceVersion);
+      }
+
+      return failUnexpectedExec(command, args);
+    });
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } =
+      await import('@cli/scaffolding/ProjectScaffolder');
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+      template: 'microservice',
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+  });
+
+  it('falls back to ^0.7.0 when npm lookup fails and local governance package cannot be read', async () => {
+    const projectPath = path.join(tmpRoot, `unreadable-governance-package-${Date.now()}`);
+    vi.resetModules();
+    mockChildProcessExecFileSync((command, args, _options) => {
+      if (command === 'npm') {
+        throw new Error('npm lookup failed');
+      }
+
+      return failUnexpectedExec(command, args);
+    });
+
+    mockGovernancePackageRead(((filePath, options) => {
+      if (String(filePath).endsWith('/packages/governance/package.json')) {
+        throw new Error('package missing');
+      }
+
+      return fs.readFileSync(filePath, options as never);
+    }) as typeof fs.readFileSync);
+
+    const { createProjectScaffolder: createMockedProjectScaffolder } =
+      await import('@cli/scaffolding/ProjectScaffolder');
+
+    const result = await createMockedProjectScaffolder(tmpRoot).scaffold({
+      name: path.basename(projectPath),
+    });
+
+    expect(result.success).toBe(true);
+
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
+    vi.doUnmock('@node-singletons/fs');
+    vi.resetModules();
   });
 
   it('getAvailableTemplates contains basic template', () => {
@@ -224,6 +541,7 @@ describe('ProjectScaffolder extra tests', () => {
   it('scaffold returns error if directory exists and supports overwrite option', async () => {
     const projectPath = path.join(tmpRoot, `exist-project-${Date.now()}`);
     await fsPromises.mkdir(projectPath, { recursive: true });
+    await fsPromises.writeFile(path.join(projectPath, 'sentinel.txt'), 'existing');
 
     const scaffolder = createProjectScaffolder(tmpRoot);
     const r1 = await scaffolder.scaffold({ name: path.basename(projectPath) });

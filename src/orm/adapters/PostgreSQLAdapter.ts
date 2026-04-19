@@ -83,7 +83,7 @@ async function pgRawQuery<T = unknown>(
 
   assertConnected(state);
 
-  Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+  Logger.warn(`Raw SQL Query executed: ${sql}`, Logger.withTraceSkipContext({ sql, parameters }));
 
   try {
     if (sql.toUpperCase().includes('INVALID')) {

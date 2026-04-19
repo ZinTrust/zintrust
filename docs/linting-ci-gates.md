@@ -2,7 +2,7 @@
 
 ZinTrust projects commonly enforce a small set of “must pass” checks before merging.
 
-This repo is set up so the same checks can run:
+The boilerplate is set up so the same checks can run:
 
 - locally (fast feedback)
 - in CI (merge gating)
@@ -47,7 +47,7 @@ Enable SonarQube in CI only when you have tokens/config wired.
 
 ## Build-level gates
 
-This repo’s `npm run build` is intentionally strict. It includes:
+ZinTrust’s default `npm run build` is intentionally strict. It includes:
 
 - `npm test`
 - `npm run templates:check`
@@ -62,7 +62,7 @@ Practical recommendation:
 
 ## Duplication gate (optional, but useful)
 
-This repo includes a staged-file duplication check:
+The ZinTrust boilerplate includes a staged-file duplication check:
 
 - `npm run duplication:check`
 

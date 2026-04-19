@@ -310,6 +310,8 @@ zin add db:sqlite --package-manager pnpm
 
 Migration filenames are timestamped, but the CLI will reject generating two migrations with the same logical name (for example, it will not allow creating `*_create_users_table.ts` twice).
 
+See the [Database Migrations guide](./migrations.md) for the end-to-end workflow, including add-column generation, editing the scaffold, and running migrations.
+
 ```bash
 # Create-table migration (recommended)
 zin cm user

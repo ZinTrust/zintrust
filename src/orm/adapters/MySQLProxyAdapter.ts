@@ -164,15 +164,17 @@ const requestProxy = async <T>(
   } catch (error: unknown) {
     const loggedError = toLoggedError(error);
     Logger.error('[MySQLProxyAdapter] Proxy request failed', {
-      path,
-      baseUrl: state.settings.baseUrl,
-      timeoutMs: state.settings.timeoutMs,
-      hasKeyId: (state.settings.keyId ?? '').trim() !== '',
-      hasSecret: (state.settings.secret ?? '').trim() !== '',
-      error: loggedError.message,
-      ...withMaybeProperty({}, 'errorCode', loggedError.code),
-      ...withMaybeProperty({}, 'errorStatusCode', loggedError.statusCode),
-      ...withMaybeProperty({}, 'errorDetails', loggedError.details),
+      ...Logger.withTraceSkipContext({
+        path,
+        baseUrl: state.settings.baseUrl,
+        timeoutMs: state.settings.timeoutMs,
+        hasKeyId: (state.settings.keyId ?? '').trim() !== '',
+        hasSecret: (state.settings.secret ?? '').trim() !== '',
+        error: loggedError.message,
+        ...withMaybeProperty({}, 'errorCode', loggedError.code),
+        ...withMaybeProperty({}, 'errorStatusCode', loggedError.statusCode),
+        ...withMaybeProperty({}, 'errorDetails', loggedError.details),
+      }),
     });
     throw error;
   }

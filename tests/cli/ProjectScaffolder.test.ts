@@ -67,7 +67,9 @@ describe('ProjectScaffolder Templates', () => {
     expect(packageJson).toContain('"lint": "eslint ."');
     expect(packageJson).toContain('"@zintrust/governance": "{{governanceVersion}}"');
     expect(packageJson).toContain('"eslint": "^10.0.0"');
-    expect(packageJson).not.toContain('"tsx":');
+    expect(packageJson).toContain('"tsx": "^4.21.0"');
+    expect(packageJson).toContain('"overrides"');
+    expect(packageJson).toContain('"@zintrust/core": ">=0.6.0"');
 
     const eslintConfig = template?.files['eslint.config.mjs'] ?? '';
     expect(eslintConfig).toContain("from '@zintrust/governance/eslint'");
@@ -584,18 +586,31 @@ describe('ProjectScaffolder Overwrite', () => {
 
   it('should fail if directory exists without overwrite', async () => {
     const projectPath = path.join(testDir, 'existing');
-    FileGenerator.createDirectory(projectPath);
+    fs.mkdirSync(projectPath, { recursive: true });
+    fs.writeFileSync(path.join(projectPath, 'sentinel.txt'), 'existing');
 
     const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
-      name: 'existing',
-      overwrite: false,
+      name: path.basename(projectPath),
     };
 
     const result = await scaffolder.scaffold(options);
 
     expect(result.success).toBe(false);
     expect(result.message).toContain('already exists');
+  });
+
+  it('should reuse an empty existing directory', async () => {
+    const projectPath = path.join(testDir, 'empty-app');
+    fs.mkdirSync(projectPath, { recursive: true });
+
+    const scaffolder = ProjectScaffolder.create(testDir);
+    const result = await scaffolder.scaffold({
+      name: 'empty-app',
+    });
+
+    expect(result.success).toBe(true);
+    expect(FileGenerator.fileExists(path.join(projectPath, 'package.json'))).toBe(true);
   });
 
   it('should succeed with overwrite option', async () => {
@@ -612,6 +627,21 @@ describe('ProjectScaffolder Overwrite', () => {
     const result = await scaffolder.scaffold(options);
 
     expect(result.success).toBe(true);
+  });
+
+  it('should succeed with force option', async () => {
+    const projectPath = path.join(testDir, 'force-app');
+    FileGenerator.createDirectory(projectPath);
+    FileGenerator.writeFile(path.join(projectPath, 'old-file.txt'), 'old');
+
+    const scaffolder = ProjectScaffolder.create(testDir);
+    const result = await scaffolder.scaffold({
+      name: 'force-app',
+      force: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(FileGenerator.fileExists(path.join(projectPath, 'old-file.txt'))).toBe(false);
   });
 });
 

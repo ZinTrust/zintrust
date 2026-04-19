@@ -54,6 +54,7 @@ export interface BullMQPayload {
     id: string;
     ttl?: number;
     releaseAfter?: string | number | { condition: string; delay: number };
+    collisionBehavior?: 'suppress' | 'enqueue';
   };
 
   // Custom lock provider

@@ -22,6 +22,12 @@ describe('ProjectScaffolder missing-line coverage', () => {
   it('covers coreVersion fallback, render fallbacks, config failure, and unknown db env', async () => {
     vi.resetModules();
 
+    vi.doMock('node:child_process', () => ({
+      execFileSync: () => {
+        throw new Error('npm view boom');
+      },
+    }));
+
     // Create a starter template file whose *path* and *content* include variables.
     // This lets us hit:
     // - renderPathVar fallback (non-primitive)
@@ -88,8 +94,8 @@ describe('ProjectScaffolder missing-line coverage', () => {
     circular['self'] = circular;
     vars['circular'] = circular;
 
-    // loadCoreVersion catch branch
-    expect(vars['coreVersion']).toBe('0.0.0');
+    // published-version fallback branch when npm lookup and bundled governance metadata are unavailable
+    expect(vars['coreVersion']).toBe('0.7.0');
 
     // Exercise file rendering
     // Exercise unknown-db env branch (dbLines default return [])
@@ -103,6 +109,7 @@ describe('ProjectScaffolder missing-line coverage', () => {
     expect(scaffolder.createConfigFile()).toBe(false);
 
     rmSync(tmpBase, { recursive: true, force: true });
+    vi.doUnmock('node:child_process');
   });
 
   it('covers createEnvFile catch (logs + returns false)', async () => {

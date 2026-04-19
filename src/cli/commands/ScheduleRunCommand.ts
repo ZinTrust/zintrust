@@ -13,6 +13,10 @@ const execute = async (options: Options): Promise<void> => {
   const name = (options.name ?? '').trim();
   if (name.length === 0) throw ErrorFactory.createConfigError('--name is required');
 
+  if (await ScheduleCliSupport.ensureProjectSourceContext()) {
+    return;
+  }
+
   try {
     await ScheduleCliSupport.registerAll();
 

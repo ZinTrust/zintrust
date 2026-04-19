@@ -51,13 +51,35 @@ const createProxyCoreEnvModule = (): { Env: Record<string, unknown> } => ({
   },
 });
 
+const createProxyCoreEnvModuleWithDebug = (
+  envKey: string,
+  envValue: string
+): {
+  Env: Record<string, unknown>;
+} => ({
+  Env: {
+    HOST: '127.0.0.1',
+    PORT: 7772,
+    MAX_BODY_SIZE: 12345,
+    APP_NAME: 'ZinTrust',
+    APP_KEY: 'app-secret',
+    get: vi.fn((key: string, fallback?: string) => (key === envKey ? envValue : (fallback ?? ''))),
+    getInt: vi.fn(readEnvIntFallback),
+    getBool: vi.fn(readEnvBoolFallback),
+  },
+});
+
 const createLoggerModule = (
   debug: unknown,
   warn: unknown
-): { Logger: { debug: unknown; warn: unknown } } => ({
+): { Logger: { debug: unknown; warn: unknown; withTraceSkipContext: unknown } } => ({
   Logger: {
     debug,
     warn,
+    withTraceSkipContext: (context?: Record<string, unknown>) => ({
+      ...(context ?? {}),
+      __zintrustSkipTraceLog: true,
+    }),
   },
 });
 
@@ -213,7 +235,7 @@ describe('Proxy signing/config helpers patch coverage', () => {
     );
 
     expect(verified).toEqual({ ok: false, error: { status: 401, message: 'Unauthorized' } });
-    expect(debug).toHaveBeenCalled();
+    expect(debug).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();
 
     vi.resetModules();
@@ -234,6 +256,34 @@ describe('Proxy signing/config helpers patch coverage', () => {
       'PostgresProxyServer'
     );
     expect(successVerified).toEqual({ ok: true });
+
+    vi.resetModules();
+
+    const gatedDebug = vi.fn();
+    const gatedWarn = vi.fn();
+
+    vi.doMock('@config/env', () =>
+      createProxyCoreEnvModuleWithDebug('POSTGRES_PROXY_DEBUG', 'yes')
+    );
+    vi.doMock('@config/logger', () => createLoggerModule(gatedDebug, gatedWarn));
+    vi.doMock('@proxy/ProxySigningConfigResolver', createSigningConfigResolverModule);
+    vi.doMock('@proxy/ProxySigningRequest', createProxySigningRequestSuccessModule);
+
+    const gatedUtils = await import('@proxy/ProxyServerUtils');
+    const gatedVerified = await gatedUtils.verifyRequestSignature(
+      { headers: { host: 'localhost' }, method: 'POST', url: '/x' } as any,
+      '{}',
+      { signing: { keyId: 'kid', secret: 'secret', require: true, windowMs: 60000 } },
+      'PostgresProxyServer'
+    );
+    expect(gatedVerified).toEqual({ ok: true });
+    expect(gatedDebug).toHaveBeenCalledWith(
+      '[PostgresProxyServer] Verifying request signature',
+      expect.objectContaining({
+        __zintrustSkipTraceLog: true,
+        path: '/x',
+      })
+    );
   });
 
   it('validateSqlPayload enforces sql type and defaults params', async () => {

@@ -31,7 +31,7 @@ export const extractMajorMinorVersion = (
   return { major, minor };
 };
 
-export const toCompatibleGovernanceVersion = (value: string, fallback = '^0.4.0'): string => {
+export const toCompatibleGovernanceVersion = (value: string, fallback = '^1.0.0'): string => {
   const parsed = extractMajorMinorVersion(value);
   if (parsed === undefined) return fallback;
 

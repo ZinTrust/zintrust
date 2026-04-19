@@ -34,6 +34,10 @@ vi.mock('@config/logger', () => ({
       error: vi.fn(),
       fatal: vi.fn(),
     }),
+    withTraceSkipContext: (context?: Record<string, unknown>) => ({
+      ...(context ?? {}),
+      __zintrustSkipTraceLog: true,
+    }),
   },
 }));
 
@@ -114,7 +118,13 @@ import { Logger } from '@config/logger';
     await adapter.query('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)', []);
 
     await adapter.rawQuery('SELECT * FROM users', []);
-    expect(Logger.warn).toHaveBeenCalledWith(expect.stringContaining('Raw SQL Query executed'));
+    expect(Logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Raw SQL Query executed'),
+      expect.objectContaining({
+        __zintrustSkipTraceLog: true,
+        sql: 'SELECT * FROM users',
+      })
+    );
   });
 
   it('should handle in-memory database operations', async () => {

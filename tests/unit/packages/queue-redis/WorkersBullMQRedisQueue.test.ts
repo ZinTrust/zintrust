@@ -205,4 +205,32 @@ describe('BullMQ Redis queue (Workers)', () => {
     expect(third).toBe('shared-lock-id');
     expect(bullMqState.add).toHaveBeenCalledTimes(2);
   });
+
+  it('enqueues later jobs when deduplication collisionBehavior is enqueue', async () => {
+    bullMqState.add.mockResolvedValue({ id: 'job-id-123' });
+
+    const first = await BullMQRedisQueue.enqueue('dispatch', {
+      payload: { step: 'dispatch' },
+      uniqueVia: 'memory',
+      deduplication: {
+        id: 'serialized-lock-id',
+        ttl: 30000,
+        collisionBehavior: 'enqueue',
+      },
+    } as any);
+
+    const second = await BullMQRedisQueue.enqueue('dispatch', {
+      payload: { step: 'dispatch-again' },
+      uniqueVia: 'memory',
+      deduplication: {
+        id: 'serialized-lock-id',
+        ttl: 30000,
+        collisionBehavior: 'enqueue',
+      },
+    } as any);
+
+    expect(first).toBe('job-id-123');
+    expect(second).toBe('job-id-123');
+    expect(bullMqState.add).toHaveBeenCalledTimes(2);
+  });
 });

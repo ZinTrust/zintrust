@@ -15,6 +15,10 @@ vi.mock('@config/logger', () => ({
     warn: loggerWarn,
     error: loggerError,
     debug: loggerDebug,
+    withTraceSkipContext: (context?: Record<string, unknown>) => ({
+      ...(context ?? {}),
+      __zintrustSkipTraceLog: true,
+    }),
   },
 }));
 

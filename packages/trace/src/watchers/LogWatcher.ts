@@ -61,6 +61,14 @@ const shouldSkipTraceInfrastructureLog = (
   message: string,
   context?: Record<string, unknown>
 ): boolean => {
+  const loggerWithTraceSkip = Logger as typeof Logger & {
+    shouldSkipTraceLogContext?: (ctx?: Record<string, unknown>) => boolean;
+  };
+
+  if (loggerWithTraceSkip.shouldSkipTraceLogContext?.(context) === true) {
+    return true;
+  }
+
   return (
     TRACE_INFRASTRUCTURE_LOG_MESSAGES.has(message.trim()) ||
     isTraceStorageQueryLog(message, context)

@@ -1,5 +1,6 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { isNonEmptyString } from '@helper/index';
 import type { IncomingMessage } from '@node-singletons/http';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { resolveProxySigningConfig } from '@proxy/ProxySigningConfigResolver';
@@ -20,6 +21,43 @@ export type BaseProxyOverrides = Partial<{
   secret: string;
   signingWindowMs: number;
 }>;
+
+const PROXY_DEBUG_ENV_BY_SERVICE = Object.freeze({
+  MySQLProxyServer: 'MYSQL_PROXY_DEBUG',
+  PostgresProxyServer: 'POSTGRES_PROXY_DEBUG',
+  RedisProxyServer: 'REDIS_PROXY_DEBUG',
+  SqlServerProxyServer: 'SQLSERVER_PROXY_DEBUG',
+} satisfies Record<string, string>);
+
+const parseProxyDebugValue = (raw: string): boolean | undefined => {
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+  return undefined;
+};
+
+const resolveProxyDebugEnabled = (serviceName: string): boolean => {
+  const serviceEnvKey =
+    PROXY_DEBUG_ENV_BY_SERVICE[serviceName as keyof typeof PROXY_DEBUG_ENV_BY_SERVICE];
+  const serviceRaw = serviceEnvKey ? Env.get(serviceEnvKey, '') : '';
+  if (isNonEmptyString(serviceRaw)) {
+    const parsed = parseProxyDebugValue(serviceRaw);
+    if (parsed !== undefined) return parsed;
+  }
+
+  const sharedRaw = Env.get('ZT_PROXY_DEBUG', '');
+  if (isNonEmptyString(sharedRaw)) {
+    const parsed = parseProxyDebugValue(sharedRaw);
+    if (parsed !== undefined) return parsed;
+  }
+
+  return false;
+};
+
+const withTraceSkipProxyContext = (context: Record<string, unknown>): Record<string, unknown> => ({
+  ...context,
+  __zintrustSkipTraceLog: true,
+});
 
 export const resolveBaseConfig = (
   overrides: BaseProxyOverrides,
@@ -65,24 +103,30 @@ export const verifyRequestSignature = async (
     (value) => typeof value === 'string' && value.trim() !== ''
   );
 
-  Logger.debug(`[${serviceName}] Verifying request signature`, {
-    path: req.url ?? '',
-    method: req.method ?? 'POST',
-    requireSigning: config.signing.require,
-    hasAnySigningHeader,
-    configuredKeyId: config.signing.keyId,
-    hasConfiguredSecret: config.signing.secret.trim() !== '',
-    bodyBytes: body.length,
-  });
+  if (resolveProxyDebugEnabled(serviceName)) {
+    Logger.debug(`[${serviceName}] Verifying request signature`, {
+      ...withTraceSkipProxyContext({
+        path: req.url ?? '',
+        method: req.method ?? 'POST',
+        requireSigning: config.signing.require,
+        hasAnySigningHeader,
+        configuredKeyId: config.signing.keyId,
+        hasConfiguredSecret: config.signing.secret.trim() !== '',
+        bodyBytes: body.length,
+      }),
+    });
+  }
 
   const verified = await verifyProxySignatureIfNeeded(req, body, config.signing);
   if (!verified.ok) {
     const error = verified.error ?? { status: 401, message: 'Unauthorized' };
     Logger.warn(`[${serviceName}] Signature verification failed`, {
-      path: req.url ?? '',
-      method: req.method ?? 'POST',
-      status: error.status,
-      message: error.message,
+      ...withTraceSkipProxyContext({
+        path: req.url ?? '',
+        method: req.method ?? 'POST',
+        status: error.status,
+        message: error.message,
+      }),
     });
     return { ok: false, error };
   }

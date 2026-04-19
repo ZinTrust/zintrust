@@ -136,9 +136,9 @@ export async function registerHandler(req: IRequest, res: IResponse): Promise<vo
 
 This keeps handler code consistent across body/query/params/headers via `ValidationHelper`.
 
-### Recommended wiring pattern (this repo)
+### Recommended wiring pattern
 
-This repo’s default middleware config demonstrates the intended approach in `src/config/middleware.ts`:
+ZinTrust’s default middleware config demonstrates the intended approach in `src/config/middleware.ts`:
 
 - Define shared middleware instances (logging, auth, validation, etc.).
 - Export a `middlewareConfig` whose `route` section contains named middleware.

@@ -45,6 +45,8 @@ Run the migration:
 zin migrate
 ```
 
+For the full generator workflow, including add-column migrations such as `zin am completed task`, see the [Database Migrations guide](./migrations.md).
+
 If your project uses Cloudflare D1 (`DB_CONNECTION=d1` or `d1-remote`), use:
 
 ```bash

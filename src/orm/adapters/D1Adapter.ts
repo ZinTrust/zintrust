@@ -196,7 +196,10 @@ export const D1Adapter = Object.freeze({
         }
 
         try {
-          Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+          Logger.warn(
+            `Raw SQL Query executed: ${sql}`,
+            Logger.withTraceSkipContext({ sql, parameters })
+          );
           const stmt = db.prepare(sql);
           const result = await stmt.bind(...(parameters ?? [])).all<T>();
           return (result.results as T[]) ?? [];

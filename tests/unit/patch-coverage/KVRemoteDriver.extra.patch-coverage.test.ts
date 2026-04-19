@@ -188,7 +188,15 @@ describe('patch coverage: KVRemoteDriver extra branches', () => {
     const envSnapshot = { ...process.env };
     try {
       const warn = vi.fn();
-      vi.doMock('@config/logger', () => ({ Logger: { warn } }));
+      vi.doMock('@config/logger', () => ({
+        Logger: {
+          warn,
+          withTraceSkipContext: (context?: Record<string, unknown>) => ({
+            ...(context ?? {}),
+            __zintrustSkipTraceLog: true,
+          }),
+        },
+      }));
 
       vi.doMock('@common/RemoteSignedJson', () => ({
         RemoteSignedJson: {

@@ -57,6 +57,31 @@ const signalHandlers: {
   unhandledRejection?: (reason: unknown) => void;
 } = {};
 
+const logInfoBestEffort = (message: string, meta?: unknown): void => {
+  const anyLogger = Logger as unknown as {
+    info?: (msg: string, data?: unknown) => void;
+    warn?: (msg: string, data?: unknown) => void;
+    debug?: (msg: string, data?: unknown) => void;
+    error?: (msg: string, data?: unknown) => void;
+  };
+
+  if (typeof anyLogger.info === 'function') {
+    anyLogger.info(message, meta);
+    return;
+  }
+  if (typeof anyLogger.warn === 'function') {
+    anyLogger.warn(message, meta);
+    return;
+  }
+  if (typeof anyLogger.debug === 'function') {
+    anyLogger.debug(message, meta);
+    return;
+  }
+  if (typeof anyLogger.error === 'function') {
+    anyLogger.error(message, meta);
+  }
+};
+
 /**
  * Perform graceful shutdown of all worker modules
  */
@@ -73,7 +98,7 @@ async function shutdown(options: IShutdownOptions = {}): Promise<void> {
   state.startedAt = new Date();
   state.reason = `Signal: ${signal}`;
 
-  Logger.info('🛑 Initiating graceful shutdown of worker management system', {
+  logInfoBestEffort('🛑 Initiating graceful shutdown of worker management system', {
     signal,
     timeout,
     forceExit,
@@ -96,7 +121,7 @@ async function shutdown(options: IShutdownOptions = {}): Promise<void> {
     state.completedAt = new Date();
     const duration = state.completedAt.getTime() - (state.startedAt?.getTime() ?? 0);
 
-    Logger.info('✅ Worker management system shutdown complete', {
+    logInfoBestEffort('✅ Worker management system shutdown complete', {
       duration: `${duration}ms`,
       signal,
     });
@@ -124,7 +149,7 @@ function registerShutdownHandlers(): void {
 
   // SIGTERM - graceful shutdown (Docker, systemd, etc.)
   signalHandlers.sigterm = async (): Promise<void> => {
-    Logger.info('📨 Received SIGTERM signal');
+    logInfoBestEffort('📨 Received SIGTERM signal');
     try {
       await shutdown({ signal: 'SIGTERM', timeout: 30000, forceExit: true });
     } catch (error) {
@@ -145,7 +170,7 @@ function registerShutdownHandlers(): void {
 
   // SIGHUP - terminal closed
   signalHandlers.sighup = async (): Promise<void> => {
-    Logger.info('📨 Received SIGHUP signal');
+    logInfoBestEffort('📨 Received SIGHUP signal');
     try {
       await shutdown({ signal: 'SIGHUP', timeout: 30000, forceExit: true });
     } catch (error) {
@@ -156,7 +181,7 @@ function registerShutdownHandlers(): void {
 
   // SIGUSR2 - watcher/hot-reload restart
   signalHandlers.sigusr2 = async (): Promise<void> => {
-    Logger.info('📨 Received SIGUSR2 signal');
+    logInfoBestEffort('📨 Received SIGUSR2 signal');
     try {
       await shutdown({ signal: 'SIGUSR2', timeout: 30000, forceExit: true });
     } catch (error) {

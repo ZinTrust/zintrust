@@ -5,13 +5,18 @@
 
 import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { EnvData } from '@cli/scaffolding/env';
-import { toCompatibleGovernanceVersion } from '@cli/scaffolding/ScaffoldingVersionUtils';
+import {
+  extractMajorMinorVersion,
+  toCompatibleGovernanceVersion,
+} from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isNonEmptyString } from '@helper/index';
 import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { fileURLToPath } from '@node-singletons/url';
+import { execFileSync } from 'node:child_process';
 
 export interface ProjectScaffoldOptions {
   name: string;
@@ -65,24 +70,137 @@ interface ScaffolderState {
   templateName: string;
 }
 
-const loadCoreVersion = (): string => {
+const readBundledGovernancePackage = ():
+  | { version?: unknown; peerDependencies?: unknown }
+  | undefined => {
   try {
-    const packageUrl = new URL('../../../package.json', import.meta.url);
-    const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
-    return typeof packageJson.version === 'string' ? packageJson.version : '0.0.0';
+    const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
+    return JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as {
+      version?: unknown;
+      peerDependencies?: unknown;
+    };
   } catch {
-    return '0.0.0';
+    return undefined;
   }
 };
 
-const loadGovernanceVersion = (): string => {
-  try {
-    const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
-    const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
-    return typeof packageJson.version === 'string' ? packageJson.version : '^0.4.0';
-  } catch {
-    return '^0.4.0';
+const SAFE_PATH = '/usr/local/bin:/usr/bin:/bin';
+const NPM_VIEW_TIMEOUT_MS = 1500;
+const publishedVersionCache = new Map<string, string | undefined>();
+const SAFE_NPM_ENV_KEYS = Object.freeze([
+  'HOME',
+  'USERPROFILE',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'npm_config_userconfig',
+  'npm_config_cache',
+  'NPM_CONFIG_CACHE',
+  'npm_config_registry',
+  'NPM_CONFIG_REGISTRY',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+  'SSL_CERT_FILE',
+  'NODE_EXTRA_CA_CERTS',
+] as const);
+
+const createSafeNpmEnv = (): NodeJS.ProcessEnv => {
+  const env: NodeJS.ProcessEnv = {
+    NODE_ENV: process.env['NODE_ENV'] ?? 'development',
+    PATH: SAFE_PATH,
+  };
+
+  for (const key of SAFE_NPM_ENV_KEYS) {
+    const value = process.env[key];
+    if (isNonEmptyString(value)) {
+      env[key] = value;
+    }
   }
+
+  return env;
+};
+
+const loadPublishedNpmVersion = (packageName: string): string | undefined => {
+  if (publishedVersionCache.has(packageName)) {
+    return publishedVersionCache.get(packageName);
+  }
+
+  try {
+    const raw = execFileSync(
+      'npm',
+      ['view', packageName, 'version', '--json', '--loglevel=silent'],
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        env: createSafeNpmEnv(),
+        timeout: NPM_VIEW_TIMEOUT_MS,
+      }
+    ).trim();
+    const resolved = JSON.parse(raw) as unknown;
+    const version = typeof resolved === 'string' && resolved.length > 0 ? resolved : undefined;
+    publishedVersionCache.set(packageName, version);
+    return version;
+  } catch {
+    publishedVersionCache.set(packageName, undefined);
+    return undefined;
+  }
+};
+
+const loadBundledPublishedCoreVersion = (): string | undefined => {
+  const bundledGovernancePackage = readBundledGovernancePackage();
+  const peerDependencies = bundledGovernancePackage?.peerDependencies;
+
+  if (typeof peerDependencies !== 'object' || peerDependencies === null) {
+    return undefined;
+  }
+
+  const corePeerRange = (peerDependencies as Record<string, unknown>)['@zintrust/core'];
+  if (typeof corePeerRange !== 'string' || corePeerRange.trim() === '') {
+    return undefined;
+  }
+
+  const publishedLineVersion = extractMajorMinorVersion(corePeerRange);
+  if (publishedLineVersion === undefined) {
+    return '0.7.0';
+  }
+
+  return `${publishedLineVersion.major}.${publishedLineVersion.minor}.0`;
+};
+
+const loadScaffoldCoreVersion = (): string => {
+  const publishedVersion = loadPublishedNpmVersion('@zintrust/core');
+  if (typeof publishedVersion === 'string') {
+    return publishedVersion;
+  }
+
+  const publishedGovernanceVersion = loadPublishedNpmVersion('@zintrust/governance');
+  if (typeof publishedGovernanceVersion === 'string') {
+    return publishedGovernanceVersion;
+  }
+
+  const bundledPublishedCoreVersion = loadBundledPublishedCoreVersion();
+  if (typeof bundledPublishedCoreVersion === 'string') {
+    return bundledPublishedCoreVersion;
+  }
+
+  return '0.7.0';
+};
+
+const loadGovernanceVersion = (): string => {
+  const publishedVersion = loadPublishedNpmVersion('@zintrust/governance');
+  if (typeof publishedVersion === 'string') {
+    return publishedVersion;
+  }
+
+  const bundledPublishedCoreVersion = loadBundledPublishedCoreVersion();
+  if (typeof bundledPublishedCoreVersion === 'string') {
+    return bundledPublishedCoreVersion;
+  }
+
+  return '0.7.0';
 };
 
 const createDirectories = (projectPath: string, directories: string[]): number => {
@@ -626,7 +744,7 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     .slice(0, 14);
 
   state.variables = {
-    coreVersion: loadCoreVersion(),
+    coreVersion: loadScaffoldCoreVersion(),
     governanceVersion: toCompatibleGovernanceVersion(loadGovernanceVersion()),
     projectName: options.name,
     projectSlug: options.name,
@@ -642,6 +760,14 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
 const createDirectoriesForState = (state: ScaffolderState): number => {
   const template = resolveTemplate(state.templateName);
   return createDirectories(state.projectPath, template?.directories ?? []);
+};
+
+const canReuseExistingProjectPath = (projectPath: string): boolean => {
+  try {
+    return fs.statSync(projectPath).isDirectory() && fs.readdirSync(projectPath).length === 0;
+  } catch {
+    return false;
+  }
 };
 
 const createFilesForState = (state: ScaffolderState): number => {
@@ -713,8 +839,10 @@ const scaffoldWithState = async (
     prepareContext(state, options);
 
     if (fs.existsSync(state.projectPath)) {
-      if (options.overwrite === true) {
+      if (options.overwrite === true || options.force === true) {
         fs.rmSync(state.projectPath, { recursive: true, force: true });
+      } else if (canReuseExistingProjectPath(state.projectPath)) {
+        Logger.info(`Reusing empty project directory: ${state.projectPath}`);
       } else {
         return {
           success: false,

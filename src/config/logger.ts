@@ -16,6 +16,14 @@ interface ILogger {
   fatal(message: string, error?: unknown, category?: string): void;
 }
 
+interface ILoggerNamespace extends ILogger {
+  cleanLogsOnce(): Promise<string[]>;
+  scope(scope: string): ILogger;
+  addSink(fn: LogSink): () => void;
+  withTraceSkipContext(context?: Record<string, unknown>): Record<string, unknown>;
+  shouldSkipTraceLogContext(context?: Record<string, unknown>): boolean;
+}
+
 const isProduction = (): boolean => appConfig.isProduction();
 
 const getEnvString = (key: string, fallback: string): string => {
@@ -838,6 +846,25 @@ const createLoggerScope = (scope: string): ILogger => {
  */
 export type LogSink = (level: LogLevel, message: string, context?: Record<string, unknown>) => void;
 
+const TRACE_SKIP_LOG_CONTEXT_KEY = '__zintrustSkipTraceLog' as const;
+
+export const withTraceSkipContext = (
+  context?: Record<string, unknown>
+): Record<string, unknown> => {
+  if (context === undefined) {
+    return { [TRACE_SKIP_LOG_CONTEXT_KEY]: true };
+  }
+
+  return {
+    ...context,
+    [TRACE_SKIP_LOG_CONTEXT_KEY]: true,
+  };
+};
+
+export const shouldSkipTraceLogContext = (context?: Record<string, unknown>): boolean => {
+  return context?.[TRACE_SKIP_LOG_CONTEXT_KEY] === true;
+};
+
 const loggerSinks: LogSink[] = [];
 
 const dispatchToSinks = (level: LogLevel, message: string, data?: unknown): void => {
@@ -884,7 +911,7 @@ export const cleanLogsOnce = async (): Promise<string[]> => {
   }
 };
 
-export const Logger = Object.freeze({
+export const Logger: ILoggerNamespace = Object.freeze({
   debug: logDebug,
   info: logInfo,
   warn: logWarn,
@@ -893,6 +920,8 @@ export const Logger = Object.freeze({
   cleanLogsOnce,
   scope: createLoggerScope,
   addSink,
+  withTraceSkipContext,
+  shouldSkipTraceLogContext,
 });
 
 export default Logger;

@@ -64,13 +64,7 @@ function createSameMinorRange(version) {
 }
 
 function normalizePeerRange(version, packageName) {
-  // Workers is a transitive runtime dependency of @zintrust/core, so its core peer
-  // must stay installable across the published patch line while core depends on it.
-  if (packageName === '@zintrust/workers') {
-    return createSameMinorRange(version);
-  }
-
-  return `^${version}`;
+  return '*';
 }
 
 function normalizeWorkspaceDependencyRange(version) {
@@ -125,7 +119,10 @@ function getPublishedNpmVersion(packageName) {
       resolvedVersion = publishedVersion;
     }
   } catch {
-    resolvedVersion = undefined;
+    // If fetching the version from npm fails (e.g. package not published, or network issues),
+    // use '*' instead so that CI doesn't hard-fail trying to install a non-existent explicit version
+    // while keeping local workspace linkability intact for tests.
+    resolvedVersion = '*';
   }
 
   npmVersionCache.set(packageName, resolvedVersion);
@@ -319,7 +316,11 @@ function syncPublishedZintrustDependencySection(deps, dependencyVersions) {
 }
 
 function syncPublishedZintrustDependencies(pkg, dependencyVersions) {
-  const dependencySections = ['dependencies', 'devDependencies', 'optionalDependencies'];
+  const dependencySections = [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+  ];
 
   return dependencySections.some((section) =>
     syncPublishedZintrustDependencySection(pkg[section], dependencyVersions)
@@ -538,7 +539,6 @@ function syncRootWorkspaceDependencies(rootPkg, dependencyVersions) {
     'dependencies',
     'devDependencies',
     'optionalDependencies',
-    'peerDependencies',
   ];
 
   for (const section of dependencySections) {
@@ -762,7 +762,6 @@ function collectRootWorkspaceDependencyIssues({ issues, rootPkg, dependencyVersi
     'dependencies',
     'devDependencies',
     'optionalDependencies',
-    'peerDependencies',
   ];
 
   for (const section of dependencySections) {

@@ -3,7 +3,7 @@
 ## Overview 💡
 
 This document describes the ZinTrust Mail API, supported drivers, attachment handling (via Storage disks), and test helpers.
-All runtime mail configuration is **config-first** and accessed via `Env` & `src/config/mail.ts`. Drivers are pluggable and follow the repository's no-classes rule (sealed namespaces / plain functions).
+All runtime mail configuration is **config-first** and accessed via `Env` & `src/config/mail.ts`. Drivers are pluggable and follow ZinTrust's no-classes rule (sealed namespaces / plain functions).
 
 ## Interface Reference
 

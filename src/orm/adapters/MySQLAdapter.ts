@@ -25,7 +25,10 @@ function createRawQuery(state: AdapterState) {
     }
 
     try {
-      Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+      Logger.warn(
+        `Raw SQL Query executed: ${sql}`,
+        Logger.withTraceSkipContext({ sql, parameters })
+      );
       // Mock implementation for tests
       if (sql.includes('INVALID')) {
         throw ErrorFactory.createDatabaseError('Invalid SQL syntax');

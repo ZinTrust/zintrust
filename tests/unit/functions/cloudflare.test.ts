@@ -26,6 +26,12 @@ vi.mock('@http/Kernel', () => ({
   },
 }));
 
+vi.mock('@runtime/getKernel', () => ({
+  getKernel: vi.fn(async () => ({
+    handle: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 type AdapterResponse = {
   statusCode: number;
   headers: Record<string, string>;
@@ -105,11 +111,9 @@ describe('functions/cloudflare', () => {
     expect(res2).toBe(formatted);
     expect(Logger.error as unknown as Mock).not.toHaveBeenCalled();
 
-    const { Application } = await import('@boot/Application');
-    const { Kernel } = await import('@http/Kernel');
+    const { getKernel } = await import('@runtime/getKernel');
 
-    expect(Application.create as unknown as Mock).toHaveBeenCalledTimes(1);
-    expect(Kernel.create as unknown as Mock).toHaveBeenCalledTimes(1);
+    expect(getKernel as unknown as Mock).toHaveBeenCalledTimes(2);
     expect(mockHandle).toHaveBeenCalledTimes(2);
     expect(mockFormatResponse).toHaveBeenCalledTimes(2);
   });
