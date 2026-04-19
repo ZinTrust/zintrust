@@ -73,12 +73,20 @@ jobs:
           # Install only runtime deps. Governance/dev tooling is validated in-repo.
           npm install --omit=dev --no-audit --no-fund || npm install --omit=dev --no-audit --no-fund --legacy-peer-deps
 
+          # `zin start --no-watch` still executes the TypeScript runner in fresh source-first apps.
+          # Keep release verification stable by installing tsx explicitly even after dev deps are pruned.
+          npm install --no-save --no-audit --no-fund tsx || \
+            npm install --no-save --no-audit --no-fund --legacy-peer-deps tsx
+
           export PORT=7777
           export NODE_ENV=development
           export DB_CONNECTION=sqlite
           export WORKER_ENABLED=false
+          export DOCKER_WORKER=true
+          export WORKER_SHUTDOWN_ON_APP_EXIT=false
           export WORKER_AUTO_START=false
           export QUEUE_DRIVER=sync
+          export TSX_TSCONFIG_PATH="$PWD/tsconfig.json"
 
           node ./node_modules/@zintrust/core/bin/zin.js start --no-watch > server.log 2>&1 &
           PID=$!

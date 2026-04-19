@@ -2,6 +2,8 @@
 
 - Kept the publish-smoke fresh-scaffold cold-start stage and hardened it instead of removing it. The workflow now installs `tsx` explicitly with `--no-save` after `npm install --omit=dev` so the source-first `zin start --no-watch` smoke boot still has the TypeScript runner it invokes even when scaffold app devDependencies have been pruned for the cold-start check.
 
+- Hardened the release verification `publish-version` smoke gate to match the working publish-smoke path. The release workflow now also installs `tsx` explicitly after `npm install --omit=dev`, disables worker shutdown side-effects for the cold-start app, and forwards `TSX_TSCONFIG_PATH` so the scaffold app boots against its own tsconfig instead of failing the publish-to-npm verification with `tsx` missing or the wrong TypeScript file resolution context.
+
 - Hardened `@zintrust/workers` graceful shutdown logging so shutdown completion no longer crashes when a consumer runtime exposes a partial logger surface where `Logger.info` is unavailable late in teardown. `WorkerShutdown` now logs through a best-effort level fallback instead of throwing `Logger.info is not a function` during app exit.
 
 - Removed the CLI suggestion to install `tsx` globally when the local runner is missing. ZinTrust now only tells developers to add `tsx` to the project, which matches the supported local-runtime contract and avoids nudging CI or fresh scaffolds toward machine-global fixes.
