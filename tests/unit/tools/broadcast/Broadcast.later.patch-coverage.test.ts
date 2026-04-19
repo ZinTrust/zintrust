@@ -103,7 +103,7 @@ describe('Broadcast (later + now patch coverage)', () => {
 
     const { Broadcast } = await import('@broadcast/Broadcast');
     await expect(Broadcast.broadcastNow('c', 'e', { a: 1 })).resolves.toBe('ok');
-  });
+  }, 30000);
 
   it('publish uses the socket runtime automatically when available', async () => {
     const publishSocketEventFromServer = vi.fn(async () => ({

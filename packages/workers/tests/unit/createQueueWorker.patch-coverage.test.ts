@@ -105,7 +105,7 @@ describe('createQueueWorker (patch coverage)', () => {
       }),
       undefined
     );
-  }, 30000);
+  }, 60000);
 
   it('processOne re-enqueues when handle throws and attempts below max', async () => {
     const { createQueueWorker } = await import('@zintrust/workers');

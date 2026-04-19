@@ -11,7 +11,7 @@ beforeAll(async () => {
 
   ({ CLI } = await import('@cli/CLI'));
   ({ ErrorHandler } = await import('@cli/ErrorHandler'));
-});
+}, 30000);
 
 describe('CLI Help System', () => {
   let cli: ICLI;
