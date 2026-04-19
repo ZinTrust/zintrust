@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 
 type ExitFn = typeof process.exit;
+const CLI_TEST_TIMEOUT_MS = 30000;
 
 const findJwtLikeLine = (lines: string[]): string => {
   const jwtRegex = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
@@ -62,7 +63,7 @@ describe('CLI JwtDevCommand', () => {
     expect(payload['tenantId']).toBe('tenant-456');
 
     logSpy.mockRestore();
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   it('prints JSON when --json is used', async () => {
     process.env['NODE_ENV'] = 'development';
@@ -104,7 +105,7 @@ describe('CLI JwtDevCommand', () => {
     expect(jwt.verify(parsed.token, 'HS256').sub).toBe('1');
 
     logSpy.mockRestore();
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   it('refuses to run when JWT algorithm is unsupported', async () => {
     process.env['NODE_ENV'] = 'development';
@@ -129,7 +130,7 @@ describe('CLI JwtDevCommand', () => {
     await expect(cli.run(['jwt:dev'])).rejects.toThrow(/process\.exit:1|process\.exit:2/);
 
     exitSpy.mockRestore();
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   it('refuses to run in production unless --allow-production is set', async () => {
     process.env['NODE_ENV'] = 'production';
@@ -155,7 +156,7 @@ describe('CLI JwtDevCommand', () => {
     await expect(cli.run(['jwt:dev'])).rejects.toThrow(/process\.exit:1|process\.exit:2/);
 
     exitSpy.mockRestore();
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   it('computes uaHash from --ua when --ua-hash is not provided', async () => {
     process.env['NODE_ENV'] = 'development';
@@ -188,7 +189,7 @@ describe('CLI JwtDevCommand', () => {
     expect(payload['uaHash']).toBe(expectedUaHash);
 
     logSpy.mockRestore();
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   it('uses --ua-hash when provided (overrides --ua)', async () => {
     process.env['NODE_ENV'] = 'development';
@@ -220,5 +221,5 @@ describe('CLI JwtDevCommand', () => {
     expect(payload['uaHash']).toBe('deadbeef');
 
     logSpy.mockRestore();
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 });

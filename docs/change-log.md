@@ -1,5 +1,9 @@
 # 2026-04-18
 
+- Merged the remaining open local Dependabot dependency updates into the release branch by aligning the Cloudflare Containers proxy, AWS SQS and Secrets Manager adapters, and the expose package with the newer package versions and refreshing the root workspace lockfile to match.
+
+- Stabilized the release-branch full-suite and pre-push test path under loaded CI/dev environments by raising local time budgets only for a small set of import-heavy CLI, worker, Cloudflare runtime, and broadcast regression tests that were intermittently timing out during aggregate Vitest runs even though they still passed in focused execution. This keeps the real behavior checks intact while removing false-negative push failures caused by suite-level contention rather than product regressions.
+
 - Kept the publish-smoke fresh-scaffold cold-start stage and hardened it instead of removing it. The workflow now installs `tsx` explicitly with `--no-save` after `npm install --omit=dev` so the source-first `zin start --no-watch` smoke boot still has the TypeScript runner it invokes even when scaffold app devDependencies have been pruned for the cold-start check.
 
 - Hardened the release verification `publish-version` smoke gate to match the working publish-smoke path. The release workflow now also installs `tsx` explicitly after `npm install --omit=dev`, disables worker shutdown side-effects for the cold-start app, and forwards `TSX_TSCONFIG_PATH` so the scaffold app boots against its own tsconfig instead of failing the publish-to-npm verification with `tsx` missing or the wrong TypeScript file resolution context.

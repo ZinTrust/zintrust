@@ -227,7 +227,7 @@ describe('OptionalCliCommandRegistry patch coverage', () => {
     expect(OptionalCliCommandRegistry.has('worker:list')).toBe(true);
     expect(OptionalCliCommandRegistry.has('worker:doctor')).toBe(true);
     expect(OptionalCliCommandRegistry.has('worker:summary')).toBe(true);
-  });
+  }, 30000);
 
   it('trace register syncs commands into an already-imported core registry', async () => {
     const { OptionalCliCommandRegistry } = await import('@cli/OptionalCliCommandRegistry');
@@ -244,5 +244,5 @@ describe('OptionalCliCommandRegistry patch coverage', () => {
     expect(OptionalCliCommandRegistry.has('trace:clear')).toBe(true);
     expect(OptionalCliCommandRegistry.has('trace:status')).toBe(true);
     expect(OptionalCliCommandRegistry.has('migrate:trace')).toBe(true);
-  });
+  }, 30000);
 });

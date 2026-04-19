@@ -58,7 +58,7 @@ describe('functions/cloudflare auth responder overrides', () => {
         message: 'Unauthorized',
       },
     });
-  });
+  }, 30000);
 
   it('allows auth and jwt responders to override status and body in the worker fetch path', async () => {
     const overrideWorkerEnv = {
@@ -117,5 +117,5 @@ describe('functions/cloudflare auth responder overrides', () => {
       reason: 'invalid_token',
       message: 'Invalid or expired token',
     });
-  });
+  }, 30000);
 });
