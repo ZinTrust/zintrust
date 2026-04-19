@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cache-mongodb",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "MongoDB cache driver for ZinTrust.",
   "private": false,
   "type": "module",

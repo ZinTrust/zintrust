@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-monitor",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "Queue monitoring package for ZinTrust with BullMQ and Redis.",
   "private": false,
   "type": "module",
