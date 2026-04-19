@@ -1,5 +1,7 @@
 # 2026-04-18
 
+- Fixed the restored npm publish workflow so release CI now normalizes workspace package versions and refreshes the root lockfile before dependency installation instead of failing early on a stale `package-lock.json` self-link for `@zintrust/core`. This keeps publish verification aligned with the checked-in release version without letting a transient lockfile mismatch block npm publishing.
+
 - Merged the remaining open local Dependabot dependency updates into the release branch by aligning the Cloudflare Containers proxy, AWS SQS and Secrets Manager adapters, and the expose package with the newer package versions and refreshing the root workspace lockfile to match.
 
 - Stabilized the release-branch full-suite and pre-push test path under loaded CI/dev environments by raising local time budgets only for a small set of import-heavy CLI, worker, Cloudflare runtime, and broadcast regression tests that were intermittently timing out during aggregate Vitest runs even though they still passed in focused execution. This keeps the real behavior checks intact while removing false-negative push failures caused by suite-level contention rather than product regressions.
