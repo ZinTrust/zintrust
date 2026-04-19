@@ -1,5 +1,11 @@
 # 2026-04-18
 
+- Kept the publish-smoke fresh-scaffold cold-start stage and hardened it instead of removing it. The workflow now installs `tsx` explicitly with `--no-save` after `npm install --omit=dev` so the source-first `zin start --no-watch` smoke boot still has the TypeScript runner it invokes even when scaffold app devDependencies have been pruned for the cold-start check.
+
+- Hardened `@zintrust/workers` graceful shutdown logging so shutdown completion no longer crashes when a consumer runtime exposes a partial logger surface where `Logger.info` is unavailable late in teardown. `WorkerShutdown` now logs through a best-effort level fallback instead of throwing `Logger.info is not a function` during app exit.
+
+- Removed the CLI suggestion to install `tsx` globally when the local runner is missing. ZinTrust now only tells developers to add `tsx` to the project, which matches the supported local-runtime contract and avoids nudging CI or fresh scaffolds toward machine-global fixes.
+
 - Fixed `zin new` fresh-project scaffolding when the destination directory already exists but is still empty, which is a common publish-smoke setup pattern under `/tmp`. The scaffolder now reuses empty targets, still rejects non-empty directories unless `--overwrite` or `--force` is set, and explicitly honors `force` in the shared scaffolder path. Verified end-to-end by rebuilding `dist`, creating `/tmp/test-a`, installing the local `dist` package into that app, pruning dev dependencies with `npm install --omit=dev`, and booting `node ./node_modules/@zintrust/core/bin/zin.js start --no-watch` successfully with the packaged CLI.
 
 - Fixed schedule CLI source re-entry for fresh scaffold-style apps that do not ship a project-owned `bin/zin.ts` or `bin/zintrust.ts`. When source schedule files are present, the schedule commands now fall back to the currently running packaged CLI script if needed, so `schedule:list`, `schedule:run`, and `schedule:start` still work from installed `@zintrust/core` builds instead of aborting with a missing project CLI entrypoint error.

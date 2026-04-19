@@ -296,8 +296,6 @@ For root monolith starts, use `RUN_AS_MONOLITH=true` when service-local env file
 
 If `zin s` fails with `Error: 'tsx' not found on PATH.`, install `tsx` in the project with `npm install -D tsx`.
 
-If you need a machine-wide fallback for ad hoc development, `npm install -g tsx` also works, but the project-local dependency is the safer default.
-
 ## Layered Config Overrides
 
 Standalone services can override selected config modules without duplicating the whole root config tree.

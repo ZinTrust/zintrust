@@ -271,13 +271,6 @@ describe('SpawnUtil', () => {
         args: [],
       })
     ).rejects.toThrow(/npm install -D tsx/);
-
-    await expect(
-      SpawnUtil.spawnAndWait({
-        command: 'tsx',
-        args: [],
-      })
-    ).rejects.toThrow(/npm install -g tsx/);
   });
 
   it('throws generic error for other spawn failures', async () => {

@@ -55,7 +55,6 @@ const buildCommandNotFoundMessage = (command: string): string => {
     return [
       "Error: 'tsx' not found on PATH.",
       'Install it in the project with "npm install -D tsx".',
-      'If you want a machine-wide fallback, install it globally with "npm install -g tsx".',
     ].join(' ');
   }
 

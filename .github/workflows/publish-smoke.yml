@@ -82,6 +82,11 @@ jobs:
           npm install --omit=dev --no-audit --no-fund || \
             npm install --omit=dev --no-audit --no-fund --legacy-peer-deps
 
+          # `zin start --no-watch` still executes the TypeScript runner in fresh source-first apps.
+          # Keep the smoke stage stable by installing tsx explicitly even after dev deps are pruned.
+          npm install --no-save --no-audit --no-fund tsx || \
+            npm install --no-save --no-audit --no-fund --legacy-peer-deps tsx
+
           echo "---- DEBUG: installed @zintrust/core resolution ----"
           node -e "const fs=require('fs');const p='node_modules/@zintrust/core';console.log('template=',process.env.SMOKE_TEMPLATE);console.log('app=',process.env.SMOKE_APP_NAME);console.log('realpath=',fs.realpathSync(p));const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));console.log('smoke-app @zintrust/core dep=',pkg.dependencies?.['@zintrust/core']);"
           echo "---- DEBUG: core package.json ----"
