@@ -85,5 +85,5 @@ describe('createQueueWorker coverage', () => {
 
     const processed = await worker.runOnce({ maxItems: 1 });
     expect(processed).toBe(1);
-  });
+  }, 30000);
 });

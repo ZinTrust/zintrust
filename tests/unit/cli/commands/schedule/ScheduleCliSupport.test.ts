@@ -56,6 +56,13 @@ const createLoader = (args: {
   exists: () => args.exists === true,
   get: async () => {
     if (args.error !== undefined) throw args.error;
+    if (Object.hasOwn(args.module ?? {}, 'default') && args.module?.default !== undefined) {
+      return args.module.default;
+    }
+    return args.module ?? {};
+  },
+  getModule: async () => {
+    if (args.error !== undefined) throw args.error;
     return args.module ?? {};
   },
 });
@@ -140,6 +147,55 @@ describe('ScheduleCliSupport', () => {
     await ScheduleCliSupport.registerAll();
 
     expect(mocked.registerMany).toHaveBeenCalledWith(expect.any(Array), 'app');
+  });
+
+  it('registerAll keeps named schedules when the fallback file mixes default and named exports', async () => {
+    const defaultSchedule = { name: 'defaultOnly', handler: async () => undefined };
+    const namedSchedule = { name: 'namedAlso', handler: async () => undefined };
+
+    vi.doMock('@schedules/index', () => ({}));
+    vi.doMock('@app/Schedules', () => {
+      throw new Error('alias-missing');
+    });
+    mocked.useFileLoader.mockImplementation((relativePath: string) => {
+      if (relativePath === 'app/Schedules/index.ts') {
+        return createLoader({
+          path: '/project/app/Schedules/index.ts',
+          exists: true,
+          module: {
+            default: defaultSchedule,
+            namedSchedule,
+          },
+        });
+      }
+
+      return createLoader({ path: '/project/app/Schedules.ts' });
+    });
+
+    const { ScheduleCliSupport } = await import('@cli/commands/schedule/ScheduleCliSupport');
+    await ScheduleCliSupport.registerAll();
+
+    expect(mocked.registerMany).toHaveBeenCalledWith(
+      expect.arrayContaining([defaultSchedule, namedSchedule]),
+      'app'
+    );
+  });
+
+  it('registerAll flattens default schedule arrays without duplicating names', async () => {
+    const arraySchedule = { name: 'arraySchedule', handler: async () => undefined };
+    const namedSchedule = { name: 'namedSchedule', handler: async () => undefined };
+
+    vi.doMock('@schedules/index', () => ({ default: [arraySchedule] }));
+    vi.doMock('@app/Schedules', () => ({
+      default: [arraySchedule, namedSchedule],
+      namedSchedule,
+    }));
+
+    const { ScheduleCliSupport } = await import('@cli/commands/schedule/ScheduleCliSupport');
+    await ScheduleCliSupport.registerAll();
+
+    expect(mocked.registerMany).toHaveBeenCalledWith([arraySchedule], 'core');
+    expect(mocked.registerMany).toHaveBeenCalledWith([arraySchedule, namedSchedule], 'app');
   });
 
   it('re-enters through the project source CLI for source schedule files', async () => {

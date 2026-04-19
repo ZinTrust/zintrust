@@ -486,8 +486,10 @@ function shouldSkipBecauseAlreadyPublished({ packageName, version }) {
 
 function recordFailureAndMaybeThrow({ failures, dirName, pkg, err, title }) {
   const message = err instanceof Error ? err.message : String(err);
-  failures.push({ dirName, name: pkg.name, version: pkg.version, message });
-  emitGithubError(title, `${pkg.name}@${pkg.version} (${dirName}): ${message}`);
+  const packageName = pkg?.name ?? dirName;
+  const packageVersion = pkg?.version ?? 'unknown';
+  failures.push({ dirName, name: packageName, version: packageVersion, message });
+  emitGithubError(title, `${packageName}@${packageVersion} (${dirName}): ${message}`);
   if (!continueOnError) throw err;
 }
 
@@ -556,7 +558,9 @@ async function transformPackageForPublish(pkg, pkgDir, coreVersion) {
     ];
 
     for (const dep of fileDeps) {
-      if (!transformed.dependencies[dep]?.startsWith('file:')) return;
+      if (!transformed.dependencies[dep]?.startsWith('file:')) {
+        continue;
+      }
 
       const expectedVersion = await getLocalFileDependencyVersion(
         pkgDir,
