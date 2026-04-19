@@ -10,6 +10,8 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isObject } from '@helper/index';
 import { getServicePrefix } from '@microservices/ServiceManifest';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
+import { resolveNodeProjectRoot } from '@runtime/resolveNodeProjectRoot';
+import { useFileLoader } from '@runtime/useFileLoader';
 import type { Command } from 'commander';
 
 type GroupByMode = 'group' | 'service' | 'none';
@@ -255,6 +257,43 @@ const registerManifestRoutes = async (
   }
 };
 
+const ensureProjectRootEnv = async (): Promise<string> => {
+  const projectRoot = await resolveNodeProjectRoot();
+  if ((process.env['ZINTRUST_PROJECT_ROOT'] ?? '').trim() === '') {
+    process.env['ZINTRUST_PROJECT_ROOT'] = projectRoot;
+  }
+  return projectRoot;
+};
+
+const loadProjectRouteRegistrar = async (): Promise<
+  ((router: ReturnType<typeof Router.createRouter>) => void) | undefined
+> => {
+  await ensureProjectRootEnv();
+
+  const loader = useFileLoader('routes/api.ts');
+  if (loader.exists()) {
+    try {
+      const routeModule = await loader.getModule<Record<string, unknown>>();
+      const registerRoutes = isObject(routeModule) ? routeModule.registerRoutes : undefined;
+      if (typeof registerRoutes === 'function') {
+        return registerRoutes as (router: ReturnType<typeof Router.createRouter>) => void;
+      }
+    } catch {
+      // Fall back to the framework alias import when the project file cannot be imported.
+    }
+  }
+
+  try {
+    const routeModule = (await import('@routes/api')) as Record<string, unknown>;
+    const registerRoutes = isObject(routeModule) ? routeModule.registerRoutes : undefined;
+    return typeof registerRoutes === 'function'
+      ? (registerRoutes as (router: ReturnType<typeof Router.createRouter>) => void)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const buildRows = async (options: RoutesCommandOptions): Promise<RouteRow[]> => {
   const groupBy = parseGroupBy(options.groupBy);
   const filterText = typeof options.filter === 'string' ? options.filter.trim().toLowerCase() : '';
@@ -270,8 +309,10 @@ const buildRows = async (options: RoutesCommandOptions): Promise<RouteRow[]> => 
 
   // 2. Try to load application routes if available
   try {
-    const { registerRoutes } = await import('@routes/api');
-    registerRoutes(router);
+    const registerRoutes = await loadProjectRouteRegistrar();
+    if (typeof registerRoutes === 'function') {
+      registerRoutes(router);
+    }
   } catch {
     // routes/api.ts not found, continue with just core routes
   }

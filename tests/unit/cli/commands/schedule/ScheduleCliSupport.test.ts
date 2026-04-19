@@ -149,6 +149,31 @@ describe('ScheduleCliSupport', () => {
     expect(mocked.registerMany).toHaveBeenCalledWith(expect.any(Array), 'app');
   });
 
+  it('registerAll prefers project schedule files over alias imports when both exist', async () => {
+    const fileSchedule = { name: 'fileSchedule', handler: async () => undefined };
+
+    vi.doMock('@schedules/index', () => ({ a: { name: 'a', handler: async () => undefined } }));
+    vi.doMock('@app/Schedules', () => ({
+      aliasSchedule: { name: 'aliasSchedule', handler: async () => undefined },
+    }));
+    mocked.useFileLoader.mockImplementation((relativePath: string) => {
+      if (relativePath === 'app/Schedules/index.ts') {
+        return createLoader({
+          path: '/project/app/Schedules/index.ts',
+          exists: true,
+          module: { fileSchedule },
+        });
+      }
+
+      return createLoader({ path: '/project/app/Schedules.ts' });
+    });
+
+    const { ScheduleCliSupport } = await import('@cli/commands/schedule/ScheduleCliSupport');
+    await ScheduleCliSupport.registerAll();
+
+    expect(mocked.registerMany).toHaveBeenCalledWith([fileSchedule], 'app');
+  });
+
   it('registerAll keeps named schedules when the fallback file mixes default and named exports', async () => {
     const defaultSchedule = { name: 'defaultOnly', handler: async () => undefined };
     const namedSchedule = { name: 'namedAlso', handler: async () => undefined };

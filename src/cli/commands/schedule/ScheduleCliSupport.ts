@@ -34,7 +34,10 @@ const getDefaultExport = (moduleNamespace: Record<string, unknown>): unknown => 
 };
 
 const flattenScheduleCandidates = (moduleNamespace: Record<string, unknown>): unknown[] => {
-  const candidates: unknown[] = [...Object.values(moduleNamespace), getDefaultExport(moduleNamespace)];
+  const candidates: unknown[] = [
+    ...Object.values(moduleNamespace),
+    getDefaultExport(moduleNamespace),
+  ];
   return candidates.flatMap((value): unknown[] => (Array.isArray(value) ? value : [value]));
 };
 
@@ -147,12 +150,16 @@ const tryLoadProjectScheduleModuleFromFiles = async (): Promise<
 };
 
 const loadAppScheduleModule = async (): Promise<LoadedScheduleModule> => {
+  const fileLoaded = await tryLoadProjectScheduleModuleFromFiles();
+  if (fileLoaded !== undefined) {
+    return fileLoaded;
+  }
+
   try {
     return {
       module: (await import('@app/Schedules')) as unknown as Record<string, unknown>,
     };
   } catch {
-    const fileLoaded = await tryLoadProjectScheduleModuleFromFiles();
     return fileLoaded ?? { module: {} };
   }
 };

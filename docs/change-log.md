@@ -1,5 +1,7 @@
 # 2026-04-19
 
+- Fixed CLI project-module discovery for fresh/newstart-style workspaces. `zin routes` now resolves the active project root first and loads `routes/api.ts` from the workspace filesystem instead of only relying on the core alias graph, `ScheduleCliSupport` now prefers project `app/Schedules` files before alias imports, and optional CLI extension discovery now climbs to the nearest project `package.json` when commands are launched from a subdirectory.
+
 - Stabilized the Husky pre-push `coverage:patch` path by giving a small set of import-heavy integration and worker coverage tests explicit 30s budgets, including the remaining broadcast worker coverage slice. This keeps the behavior checks intact while avoiding false-negative push failures from the default 10s Vitest timeout under aggregate patch-coverage runs.
 
 - Fixed the remaining schedule CLI mixed-export discovery gap. `ScheduleCliSupport` now preserves the full project schedule module namespace when it falls back to loading `app/Schedules` from project files, and the CLI schedule collector now flattens named exports plus `default` exports consistently while deduplicating by schedule name. This means `schedule:list`, `schedule:run`, and `schedule:start` no longer lose valid schedules just because a project schedule module mixes `default` and named exports.
