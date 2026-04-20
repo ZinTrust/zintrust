@@ -233,6 +233,9 @@ const parseBulletproofHeaders = (params: {
 };
 
 type SignedRequestVerificationResult = Awaited<ReturnType<typeof SignedRequest.verify>>;
+type SignedRequestAttemptOutcome =
+  | { result: SignedRequestVerificationResult; error: undefined }
+  | { result: undefined; error: unknown };
 
 const isMissingDeviceStoreRegistration = (error: unknown): boolean => {
   if (!(error instanceof Error)) return false;
@@ -297,7 +300,7 @@ const collectSignedRequestAttempts = async (params: {
   };
   getSecretForKeyId: SecretForKeyResolver;
   staticSecrets?: readonly string[];
-}): Promise<SignedRequestVerificationResult[]> => {
+}): Promise<SignedRequestAttemptOutcome[]> => {
   const staticSecrets = normalizeStaticSecrets(params.staticSecrets);
   const attemptResolvers: Array<() => Promise<SignedRequestVerificationResult>> = [
     createDynamicSignedRequestAttempt({
@@ -314,7 +317,15 @@ const collectSignedRequestAttempts = async (params: {
     }),
   ];
 
-  return Promise.all(attemptResolvers.map(async (attemptResolver) => attemptResolver()));
+  return Promise.all(
+    attemptResolvers.map(async (attemptResolver): Promise<SignedRequestAttemptOutcome> => {
+      try {
+        return { result: await attemptResolver(), error: undefined };
+      } catch (error) {
+        return { result: undefined, error };
+      }
+    })
+  );
 };
 
 const verifySignedRequest = async (params: {
@@ -341,12 +352,27 @@ const verifySignedRequest = async (params: {
     },
   } as const;
 
-  const attempts = await collectSignedRequestAttempts({
+  const attemptOutcomes = await collectSignedRequestAttempts({
     req: params.req,
     baseParams,
     getSecretForKeyId: params.getSecretForKeyId,
     staticSecrets: params.staticSecrets,
   });
+  const attempts = attemptOutcomes.flatMap((attemptOutcome) => {
+    return attemptOutcome.result === undefined ? [] : [attemptOutcome.result];
+  });
+
+  if (attempts.length === 0) {
+    const firstError = attemptOutcomes.find(
+      (attemptOutcome) => attemptOutcome.error !== undefined
+    )?.error;
+
+    if (firstError !== undefined) {
+      throw firstError;
+    }
+
+    return { ok: false, message: 'Unauthorized' };
+  }
 
   let signed = attempts[0];
 
@@ -623,37 +649,38 @@ const resolveSigningConfig = (
   const signingSecret = (options.signingSecret ?? signingSecretFromEnv).trim();
 
   const backupSecrets = parseBackupSecrets(Env.get('BULLETPROOF_SIGNING_SECRET_BK', ''));
+  const staticSigningSecrets = dedupeSecrets(
+    backupSecrets.filter((secret) => secret.trim() !== '' && secret.trim() !== signingSecret)
+  );
 
   const hasCustomResolver = typeof options.getSecretForKeyId === 'function';
-  const getSecretForKeyId = hasCustomResolver
-    ? (options.getSecretForKeyId as BulletproofResolved['getSecretForKeyId'])
-    : async (keyId: string): Promise<string | undefined> => {
-        const fallbackSecret = dedupeSecrets([signingSecret, ...backupSecrets])[0];
+  let getSecretForKeyId: BulletproofResolved['getSecretForKeyId'];
+  if (hasCustomResolver) {
+    getSecretForKeyId = options.getSecretForKeyId as BulletproofResolved['getSecretForKeyId'];
+  } else if (isNonEmptyString(signingSecret)) {
+    getSecretForKeyId = (): string => signingSecret;
+  } else {
+    getSecretForKeyId = async (keyId: string): Promise<string | undefined> => {
+      const device = await BulletproofDeviceStore.findByDeviceId(keyId);
 
-        let device;
-        try {
-          device = await BulletproofDeviceStore.findByDeviceId(keyId);
-        } catch (error) {
-          if (fallbackSecret !== undefined && isMissingDeviceStoreRegistration(error)) {
-            return fallbackSecret;
-          }
+      if (device && typeof device.signingSecret === 'string' && device.signingSecret !== '') {
+        return device.signingSecret;
+      }
 
-          throw error;
-        }
-
-        if (device && typeof device.signingSecret === 'string' && device.signingSecret !== '') {
-          return device.signingSecret;
-        }
-
-        return fallbackSecret === undefined || fallbackSecret === '' ? undefined : fallbackSecret;
-      };
+      return undefined;
+    };
+  }
 
   const verifyNonce: NonceReplayVerifier =
     options.verifyNonce ?? NonceReplay.createMemoryVerifier();
 
-  const staticSigningSecrets = hasCustomResolver ? undefined : dedupeSecrets(backupSecrets);
+  const resolvedStaticSigningSecrets = hasCustomResolver ? undefined : staticSigningSecrets;
 
-  return { getSecretForKeyId, verifyNonce, staticSigningSecrets };
+  return {
+    getSecretForKeyId,
+    verifyNonce,
+    staticSigningSecrets: resolvedStaticSigningSecrets,
+  };
 };
 
 const resolveBulletproof = (options: BulletproofAuthOptions): BulletproofResolved => {

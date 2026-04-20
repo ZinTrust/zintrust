@@ -485,6 +485,25 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     expect(SignedRequest.verify).toHaveBeenCalled();
   });
 
+  it('uses configured signingSecret without querying the device store', async () => {
+    const middleware = BulletproofAuthMiddleware.create({ signingSecret: 'static-secret' });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': 'n1',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    await middleware(req, res, async () => undefined);
+    const verifyArgs = vi.mocked(SignedRequest.verify).mock.calls[0]?.[0] as any;
+
+    await expect(verifyArgs.getSecretForKeyId('dev-1')).resolves.toBe('static-secret');
+    expect(findByDeviceIdMock).not.toHaveBeenCalled();
+  });
+
   it('exposes default getSecretForKeyId as undefined when signingSecret is empty', async () => {
     const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
     const { req, res } = createReqRes({
@@ -582,15 +601,22 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     );
   });
 
-  it('rethrows non-registration signed-request errors even when backups exist', async () => {
+  it('continues to backup secrets when the dynamic resolver throws a non-registration error', async () => {
     vi.mocked(Env.get).mockImplementation((key: string) => {
       if (key === 'BULLETPROOF_SIGNING_SECRET_BK') return '["backup-secret"]';
       return '';
     });
 
-    vi.mocked(SignedRequest.verify).mockImplementationOnce(async () => {
-      throw new Error('device store offline');
-    });
+    vi.mocked(SignedRequest.verify)
+      .mockImplementationOnce(async () => {
+        throw new Error('device store offline');
+      })
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        keyId: 'dev-1',
+        timestampMs: Date.now(),
+        nonce: 'n1',
+      }));
 
     const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
     const { req, res } = createReqRes({
@@ -603,13 +629,21 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
       'x-zt-signature': 'sig',
     });
 
-    await expect(middleware(req, res, async () => undefined)).rejects.toThrow(
-      'device store offline'
-    );
+    let nextCalled = false;
+    await middleware(req, res, async () => {
+      nextCalled = true;
+    });
+
+    expect(nextCalled).toBe(true);
+    expect(SignedRequest.verify).toHaveBeenCalledTimes(2);
   });
 
   it('uses the device-specific signing secret when the store returns one', async () => {
-    findByDeviceIdMock.mockResolvedValueOnce({ signingSecret: 'device-secret' });
+    findByDeviceIdMock.mockResolvedValueOnce({
+      deviceId: 'dev-1',
+      signingSecret: 'device-secret',
+      lastSeenAt: new Date('2026-04-20T02:00:00.000Z'),
+    });
 
     const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
     const { req, res } = createReqRes({
