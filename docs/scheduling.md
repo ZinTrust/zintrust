@@ -1,6 +1,6 @@
 # Scheduling
 
-ZinTrust includes a lightweight, flexible schedule runner built directly into the framework. It handles recurrent background tasks, cron jobs, and interval-based execution without requiring external daemon processes. 
+ZinTrust includes a lightweight, flexible schedule runner built directly into the framework. It handles recurrent background tasks, cron jobs, and interval-based execution without requiring external daemon processes.
 
 The scheduler supports:
 
@@ -41,6 +41,40 @@ import { Logger, Schedule } from '@zintrust/core';
 - `enabledWhen(bool)`: Conditionally enables or disables the schedule.
 - `runOnStart()`: Runs immediately when the application boots, and then follows its standard schedule.
 - `withoutOverlapping({ provider, ttlMs })`: Prevents overlapping runs across multiple server instances using a distributed lock.
+
+---
+
+## Enabling the Scheduler
+
+Schedules require two things to run: the `SCHEDULES_ENABLED` environment variable set to `true`, and an explicit `zin schedule:start` command. The two are kept separate by design — `zin s` runs the HTTP server and `zin schedule:start` runs the schedule daemon as its own long-running process.
+
+```bash
+# Terminal 1 — HTTP server
+zin s
+
+# Terminal 2 (or a separate container/process) — schedule daemon
+zin schedule:start
+```
+
+Set the environment variable to allow `zin schedule:start` to proceed:
+
+```env
+SCHEDULES_ENABLED=true
+```
+
+**When `SCHEDULES_ENABLED=false` (the default):**
+
+- `zin schedule:start` exits immediately without starting any timers.
+- Schedules are still registered and **can still be triggered manually** via the CLI (`zin schedule:run`) or the HTTP RPC gateway (`POST /api/_sys/schedule/rpc`).
+- `zin schedule:list` continues to work.
+
+**When `SCHEDULES_ENABLED=true`:**
+
+- `zin schedule:start` proceeds to register and run all schedules on their defined cadence.
+- The daemon stays alive until it receives `SIGTERM` or `SIGINT`, then shuts down gracefully.
+- Only supported in long-running runtimes: **Node.js** and **Fargate**. Cloudflare Workers do not support `zin schedule:start` — use the HTTP RPC gateway instead.
+
+> **Typical production setup:** Keep `SCHEDULES_ENABLED=false` in your web/API process and set `SCHEDULES_ENABLED=true` only in a dedicated schedules container. The generated `docker-compose.schedules.yml` already reflects this split.
 
 ---
 
