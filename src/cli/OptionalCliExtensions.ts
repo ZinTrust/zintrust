@@ -131,6 +131,8 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
   },
 ]);
 
+let installedExtensionsPromise: Promise<OptionalCliExtensionStatus[]> | undefined;
+
 const getProjectLocalCandidates = (entry: OptionalCliExtension): string[] => {
   const projectRoot = resolveProjectRoot();
   if (projectRoot === packageRoot) return [];
@@ -313,6 +315,17 @@ const tryImportExtension = async (
   };
 };
 
+const loadAllInstalledExtensions = async (): Promise<OptionalCliExtensionStatus[]> => {
+  return OPTIONAL_CLI_EXTENSIONS.reduce<Promise<OptionalCliExtensionStatus[]>>(
+    async (statusesPromise, entry) => {
+      const statuses = await statusesPromise;
+      const status = await tryImportExtension(entry, { logFailures: false });
+      return [...statuses, status];
+    },
+    Promise.resolve([])
+  );
+};
+
 const getRequestedCommand = (args: string[]): string | undefined => {
   if (args.length === 0) return undefined;
 
@@ -339,11 +352,8 @@ const isRootHelpRequest = (args: string[]): boolean => {
 
 export const OptionalCliExtensions = Object.freeze({
   async tryImportInstalledExtensions(): Promise<OptionalCliExtensionStatus[]> {
-    return Promise.all(
-      OPTIONAL_CLI_EXTENSIONS.map(async (entry) =>
-        tryImportExtension(entry, { logFailures: false })
-      )
-    );
+    installedExtensionsPromise ??= loadAllInstalledExtensions();
+    return installedExtensionsPromise;
   },
 
   async loadForArgs(args: string[]): Promise<OptionalCliExtensionStatus[]> {
@@ -388,6 +398,7 @@ export const OptionalCliExtensions = Object.freeze({
 });
 
 export const OptionalCliExtensionsInternal = Object.freeze({
+  loadAllInstalledExtensions,
   getProjectCwd,
   resolveProjectRoot,
   resolveProjectInstalledUrl,
