@@ -95,15 +95,7 @@ const createStoreError = (
   }
 
   const message = getErrorMessage(error);
-  const detailPayload =
-    details === undefined
-      ? { table, operation, error: message }
-      : {
-          table,
-          operation,
-          error: message,
-          ...details,
-        };
+  const detailPayload = Object.assign({ table, operation, error: message }, details);
 
   if (isSchemaError(error)) {
     return ErrorFactory.createConfigError(

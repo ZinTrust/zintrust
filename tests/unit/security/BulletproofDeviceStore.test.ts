@@ -54,6 +54,22 @@ const createTransactionMock = (database: TransactionDatabaseStub): ReturnType<ty
   });
 };
 
+const createDatabaseStub = (
+  query: QueryStub,
+  options?: {
+    execute?: ReturnType<typeof vi.fn>;
+    transaction?: ReturnType<typeof vi.fn>;
+    getType?: string;
+  }
+): ReturnType<typeof useDatabase> => {
+  return {
+    table: vi.fn(() => query),
+    transaction: options?.transaction ?? vi.fn(),
+    execute: options?.execute ?? vi.fn(),
+    getType: vi.fn(() => options?.getType ?? 'sqlite'),
+  } as never;
+};
+
 describe('BulletproofDeviceStore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,6 +79,15 @@ describe('BulletproofDeviceStore', () => {
   it('returns null for an empty device id without touching the database', async () => {
     await expect(BulletproofDeviceStore.findByDeviceId('   ')).resolves.toBeNull();
     expect(useDatabase).not.toHaveBeenCalled();
+  });
+
+  it('returns null when the device lookup does not find a matching row', async () => {
+    const query = createQueryStub();
+    query.first.mockResolvedValueOnce(null);
+
+    vi.mocked(useDatabase).mockReturnValue(createDatabaseStub(query));
+
+    await expect(BulletproofDeviceStore.findByDeviceId('dev-miss')).resolves.toBeNull();
   });
 
   it('normalizes stored rows and falls back to the default table when env table is blank', async () => {
@@ -156,6 +181,76 @@ describe('BulletproofDeviceStore', () => {
     });
   });
 
+  it('validates required device store fields during upsert', async () => {
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: '   ',
+        signingSecret: 'secret-required',
+        lastSeenAt: new Date('2026-04-20T03:00:00.000Z'),
+      })
+    ).rejects.toHaveProperty('code', 'VALIDATION_ERROR');
+
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: 'dev-required',
+        signingSecret: '   ',
+        lastSeenAt: new Date('2026-04-20T03:00:00.000Z'),
+      })
+    ).rejects.toHaveProperty('code', 'VALIDATION_ERROR');
+  });
+
+  it.each([
+    [
+      'mysql',
+      'INSERT IGNORE INTO zintrust_bulletproof_devices (user_id, device_id, signing_secret, user_agent, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ],
+    [
+      'postgresql',
+      'INSERT INTO zintrust_bulletproof_devices (user_id, device_id, signing_secret, user_agent, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (device_id) DO NOTHING',
+    ],
+    [
+      'sqlserver',
+      'MERGE INTO zintrust_bulletproof_devices WITH (HOLDLOCK) AS target USING (SELECT v1 AS user_id, v2 AS device_id, v3 AS signing_secret, v4 AS user_agent, v5 AS last_seen_at, v6 AS created_at, v7 AS updated_at FROM (SELECT ? AS v1, ? AS v2, ? AS v3, ? AS v4, ? AS v5, ? AS v6, ? AS v7) seed) AS source ON target.device_id = source.device_id WHEN NOT MATCHED THEN INSERT (user_id, device_id, signing_secret, user_agent, last_seen_at, created_at, updated_at) VALUES (source.user_id, source.device_id, source.signing_secret, source.user_agent, source.last_seen_at, source.created_at, source.updated_at);',
+    ],
+    [
+      'oracle',
+      'INSERT INTO zintrust_bulletproof_devices (user_id, device_id, signing_secret, user_agent, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ],
+  ])('uses the expected insert-ignore SQL for %s drivers', async (driver, expectedSql) => {
+    const query = createQueryStub();
+    query.update.mockResolvedValue(0);
+    query.first.mockResolvedValueOnce({
+      device_id: 'dev-driver',
+      signing_secret: 'secret-driver',
+      last_seen_at: '2026-04-20T05:00:00.000Z',
+      created_at: '2026-04-20T05:00:00.000Z',
+      updated_at: '2026-04-20T05:00:00.000Z',
+    });
+
+    const execute = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+
+    vi.mocked(useDatabase).mockReturnValue(
+      createDatabaseStub(query, { execute, transaction, getType: String(driver) })
+    );
+
+    await BulletproofDeviceStore.upsert({
+      deviceId: 'dev-driver',
+      signingSecret: 'secret-driver',
+      lastSeenAt: new Date('2026-04-20T05:00:00.000Z'),
+    });
+
+    expect(execute).toHaveBeenCalledWith(expectedSql, [
+      null,
+      'dev-driver',
+      'secret-driver',
+      null,
+      '2026-04-20T05:00:00.000Z',
+      '2026-04-20T05:00:00.000Z',
+      '2026-04-20T05:00:00.000Z',
+    ]);
+  });
+
   it('wraps missing-table and invalid-record failures as config errors', async () => {
     const query = createQueryStub();
     query.first.mockRejectedValueOnce(new Error('missing column'));
@@ -191,6 +286,18 @@ describe('BulletproofDeviceStore', () => {
         lastSeenAt: new Date('2026-04-20T04:00:00.000Z'),
       })
     ).rejects.toHaveProperty('code', 'CONFIG_ERROR');
+  });
+
+  it('treats malformed lookup rows as config errors', async () => {
+    const query = createQueryStub();
+    query.first.mockResolvedValueOnce({ device_id: 'dev-invalid' });
+
+    vi.mocked(useDatabase).mockReturnValue(createDatabaseStub(query));
+
+    await expect(BulletproofDeviceStore.findByDeviceId('dev-invalid')).rejects.toHaveProperty(
+      'code',
+      'CONFIG_ERROR'
+    );
   });
 
   it('deletes stored records and wraps delete failures', async () => {

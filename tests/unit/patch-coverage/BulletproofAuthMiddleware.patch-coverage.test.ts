@@ -520,6 +520,26 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     await expect(verifyArgs.getSecretForKeyId('dev-1')).rejects.toThrow('missing migrations');
   });
 
+  it('uses the device-specific signing secret when the store returns one', async () => {
+    findByDeviceIdMock.mockResolvedValueOnce({ signingSecret: 'device-secret' });
+
+    const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': 'n1',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    await middleware(req, res, async () => undefined);
+    const verifyArgs = vi.mocked(SignedRequest.verify).mock.calls[0]?.[0] as any;
+
+    await expect(verifyArgs.getSecretForKeyId('dev-1')).resolves.toBe('device-secret');
+  });
+
   it('sets tenantId on request context when present in JWT payload', async () => {
     mockJwtVerify.mockReturnValueOnce({ sub: '1', deviceId: 'dev-1', tenantId: 'tenant-456' });
 
