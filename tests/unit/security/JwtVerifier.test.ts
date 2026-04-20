@@ -155,21 +155,20 @@ describe('JwtVerifier', () => {
     ).resolves.toMatchObject({ sub: 'user-2' });
   });
 
-  it('returns missing_kid when the token header does not include a kid for JWKS verification', async () => {
+  it('returns missing_kid without fetching JWKS when the token header does not include a kid', async () => {
     const keyPair = await generateJwtKeyPair();
     const token = await createRs256Token({
       privateKey: keyPair.privateKey,
       payload: { sub: 'user-3', exp: Math.floor(Date.now() / 1000) + 300 },
     });
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify({ keys: [keyPair.publicJwk] }), { status: 200 }));
 
     const result = await JwtVerifier.verifyWithJwksResult({
       token,
       jwksUrl: 'https://issuer.example.com/jwks',
-      fetcher: vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ keys: [keyPair.publicJwk] }), { status: 200 })
-        ),
+      fetcher,
     });
 
     expect(result).toEqual({
@@ -177,6 +176,25 @@ describe('JwtVerifier', () => {
       reason: 'missing_kid',
       message: 'JWT header must include a kid when verifying with JWKS',
     });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('returns unsupported_algorithm without fetching JWKS when the JWT alg does not match', async () => {
+    const token = `${base64UrlEncodeJson({ alg: 'HS256', typ: 'JWT', kid: 'test-kid' })}.${base64UrlEncodeJson({ sub: 'user-3' })}.signature`;
+    const fetcher = vi.fn<typeof fetch>();
+
+    const result = await JwtVerifier.verifyWithJwksResult({
+      token,
+      jwksUrl: 'https://issuer.example.com/jwks',
+      fetcher,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'unsupported_algorithm',
+      message: 'JWT algorithm must be RS256',
+    });
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it('returns key_not_found when no JWKS key matches the token kid', async () => {

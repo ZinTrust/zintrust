@@ -401,7 +401,10 @@ const fetchJwks = async (
     keys: body['keys'].filter((item): item is JwtVerifierJwk => isObject(item)),
   };
 
-  const cacheTtlSeconds = Number.isFinite(input.cacheTtlSeconds) ? input.cacheTtlSeconds : 3600;
+  const cacheTtlSeconds =
+    typeof input.cacheTtlSeconds === 'number' && Number.isFinite(input.cacheTtlSeconds)
+      ? input.cacheTtlSeconds
+      : 3600;
   const ttlMs = Math.max(1, cacheTtlSeconds) * 1000;
   jwksCache.set(cacheKey, { jwks, expiresAtMs: nowMs + ttlMs });
   return { jwks, cacheHit: false };
@@ -477,9 +480,6 @@ const verifyWithJwkResult = async (input: JwtVerifierWithJwkInput): Promise<JwtV
 const verifyWithJwksResult = async (
   input: JwtVerifierWithJwksInput
 ): Promise<JwtVerifierResult> => {
-  const fetched = await fetchJwks(input);
-  if (isFailure(fetched)) return fetched;
-
   const tokenParts = parseTokenParts(input.token);
   if (isFailure(tokenParts)) return tokenParts;
 
@@ -489,6 +489,14 @@ const verifyWithJwksResult = async (
   const algorithm = getAlgorithm(input.algorithm);
   const headerFailure = validateHeaderAlgorithm(header, algorithm);
   if (headerFailure !== undefined) return headerFailure;
+
+  const kid = typeof header['kid'] === 'string' ? header['kid'].trim() : '';
+  if (kid === '') {
+    return toFailure('missing_kid', 'JWT header must include a kid when verifying with JWKS');
+  }
+
+  const fetched = await fetchJwks(input);
+  if (isFailure(fetched)) return fetched;
 
   const jwk = resolveJwkFromJwks(header, fetched.jwks, algorithm);
   if (isFailure(jwk)) return jwk;
