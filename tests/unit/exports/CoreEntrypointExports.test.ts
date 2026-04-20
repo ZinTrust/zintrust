@@ -10,6 +10,7 @@ describe('core entrypoint exports', () => {
     expect(core.SignedRequest).toBeDefined();
     expect(core.BulletproofAuthMiddleware).toBeDefined();
     expect(core.BulletproofDeviceStore).toBeDefined();
+    expect(core.JwtVerifier).toBeDefined();
 
     expect(core.StorageDriverRegistry).toBeDefined();
     expect(core.S3Driver).toBeDefined();

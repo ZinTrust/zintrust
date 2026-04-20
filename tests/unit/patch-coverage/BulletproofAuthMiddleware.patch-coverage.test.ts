@@ -504,6 +504,27 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     expect(findByDeviceIdMock).not.toHaveBeenCalled();
   });
 
+  it('returns unauthorized when signed-request verification yields no result and no error', async () => {
+    vi.mocked(SignedRequest.verify).mockResolvedValueOnce(undefined as never);
+
+    const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': 'n1',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    await middleware(req, res, async () => undefined);
+
+    expect(vi.mocked(SignedRequest.verify)).toHaveBeenCalledTimes(1);
+    expect((res as any).statusCode).toBe(401);
+    expect((res as any).body).toEqual({ error: 'Unauthorized' });
+  });
+
   it('exposes default getSecretForKeyId as undefined when signingSecret is empty', async () => {
     const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
     const { req, res } = createReqRes({

@@ -52,8 +52,8 @@ export {
   requireValidatedBody,
   ValidationHelper,
 } from '@http/ValidationHelper';
-export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 export { BulletproofAuthMiddleware } from '@middleware/BulletproofAuthMiddleware';
+export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 export { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
 export { LoggingMiddleware } from '@middleware/LoggingMiddleware';
 export { MiddlewareStack } from '@middleware/MiddlewareStack';
@@ -102,7 +102,6 @@ export {
   type UtilitiesType,
 } from '@/common/utility';
 export { ContextLoader } from '@common/ContextLoader';
-export { delay, ensureDirSafe } from '@common/index';
 export type {
   ContextLoaderBatchHandler,
   ContextLoaderBatchKey,
@@ -113,6 +112,7 @@ export type {
   ContextLoaderPlan,
   ContextLoaderResolver,
 } from '@common/ContextLoader';
+export { delay, ensureDirSafe } from '@common/index';
 
 // Collections
 export { collect, Collection } from '@/collections/index';
@@ -176,6 +176,7 @@ export { Schedule } from '@scheduler/Schedule';
 
 // Security
 
+export { BulletproofDeviceStore } from '@security/BulletproofDeviceStore';
 export { CsrfTokenManager } from '@security/CsrfTokenManager';
 export type {
   CsrfTokenData,
@@ -194,7 +195,18 @@ export type {
   JwtPayload,
 } from '@security/JwtManager';
 export { JwtSessions } from '@security/JwtSessions';
-export { BulletproofDeviceStore } from '@security/BulletproofDeviceStore';
+export { JwtVerifier } from '@security/JwtVerifier';
+export type {
+  JwtVerifierAlgorithm,
+  JwtVerifierFailure,
+  JwtVerifierFailureReason,
+  JwtVerifierJwk,
+  JwtVerifierJwksDocument,
+  JwtVerifierResult,
+  JwtVerifierSuccess,
+  JwtVerifierWithJwkInput,
+  JwtVerifierWithJwksInput,
+} from '@security/JwtVerifier';
 export { PasswordResetTokenBroker } from '@security/PasswordResetTokenBroker';
 export type {
   IPasswordResetTokenBroker,
@@ -376,12 +388,7 @@ export type {
 } from '@mail/drivers/Mailgun';
 
 // Notifications
-export { sendSlackWebhook } from '@tools/notification/drivers/Slack';
-export { TermiiDriver } from '@tools/notification/drivers/Termii';
-export { sendSms } from '@tools/notification/drivers/Twilio';
-export { Notification } from '@tools/notification/Notification';
 export { NotificationComposer } from '@tools/notification/Composer';
-export { NotificationRegistry } from '@tools/notification/Registry';
 export type {
   NotificationChannelHandler,
   NotificationComposeBuilder,
@@ -391,6 +398,11 @@ export type {
   NotificationComposePolicy,
   NotificationComposeResult,
 } from '@tools/notification/Composer';
+export { sendSlackWebhook } from '@tools/notification/drivers/Slack';
+export { TermiiDriver } from '@tools/notification/drivers/Termii';
+export { sendSms } from '@tools/notification/drivers/Twilio';
+export { Notification } from '@tools/notification/Notification';
+export { NotificationRegistry } from '@tools/notification/Registry';
 
 // Templates
 export { MarkdownRenderer } from '@tools/templates';

@@ -4,6 +4,8 @@ ZinTrust provides a flexible authentication system that supports multiple driver
 
 For reusable login orchestration, ZinTrust also provides `LoginFlow`. Use it when you want account lookup, credential verification, token or session issuance, and audit hooks to live in one reusable flow instead of being rebuilt in each controller. See [plug-and-play-auth-login](/plug-and-play-auth-login).
 
+If your app needs to trust JWTs issued by another platform, use `JwtVerifier`. It verifies `RS256` tokens against a single JWK or a remote JWKS endpoint, validates issuer and audience claims, and works in both Node.js and Cloudflare Workers. See [jwk-jwt-verification](/jwk-jwt-verification).
+
 ## Configuration
 
 JWT auth is configured primarily via environment variables (see `src/config/security.ts`):
@@ -112,6 +114,23 @@ When `jwt` middleware succeeds, it attaches the verified JWT payload to the requ
 - `req.user` (request lifecycle)
 
 So route handlers do not need to re-verify JWTs.
+
+## Verifying external provider tokens
+
+When a mobile app, SSO provider, or third-party identity platform sends your backend a token that ZinTrust did not issue itself, verify it with `JwtVerifier` instead of `JwtManager`.
+
+```ts
+import { JwtVerifier } from '@zintrust/core';
+
+const payload = await JwtVerifier.verifyWithJwks({
+  token: providerToken,
+  jwksUrl: 'https://issuer.example.com/.well-known/jwks.json',
+  issuer: 'https://issuer.example.com',
+  audience: 'my-api-client',
+});
+```
+
+That flow is especially useful for Apple Sign In, Google Sign-In, Auth0, Azure AD, or any provider that publishes RSA public keys through JWKS.
 
 ### Bulletproof Auth (recommended for high-risk apps)
 

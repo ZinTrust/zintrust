@@ -1,3 +1,7 @@
+# 2026-04-20
+
+- Added a reusable `JwtVerifier` helper for verifying externally issued `RS256` JWTs with either a single JWK or a remote JWKS endpoint. The helper validates signature, issuer, audience, `exp`, and `nbf`, keeps JWKS documents in a small in-memory cache with configurable TTL, returns structured failure reasons when you want non-throwing control flow, and is exported from `@zintrust/core` for both Node.js and Cloudflare Workers projects. The docs now include a dedicated public guide for Apple Sign In and other provider-token flows.
+
 # 2026-04-19
 
 - Fixed Bulletproof auth for fresh/newstart apps by moving the missing device-secret path into core. ZinTrust now exposes `req.header(...)` as an alias of `req.getHeader(...)`, ships a built-in `BulletproofDeviceStore` backed by the new `zintrust_bulletproof_devices` migration, resolves Bulletproof middleware secrets from that store by default before falling back to the shared env secret, and adds a built-in `LoginFlow` issuer named `bulletproof` that returns `{ token, token_type, deviceId, deviceSecret }`. The default auth controller and fresh-project template now use that issuer, so normal migrations are enough to make the docs flow work.
