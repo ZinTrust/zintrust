@@ -53,6 +53,7 @@ export {
   ValidationHelper,
 } from '@http/ValidationHelper';
 export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
+export { BulletproofAuthMiddleware } from '@middleware/BulletproofAuthMiddleware';
 export { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
 export { LoggingMiddleware } from '@middleware/LoggingMiddleware';
 export { MiddlewareStack } from '@middleware/MiddlewareStack';

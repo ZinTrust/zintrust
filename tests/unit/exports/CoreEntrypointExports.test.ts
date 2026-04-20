@@ -8,6 +8,8 @@ describe('core entrypoint exports', () => {
     // re-exports are present (also important for patch/diff coverage).
     expect(core.AwsSigV4).toBeDefined();
     expect(core.SignedRequest).toBeDefined();
+    expect(core.BulletproofAuthMiddleware).toBeDefined();
+    expect(core.BulletproofDeviceStore).toBeDefined();
 
     expect(core.StorageDriverRegistry).toBeDefined();
     expect(core.S3Driver).toBeDefined();
