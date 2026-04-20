@@ -31,20 +31,24 @@ const execute = async (_options: Options): Promise<void> => {
     return;
   }
 
-  await ScheduleCliSupport.registerAll();
+  try {
+    await ScheduleCliSupport.registerAll();
 
-  const registeredCount = SchedulerRuntime.list().length;
-  Logger.info('Starting schedules daemon', { registeredCount });
+    const registeredCount = SchedulerRuntime.list().length;
+    Logger.info('Starting schedules daemon', { registeredCount });
 
-  SchedulerRuntime.start();
+    SchedulerRuntime.start();
 
-  const signal = await waitForSignal();
-  Logger.info('Stopping schedules daemon', { signal });
+    const signal = await waitForSignal();
+    Logger.info('Stopping schedules daemon', { signal });
 
-  const timeoutMs = Env.getInt('SCHEDULE_SHUTDOWN_TIMEOUT_MS', 30000);
-  await SchedulerRuntime.stop(timeoutMs);
+    const timeoutMs = Env.getInt('SCHEDULE_SHUTDOWN_TIMEOUT_MS', 30000);
+    await SchedulerRuntime.stop(timeoutMs);
 
-  Logger.info('Schedules daemon stopped');
+    Logger.info('Schedules daemon stopped');
+  } finally {
+    await ScheduleCliSupport.shutdownCliResources();
+  }
 };
 
 export const ScheduleStartCommand = Object.freeze({

@@ -4,6 +4,7 @@ const mocked = vi.hoisted(() => ({
   envGetBool: vi.fn(),
   envGetInt: vi.fn(),
   registerAll: vi.fn(async () => undefined),
+  shutdownCliResources: vi.fn(async () => undefined),
   list: vi.fn(() => [{ name: 'a' }]),
   start: vi.fn(),
   stop: vi.fn(async () => undefined),
@@ -26,6 +27,7 @@ vi.mock('@cli/commands/schedule/ScheduleCliSupport', () => ({
   ScheduleCliSupport: {
     ensureProjectSourceContext: vi.fn(async () => false),
     registerAll: (...args: any[]) => mocked.registerAll(...args),
+    shutdownCliResources: (...args: any[]) => mocked.shutdownCliResources(...args),
   },
 }));
 vi.mock('@scheduler/SchedulerRuntime', () => ({
@@ -66,6 +68,26 @@ describe('ScheduleStartCommand', () => {
 
     expect(mocked.start).toHaveBeenCalledTimes(1);
     expect(mocked.stop).toHaveBeenCalledWith(123);
+    expect(mocked.shutdownCliResources).toHaveBeenCalledTimes(1);
+
+    onceSpy.mockRestore();
+  });
+
+  it('cleans up CLI resources when scheduler stop fails', async () => {
+    mocked.envGetBool.mockReturnValue(true);
+    mocked.envGetInt.mockReturnValue(456);
+    const stopError = new Error('stop failed');
+    mocked.stop.mockRejectedValueOnce(stopError);
+
+    const onceSpy = vi.spyOn(process, 'once').mockImplementation((event: any, cb: any) => {
+      if (event === 'SIGTERM') cb();
+      return process as any;
+    });
+
+    const { ScheduleStartCommand } = await import('@cli/commands/ScheduleStartCommand');
+    await expect(ScheduleStartCommand.create().execute({} as any)).rejects.toBe(stopError);
+
+    expect(mocked.shutdownCliResources).toHaveBeenCalledTimes(1);
 
     onceSpy.mockRestore();
   });
