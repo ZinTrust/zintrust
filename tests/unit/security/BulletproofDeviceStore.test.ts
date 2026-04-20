@@ -21,6 +21,11 @@ type QueryStub = {
   delete: ReturnType<typeof vi.fn>;
 };
 
+type TransactionDatabaseStub = {
+  table: ReturnType<typeof vi.fn>;
+  execute: ReturnType<typeof vi.fn>;
+};
+
 const createQueryStub = (): QueryStub => {
   const query = {
     where: vi.fn(),
@@ -31,6 +36,22 @@ const createQueryStub = (): QueryStub => {
 
   query.where.mockReturnValue(query);
   return query;
+};
+
+const createTransactionDatabaseStub = (
+  query: QueryStub,
+  execute: ReturnType<typeof vi.fn>
+): TransactionDatabaseStub => {
+  return {
+    table: vi.fn(() => query),
+    execute,
+  };
+};
+
+const createTransactionMock = (database: TransactionDatabaseStub): ReturnType<typeof vi.fn> => {
+  return vi.fn(async (callback: (db: TransactionDatabaseStub) => Promise<unknown>) => {
+    return callback(database);
+  });
 };
 
 describe('BulletproofDeviceStore', () => {
@@ -90,12 +111,7 @@ describe('BulletproofDeviceStore', () => {
       updated_at: '2026-04-20T02:00:00.000Z',
     });
     const execute = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
-    const transaction = vi.fn(async (callback: (db: any) => Promise<unknown>) => {
-      return callback({
-        table: vi.fn(() => query),
-        execute,
-      });
-    });
+    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
 
     vi.mocked(useDatabase).mockReturnValue({
       table: vi.fn(() => query),
@@ -159,12 +175,7 @@ describe('BulletproofDeviceStore', () => {
     query.first.mockResolvedValueOnce({ device_id: 'dev-4' });
     query.update.mockResolvedValue(1);
     const execute = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
-    const transaction = vi.fn(async (callback: (db: any) => Promise<unknown>) => {
-      return callback({
-        table: vi.fn(() => query),
-        execute,
-      });
-    });
+    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
 
     vi.mocked(useDatabase).mockReturnValue({
       table: vi.fn(() => query),
