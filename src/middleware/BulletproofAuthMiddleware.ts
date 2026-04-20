@@ -236,13 +236,15 @@ type SignedRequestVerificationResult = Awaited<ReturnType<typeof SignedRequest.v
 
 const isMissingDeviceStoreRegistration = (error: unknown): boolean => {
   if (!(error instanceof Error)) return false;
-  return error.message.includes("Database connection '") && error.message.includes('is not registered');
+  return (
+    error.message.includes("Database connection '") && error.message.includes('is not registered')
+  );
 };
 
 const normalizeStaticSecrets = (staticSecrets?: readonly string[]): string[] => {
-  return staticSecrets
-    ?.map((s) => (typeof s === 'string' ? s.trim() : ''))
-    .filter((s) => s !== '') ?? [];
+  return (
+    staticSecrets?.map((s) => (typeof s === 'string' ? s.trim() : '')).filter((s) => s !== '') ?? []
+  );
 };
 
 const createDynamicSignedRequestAttempt = (params: {
@@ -304,14 +306,12 @@ const collectSignedRequestAttempts = async (params: {
       getSecretForKeyId: params.getSecretForKeyId,
       hasStaticFallback: staticSecrets.length > 0,
     }),
-    ...staticSecrets.map(
-      (secret) => async (): Promise<SignedRequestVerificationResult> => {
-        return SignedRequest.verify({
-          ...params.baseParams,
-          getSecretForKeyId: (): string => secret,
-        });
-      }
-    ),
+    ...staticSecrets.map((secret) => async (): Promise<SignedRequestVerificationResult> => {
+      return SignedRequest.verify({
+        ...params.baseParams,
+        getSecretForKeyId: (): string => secret,
+      });
+    }),
   ];
 
   return Promise.all(attemptResolvers.map(async (attemptResolver) => attemptResolver()));
@@ -628,13 +628,23 @@ const resolveSigningConfig = (
   const getSecretForKeyId = hasCustomResolver
     ? (options.getSecretForKeyId as BulletproofResolved['getSecretForKeyId'])
     : async (keyId: string): Promise<string | undefined> => {
-        const device = await BulletproofDeviceStore.findByDeviceId(keyId);
+        const fallbackSecret = dedupeSecrets([signingSecret, ...backupSecrets])[0];
+
+        let device;
+        try {
+          device = await BulletproofDeviceStore.findByDeviceId(keyId);
+        } catch (error) {
+          if (fallbackSecret !== undefined && isMissingDeviceStoreRegistration(error)) {
+            return fallbackSecret;
+          }
+
+          throw error;
+        }
 
         if (device && typeof device.signingSecret === 'string' && device.signingSecret !== '') {
           return device.signingSecret;
         }
 
-        const fallbackSecret = dedupeSecrets([signingSecret, ...backupSecrets])[0];
         return fallbackSecret === undefined || fallbackSecret === '' ? undefined : fallbackSecret;
       };
 
