@@ -27,6 +27,11 @@ export type BulletproofAuthContext = {
   };
 };
 
+type SecretForKeyResolver = (
+  keyId: string,
+  req: IRequest
+) => string | undefined | Promise<string | undefined>;
+
 export interface BulletproofAuthOptions {
   algorithm?: JwtAlgorithm;
   secret?: string;
@@ -102,10 +107,7 @@ export interface BulletproofAuthOptions {
    * Provide a secret for SignedRequest verification.
    * If omitted, uses `signingSecret` (single static secret) when present.
    */
-  getSecretForKeyId?: (
-    keyId: string,
-    req: IRequest
-  ) => string | undefined | Promise<string | undefined>;
+  getSecretForKeyId?: SecretForKeyResolver;
 
   /**
    * Single static secret for SignedRequest verification (easy mode).
@@ -230,15 +232,97 @@ const parseBulletproofHeaders = (params: {
   return { ok: true, deviceId, timezone, signingHeaders };
 };
 
+type SignedRequestVerificationResult = Awaited<ReturnType<typeof SignedRequest.verify>>;
+
+const isMissingDeviceStoreRegistration = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes("Database connection '") && error.message.includes('is not registered')
+  );
+};
+
+const normalizeStaticSecrets = (staticSecrets?: readonly string[]): string[] => {
+  return (
+    staticSecrets?.map((s) => (typeof s === 'string' ? s.trim() : '')).filter((s) => s !== '') ?? []
+  );
+};
+
+const createDynamicSignedRequestAttempt = (params: {
+  req: IRequest;
+  baseParams: {
+    method: string;
+    url: URL;
+    body: string | Uint8Array<ArrayBufferLike>;
+    headers: Record<string, string | undefined>;
+    nowMs: number;
+    windowMs: number;
+    verifyNonce: (keyId: string, nonce: string, ttlMs: number) => Promise<boolean>;
+  };
+  getSecretForKeyId: (
+    keyId: string,
+    req: IRequest
+  ) => string | undefined | Promise<string | undefined>;
+  hasStaticFallback: boolean;
+}): (() => Promise<SignedRequestVerificationResult>) => {
+  return async () => {
+    try {
+      return await SignedRequest.verify({
+        ...params.baseParams,
+        getSecretForKeyId: async (keyId: string): Promise<string | undefined> => {
+          const secretForKey = await params.getSecretForKeyId(keyId, params.req);
+          const normalized = typeof secretForKey === 'string' ? secretForKey.trim() : '';
+          return normalized === '' ? undefined : normalized;
+        },
+      });
+    } catch (error) {
+      if (params.hasStaticFallback && isMissingDeviceStoreRegistration(error)) {
+        return { ok: false, code: 'UNKNOWN_KEY', message: 'Unknown key' } as const;
+      }
+
+      throw error;
+    }
+  };
+};
+
+const collectSignedRequestAttempts = async (params: {
+  req: IRequest;
+  baseParams: {
+    method: string;
+    url: URL;
+    body: string | Uint8Array<ArrayBufferLike>;
+    headers: Record<string, string | undefined>;
+    nowMs: number;
+    windowMs: number;
+    verifyNonce: (keyId: string, nonce: string, ttlMs: number) => Promise<boolean>;
+  };
+  getSecretForKeyId: SecretForKeyResolver;
+  staticSecrets?: readonly string[];
+}): Promise<SignedRequestVerificationResult[]> => {
+  const staticSecrets = normalizeStaticSecrets(params.staticSecrets);
+  const attemptResolvers: Array<() => Promise<SignedRequestVerificationResult>> = [
+    createDynamicSignedRequestAttempt({
+      req: params.req,
+      baseParams: params.baseParams,
+      getSecretForKeyId: params.getSecretForKeyId,
+      hasStaticFallback: staticSecrets.length > 0,
+    }),
+    ...staticSecrets.map((secret) => async (): Promise<SignedRequestVerificationResult> => {
+      return SignedRequest.verify({
+        ...params.baseParams,
+        getSecretForKeyId: (): string => secret,
+      });
+    }),
+  ];
+
+  return Promise.all(attemptResolvers.map(async (attemptResolver) => attemptResolver()));
+};
+
 const verifySignedRequest = async (params: {
   req: IRequest;
   signingHeaders: Record<string, string | undefined>;
   windowMs: number;
   verifyNonce: NonceReplayVerifier;
-  getSecretForKeyId: (
-    keyId: string,
-    req: IRequest
-  ) => string | undefined | Promise<string | undefined>;
+  getSecretForKeyId: SecretForKeyResolver;
   staticSecrets?: readonly string[];
 }): Promise<
   { ok: true; keyId: string; timestampMs: number; nonce: string } | { ok: false; message: string }
@@ -257,42 +341,31 @@ const verifySignedRequest = async (params: {
     },
   } as const;
 
-  const staticSecrets = params.staticSecrets
-    ?.map((s) => (typeof s === 'string' ? s.trim() : ''))
-    .filter((s) => s !== '');
+  const attempts = await collectSignedRequestAttempts({
+    req: params.req,
+    baseParams,
+    getSecretForKeyId: params.getSecretForKeyId,
+    staticSecrets: params.staticSecrets,
+  });
 
-  const signed =
-    staticSecrets !== undefined && staticSecrets.length > 0
-      ? await (async () => {
-          const attempts = await Promise.all(
-            staticSecrets.map(async (secret) =>
-              SignedRequest.verify({
-                ...baseParams,
-                getSecretForKeyId: (): string => secret,
-              })
-            )
-          );
+  let signed = attempts[0];
 
-          // Preserve preference order based on provided secret list.
-          for (const attempt of attempts) {
-            if (attempt.ok === true) return attempt;
-          }
+  for (const attempt of attempts) {
+    if (attempt.ok === true) {
+      signed = attempt;
+      break;
+    }
+  }
 
-          // If any attempt failed for a reason other than signature mismatch, return that.
-          for (const attempt of attempts) {
-            if (attempt.ok === false && attempt.code !== 'INVALID_SIGNATURE') return attempt;
-          }
+  if (signed.ok !== true) {
+    const nonSignatureFailure = attempts.find(
+      (attempt) => attempt.ok === false && attempt.code !== 'INVALID_SIGNATURE'
+    );
 
-          return { ok: false, code: 'INVALID_SIGNATURE', message: 'Invalid signature' } as const;
-        })()
-      : await SignedRequest.verify({
-          ...baseParams,
-          getSecretForKeyId: async (keyId: string): Promise<string | undefined> => {
-            const secretForKey = await params.getSecretForKeyId(keyId, params.req);
-            const normalized = typeof secretForKey === 'string' ? secretForKey.trim() : '';
-            return normalized === '' ? undefined : normalized;
-          },
-        });
+    if (nonSignatureFailure !== undefined) {
+      signed = nonSignatureFailure;
+    }
+  }
 
   if (!signed.ok) {
     Logger.debug('Bulletproof auth signed-request verification failed', {
@@ -439,10 +512,7 @@ type BulletproofResolved = {
   timezoneClaimKeys: readonly string[];
   requireUserAgentHashMatch: boolean;
   userAgentHashClaimKeys: readonly string[];
-  getSecretForKeyId: (
-    keyId: string,
-    req: IRequest
-  ) => string | undefined | Promise<string | undefined>;
+  getSecretForKeyId: SecretForKeyResolver;
   verifyNonce: NonceReplayVerifier;
   staticSigningSecrets?: readonly string[];
 };
@@ -558,21 +628,30 @@ const resolveSigningConfig = (
   const getSecretForKeyId = hasCustomResolver
     ? (options.getSecretForKeyId as BulletproofResolved['getSecretForKeyId'])
     : async (keyId: string): Promise<string | undefined> => {
-        const device = await BulletproofDeviceStore.findByDeviceId(keyId);
+        const fallbackSecret = dedupeSecrets([signingSecret, ...backupSecrets])[0];
+
+        let device;
+        try {
+          device = await BulletproofDeviceStore.findByDeviceId(keyId);
+        } catch (error) {
+          if (fallbackSecret !== undefined && isMissingDeviceStoreRegistration(error)) {
+            return fallbackSecret;
+          }
+
+          throw error;
+        }
 
         if (device && typeof device.signingSecret === 'string' && device.signingSecret !== '') {
           return device.signingSecret;
         }
 
-        return signingSecret === '' ? undefined : signingSecret;
+        return fallbackSecret === undefined || fallbackSecret === '' ? undefined : fallbackSecret;
       };
 
   const verifyNonce: NonceReplayVerifier =
     options.verifyNonce ?? NonceReplay.createMemoryVerifier();
 
-  const staticSigningSecrets = hasCustomResolver
-    ? undefined
-    : dedupeSecrets([signingSecret, ...backupSecrets]);
+  const staticSigningSecrets = hasCustomResolver ? undefined : dedupeSecrets(backupSecrets);
 
   return { getSecretForKeyId, verifyNonce, staticSigningSecrets };
 };

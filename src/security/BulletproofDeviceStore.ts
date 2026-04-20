@@ -95,7 +95,7 @@ const createStoreError = (
   }
 
   const message = getErrorMessage(error);
-  const detailPayload = Object.assign({ table, operation, error: message }, details);
+  const detailPayload = { table, operation, error: message, ...details };
 
   if (isSchemaError(error)) {
     return ErrorFactory.createConfigError(
@@ -269,7 +269,21 @@ export const BulletproofDeviceStore = Object.freeze({
     try {
       return await db.transaction(async (transactionDb) => {
         await transactionDb.table(table).where('device_id', '=', deviceId).update(updatePayload);
-        await transactionDb.execute(insertSql, insertValues);
+
+        try {
+          await transactionDb.execute(insertSql, insertValues);
+        } catch (error) {
+          const duplicateMessage = getErrorMessage(error).toLowerCase();
+          const isDuplicateKeyError =
+            duplicateMessage.includes('duplicate') ||
+            duplicateMessage.includes('unique constraint') ||
+            duplicateMessage.includes('unique failed') ||
+            duplicateMessage.includes('duplicate key');
+
+          if (!isDuplicateKeyError) {
+            throw error;
+          }
+        }
 
         const stored = await transactionDb
           .table(table)
