@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const pwd = 'pwd'; //NOSONAR
 
+vi.mock('@security/BulletproofDeviceStore', () => ({
+  BulletproofDeviceStore: {
+    upsert: vi.fn(async (record: Record<string, unknown>) => record),
+  },
+}));
+
 const makeReqRes = (overrides: any = {}) => {
   const resCalls: any = {};
   const res: any = {

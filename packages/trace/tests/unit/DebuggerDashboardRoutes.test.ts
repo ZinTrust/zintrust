@@ -60,6 +60,7 @@ import { registerTraceDashboard } from '../../src/dashboard/routes';
 describe('registerTraceDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete (globalThis as Record<string, unknown>).__zintrust_system_trace_connection_name__;
     useDatabase.mockReturnValue({ connection: 'trace-db' });
     mergeConfig.mockReturnValue({ connection: 'analytics' });
   });
@@ -83,5 +84,15 @@ describe('registerTraceDashboard', () => {
     });
 
     expect(useDatabase).toHaveBeenCalledWith(undefined, 'primary');
+  });
+
+  it('prefers the resolved runtime trace connection over static config', () => {
+    (globalThis as Record<string, unknown>).__zintrust_system_trace_connection_name__ = 'sqlite';
+
+    registerTraceDashboard({} as never, {
+      basePath: '/trace',
+    });
+
+    expect(useDatabase).toHaveBeenCalledWith(undefined, 'sqlite');
   });
 });

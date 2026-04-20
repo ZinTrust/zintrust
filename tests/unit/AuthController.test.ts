@@ -243,4 +243,60 @@ describe('AuthController.login', () => {
       },
     });
   });
+
+  it('omits device fields when the login flow returns a plain string token', async () => {
+    vi.resetModules();
+    vi.doMock('../../src/http/ValidationHelper', () => ({
+      getValidatedBody: () => ({ email: 'a', password: 'b' }),
+    }));
+    vi.doMock('@app/Models/User', () => ({
+      User: {
+        where: () => ({ first: async () => null, limit: () => ({ first: async () => null }) }),
+      },
+    }));
+    vi.doMock('@auth/Auth', () => ({ Auth: { compare: vi.fn() } }));
+    vi.doMock('@auth/LoginFlow', () => ({
+      LoginFlow: {
+        create: () => ({
+          identify: () => ({
+            verify: () => ({
+              issue: () => ({
+                audit: () => ({
+                  run: async () => ({
+                    verified: {
+                      user: { id: 'u-2', name: 'User 2', email: 'u2@example.com' },
+                      claims: { sub: 'u-2' },
+                    },
+                    issued: 'plain-token',
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      },
+    }));
+
+    const { AuthController } = await import('../../app/Controllers/AuthController');
+
+    const req: any = {
+      getRaw: () => ({ socket: { remoteAddress: '1.2.3.4' } }),
+      getHeader: () => undefined,
+    };
+    const res: any = {
+      setStatus: (s: number) => ({ json: (p: any) => (res.payload = { status: s, body: p }) }),
+      json: (p: any) => (res.payload = { status: 200, body: p }),
+    };
+
+    await AuthController.create().login(req, res);
+
+    expect(res.payload).toEqual({
+      status: 200,
+      body: {
+        token: 'plain-token',
+        token_type: 'Bearer',
+        user: { id: 'u-2', name: 'User 2', email: 'u2@example.com' },
+      },
+    });
+  });
 });
