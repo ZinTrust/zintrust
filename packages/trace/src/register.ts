@@ -33,6 +33,8 @@ export type {}; // side-effect ESM module
 type GlobalTraceRegisterState = {
   __zintrust_system_trace_register_initialized__?: boolean;
   __zintrust_system_trace_plugin_requested__?: boolean;
+  __zintrust_system_trace_connection_name__?: string;
+  __zintrust_system_trace_observe_connection_name__?: string;
 };
 
 const globalTraceRegisterState = globalThis as unknown as GlobalTraceRegisterState;
@@ -467,6 +469,9 @@ if (!traceAlreadyInitialized && Env) {
       config.observeConnection,
       resolvedConnectionName
     );
+    globalTraceRegisterState.__zintrust_system_trace_connection_name__ = resolvedConnectionName;
+    globalTraceRegisterState.__zintrust_system_trace_observe_connection_name__ =
+      resolvedObservedConnectionName;
     const storageDb = core.useDatabase?.(undefined, resolvedConnectionName);
     const observedDb = core.useDatabase?.(undefined, resolvedObservedConnectionName);
 

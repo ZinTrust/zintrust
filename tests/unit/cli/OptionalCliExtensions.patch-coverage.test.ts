@@ -16,6 +16,7 @@ const loadExtensionsModule = async (options?: {
   projectResolve?: string | 'throw';
   localCandidatesExist?: boolean;
   envValue?: string;
+  existsSync?: (candidate: string) => boolean;
 }): Promise<OptionalCliExtensionsModule> => {
   vi.resetModules();
 
@@ -46,7 +47,13 @@ const loadExtensionsModule = async (options?: {
       await vi.importActual<typeof import('@node-singletons/fs')>('@node-singletons/fs');
     return {
       ...actual,
-      existsSync: vi.fn(() => options?.localCandidatesExist === true),
+      existsSync: vi.fn((candidate: string) => {
+        if (typeof options?.existsSync === 'function') {
+          return options.existsSync(candidate);
+        }
+
+        return options?.localCandidatesExist === true;
+      }),
     };
   });
 
@@ -156,6 +163,33 @@ describe('OptionalCliExtensions patch coverage', () => {
         localCandidates: [candidate],
       })
     ).toContain(path.join(projectRoot, 'packages', 'd1-migrator', 'src', 'register.ts'));
+  });
+
+  it('resolves the nearest project package root when invoked from a workspace subdirectory', async () => {
+    const nestedCwd = '/tmp/zintrust-project/services/http';
+    const projectRoot = '/tmp/zintrust-project';
+
+    vi.stubGlobal('process', {
+      ...originalProcess,
+      cwd: () => nestedCwd,
+      env: { ...originalProcess.env },
+    });
+
+    const { OptionalCliExtensionsInternal } = await loadExtensionsModule({
+      existsSync: (candidate: string) => candidate === path.join(projectRoot, 'package.json'),
+    });
+
+    const candidate = path.join(originalProcess.cwd(), 'packages', 'workers', 'src', 'register.ts');
+
+    expect(
+      OptionalCliExtensionsInternal.getProjectLocalCandidates({
+        packageName: '@zintrust/example-subdir-project-root',
+        specifier: '@zintrust/example-subdir-project-root/register',
+        commands: ['example:subdir-project-root'],
+        installCommand: 'npm install @zintrust/example-subdir-project-root',
+        localCandidates: [candidate],
+      })
+    ).toContain(path.join(projectRoot, 'packages', 'workers', 'src', 'register.ts'));
   });
 
   it('skips optional extension loading for unrelated commands', async () => {

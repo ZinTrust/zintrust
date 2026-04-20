@@ -14,9 +14,16 @@ vi.mock('@security/JwtManager', () => ({
   },
 }));
 
+vi.mock('@security/BulletproofDeviceStore', () => ({
+  BulletproofDeviceStore: {
+    upsert: vi.fn(async (record: Record<string, unknown>) => record),
+  },
+}));
+
 import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { LoginFlow } from '@auth/LoginFlow';
 import { JwtManager } from '@security/JwtManager';
+import { BulletproofDeviceStore } from '@security/BulletproofDeviceStore';
 
 describe('LoginFlow', () => {
   beforeEach(() => {
@@ -229,5 +236,81 @@ describe('LoginFlow', () => {
     expect(LoginFlow.hasProvider('custom')).toBe(false);
     expect(LoginFlow.hasIssuer('custom')).toBe(false);
     expect(LoginFlow.hasAuditor('custom')).toBe(false);
+  });
+
+  it('uses request body and header values when issuing bulletproof tokens', async () => {
+    const result = await LoginFlow.create({
+      provider: {
+        identify: async () => ({ id: 'user-10' }),
+        verify: async () => ({
+          user: { id: 'user-10' },
+          subject: 'subject-10',
+          claims: {},
+        }),
+      },
+      context: {
+        request: {
+          getBody: () => ({ deviceId: ' body-device ' }),
+          getHeader: (name: string) => (name === 'user-agent' ? [' agent/1.0 '] : undefined),
+        },
+      },
+    })
+      .identify({ email: 'user10@example.com' })
+      .verify({ password: 'secret' })
+      .issue('bulletproof')
+      .run();
+
+    expect(BulletproofDeviceStore.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: 'body-device',
+        userId: 'subject-10',
+        userAgent: 'agent/1.0',
+      })
+    );
+    expect(JwtManager.signAccessToken).toHaveBeenCalledWith({
+      sub: 'subject-10',
+      deviceId: 'body-device',
+    });
+    expect(result.issued).toEqual({
+      token: 'jwt:subject-10',
+      token_type: 'Bearer',
+      deviceId: 'body-device',
+      deviceSecret: expect.stringMatching(/^hex:[0-9a-f]+$/),
+    });
+  });
+
+  it('falls back to claim and verified user id when bulletproof context data is missing', async () => {
+    const result = await LoginFlow.create({
+      provider: {
+        identify: async () => ({ id: 99 }),
+        verify: async () => ({
+          user: { id: 99 },
+          claims: { deviceId: ' claimed-device ' },
+        }),
+      },
+      context: {
+        request: {
+          getBody: () => 'not-an-object',
+          getHeader: () => undefined,
+        },
+      },
+    })
+      .identify({ email: 'user99@example.com' })
+      .verify({ password: 'secret' })
+      .issue('bulletproof')
+      .run();
+
+    expect(BulletproofDeviceStore.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: 'claimed-device',
+        userId: '99',
+      })
+    );
+    expect(result.issued).toEqual({
+      token: 'jwt:none',
+      token_type: 'Bearer',
+      deviceId: 'claimed-device',
+      deviceSecret: expect.stringMatching(/^hex:[0-9a-f]+$/),
+    });
   });
 });

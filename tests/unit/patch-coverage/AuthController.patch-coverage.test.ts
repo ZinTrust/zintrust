@@ -8,6 +8,9 @@ vi.mock('@auth/Auth', () => ({ Auth: { hash: vi.fn(), compare: vi.fn() } }));
 vi.mock('@security/JwtManager', () => ({
   JwtManager: { signAccessToken: vi.fn(), logout: vi.fn(), logoutAll: vi.fn() },
 }));
+vi.mock('@security/BulletproofDeviceStore', () => ({
+  BulletproofDeviceStore: { upsert: vi.fn(async (record: Record<string, unknown>) => record) },
+}));
 vi.mock('@security/JwtSessions', () => ({
   JwtSessions: { register: vi.fn(async () => undefined), logout: vi.fn(async () => null) },
 }));
@@ -114,11 +117,14 @@ describe('patch coverage: AuthController (new file)', () => {
     expect(vi.mocked(JwtManager.signAccessToken as any)).toHaveBeenCalledWith({
       sub: undefined,
       email: 'a@b.com',
+      deviceId: expect.any(String),
     });
     expect(res._calls.payload).toEqual(
       expect.objectContaining({
         token: 'tk',
         token_type: 'Bearer',
+        deviceId: expect.any(String),
+        deviceSecret: expect.stringMatching(/^hex:/),
         user: expect.objectContaining({ email: 'a@b.com' }),
       })
     );

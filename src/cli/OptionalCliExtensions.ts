@@ -39,10 +39,24 @@ const getProjectCwd = (): string => {
   return packageRoot;
 };
 
+const findNearestPackageJsonDir = (cwd: string): string | undefined => {
+  let current = cwd;
+
+  while (true) {
+    if (existsSync(path.join(current, 'package.json'))) return current;
+
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+};
+
 const resolveProjectRoot = (): string => {
   const configured = readEnvString('ZINTRUST_PROJECT_ROOT').trim();
   if (configured !== '') return configured;
-  return getProjectCwd();
+
+  const cwd = getProjectCwd();
+  return findNearestPackageJsonDir(cwd) ?? cwd;
 };
 
 const shouldLogFailures = (options?: OptionalCliExtensionLoadOptions): boolean => {

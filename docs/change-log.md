@@ -1,3 +1,17 @@
+# 2026-04-19
+
+- Fixed Bulletproof auth for fresh/newstart apps by moving the missing device-secret path into core. ZinTrust now exposes `req.header(...)` as an alias of `req.getHeader(...)`, ships a built-in `BulletproofDeviceStore` backed by the new `zintrust_bulletproof_devices` migration, resolves Bulletproof middleware secrets from that store by default before falling back to the shared env secret, and adds a built-in `LoginFlow` issuer named `bulletproof` that returns `{ token, token_type, deviceId, deviceSecret }`. The default auth controller and fresh-project template now use that issuer, so normal migrations are enough to make the docs flow work.
+
+- Fixed CLI project-module discovery for fresh/newstart-style workspaces. `zin routes` now resolves the active project root first and loads `routes/api.ts` from the workspace filesystem instead of only relying on the core alias graph, `ScheduleCliSupport` now prefers project `app/Schedules` files before alias imports, and optional CLI extension discovery now climbs to the nearest project `package.json` when commands are launched from a subdirectory.
+
+- Stabilized the Husky pre-push `coverage:patch` path by giving a small set of import-heavy integration and worker coverage tests explicit 30s budgets, including the remaining broadcast worker coverage slice. This keeps the behavior checks intact while avoiding false-negative push failures from the default 10s Vitest timeout under aggregate patch-coverage runs.
+
+- Fixed the remaining schedule CLI mixed-export discovery gap. `ScheduleCliSupport` now preserves the full project schedule module namespace when it falls back to loading `app/Schedules` from project files, and the CLI schedule collector now flattens named exports plus `default` exports consistently while deduplicating by schedule name. This means `schedule:list`, `schedule:run`, and `schedule:start` no longer lose valid schedules just because a project schedule module mixes `default` and named exports.
+
+- Fixed the package release helper so repeated or partially completed manual publishes no longer crash the script with `Cannot read properties of undefined (reading 'name')`. The `publish-packages` path now keeps `@zintrust/d1-migrator` transform output defined even if a dependency is already on semver metadata instead of `file:` form, and failure reporting falls back to the package directory when transformed metadata is unavailable.
+
+- Hardened the npm publish workflow against stale ZinTrust package version drift before publish. `publish-version` now runs a dedicated preflight that re-syncs all published `@zintrust/*` dependency ranges from npm and retries `npm install` up to three times before failing, which catches peer-resolution conflicts such as a root app still pointing at an older `@zintrust/core` while an adapter already requires the newer release line.
+
 # 2026-04-18
 
 - Fixed the restored npm publish workflow so release CI now normalizes workspace package versions and refreshes the root lockfile before dependency installation instead of failing early on a stale `package-lock.json` self-link for `@zintrust/core`. This keeps publish verification aligned with the checked-in release version without letting a transient lockfile mismatch block npm publishing.

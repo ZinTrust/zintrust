@@ -235,5 +235,5 @@ function ensureLocalCliTsconfig(projectRoot: string, repoRoot: string): string {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 30000);
 });

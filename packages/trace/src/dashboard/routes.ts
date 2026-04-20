@@ -36,10 +36,21 @@ export type TraceDashboardRegistrationOptions = TraceDashboardOptions & {
   connectionName?: string;
 };
 
+type GlobalTraceDashboardState = {
+  __zintrust_system_trace_connection_name__?: string;
+};
+
 const resolveDashboardConnectionName = (connectionName?: string): string | undefined => {
   const explicitConnection = connectionName?.trim();
   if (explicitConnection !== undefined && explicitConnection !== '') {
     return explicitConnection;
+  }
+
+  const runtimeConnection = (
+    globalThis as GlobalTraceDashboardState
+  ).__zintrust_system_trace_connection_name__?.trim();
+  if (runtimeConnection !== undefined && runtimeConnection !== '') {
+    return runtimeConnection;
   }
 
   const configuredConnection = TraceConfig.merge().connection?.trim();

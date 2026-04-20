@@ -29,6 +29,34 @@ const isSchedule = (value: unknown): value is ISchedule => {
   return 'name' in value && typeof (value as { name?: unknown }).name === 'string';
 };
 
+const getDefaultExport = (moduleNamespace: Record<string, unknown>): unknown => {
+  return Object.hasOwn(moduleNamespace, 'default') ? moduleNamespace['default'] : undefined;
+};
+
+const flattenScheduleCandidates = (moduleNamespace: Record<string, unknown>): unknown[] => {
+  const candidates: unknown[] = [
+    ...Object.values(moduleNamespace),
+    getDefaultExport(moduleNamespace),
+  ];
+  return candidates.flatMap((value): unknown[] => (Array.isArray(value) ? value : [value]));
+};
+
+const collectSchedules = (moduleNamespace: Record<string, unknown>): ISchedule[] => {
+  const flattenedCandidates = flattenScheduleCandidates(moduleNamespace);
+
+  const seen = new Set<string>();
+
+  return flattenedCandidates.filter(isSchedule).filter((schedule) => {
+    const normalizedName = schedule.name.trim();
+    if (normalizedName === '' || seen.has(normalizedName)) {
+      return false;
+    }
+
+    seen.add(normalizedName);
+    return true;
+  });
+};
+
 const getProjectScheduleLoaders = (): FileLoaderLike[] => [
   useFileLoader('app/Schedules/index.ts'),
   useFileLoader('app/Schedules.ts'),
@@ -110,7 +138,7 @@ const tryLoadProjectScheduleModuleFromFiles = async (): Promise<
 
     try {
       return {
-        module: await entry.loader.get<Record<string, unknown>>(),
+        module: await entry.loader.getModule<Record<string, unknown>>(),
         loadedPath: entry.loadedPath,
       };
     } catch (error) {
@@ -122,12 +150,16 @@ const tryLoadProjectScheduleModuleFromFiles = async (): Promise<
 };
 
 const loadAppScheduleModule = async (): Promise<LoadedScheduleModule> => {
+  const fileLoaded = await tryLoadProjectScheduleModuleFromFiles();
+  if (fileLoaded !== undefined) {
+    return fileLoaded;
+  }
+
   try {
     return {
       module: (await import('@app/Schedules')) as unknown as Record<string, unknown>,
     };
   } catch {
-    const fileLoaded = await tryLoadProjectScheduleModuleFromFiles();
     return fileLoaded ?? { module: {} };
   }
 };
@@ -137,8 +169,8 @@ const loadScheduleModules = async (): Promise<LoadedScheduleModules> => {
   const appSchedules = await loadAppScheduleModule();
 
   return {
-    core: Object.values(coreSchedules).filter(isSchedule),
-    app: Object.values(appSchedules.module).filter(isSchedule),
+    core: collectSchedules(coreSchedules as Record<string, unknown>),
+    app: collectSchedules(appSchedules.module),
   };
 };
 

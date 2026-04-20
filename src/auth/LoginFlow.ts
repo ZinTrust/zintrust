@@ -1,6 +1,16 @@
 import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isFunction, isNonEmptyString, isObject } from '@helper/index';
+import type { IRequest } from '@http/Request';
+import {
+  detectRuntimePlatform,
+  RuntimeServices,
+  type RuntimeCrypto,
+} from '@runtime/RuntimeServices';
+import {
+  BulletproofDeviceStore,
+  type BulletproofDeviceRecord,
+} from '@security/BulletproofDeviceStore';
 import { JwtManager, type JwtPayload } from '@security/JwtManager';
 
 export type LoginFlowStage = 'identify' | 'verify' | 'issue' | 'audit';
@@ -39,6 +49,13 @@ export type LoginFlowIssuerInput<TContext = unknown> = {
   context: TContext;
 };
 
+export type BulletproofJwtIssued = Readonly<{
+  token: string;
+  token_type: 'Bearer';
+  deviceId: string;
+  deviceSecret: string;
+}>;
+
 export type LoginFlowIssuer<TContext = unknown> = (
   input: LoginFlowIssuerInput<TContext>
 ) => Promise<unknown>;
@@ -57,7 +74,7 @@ export type LoginFlowAuditEvent<TContext = unknown> = {
 
 export type LoginFlowAuditor<TContext = unknown> = (
   event: LoginFlowAuditEvent<TContext>
-) => Promise<void>;
+) => void | Promise<void>;
 
 export type LoginFlowCreateOptions<TContext = unknown> = {
   provider: string | LoginFlowProvider<TContext>;
@@ -225,16 +242,159 @@ const createJwtIssuer = async <TContext>({
   return JwtManager.signAccessToken(claims);
 };
 
-const createTraceAuditor = async <TContext>(
+const getContextRecord = (context: unknown): Record<string, unknown> => {
+  return isObject(context) ? context : {};
+};
+
+const getContextRequest = (context: unknown): IRequest | undefined => {
+  const request = getContextRecord(context)['request'];
+  return isObject(request) ? (request as unknown as IRequest) : undefined;
+};
+
+const getContextString = (context: unknown, key: string): string | undefined => {
+  const value = getContextRecord(context)[key];
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+};
+
+const getBodyString = (request: IRequest | undefined, key: string): string | undefined => {
+  if (request === undefined || typeof request.getBody !== 'function') return undefined;
+
+  const body = request.getBody();
+  if (!isObject(body)) return undefined;
+
+  const value = body[key];
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+};
+
+const getRequestHeaderString = (
+  request: IRequest | undefined,
+  name: string
+): string | undefined => {
+  if (request === undefined || typeof request.getHeader !== 'function') return undefined;
+
+  const value = request.getHeader(name);
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'string' && value[0].trim() !== '' ? value[0].trim() : undefined;
+  }
+
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+};
+
+const bytesToHex = (bytes: Uint8Array): string => {
+  let out = '';
+  for (const byte of bytes) out += byte.toString(16).padStart(2, '0');
+  return out;
+};
+
+const getRuntimeCrypto = (): RuntimeCrypto => RuntimeServices.create(detectRuntimePlatform()).crypto;
+
+const generateDeviceId = (): string => {
+  const bytes = getRuntimeCrypto().getRandomValues(new Uint8Array(16));
+  return `dev_${bytesToHex(bytes)}`;
+};
+
+const generateDeviceSecret = (): string => {
+  const bytes = getRuntimeCrypto().getRandomValues(new Uint8Array(32));
+  return `hex:${bytesToHex(bytes)}`;
+};
+
+const getClaimedDeviceId = (claims: Record<string, unknown>): string | undefined => {
+  const deviceId = claims['deviceId'];
+  return typeof deviceId === 'string' && deviceId.trim() !== ''
+    ? deviceId.trim()
+    : undefined;
+};
+
+const resolveBulletproofDeviceId = (
+  context: unknown,
+  request: IRequest | undefined,
+  claims: Record<string, unknown>
+): string => {
+  return (
+    getContextString(context, 'deviceId') ??
+    getBodyString(request, 'deviceId') ??
+    getClaimedDeviceId(claims) ??
+    generateDeviceId()
+  );
+};
+
+const resolveBulletproofUserId = (
+  context: unknown,
+  verified: LoginFlowVerifiedRecord
+): string | undefined => {
+  const subjectUserId = isNonEmptyString(verified.subject) ? verified.subject.trim() : undefined;
+  const verifiedUserId =
+    isObject(verified.user) && verified.user['id'] !== undefined
+      ? String(verified.user['id'])
+      : undefined;
+
+  return getContextString(context, 'userId') ?? subjectUserId ?? verifiedUserId;
+};
+
+const buildBulletproofDeviceRecord = (
+  context: unknown,
+  verified: LoginFlowVerifiedRecord,
+  request: IRequest | undefined,
+  claims: Record<string, unknown>,
+  deviceSecret: string
+): Readonly<{ deviceId: string; record: BulletproofDeviceRecord }> => {
+  const deviceId = resolveBulletproofDeviceId(context, request, claims);
+  const userId = resolveBulletproofUserId(context, verified);
+  const userAgent = getRequestHeaderString(request, 'user-agent');
+
+  return {
+    deviceId,
+    record: {
+      deviceId,
+      signingSecret: deviceSecret,
+      lastSeenAt: new Date(),
+      ...(isNonEmptyString(userId) ? { userId } : {}),
+      ...(userAgent === undefined ? {} : { userAgent }),
+    },
+  };
+};
+
+const createBulletproofIssuer = async <TContext>({
+  verified,
+  context,
+}: LoginFlowIssuerInput<TContext>): Promise<BulletproofJwtIssued> => {
+  const claims = isObject(verified.claims) ? { ...verified.claims } : {};
+  if (isNonEmptyString(verified.subject) && !isNonEmptyString(claims.sub)) {
+    claims.sub = verified.subject;
+  }
+
+  const request = getContextRequest(context);
+  const deviceSecret = generateDeviceSecret();
+  const { deviceId, record } = buildBulletproofDeviceRecord(
+    context,
+    verified,
+    request,
+    claims,
+    deviceSecret
+  );
+  claims['deviceId'] = deviceId;
+
+  await BulletproofDeviceStore.upsert(record);
+
+  const token = await JwtManager.signAccessToken(claims);
+
+  return Object.freeze({
+    token,
+    token_type: 'Bearer',
+    deviceId,
+    deviceSecret,
+  });
+};
+
+const createTraceAuditor = <TContext>(
   event: LoginFlowAuditEvent<TContext>
-): Promise<void> => {
+): void => {
   const subject =
     typeof event.verified?.subject === 'string' && event.verified.subject.trim() !== ''
       ? event.verified.subject
       : undefined;
 
   SystemTraceBridge.emitAuth(event.status === 'success' ? 'login' : 'failed', subject);
-  return Promise.resolve();
 };
 
 const ensureNamedRegistration = (kind: 'provider' | 'issuer' | 'auditor', name: string): void => {
@@ -546,6 +706,7 @@ const clearRegistrations = (): void => {
   issuerRegistry.clear();
   auditorRegistry.clear();
   issuerRegistry.set('jwt', createJwtIssuer as LoginFlowIssuer<unknown>);
+  issuerRegistry.set('bulletproof', createBulletproofIssuer as LoginFlowIssuer<unknown>);
   auditorRegistry.set('trace', createTraceAuditor as LoginFlowAuditor<unknown>);
 };
 

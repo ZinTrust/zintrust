@@ -71,6 +71,7 @@ describe('Request', () => {
       createMockRequest({ headers: { 'Content-Type': 'application/json' } })
     );
     expect(req.getHeader('content-type')).toBe('application/json');
+    expect(req.header('content-type')).toBe('application/json');
   });
 
   it('should parse query parameters', () => {

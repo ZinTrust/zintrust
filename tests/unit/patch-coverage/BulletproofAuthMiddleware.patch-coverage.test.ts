@@ -2,6 +2,10 @@ import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { findByDeviceIdMock } = vi.hoisted(() => ({
+  findByDeviceIdMock: vi.fn(async () => null),
+}));
+
 vi.mock('@config/security', () => ({
   securityConfig: {
     jwt: {
@@ -50,6 +54,12 @@ vi.mock('@/config/logger', () => ({
   },
 }));
 
+vi.mock('@security/BulletproofDeviceStore', () => ({
+  BulletproofDeviceStore: {
+    findByDeviceId: findByDeviceIdMock,
+  },
+}));
+
 import { Env } from '@config/env';
 import { BulletproofAuthMiddleware } from '@middleware/BulletproofAuthMiddleware';
 import { JwtAuthMiddleware } from '@middleware/JwtAuthMiddleware';
@@ -94,6 +104,7 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(Env.get).mockImplementation(() => '');
+    findByDeviceIdMock.mockResolvedValue(null);
   });
 
   it('returns 401 when token is not active', async () => {
@@ -487,6 +498,46 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     expect(verifyArgs).toBeDefined();
     const secret = await verifyArgs.getSecretForKeyId('dev-1');
     expect(secret).toBeUndefined();
+  });
+
+  it('propagates device-store failures from the default key resolver', async () => {
+    findByDeviceIdMock.mockRejectedValue(new Error('missing migrations'));
+
+    const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': 'n1',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    await middleware(req, res, async () => undefined);
+    const verifyArgs = vi.mocked(SignedRequest.verify).mock.calls[0]?.[0] as any;
+
+    await expect(verifyArgs.getSecretForKeyId('dev-1')).rejects.toThrow('missing migrations');
+  });
+
+  it('uses the device-specific signing secret when the store returns one', async () => {
+    findByDeviceIdMock.mockResolvedValueOnce({ signingSecret: 'device-secret' });
+
+    const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': 'n1',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    await middleware(req, res, async () => undefined);
+    const verifyArgs = vi.mocked(SignedRequest.verify).mock.calls[0]?.[0] as any;
+
+    await expect(verifyArgs.getSecretForKeyId('dev-1')).resolves.toBe('device-secret');
   });
 
   it('sets tenantId on request context when present in JWT payload', async () => {

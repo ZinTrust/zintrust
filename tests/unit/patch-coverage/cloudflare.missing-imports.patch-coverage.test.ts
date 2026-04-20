@@ -1,5 +1,19 @@
 /* eslint-disable max-nested-callbacks */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+afterEach(() => {
+  delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+    .__zintrustStartupConfigOverrides;
+  delete (globalThis as { env?: unknown }).env;
+  vi.doUnmock('@runtime-config/middleware.ts');
+  vi.doUnmock('@runtime-config/notification.ts');
+  vi.doUnmock('@runtime-config/queue.ts');
+  vi.doUnmock('@runtime-config/workers.ts');
+  vi.doUnmock('@runtime/getKernel');
+  vi.doUnmock('@runtime/adapters/CloudflareAdapter');
+  vi.doUnmock('@config/logger');
+  vi.resetModules();
+});
 
 describe('patch coverage: cloudflare missing imports', () => {
   it('gracefully handles import errors for optional config modules', async () => {

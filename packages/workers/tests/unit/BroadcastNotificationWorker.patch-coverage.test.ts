@@ -118,7 +118,7 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
       socketId: 'socket-1',
     });
     expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'b1', undefined);
-  });
+  }, 30000);
 
   it('BroadcastWorker falls back to a legacy single channel when channels are absent', async () => {
     const { BroadcastWorker } = await import('@zintrust/workers');

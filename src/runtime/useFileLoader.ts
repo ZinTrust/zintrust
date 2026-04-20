@@ -29,6 +29,8 @@ export type FileLoader = Readonly<{
    * - otherwise the full module namespace object
    */
   get: <T = unknown>() => Promise<T>;
+  /** Loads and returns the full ESM module namespace object without unwrapping `default`. */
+  getModule: <T extends UnknownModule = UnknownModule>() => Promise<T>;
 }>;
 
 const resolveProjectRoot = (): string => {
@@ -168,20 +170,83 @@ const importModule = async (filePath: string): Promise<UnknownModule> => {
   return (await import(url)) as UnknownModule;
 };
 
+const throwProjectFileNotFound = (
+  projectRoot: string,
+  relativePath: string,
+  candidates: readonly string[]
+): never => {
+  throw ErrorFactory.createNotFoundError('Project file not found', {
+    projectRoot,
+    relativePath,
+    candidates,
+  });
+};
+
+const resolveExistingCandidate = (
+  isInternalRoot: boolean,
+  candidates: readonly string[],
+  projectRoot: string,
+  relativePath: string
+): string => {
+  if (isInternalRoot) {
+    return throwProjectFileNotFound(projectRoot, relativePath, candidates);
+  }
+
+  const candidate = candidates.find((entry) => existsSync(entry));
+  if (candidate === undefined) {
+    return throwProjectFileNotFound(projectRoot, relativePath, candidates);
+  }
+
+  return candidate;
+};
+
+const importExistingProjectModule = async <T extends UnknownModule>(
+  isInternalRoot: boolean,
+  candidates: readonly string[],
+  projectRoot: string,
+  relativePath: string
+): Promise<T> => {
+  const candidate = resolveExistingCandidate(isInternalRoot, candidates, projectRoot, relativePath);
+
+  try {
+    return (await importModule(candidate)) as T;
+  } catch (error: unknown) {
+    throw ErrorFactory.createTryCatchError('Failed to import project file', {
+      candidate,
+      projectRoot,
+      relativePath,
+      error,
+    });
+  }
+};
+
+const createWorkersUnsupportedLoader = (): FileLoader => {
+  const throwUnsupported = (): never => {
+    throw ErrorFactory.createConfigError('File loading is not supported in Workers runtime');
+  };
+
+  return Object.freeze({
+    candidates: () => [],
+    path: () => '',
+    exists: () => false,
+    async get<T = unknown>(): Promise<T> {
+      await Promise.resolve();
+      return throwUnsupported();
+    },
+    async getModule<T extends UnknownModule = UnknownModule>(): Promise<T> {
+      await Promise.resolve();
+      return throwUnsupported();
+    },
+  });
+};
+
 export const useFileLoader = (...args: [string] | [string, ...string[]]): FileLoader => {
   const isWorkersRuntime = (): boolean => {
     const g = globalThis as { CF?: unknown; caches?: unknown; WebSocketPair?: unknown };
     return g.CF !== undefined || g.caches !== undefined || g.WebSocketPair !== undefined;
   };
   if (isWorkersRuntime()) {
-    return Object.freeze({
-      candidates: () => [],
-      path: () => '',
-      exists: () => false,
-      get<T = unknown>(): T {
-        throw ErrorFactory.createConfigError('File loading is not supported in Workers runtime');
-      },
-    });
+    return createWorkersUnsupportedLoader();
   }
 
   const relativePath =
@@ -207,37 +272,25 @@ export const useFileLoader = (...args: [string] | [string, ...string[]]): FileLo
   };
 
   const get = async <T = unknown>(): Promise<T> => {
-    if (isInternalRoot) {
-      throw ErrorFactory.createNotFoundError('Project file not found', {
-        projectRoot,
-        relativePath,
-        candidates,
-      });
+    const mod = await importExistingProjectModule<UnknownModule>(
+      isInternalRoot,
+      candidates,
+      projectRoot,
+      relativePath
+    );
+    if (Object.hasOwn(mod, 'default') && mod.default !== undefined) {
+      return mod.default as T;
     }
+    return mod as unknown as T;
+  };
 
-    const candidate = candidates.find((c) => existsSync(c));
-    if (candidate === undefined) {
-      throw ErrorFactory.createNotFoundError('Project file not found', {
-        projectRoot,
-        relativePath,
-        candidates,
-      });
-    }
-
-    try {
-      const mod = await importModule(candidate);
-      if (Object.hasOwn(mod, 'default') && mod.default !== undefined) {
-        return mod.default as T;
-      }
-      return mod as unknown as T;
-    } catch (error: unknown) {
-      throw ErrorFactory.createTryCatchError('Failed to import project file', {
-        candidate,
-        projectRoot,
-        relativePath,
-        error,
-      });
-    }
+  const getModule = async <T extends UnknownModule = UnknownModule>(): Promise<T> => {
+    return importExistingProjectModule<T>(
+      isInternalRoot,
+      candidates,
+      projectRoot,
+      relativePath
+    );
   };
 
   return Object.freeze({
@@ -245,6 +298,7 @@ export const useFileLoader = (...args: [string] | [string, ...string[]]): FileLo
     path: resolveFirstExistingPath,
     exists,
     get,
+    getModule,
   });
 };
 

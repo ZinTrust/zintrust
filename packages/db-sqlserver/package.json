@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/db-sqlserver",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "description": "SQL Server database adapter for ZinTrust.",
   "private": false,
   "type": "module",

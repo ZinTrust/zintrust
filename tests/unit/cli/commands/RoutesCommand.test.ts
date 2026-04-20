@@ -30,7 +30,28 @@ const mocked = vi.hoisted(() => ({
   registerRoutes: vi.fn(),
   tryLoadNodeRuntime: vi.fn(),
   getServiceManifest: vi.fn(),
+  resolveNodeProjectRoot: vi.fn(async () => '/project'),
+  useFileLoader: vi.fn(),
 }));
+
+const createLoader = (args?: {
+  path?: string;
+  exists?: boolean;
+  module?: Record<string, unknown>;
+  error?: Error;
+}) => ({
+  candidates: () => [args?.path ?? '/project/routes/api.ts'],
+  path: () => args?.path ?? '/project/routes/api.ts',
+  exists: () => args?.exists === true,
+  get: async () => {
+    if (args?.error !== undefined) throw args.error;
+    return args?.module ?? {};
+  },
+  getModule: async () => {
+    if (args?.error !== undefined) throw args.error;
+    return args?.module ?? {};
+  },
+});
 
 vi.mock('@config/env', () => ({
   Env: {
@@ -58,6 +79,14 @@ vi.mock('@runtime/ProjectRuntime', () => ({
   },
 }));
 
+vi.mock('@runtime/resolveNodeProjectRoot', () => ({
+  resolveNodeProjectRoot: (...args: any[]) => mocked.resolveNodeProjectRoot(...args),
+}));
+
+vi.mock('@runtime/useFileLoader', () => ({
+  useFileLoader: (...args: any[]) => mocked.useFileLoader(...args),
+}));
+
 describe('RoutesCommand', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 
@@ -74,6 +103,7 @@ describe('RoutesCommand', () => {
     mocked.registerRoutes.mockImplementation(registerRoutesImpl);
     mocked.tryLoadNodeRuntime.mockResolvedValue(undefined);
     mocked.getServiceManifest.mockReturnValue([]);
+    mocked.useFileLoader.mockImplementation(() => createLoader());
   });
 
   afterEach(() => {
@@ -219,5 +249,28 @@ describe('RoutesCommand', () => {
 
     const printed = logSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
     expect(printed).toContain('/gateway');
+  });
+
+  it('loads project routes from the active workspace file before falling back to core aliases', async () => {
+    mocked.useFileLoader.mockImplementation(() =>
+      createLoader({
+        exists: true,
+        module: {
+          registerRoutes(router: any) {
+            Router.get(router, '/workspace-only', () => undefined, undefined);
+          },
+        },
+      })
+    );
+
+    const { RoutesCommand } = await import('@cli/commands/RoutesCommand');
+    const cmd = RoutesCommand.create();
+
+    await cmd.execute({ json: true });
+
+    const printed = logSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
+    expect(printed).toContain('/workspace-only');
+    expect(printed).not.toContain('/api/v1/users');
+    expect(mocked.resolveNodeProjectRoot).toHaveBeenCalled();
   });
 });
