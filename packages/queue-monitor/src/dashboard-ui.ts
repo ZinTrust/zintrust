@@ -171,19 +171,9 @@ const getHeaderSection = (appName: string): string => `
 
 const getLogoSvg = (): string => `
 <svg width="26" height="26" viewBox="0 0 100 100" fill="none" class="logo-img" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <linearGradient id="zt-g2d" x1="10" y1="50" x2="90" y2="50" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#22c55e" />
-            <stop offset="1" stop-color="#38bdf8" />
-        </linearGradient>
-    </defs>
-    <circle cx="50" cy="50" r="34" stroke="rgba(255,255,255,0.16)" stroke-width="4" />
-    <ellipse cx="50" cy="50" rx="40" ry="18" stroke="url(#zt-g2d)" stroke-width="4" />
-    <ellipse cx="50" cy="50" rx="18" ry="40" stroke="url(#zt-g2d)" stroke-width="4" opacity="0.75" />
-    <circle cx="50" cy="50" r="6" fill="url(#zt-g2d)" />
-    <path d="M40 52C35 52 32 49 32 44C32 39 35 36 40 36H48" stroke="white" stroke-width="6" stroke-linecap="round" />
-    <path d="M60 48C65 48 68 51 68 56C68 61 65 64 60 64H52" stroke="white" stroke-width="6" stroke-linecap="round" />
-    <path d="M44 50H56" stroke="rgba(255,255,255,0.22)" stroke-width="6" stroke-linecap="round" />
+    <circle cx="50" cy="50" r="25" stroke="#1e293b" stroke-width="10" />
+    <path d="M50 25 A25 25 0 0 1 75 50" stroke="#0ea5e9" stroke-width="10" stroke-linecap="round" />
+    <circle cx="50" cy="50" r="9" fill="#22c55e" />
 </svg>
 `;
 
