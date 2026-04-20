@@ -68,8 +68,7 @@ const escapeHtml = (value: string): string => {
     .replaceAll("'", '&#39;');
 };
 
-const getWorkersLogoMarkup = (): string => `
-<svg width="34" height="34" viewBox="0 0 256 256" fill="none" class="logo-img" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+const getWorkersLogoMarkup = (): string => `<svg width="34" height="34" viewBox="0 0 256 256" fill="none" class="logo-img" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
   <rect width="256" height="256" rx="56" fill="#0f172a"/>
   <path d="M128 56 L200 96 L128 136 L56 96 Z" fill="#0ea5e9" opacity="0.2" stroke="#0ea5e9" stroke-width="4" stroke-linejoin="round"/>
   <path d="M128 104 L200 144 L128 184 L56 144 Z" fill="#0ea5e9" opacity="0.4" stroke="#0ea5e9" stroke-width="4" stroke-linejoin="round"/>

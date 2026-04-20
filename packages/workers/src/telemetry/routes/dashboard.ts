@@ -138,7 +138,7 @@ ${getDashboardResponsiveStyles()}
 </style>`;
 
 const getLogo = (): string => `
-<svg width="26" height="26" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="26" height="26" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
   <path d="M20 76 Q36 46, 50 58 T80 28" stroke="#0ea5e9" stroke-width="10" stroke-linecap="round" />
   <path d="M20 76 L80 76" stroke="#1e293b" stroke-width="7" stroke-linecap="round" />
   <path d="M20 76 Q36 46, 50 58 T80 28 L80 76 Z" fill="#0ea5e9" opacity="0.28" />
