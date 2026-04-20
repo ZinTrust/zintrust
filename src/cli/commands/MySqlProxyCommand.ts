@@ -7,7 +7,6 @@ import {
   type SqlProxyCommandOptions,
 } from '@cli/commands/SqlProxyCommandUtils';
 import { Env } from '@config/env';
-import { MySqlProxyServer } from '@proxy/mysql/MySqlProxyServer';
 import type { Command } from 'commander';
 
 type MySqlProxyOptions = SqlProxyCommandOptions & CommandOptions;
@@ -39,6 +38,7 @@ export const MySqlProxyCommand = Object.freeze({
       addOptions,
       execute: async (options: MySqlProxyOptions) => {
         await runSqlProxyCommand(options, async (input) => {
+          const { MySqlProxyServer } = await import('@proxy/mysql/MySqlProxyServer');
           await MySqlProxyServer.start(input);
         });
       },
