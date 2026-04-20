@@ -1,9 +1,13 @@
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import type { StoredBulletproofDeviceRecord } from '@security/BulletproofDeviceStore';
+import type { JwtPayload } from '@security/JwtManager';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { findByDeviceIdMock } = vi.hoisted(() => ({
-  findByDeviceIdMock: vi.fn(async () => null),
+  findByDeviceIdMock: vi.fn<(deviceId: string) => Promise<StoredBulletproofDeviceRecord | null>>(
+    async () => null
+  ),
 }));
 
 vi.mock('@config/security', () => ({
@@ -37,7 +41,7 @@ vi.mock('@security/SignedRequest', () => ({
   },
 }));
 
-const mockJwtVerify = vi.fn(() => ({ sub: '1', deviceId: 'dev-1' }));
+const mockJwtVerify = vi.fn((): JwtPayload => ({ sub: '1', deviceId: 'dev-1' }));
 
 vi.mock('@security/JwtManager', () => ({
   JwtManager: {
@@ -233,8 +237,8 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
 
     expect(nextCalled).toBe(true);
     expect(req.user).toBeDefined();
-    expect(req.context.authStrategy).toBe('bulletproof');
-    expect(req.context.auth).toBeDefined();
+    expect(req.context['authStrategy']).toBe('bulletproof');
+    expect(req.context['auth']).toBeDefined();
     expect(SignedRequest.verify).toHaveBeenCalled();
   });
 
@@ -242,7 +246,7 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     const jwt = JwtAuthMiddleware.create();
     const { req, res } = createReqRes({ authorization: 'Bearer token' });
     req.user = { sub: '1' };
-    req.context.authStrategy = 'bulletproof';
+    req.context['authStrategy'] = 'bulletproof';
 
     let nextCalled = false;
     await jwt(req, res, async () => {
@@ -520,6 +524,90 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     await expect(verifyArgs.getSecretForKeyId('dev-1')).rejects.toThrow('missing migrations');
   });
 
+  it('treats missing device-store registration as an unknown key when backups exist', async () => {
+    vi.mocked(Env.get).mockImplementation((key: string) => {
+      if (key === 'BULLETPROOF_SIGNING_SECRET_BK') return '["backup-secret"]';
+      return '';
+    });
+
+    vi.mocked(SignedRequest.verify)
+      .mockImplementationOnce(async () => {
+        throw new Error("Database connection 'reporting' is not registered");
+      })
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        keyId: 'dev-1',
+        timestampMs: Date.now(),
+        nonce: 'n1',
+      }));
+
+    const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': '12345678',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    let nextCalled = false;
+    await middleware(req, res, async () => {
+      nextCalled = true;
+    });
+
+    expect(nextCalled).toBe(true);
+    expect(SignedRequest.verify).toHaveBeenCalledTimes(2);
+  });
+
+  it('rethrows missing device-store registration errors when no static fallback exists', async () => {
+    vi.mocked(SignedRequest.verify).mockImplementationOnce(async () => {
+      throw new Error("Database connection 'reporting' is not registered");
+    });
+
+    const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': '12345678',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    await expect(middleware(req, res, async () => undefined)).rejects.toThrow(
+      "Database connection 'reporting' is not registered"
+    );
+  });
+
+  it('rethrows non-registration signed-request errors even when backups exist', async () => {
+    vi.mocked(Env.get).mockImplementation((key: string) => {
+      if (key === 'BULLETPROOF_SIGNING_SECRET_BK') return '["backup-secret"]';
+      return '';
+    });
+
+    vi.mocked(SignedRequest.verify).mockImplementationOnce(async () => {
+      throw new Error('device store offline');
+    });
+
+    const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': '12345678',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    await expect(middleware(req, res, async () => undefined)).rejects.toThrow(
+      'device store offline'
+    );
+  });
+
   it('uses the device-specific signing secret when the store returns one', async () => {
     findByDeviceIdMock.mockResolvedValueOnce({ signingSecret: 'device-secret' });
 
@@ -560,14 +648,14 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     });
 
     expect(nextCalled).toBe(true);
-    expect(req.context.tenantId).toBe('tenant-456');
+    expect(req.context['tenantId']).toBe('tenant-456');
   });
 
   it('skips authentication when already bulletproof-authenticated', async () => {
     const middleware = BulletproofAuthMiddleware.create({ signingSecret: 's' });
     const { req, res } = createReqRes({ authorization: 'Bearer token' });
     req.user = { sub: '1' };
-    req.context.authStrategy = 'bulletproof';
+    req.context['authStrategy'] = 'bulletproof';
 
     let nextCalled = false;
     await middleware(req, res, async () => {

@@ -286,7 +286,8 @@ const bytesToHex = (bytes: Uint8Array): string => {
   return out;
 };
 
-const getRuntimeCrypto = (): RuntimeCrypto => RuntimeServices.create(detectRuntimePlatform()).crypto;
+const getRuntimeCrypto = (): RuntimeCrypto =>
+  RuntimeServices.create(detectRuntimePlatform()).crypto;
 
 const generateDeviceId = (): string => {
   const bytes = getRuntimeCrypto().getRandomValues(new Uint8Array(16));
@@ -300,9 +301,7 @@ const generateDeviceSecret = (): string => {
 
 const getClaimedDeviceId = (claims: Record<string, unknown>): string | undefined => {
   const deviceId = claims['deviceId'];
-  return typeof deviceId === 'string' && deviceId.trim() !== ''
-    ? deviceId.trim()
-    : undefined;
+  return typeof deviceId === 'string' && deviceId.trim() !== '' ? deviceId.trim() : undefined;
 };
 
 const resolveBulletproofDeviceId = (
@@ -386,9 +385,7 @@ const createBulletproofIssuer = async <TContext>({
   });
 };
 
-const createTraceAuditor = <TContext>(
-  event: LoginFlowAuditEvent<TContext>
-): void => {
+const createTraceAuditor = <TContext>(event: LoginFlowAuditEvent<TContext>): void => {
   const subject =
     typeof event.verified?.subject === 'string' && event.verified.subject.trim() !== ''
       ? event.verified.subject

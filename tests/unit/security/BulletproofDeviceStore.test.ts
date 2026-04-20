@@ -181,6 +181,62 @@ describe('BulletproofDeviceStore', () => {
     });
   });
 
+  it.each([
+    'duplicate key value violates unique constraint',
+    'UNIQUE constraint failed: zintrust_bulletproof_devices.device_id',
+    'insert ignored because unique failed',
+    'duplicate device id',
+  ])('tolerates duplicate insert races reported as %s', async (message) => {
+    const query = createQueryStub();
+    query.update.mockResolvedValue(0);
+    query.first.mockResolvedValueOnce({
+      device_id: 'dev-race',
+      signing_secret: 'secret-race',
+      last_seen_at: '2026-04-20T02:30:00.000Z',
+      created_at: '2026-04-20T02:30:00.000Z',
+      updated_at: '2026-04-20T02:30:00.000Z',
+    });
+    const execute = vi.fn().mockRejectedValueOnce(new Error(message));
+    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+
+    vi.mocked(useDatabase).mockReturnValue(
+      createDatabaseStub(query, { execute, transaction, getType: 'sqlite' })
+    );
+
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: 'dev-race',
+        signingSecret: 'secret-race',
+        lastSeenAt: new Date('2026-04-20T02:30:00.000Z'),
+      })
+    ).resolves.toEqual({
+      deviceId: 'dev-race',
+      signingSecret: 'secret-race',
+      lastSeenAt: new Date('2026-04-20T02:30:00.000Z'),
+      createdAt: new Date('2026-04-20T02:30:00.000Z'),
+      updatedAt: new Date('2026-04-20T02:30:00.000Z'),
+    });
+  });
+
+  it('wraps non-duplicate insert races during upsert as database errors', async () => {
+    const query = createQueryStub();
+    query.update.mockResolvedValue(0);
+    const execute = vi.fn().mockRejectedValueOnce(new Error('write blocked by policy'));
+    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+
+    vi.mocked(useDatabase).mockReturnValue(
+      createDatabaseStub(query, { execute, transaction, getType: 'sqlite' })
+    );
+
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: 'dev-race',
+        signingSecret: 'secret-race',
+        lastSeenAt: new Date('2026-04-20T02:35:00.000Z'),
+      })
+    ).rejects.toHaveProperty('code', 'DATABASE_ERROR');
+  });
+
   it('validates required device store fields during upsert', async () => {
     await expect(
       BulletproofDeviceStore.upsert({
