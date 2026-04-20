@@ -251,8 +251,8 @@ const createDynamicSignedRequestAttempt = (params: {
   req: IRequest;
   baseParams: {
     method: string;
-    url: string;
-    body: string;
+    url: URL;
+    body: string | Uint8Array<ArrayBufferLike>;
     headers: Record<string, string | undefined>;
     nowMs: number;
     windowMs: number;
@@ -288,8 +288,8 @@ const collectSignedRequestAttempts = async (params: {
   req: IRequest;
   baseParams: {
     method: string;
-    url: string;
-    body: string;
+    url: URL;
+    body: string | Uint8Array<ArrayBufferLike>;
     headers: Record<string, string | undefined>;
     nowMs: number;
     windowMs: number;
