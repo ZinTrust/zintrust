@@ -72,7 +72,7 @@ const getIssuedToken = (issued: unknown): string => {
     }
   }
 
-  throw ErrorFactory.createSecurityError('LoginFlow jwt issuer returned an invalid access token');
+  throw ErrorFactory.createSecurityError('LoginFlow issuer returned an invalid access token');
 };
 
 const getIssuedString = (issued: unknown, key: string): string | undefined => {

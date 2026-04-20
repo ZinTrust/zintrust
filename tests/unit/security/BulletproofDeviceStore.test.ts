@@ -18,7 +18,6 @@ type QueryStub = {
   where: ReturnType<typeof vi.fn>;
   first: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
-  insert: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
 };
 
@@ -27,7 +26,6 @@ const createQueryStub = (): QueryStub => {
     where: vi.fn(),
     first: vi.fn(),
     update: vi.fn(),
-    insert: vi.fn(),
     delete: vi.fn(),
   };
 
@@ -84,22 +82,31 @@ describe('BulletproofDeviceStore', () => {
   it('upserts records, normalizes optional fields, and inserts when the record is missing', async () => {
     const query = createQueryStub();
     query.update.mockResolvedValue(0);
-    query.first.mockResolvedValueOnce(null).mockResolvedValueOnce({
+    query.first.mockResolvedValueOnce({
       device_id: 'dev-2',
       signing_secret: 'secret-2',
       last_seen_at: '2026-04-20T02:00:00.000Z',
       created_at: '2026-04-20T02:00:00.000Z',
       updated_at: '2026-04-20T02:00:00.000Z',
     });
-    query.insert.mockResolvedValue(undefined);
+    const execute = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const transaction = vi.fn(async (callback: (db: any) => Promise<unknown>) => {
+      return callback({
+        table: vi.fn(() => query),
+        execute,
+      });
+    });
 
     vi.mocked(useDatabase).mockReturnValue({
       table: vi.fn(() => query),
+      transaction,
+      execute,
+      getType: vi.fn(() => 'sqlite'),
     } as never);
 
     const record = await BulletproofDeviceStore.upsert({
       userId: '   ',
-      deviceId: 'dev-2',
+      deviceId: ' dev-2 ',
       signingSecret: 'secret-2',
       userAgent: '   ',
       lastSeenAt: new Date('2026-04-20T02:00:00.000Z'),
@@ -107,14 +114,23 @@ describe('BulletproofDeviceStore', () => {
 
     expect(query.update).toHaveBeenCalledWith({
       user_id: null,
-      device_id: 'dev-2',
       signing_secret: 'secret-2',
       user_agent: null,
       last_seen_at: '2026-04-20T02:00:00.000Z',
-      created_at: '2026-04-20T02:00:00.000Z',
       updated_at: '2026-04-20T02:00:00.000Z',
     });
-    expect(query.insert).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledWith(
+      'INSERT OR IGNORE INTO zintrust_bulletproof_devices (user_id, device_id, signing_secret, user_agent, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        null,
+        'dev-2',
+        'secret-2',
+        null,
+        '2026-04-20T02:00:00.000Z',
+        '2026-04-20T02:00:00.000Z',
+        '2026-04-20T02:00:00.000Z',
+      ]
+    );
     expect(record).toEqual({
       deviceId: 'dev-2',
       signingSecret: 'secret-2',
@@ -130,6 +146,9 @@ describe('BulletproofDeviceStore', () => {
 
     vi.mocked(useDatabase).mockReturnValue({
       table: vi.fn(() => query),
+      transaction: vi.fn(),
+      execute: vi.fn(),
+      getType: vi.fn(() => 'sqlite'),
     } as never);
 
     await expect(BulletproofDeviceStore.findByDeviceId('dev-3')).rejects.toHaveProperty(
@@ -137,10 +156,22 @@ describe('BulletproofDeviceStore', () => {
       'CONFIG_ERROR'
     );
 
-    query.first
-      .mockResolvedValueOnce({ device_id: 'dev-4' })
-      .mockResolvedValueOnce({ device_id: 'dev-4' });
+    query.first.mockResolvedValueOnce({ device_id: 'dev-4' });
     query.update.mockResolvedValue(1);
+    const execute = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const transaction = vi.fn(async (callback: (db: any) => Promise<unknown>) => {
+      return callback({
+        table: vi.fn(() => query),
+        execute,
+      });
+    });
+
+    vi.mocked(useDatabase).mockReturnValue({
+      table: vi.fn(() => query),
+      transaction,
+      execute,
+      getType: vi.fn(() => 'sqlite'),
+    } as never);
 
     await expect(
       BulletproofDeviceStore.upsert({
@@ -157,6 +188,9 @@ describe('BulletproofDeviceStore', () => {
 
     vi.mocked(useDatabase).mockReturnValue({
       table: vi.fn(() => query),
+      transaction: vi.fn(),
+      execute: vi.fn(),
+      getType: vi.fn(() => 'sqlite'),
     } as never);
 
     await expect(BulletproofDeviceStore.removeByDeviceId(' dev-5 ')).resolves.toBeUndefined();
@@ -166,7 +200,24 @@ describe('BulletproofDeviceStore', () => {
 
     await expect(BulletproofDeviceStore.removeByDeviceId('dev-5')).rejects.toHaveProperty(
       'code',
-      'CONFIG_ERROR'
+      'DATABASE_ERROR'
+    );
+  });
+
+  it('wraps non-schema lookup failures as database errors', async () => {
+    const query = createQueryStub();
+    query.first.mockRejectedValueOnce(new Error('permission denied'));
+
+    vi.mocked(useDatabase).mockReturnValue({
+      table: vi.fn(() => query),
+      transaction: vi.fn(),
+      execute: vi.fn(),
+      getType: vi.fn(() => 'sqlite'),
+    } as never);
+
+    await expect(BulletproofDeviceStore.findByDeviceId('dev-6')).rejects.toHaveProperty(
+      'code',
+      'DATABASE_ERROR'
     );
   });
 });

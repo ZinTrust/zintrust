@@ -558,8 +558,12 @@ const resolveSigningConfig = (
   const getSecretForKeyId = hasCustomResolver
     ? (options.getSecretForKeyId as BulletproofResolved['getSecretForKeyId'])
     : async (keyId: string): Promise<string | undefined> => {
-        const device = await BulletproofDeviceStore.findByDeviceId(keyId).catch(() => null);
-        if (device && typeof device.signingSecret === "string" && device.signingSecret !== "") return device.signingSecret;
+        const device = await BulletproofDeviceStore.findByDeviceId(keyId);
+
+        if (device && typeof device.signingSecret === 'string' && device.signingSecret !== '') {
+          return device.signingSecret;
+        }
+
         return signingSecret === '' ? undefined : signingSecret;
       };
 

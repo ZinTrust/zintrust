@@ -73,8 +73,14 @@ describe('functions/cloudflare', () => {
 
   afterEach(() => {
     delete (globalThis as { env?: unknown }).env;
+    delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+      .__zintrustStartupConfigOverrides;
     vi.doUnmock('@runtime/StartupConfigFileRegistry');
     vi.doUnmock('@config/middleware');
+    vi.doUnmock('@runtime-config/cache.ts');
+    vi.doUnmock('@service-runtime-config/cache.ts');
+    vi.doUnmock('@runtime-config/middleware.ts');
+    vi.resetModules();
   });
 
   it('handles fetch success and caches kernel', async () => {

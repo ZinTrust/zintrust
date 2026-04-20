@@ -121,8 +121,9 @@ Fresh apps can use the built-in `LoginFlow` Bulletproof issuer and the core-back
 
 ```ts
 // app/Controllers/AuthController.ts
-import { Request, Response } from '@types/http';
-import { LoginFlow } from '@zintrust/core';
+import { Controller, LoginFlow } from '@zintrust/core';
+import type { IRequest as Request } from '@http/Request';
+import type { IResponse as Response } from '@http/Response';
 
 export class AuthController extends Controller {
   /**
@@ -137,7 +138,7 @@ export class AuthController extends Controller {
     const result = await LoginFlow.create({
       provider: passwordLoginProvider,
       context: Object.freeze({ request: req, email }),
-    });
+    })
       .identify({ email })
       .verify({ password })
       .issue('bulletproof')
