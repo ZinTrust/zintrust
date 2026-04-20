@@ -401,7 +401,8 @@ const fetchJwks = async (
     keys: body['keys'].filter((item): item is JwtVerifierJwk => isObject(item)),
   };
 
-  const ttlMs = Math.max(1, input.cacheTtlSeconds ?? 3600) * 1000;
+  const cacheTtlSeconds = Number.isFinite(input.cacheTtlSeconds) ? input.cacheTtlSeconds : 3600;
+  const ttlMs = Math.max(1, cacheTtlSeconds) * 1000;
   jwksCache.set(cacheKey, { jwks, expiresAtMs: nowMs + ttlMs });
   return { jwks, cacheHit: false };
 };
