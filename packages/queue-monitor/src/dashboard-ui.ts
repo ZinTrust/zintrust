@@ -170,7 +170,7 @@ const getHeaderSection = (appName: string): string => `
 `;
 
 const getLogoSvg = (): string => `
-<svg width="26" height="26" viewBox="0 0 100 100" fill="none" class="logo-img" xmlns="http://www.w3.org/2000/svg">
+<svg width="26" height="26" viewBox="0 0 100 100" fill="none" class="logo-img" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
     <circle cx="50" cy="50" r="25" stroke="#1e293b" stroke-width="10" />
     <path d="M50 25 A25 25 0 0 1 75 50" stroke="#0ea5e9" stroke-width="10" stroke-linecap="round" />
     <circle cx="50" cy="50" r="9" fill="#22c55e" />
