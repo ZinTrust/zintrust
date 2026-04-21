@@ -7,7 +7,10 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
-import { toCompatibleGovernanceVersion } from '@cli/scaffolding/ScaffoldingVersionUtils';
+import {
+  extractMajorMinorVersion,
+  toCompatibleGovernanceVersion,
+} from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { VersionChecker } from '@cli/services/VersionChecker';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolvePackageManager } from '@common/index';
@@ -109,7 +112,13 @@ const inferGovernanceVersion = (pkg: PackageJson): string => {
   const core = deps?.['@zintrust/core'];
   const bundledGovernanceVersion = getBundledGovernanceVersion();
   if (typeof core === 'string' && core.trim() !== '') {
-    return bundledGovernanceVersion ?? toCompatibleGovernanceVersion(core);
+    if (bundledGovernanceVersion !== undefined) {
+      return bundledGovernanceVersion;
+    }
+
+    if (extractMajorMinorVersion(core) !== undefined) {
+      return toCompatibleGovernanceVersion(core);
+    }
   }
 
   const currentVersion = VersionChecker.getCurrentVersion().trim();
