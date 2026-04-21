@@ -1,5 +1,9 @@
 # 2026-04-21
 
+- Released the remaining public ZinTrust workspace packages on the coordinated `0.9.1` patch line so all npm-published adapters and extensions move off the broken `0.9.0` metadata set. This includes `@zintrust/d1-migrator`, `@zintrust/socket`, `@zintrust/client-rds-data`, `@zintrust/storage-s3`, `@zintrust/queue-redis`, `@zintrust/storage-gcs`, `@zintrust/queue-rabbitmq`, `@zintrust/cloudflare-containers-proxy`, `@zintrust/cloudflare-d1-proxy`, `@zintrust/signer`, `@zintrust/cloudflare-kv-proxy`, `@zintrust/trace`, `@zintrust/cache-mongodb`, `@zintrust/queue-monitor`, `@zintrust/queue-sqs`, `@zintrust/storage-r2`, `@zintrust/expose`, `@zintrust/workers`, `@zintrust/governance`, and `@zintrust/storage`, keeping the published package line aligned on corrected `@zintrust/core` peer metadata.
+
+- Released `@zintrust/mail-smtp@0.9.1`, `@zintrust/mail-sendgrid@0.9.1`, `@zintrust/mail-mailgun@0.9.1`, and `@zintrust/mail-nodemailer@0.9.1` to correct stale npm metadata from the broken `0.9.0` publish. The patched mail adapters keep the broad live `@zintrust/core` peer range so downstream installs on `@zintrust/core@0.9.0` no longer fail with `ERESOLVE` on the mail packages.
+
 - Released `@zintrust/db-sqlite@0.9.1`, `@zintrust/db-mysql@0.9.1`, `@zintrust/db-postgres@0.9.1`, `@zintrust/db-sqlserver@0.9.1`, and `@zintrust/db-d1@0.9.1` to correct stale npm metadata from the broken `0.9.0` publish. The patch line keeps the adapters on the live broad `@zintrust/core` peer range so downstream installs using `@zintrust/core@0.9.0` no longer fail with `ERESOLVE` on the database packages.
 
 - Released `@zintrust/cache-redis@0.9.1` to correct the npm metadata line after the broken `0.9.0` publish. The new patch keeps the adapter on the live broad `@zintrust/core` peer range so downstream apps installing `@zintrust/core@0.9.0` no longer hit an `ERESOLVE` conflict from the stale `>=0.7.0 <0.8.0` peer declaration.
