@@ -12,7 +12,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@zintrust/core": "^{{coreVersion}}"
+    "@zintrust/core": "{{coreVersion}}"
   },
   "devDependencies": {
     "@zintrust/governance": "{{governanceVersion}}",

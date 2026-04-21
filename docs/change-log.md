@@ -1,3 +1,11 @@
+# 2026-04-21
+
+- Added the `isMissingLike(...)` helper alias on top of `isUndefinedOrNull(...)` and updated the helper reference to document the intended null-like split explicitly: `isNullish(...)` and `isDefined(...)` for strict TypeScript narrowing, `isNull(...)` for narrower legacy null markers, and `isUndefinedOrNull(...)` / `isMissingLike(...)` for the broad compatibility missing-value bucket.
+
+- Fixed the remaining future-version leak in ZinTrust package metadata and project scaffolding. Fresh app scaffolds now use the live npm `@zintrust/core` release when lookup succeeds and fall back to `*` instead of guessing a future core line from governance metadata when npm lookup fails. The package publish transform now also preserves broad `@zintrust/core` compatibility for published adapters instead of rewriting peers to an unpublished future `^x.y.z` range, which avoids downstream `npm install` `ERESOLVE` failures like `@zintrust/cache-redis` requiring a core version that is not live on npm yet.
+
+- Tightened the shared `@zintrust/core` helper contracts around the audited `is*` edge cases. `isBoolean(value, true)` now accepts only real booleans or boolean-like strings instead of also passing numeric `1` and `0`, `isBase64(...)` now rejects empty strings and requires a valid padded non-empty Base64 payload, and `isUpperCase(...)` / `isLowerCase(...)` now require at least one alphabetic character instead of treating numeric-only strings as valid case matches. Expanded the helper test suite to cover the full exported helper surface and added focused type-safety narrowing tests for the predicate helpers.
+
 # 2026-04-20
 
 - Made the remaining Cloudflare proxy workspace packages publishable by removing the last `private: true` guards from `@zintrust/cloudflare-kv-proxy` and `@zintrust/cloudflare-d1-proxy` and setting their package publish access to `public`, so the release tooling can ship them to npm like the rest of the package line.

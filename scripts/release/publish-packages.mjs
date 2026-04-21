@@ -40,6 +40,9 @@ const onlyDirs = onlyDirsRaw
   : undefined;
 
 const releasePublishPriority = Object.freeze({
+  // workers must publish before trace because trace imports @zintrust/workers
+  // at build time (dynamic import) and relies on workers' dist being present.
+  workers: 5,
   'db-d1': 10,
   'db-mysql': 11,
   'db-postgres': 12,
@@ -337,12 +340,18 @@ function createSameMinorRange(version) {
   return `>=${parsed.major}.${parsed.minor}.0 <${parsed.major}.${parsed.minor + 1}.0`;
 }
 
-function getPublishedCorePeerRange(packageName, coreVersion) {
-  if (packageName === '@zintrust/workers') {
+function getPublishedCorePeerRange(coreVersion) {
+  const publishedCoreVersion = getPublishedVersion('@zintrust/core');
+
+  if (typeof publishedCoreVersion === 'string' && publishedCoreVersion.length > 0) {
+    return createSameMinorRange(publishedCoreVersion);
+  }
+
+  if (typeof coreVersion === 'string' && coreVersion.length > 0) {
     return createSameMinorRange(coreVersion);
   }
 
-  return `^${coreVersion}`;
+  return '*';
 }
 
 function isPublishablePackageVersion(packageVersion, coreVersion) {
@@ -541,7 +550,7 @@ async function transformPackageForPublish(pkg, pkgDir, coreVersion) {
   if (typeof transformed.peerDependencies?.['@zintrust/core'] === 'string') {
     transformed.peerDependencies = {
       ...transformed.peerDependencies,
-      '@zintrust/core': getPublishedCorePeerRange(transformed.name, coreVersion),
+      '@zintrust/core': getPublishedCorePeerRange(coreVersion),
     };
   }
 

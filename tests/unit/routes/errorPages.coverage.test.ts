@@ -6,13 +6,22 @@ import { HTTP_HEADERS, MIME_TYPES } from '@zintrust/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
-vi.mock('@node-singletons/fs', () => ({
-  default: {
-    existsSync: vi.fn(),
-    statSync: vi.fn(),
-    readFileSync: vi.fn(),
-  },
-}));
+vi.mock('@node-singletons/fs', () => {
+  const existsSync = vi.fn();
+  const statSync = vi.fn();
+  const readFileSync = vi.fn();
+
+  return {
+    default: {
+      existsSync,
+      statSync,
+      readFileSync,
+    },
+    existsSync,
+    statSync,
+    readFileSync,
+  };
+});
 
 vi.mock('@node-singletons/path', () => ({
   join: vi.fn((...args) => args.join('/')),

@@ -194,7 +194,7 @@ describe('ProjectScaffolder extra tests', () => {
     vi.resetModules();
   });
 
-  it('falls back to ^0.7.0 when npm lookup fails and local governance version is missing', async () => {
+  it('falls back to * for core when npm lookup fails and local governance version is missing', async () => {
     const projectPath = path.join(tmpRoot, `missing-governance-version-${Date.now()}`);
     vi.resetModules();
     mockChildProcessExecFileSync((command, args, _options) => {
@@ -225,9 +225,11 @@ describe('ProjectScaffolder extra tests', () => {
     const packageJson = JSON.parse(
       await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
     ) as {
+      dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
     };
 
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
     expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
     expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
@@ -237,7 +239,7 @@ describe('ProjectScaffolder extra tests', () => {
     vi.resetModules();
   });
 
-  it('falls back to the bundled published peer line when npm lookups fail but governance metadata is available', async () => {
+  it('falls back to * for core when npm lookups fail but governance metadata is available', async () => {
     const projectPath = path.join(tmpRoot, `bundled-published-line-${Date.now()}`);
     vi.resetModules();
     mockChildProcessExecFileSync((command, args, _options) => {
@@ -264,7 +266,7 @@ describe('ProjectScaffolder extra tests', () => {
       devDependencies?: Record<string, string>;
     };
 
-    expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
     expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
     expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
@@ -273,7 +275,7 @@ describe('ProjectScaffolder extra tests', () => {
     vi.resetModules();
   });
 
-  it('reuses the live governance release line for microservice scaffolds when core lookup misses', async () => {
+  it('uses * for core when core lookup misses but governance lookup still succeeds', async () => {
     const projectPath = path.join(tmpRoot, `microservice-published-fallback-${Date.now()}`);
     const publishedGovernanceVersion = '0.7.0';
 
@@ -319,7 +321,7 @@ describe('ProjectScaffolder extra tests', () => {
       devDependencies?: Record<string, string>;
     };
 
-    expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
     expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
@@ -327,7 +329,7 @@ describe('ProjectScaffolder extra tests', () => {
     vi.resetModules();
   });
 
-  it('falls back to ^0.7.0 when npm lookup fails and local governance package cannot be read', async () => {
+  it('falls back to * for core when npm lookup fails and local governance package cannot be read', async () => {
     const projectPath = path.join(tmpRoot, `unreadable-governance-package-${Date.now()}`);
     vi.resetModules();
     mockChildProcessExecFileSync((command, args, _options) => {
@@ -358,9 +360,11 @@ describe('ProjectScaffolder extra tests', () => {
     const packageJson = JSON.parse(
       await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
     ) as {
+      dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
     };
 
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
     expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });

@@ -170,23 +170,15 @@ const loadBundledPublishedCoreVersion = (): string | undefined => {
   return `${publishedLineVersion.major}.${publishedLineVersion.minor}.0`;
 };
 
+const toCompatibleCoreDependencyRange = (version: string): string => `^${version}`;
+
 const loadScaffoldCoreVersion = (): string => {
   const publishedVersion = loadPublishedNpmVersion('@zintrust/core');
   if (typeof publishedVersion === 'string') {
-    return publishedVersion;
+    return toCompatibleCoreDependencyRange(publishedVersion);
   }
 
-  const publishedGovernanceVersion = loadPublishedNpmVersion('@zintrust/governance');
-  if (typeof publishedGovernanceVersion === 'string') {
-    return publishedGovernanceVersion;
-  }
-
-  const bundledPublishedCoreVersion = loadBundledPublishedCoreVersion();
-  if (typeof bundledPublishedCoreVersion === 'string') {
-    return bundledPublishedCoreVersion;
-  }
-
-  return '0.7.0';
+  return '*';
 };
 
 const loadGovernanceVersion = (): string => {

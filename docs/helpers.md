@@ -4,7 +4,7 @@ The `@zintrust/core` module provides lightweight, runtime-agnostic validation an
 
 ## Quick Reference
 
-All **45 helpers** verified against `src/helper/index.ts`.
+All exported helpers verified against `src/helper/index.ts`.
 
 ### Type Checkers
 
@@ -18,12 +18,15 @@ All **45 helpers** verified against `src/helper/index.ts`.
 
 ### Empty / Null / Undefined
 
-| Helper              | Signature           | Description                                    |
-| ------------------- | ------------------- | ---------------------------------------------- |
-| `isEmpty`           | `(value) → boolean` | `null \| undefined \| false \| 0 \| '' \| '0'` |
-| `isNull`            | `(value) → boolean` | `null`, string `'null'`, or `''`               |
-| `isUndefined`       | `(value) → boolean` | Strict `undefined`                             |
-| `isUndefinedOrNull` | `(value) → boolean` | `undefined` or satisfies `isNull`              |
+| Helper              | Signature                           | Description                                           |
+| ------------------- | ----------------------------------- | ----------------------------------------------------- |
+| `isEmpty`           | `(value) → boolean`                 | `null \| undefined \| false \| 0 \| '' \| '0'`        |
+| `isNull`            | `(value) → boolean`                 | `null`, string `'null'`, or `''`                      |
+| `isUndefined`       | `(value) → boolean`                 | Strict `undefined`                                    |
+| `isUndefinedOrNull` | `(value) → boolean`                 | `undefined` or satisfies `isNull`                     |
+| `isMissingLike`     | `(value) → boolean`                 | Alias of `isUndefinedOrNull` for broad missing checks |
+| `isNullish`         | `(value) → value is null \| undefined` | Strict TS-safe nullish predicate                   |
+| `isDefined`         | `(value) → value is NonNullable<T>` | Strict TS-safe defined predicate                      |
 
 ### Boolean
 
@@ -278,6 +281,63 @@ if (isUndefinedOrNull(val)) {
 }
 ```
 
+Use this when business logic intentionally treats `undefined`, `null`, `''`, `'null'`, and `'NULL'`
+as the same broad missing-value bucket. This is a compatibility helper, not a strict TypeScript
+narrowing predicate.
+
+### `isMissingLike(value): boolean`
+
+Alias of `isUndefinedOrNull()` for code that wants a clearer broad-missing-value name.
+
+```typescript
+import { isMissingLike } from '@zintrust/core';
+
+isMissingLike(undefined); // true
+isMissingLike(null); // true
+isMissingLike(''); // true
+isMissingLike('NULL'); // true
+isMissingLike('undefined'); // false
+
+if (isMissingLike(input)) {
+  return 'N/A';
+}
+```
+
+### `isNullish(value): value is null | undefined`
+
+Strict TypeScript-safe nullish predicate.
+
+```typescript
+import { isNullish } from '@zintrust/core';
+
+const value: string | null | undefined = getValue();
+
+if (isNullish(value)) {
+  // value is null | undefined here
+  return 'missing';
+}
+
+// value is string here
+return value.toUpperCase();
+```
+
+### `isDefined(value): value is NonNullable<T>`
+
+Strict TypeScript-safe counterpart to `isNullish()`.
+
+```typescript
+import { isDefined } from '@zintrust/core';
+
+const value: string | undefined = getValue();
+
+if (!isDefined(value)) {
+  return 'missing';
+}
+
+// value is string here
+return value.toUpperCase();
+```
+
 ---
 
 ## Boolean Helpers
@@ -304,6 +364,8 @@ isBoolean('true', true); // true
 isBoolean('false', true); // true
 isBoolean('1', true); // true
 isBoolean('0', true); // true
+isBoolean(1, true); // false
+isBoolean(0, true); // false
 isBoolean('yes', true); // false (not recognized)
 
 // Type guards
@@ -749,6 +811,7 @@ import { isBase64 } from '@zintrust/core';
 
 isBase64('aGVsbG8='); // true
 isBase64('SGVsbG8gV29ybGQ='); // true
+isBase64(''); // false
 isBase64('not@@base64'); // false
 isBase64('nopadding'); // false
 
@@ -803,8 +866,10 @@ Check if string is all uppercase letters.
 import { isUpperCase } from '@zintrust/core';
 
 isUpperCase('HELLO'); // true
+isUpperCase('HELLO!'); // true
 isUpperCase('Hello'); // false
 isUpperCase('hello'); // false
+isUpperCase('123'); // false
 isUpperCase(''); // false
 
 if (isUpperCase(code)) {
@@ -820,8 +885,10 @@ Check if string is all lowercase letters.
 import { isLowerCase } from '@zintrust/core';
 
 isLowerCase('hello'); // true
+isLowerCase('hello!'); // true
 isLowerCase('Hello'); // false
 isLowerCase('HELLO'); // false
+isLowerCase('123'); // false
 isLowerCase(''); // false
 
 if (isLowerCase(tag)) {

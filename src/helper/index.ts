@@ -58,6 +58,12 @@ export const isUndefined = (value: unknown): boolean => value === undefined;
  */
 export const isUndefinedOrNull = (value: unknown): boolean => isUndefined(value) || isNull(value);
 
+/**
+ * Broad compatibility helper for legacy missing-value checks.
+ * Alias of isUndefinedOrNull for clearer intent in application code.
+ */
+export const isMissingLike = (value: unknown): boolean => isUndefinedOrNull(value);
+
 /** Check if value is strictly null or undefined. Type-safe for TS narrowing. */
 export const isNullish = <T>(value: T | null | undefined): value is null | undefined =>
   value === null || value === undefined;
@@ -86,9 +92,9 @@ export function isBoolean(value: unknown, allowString: true): value is boolean |
 export function isBoolean(value: unknown, allowString = false): value is boolean | string {
   if (typeof value === 'boolean') return true;
   if (!allowString) return false;
-  if (typeof value !== 'string' && typeof value !== 'number') return false;
+  if (typeof value !== 'string') return false;
 
-  const v = String(value).trim().toLowerCase();
+  const v = value.trim().toLowerCase();
   return v === 'true' || v === 'false' || v === '1' || v === '0';
 }
 
@@ -352,10 +358,9 @@ export const isJSON = (value: unknown): boolean => {
  */
 export const isBase64 = (value: unknown): boolean => {
   if (typeof value !== 'string') return false;
-  const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-  if (!base64Regex.test(value)) return false;
-  // Base64 length must be multiple of 4
-  return value.length % 4 === 0;
+  if (value.length === 0) return false;
+  const base64Regex = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+  return base64Regex.test(value);
 };
 
 /**
@@ -381,13 +386,19 @@ export const isSlug = (value: unknown): boolean => {
  * Check if value is a string with uppercase letters.
  */
 export const isUpperCase = (value: unknown): boolean =>
-  typeof value === 'string' && value.length > 0 && value === value.toUpperCase();
+  typeof value === 'string' &&
+  value.length > 0 &&
+  /[A-Za-z]/.test(value) &&
+  value === value.toUpperCase();
 
 /**
  * Check if value is a string with lowercase letters.
  */
 export const isLowerCase = (value: unknown): boolean =>
-  typeof value === 'string' && value.length > 0 && value === value.toLowerCase();
+  typeof value === 'string' &&
+  value.length > 0 &&
+  /[A-Za-z]/.test(value) &&
+  value === value.toLowerCase();
 
 /* -------------------------------------------------------------------------- */
 /*                          Numeric Predicates                                */
@@ -444,6 +455,7 @@ export const Helpers = Object.freeze({
   isNull,
   isUndefined,
   isUndefinedOrNull,
+  isMissingLike,
   isNullish,
   isDefined,
   isArray,
