@@ -167,7 +167,7 @@ const loadBundledPublishedCoreVersion = (): string | undefined => {
     return '0.9.2';
   }
 
-  return `${publishedLineVersion.major}.${publishedLineVersion.minor}.0`;
+  return `${publishedLineVersion.major}.${publishedLineVersion.minor}.2`;
 };
 
 const toCompatibleCoreDependencyRange = (version: string): string => `^${version}`;
