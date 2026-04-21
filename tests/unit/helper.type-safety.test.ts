@@ -57,7 +57,7 @@ describe('helper type safety', () => {
 
     if (isNullish(maybeString)) {
       const narrowedNullish: null | undefined = maybeString;
-      expect(narrowedNullish == null).toBe(true);
+      expect(narrowedNullish === null || narrowedNullish === undefined).toBe(true);
       return;
     }
 
