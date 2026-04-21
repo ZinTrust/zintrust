@@ -1,5 +1,9 @@
 # 2026-04-21
 
+- Updated every public workspace package manifest to declare `peerDependencies['@zintrust/core']` as `^0.9.2` so the checked-in source package metadata now matches the publish-time caret policy and no longer uses `*` for the core peer.
+
+- Changed the package publish transform so `@zintrust/core` peer dependencies are now rewritten to the live caret release such as `^0.9.2`, or `*` if no core version can be resolved. The release script no longer generates same-minor comparator ranges like `>=0.9.0 <0.10.0` during npm publish.
+
 - Released the remaining public ZinTrust workspace packages on the coordinated `0.9.1` patch line so all npm-published adapters and extensions move off the broken `0.9.0` metadata set. This includes `@zintrust/d1-migrator`, `@zintrust/socket`, `@zintrust/client-rds-data`, `@zintrust/storage-s3`, `@zintrust/queue-redis`, `@zintrust/storage-gcs`, `@zintrust/queue-rabbitmq`, `@zintrust/cloudflare-containers-proxy`, `@zintrust/cloudflare-d1-proxy`, `@zintrust/signer`, `@zintrust/cloudflare-kv-proxy`, `@zintrust/trace`, `@zintrust/cache-mongodb`, `@zintrust/queue-monitor`, `@zintrust/queue-sqs`, `@zintrust/storage-r2`, `@zintrust/expose`, `@zintrust/workers`, `@zintrust/governance`, and `@zintrust/storage`, keeping the published package line aligned on corrected `@zintrust/core` peer metadata.
 
 - Released `@zintrust/mail-smtp@0.9.1`, `@zintrust/mail-sendgrid@0.9.1`, `@zintrust/mail-mailgun@0.9.1`, and `@zintrust/mail-nodemailer@0.9.1` to correct stale npm metadata from the broken `0.9.0` publish. The patched mail adapters keep the broad live `@zintrust/core` peer range so downstream installs on `@zintrust/core@0.9.0` no longer fail with `ERESOLVE` on the mail packages.
