@@ -68,6 +68,14 @@ const escapeHtml = (value: string): string => {
     .replaceAll("'", '&#39;');
 };
 
+const getWorkersLogoMarkup = (): string => `<svg width="34" height="34" viewBox="0 0 256 256" fill="none" class="logo-img" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <rect width="256" height="256" rx="56" fill="#0f172a"/>
+  <path d="M128 56 L200 96 L128 136 L56 96 Z" fill="#0ea5e9" opacity="0.2" stroke="#0ea5e9" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M128 104 L200 144 L128 184 L56 144 Z" fill="#0ea5e9" opacity="0.4" stroke="#0ea5e9" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M128 152 L200 192 L128 232 L56 192 Z" fill="#1e293b" stroke="#22c55e" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="128" cy="192" r="8" fill="#22c55e"/>
+</svg>`;
+
 const injectIndexAppName = (html: string): string => {
   const appName = Env.get('APP_NAME', 'ZinTrust').trim() || 'ZinTrust';
   const faviconLink = `<link rel="icon" type="image/svg+xml" href="${BrandFavicon.forWorkersUi()}" />`;
@@ -75,6 +83,7 @@ const injectIndexAppName = (html: string): string => {
   return html
     .replaceAll('__ZINTRUST_WORKERS_TITLE__', escapeHtml(`ZinTrust ${appName} Workers Dashboard`))
     .replaceAll('__ZINTRUST_WORKERS_HEADING__', escapeHtml(`ZinTrust ${appName}'s Workers`))
+    .replaceAll('__ZINTRUST_WORKERS_LOGO__', getWorkersLogoMarkup())
     .replace('</head>', `    ${faviconLink}\n  </head>`);
 };
 
