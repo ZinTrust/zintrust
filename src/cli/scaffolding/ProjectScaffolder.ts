@@ -164,7 +164,7 @@ const loadBundledPublishedCoreVersion = (): string | undefined => {
 
   const publishedLineVersion = extractMajorMinorVersion(corePeerRange);
   if (publishedLineVersion === undefined) {
-    return '0.7.0';
+    return '0.9.0';
   }
 
   return `${publishedLineVersion.major}.${publishedLineVersion.minor}.0`;
@@ -192,7 +192,7 @@ const loadGovernanceVersion = (): string => {
     return bundledPublishedCoreVersion;
   }
 
-  return '0.7.0';
+  return '0.9.0';
 };
 
 const createDirectories = (projectPath: string, directories: string[]): number => {
