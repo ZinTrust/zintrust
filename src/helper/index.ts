@@ -58,6 +58,12 @@ export const isUndefined = (value: unknown): boolean => value === undefined;
  */
 export const isUndefinedOrNull = (value: unknown): boolean => isUndefined(value) || isNull(value);
 
+/**
+ * Broad compatibility helper for legacy missing-value checks.
+ * Alias of isUndefinedOrNull for clearer intent in application code.
+ */
+export const isMissingLike = (value: unknown): boolean => isUndefinedOrNull(value);
+
 /** Check if value is strictly null or undefined. Type-safe for TS narrowing. */
 export const isNullish = <T>(value: T | null | undefined): value is null | undefined =>
   value === null || value === undefined;
@@ -449,6 +455,7 @@ export const Helpers = Object.freeze({
   isNull,
   isUndefined,
   isUndefinedOrNull,
+  isMissingLike,
   isNullish,
   isDefined,
   isArray,

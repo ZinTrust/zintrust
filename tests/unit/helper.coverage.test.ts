@@ -27,6 +27,7 @@ import {
   isMatch,
   isMaxLength,
   isMinLength,
+  isMissingLike,
   isNegative,
   isNonEmptyArray,
   isNonEmptyObject,
@@ -93,6 +94,12 @@ describe('helper validators', () => {
     expect(isUndefinedOrNull('')).toBe(true); // '' treated as null by isNull
     expect(isUndefinedOrNull('NULL')).toBe(true);
     expect(isUndefinedOrNull('undefined')).toBe(false);
+
+    expect(isMissingLike(undefined)).toBe(true);
+    expect(isMissingLike(null)).toBe(true);
+    expect(isMissingLike('')).toBe(true);
+    expect(isMissingLike('NULL')).toBe(true);
+    expect(isMissingLike('undefined')).toBe(false);
 
     expect(isNullish(undefined)).toBe(true);
     expect(isNullish(null)).toBe(true);
@@ -290,10 +297,11 @@ describe('helper validators', () => {
   it('exports the helper factory consistently', () => {
     expect(Object.isFrozen(Helpers)).toBe(true);
     expect(Helpers.isBoolean).toBe(isBoolean);
+    expect(Helpers.isMissingLike).toBe(isMissingLike);
     expect(Helpers.isNullish).toBe(isNullish);
     expect(Helpers.isBase64).toBe(isBase64);
     expect(Helpers.isUpperCase).toBe(isUpperCase);
     expect(Helpers.isLowerCase).toBe(isLowerCase);
-    expect(Object.keys(Helpers)).toHaveLength(47);
+    expect(Object.keys(Helpers)).toHaveLength(48);
   });
 });
