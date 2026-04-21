@@ -1,5 +1,9 @@
 # 2026-04-21
 
+- Released `@zintrust/db-sqlite@0.9.1`, `@zintrust/db-mysql@0.9.1`, `@zintrust/db-postgres@0.9.1`, `@zintrust/db-sqlserver@0.9.1`, and `@zintrust/db-d1@0.9.1` to correct stale npm metadata from the broken `0.9.0` publish. The patch line keeps the adapters on the live broad `@zintrust/core` peer range so downstream installs using `@zintrust/core@0.9.0` no longer fail with `ERESOLVE` on the database packages.
+
+- Released `@zintrust/cache-redis@0.9.1` to correct the npm metadata line after the broken `0.9.0` publish. The new patch keeps the adapter on the live broad `@zintrust/core` peer range so downstream apps installing `@zintrust/core@0.9.0` no longer hit an `ERESOLVE` conflict from the stale `>=0.7.0 <0.8.0` peer declaration.
+
 - Added the `isMissingLike(...)` helper alias on top of `isUndefinedOrNull(...)` and updated the helper reference to document the intended null-like split explicitly: `isNullish(...)` and `isDefined(...)` for strict TypeScript narrowing, `isNull(...)` for narrower legacy null markers, and `isUndefinedOrNull(...)` / `isMissingLike(...)` for the broad compatibility missing-value bucket.
 
 - Fixed the remaining future-version leak in ZinTrust package metadata and project scaffolding. Fresh app scaffolds now use the live npm `@zintrust/core` release when lookup succeeds and fall back to `*` instead of guessing a future core line from governance metadata when npm lookup fails. The package publish transform now also preserves broad `@zintrust/core` compatibility for published adapters instead of rewriting peers to an unpublished future `^x.y.z` range, which avoids downstream `npm install` `ERESOLVE` failures like `@zintrust/cache-redis` requiring a core version that is not live on npm yet.
