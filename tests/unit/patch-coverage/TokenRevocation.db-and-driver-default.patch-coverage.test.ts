@@ -122,4 +122,68 @@ describe('patch coverage: TokenRevocation database + driver normalization', () =
       else process.env['JWT_REVOCATION_DRIVER'] = prev;
     }
   });
+
+  it('retries database inserts with a generated uuid id when auth revocation tables require it', async () => {
+    vi.resetModules();
+
+    vi.doMock('@config/logger', () => ({
+      Logger: {
+        debug: vi.fn(),
+      },
+    }));
+
+    const inserted: Array<Record<string, unknown>> = [];
+    const builder: any = {
+      where: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => null),
+      update: vi.fn(async () => 0),
+      insert: vi.fn(async (payload: Record<string, unknown>) => {
+        inserted.push(payload);
+        if (inserted.length === 1) {
+          throw new Error('null value in column "id" violates not-null constraint');
+        }
+        return 1;
+      }),
+      delete: vi.fn(async () => 1),
+    };
+
+    vi.doMock('@orm/Database', () => ({
+      useDatabase: () => ({
+        table: () => builder,
+      }),
+    }));
+
+    vi.doMock('@common/utility', () => ({
+      generateUuid: () => 'revocation-uuid',
+    }));
+
+    vi.doMock('@security/JwtManager', () => ({
+      JwtManager: {
+        create: () => ({
+          decode: () => ({ exp: Math.floor(Date.now() / 1000) + 10, jti: 'uuid-jti', sub: 'u1' }),
+        }),
+      },
+    }));
+
+    const prev = process.env['JWT_REVOCATION_DRIVER'];
+    process.env['JWT_REVOCATION_DRIVER'] = 'database';
+
+    try {
+      const { TokenRevocation } = await import('../../../src/security/TokenRevocation');
+      TokenRevocation._resetForTests();
+
+      await expect(TokenRevocation.revoke('Bearer t-uuid')).resolves.toBe('t-uuid');
+      expect(TokenRevocation.getDriver()).toBe('database');
+      expect(inserted).toHaveLength(2);
+      expect(inserted[1]).toMatchObject({
+        id: 'revocation-uuid',
+        jti: 'uuid-jti',
+        sub: 'u1',
+        user_id: 'u1',
+      });
+    } finally {
+      if (prev === undefined) delete process.env['JWT_REVOCATION_DRIVER'];
+      else process.env['JWT_REVOCATION_DRIVER'] = prev;
+    }
+  });
 });

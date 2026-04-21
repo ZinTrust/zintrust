@@ -1,5 +1,9 @@
 # 2026-04-21
 
+- Fixed the core auth storage insert contract so the built-in Bulletproof device store, JWT revocation store, and JWT sessions store now keep working when projects switch those core-owned tables from `table.id()` to `table.uuid('id')` without adding a database-side default. Each store still attempts the existing insert path first, then retries once with a generated UUID only when the database explicitly rejects the missing `id`. `RemoteSignedJson` also now preserves top-level proxy `{ code, message, status }` bodies so D1 remote failures keep their actionable detail.
+
+- Fixed the remaining `@zintrust/trace` bootstrap split between dashboard routing and runtime registration. The dashboard registrar now fails fast when no explicit, runtime, or configured trace connection can be resolved instead of silently falling back to the app default database, shared trace connection error helpers now steer eager startup/plugin imports toward `@zintrust/trace/plugin`, and core boot now falls back to its bundled `trace-runtime` bridge when a project-local bridge is absent so installed trace packages can initialize without a custom shim.
+
 - Updated every public workspace package manifest to declare `peerDependencies['@zintrust/core']` as `^0.9.2` so the checked-in source package metadata now matches the publish-time caret policy and no longer uses `*` for the core peer.
 
 - Changed the package publish transform so `@zintrust/core` peer dependencies are now rewritten to the live caret release such as `^0.9.2`, or `*` if no core version can be resolved. The release script no longer generates same-minor comparator ranges like `>=0.9.0 <0.10.0` during npm publish.

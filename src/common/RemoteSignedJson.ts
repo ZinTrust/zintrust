@@ -45,12 +45,19 @@ const asJson = async (resp: Response): Promise<unknown> => {
 const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
 
 const describeProxyError = (details: unknown): string => {
-  // Expected Worker proxy error shape: { status: number, body: { code: string, message: string } }
   if (!isRecord(details)) return '';
   const body = details['body'];
-  if (!isRecord(body)) return '';
-  const code = typeof body['code'] === 'string' ? body['code'] : '';
-  const message = typeof body['message'] === 'string' ? body['message'] : '';
+  const hasTopLevelProxyShape =
+    typeof details['code'] === 'string' || typeof details['status'] === 'number';
+  let candidate: Record<string, unknown> | null = null;
+  if (isRecord(body)) {
+    candidate = body;
+  } else if (hasTopLevelProxyShape) {
+    candidate = details;
+  }
+  if (candidate === null) return '';
+  const code = typeof candidate['code'] === 'string' ? candidate['code'] : '';
+  const message = typeof candidate['message'] === 'string' ? candidate['message'] : '';
   if (code === '' && message === '') return '';
   if (code !== '' && message !== '') return `${code}: ${message}`;
   return code === '' ? message : code;

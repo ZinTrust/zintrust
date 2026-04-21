@@ -6,6 +6,10 @@ import { securityConfig } from '@config/security';
 import { createRedisConnection } from '@config/workers';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase } from '@orm/Database';
+import {
+  shouldRetryAuthStoreInsertWithGeneratedId,
+  withGeneratedAuthStoreId,
+} from '@security/AuthStoreIds';
 import { JwtManager } from '@security/JwtManager';
 
 export type JwtSessionsDriverName = 'database' | 'memory' | 'redis' | 'kv' | 'kv-remote';
@@ -178,6 +182,32 @@ const createMemoryStore = (): JwtSessionsStore => {
   };
 };
 
+const createActiveSessionRecord = (key: SessionKey): Record<string, unknown> => {
+  return {
+    jti: key.id,
+    sub: key.sub ?? null,
+    user_id: key.sub ?? null,
+    expires_at_ms: key.expiresAtMs,
+    kind: 'active',
+  };
+};
+
+const insertActiveSessionRecord = async (
+  db: ReturnType<typeof useDatabase>,
+  table: string,
+  record: Record<string, unknown>
+): Promise<void> => {
+  try {
+    await db.table(table).insert(record);
+  } catch (error) {
+    if (!shouldRetryAuthStoreInsertWithGeneratedId(error)) {
+      throw error;
+    }
+
+    await db.table(table).insert(withGeneratedAuthStoreId(record));
+  }
+};
+
 const createDatabaseStore = (params: { connection: string; table: string }): JwtSessionsStore => {
   let checkCount = 0;
 
@@ -197,21 +227,13 @@ const createDatabaseStore = (params: { connection: string; table: string }): Jwt
   return {
     async upsertActive(key: SessionKey): Promise<void> {
       const db = useDatabase(undefined, params.connection);
-
-      // Require the new schema (kind column). Old rows should be kind=revoked.
-      const record: Record<string, unknown> = {
-        jti: key.id,
-        sub: key.sub ?? null,
-        user_id: key.sub ?? null,
-        expires_at_ms: key.expiresAtMs,
-        kind: 'active',
-      };
+      const record = createActiveSessionRecord(key);
 
       try {
         await db.table(params.table).where('jti', '=', key.id).update(record);
         const existing = await db.table(params.table).where('jti', '=', key.id).first();
         if (existing === null) {
-          await db.table(params.table).insert(record);
+          await insertActiveSessionRecord(db, params.table, record);
         }
       } catch (error) {
         throw ErrorFactory.createConfigError(

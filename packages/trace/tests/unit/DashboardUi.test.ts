@@ -62,4 +62,13 @@ describe('buildDashboardHtml', () => {
     expect(textIndex).toBeGreaterThan(-1);
     expect(htmlIndex).toBeLessThan(textIndex);
   });
+
+  it('renders response-status badge classes for request traces', () => {
+    const html = buildDashboardHtml('/trace', 'ZinTrust Test App');
+
+    expect(html).toContain('.status-pill.status-2xx');
+    expect(html).toContain('.status-pill.status-4xx');
+    expect(html).toContain('.status-pill.status-5xx');
+    expect(html).toContain('const statusBadgeHtml = (value) =>');
+  });
 });

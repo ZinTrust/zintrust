@@ -12,6 +12,14 @@ vi.mock('@orm/Database', () => ({
   useDatabase: vi.fn(),
 }));
 
+vi.mock('@common/utility', async () => {
+  const actual = await vi.importActual<typeof import('@common/utility')>('@common/utility');
+  return {
+    ...actual,
+    generateUuid: vi.fn(() => 'bulletproof-uuid'),
+  };
+});
+
 import { BulletproofDeviceStore } from '@security/BulletproofDeviceStore';
 
 type QueryStub = {
@@ -235,6 +243,58 @@ describe('BulletproofDeviceStore', () => {
         lastSeenAt: new Date('2026-04-20T02:35:00.000Z'),
       })
     ).rejects.toHaveProperty('code', 'DATABASE_ERROR');
+  });
+
+  it('retries with a generated uuid id when the auth table requires explicit ids', async () => {
+    const query = createQueryStub();
+    query.update.mockResolvedValue(0);
+    query.first.mockResolvedValueOnce({
+      device_id: 'dev-uuid',
+      signing_secret: 'secret-uuid',
+      last_seen_at: '2026-04-20T02:35:00.000Z',
+      created_at: '2026-04-20T02:35:00.000Z',
+      updated_at: '2026-04-20T02:35:00.000Z',
+    });
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error('NOT NULL constraint failed: zintrust_bulletproof_devices.id')
+      )
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+
+    vi.mocked(useDatabase).mockReturnValue(
+      createDatabaseStub(query, { execute, transaction, getType: 'sqlite' })
+    );
+
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: 'dev-uuid',
+        signingSecret: 'secret-uuid',
+        lastSeenAt: new Date('2026-04-20T02:35:00.000Z'),
+      })
+    ).resolves.toEqual({
+      deviceId: 'dev-uuid',
+      signingSecret: 'secret-uuid',
+      lastSeenAt: new Date('2026-04-20T02:35:00.000Z'),
+      createdAt: new Date('2026-04-20T02:35:00.000Z'),
+      updatedAt: new Date('2026-04-20T02:35:00.000Z'),
+    });
+
+    expect(execute).toHaveBeenNthCalledWith(
+      2,
+      'INSERT OR IGNORE INTO zintrust_bulletproof_devices (id, user_id, device_id, signing_secret, user_agent, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        'bulletproof-uuid',
+        null,
+        'dev-uuid',
+        'secret-uuid',
+        null,
+        '2026-04-20T02:35:00.000Z',
+        '2026-04-20T02:35:00.000Z',
+        '2026-04-20T02:35:00.000Z',
+      ]
+    );
   });
 
   it('validates required device store fields during upsert', async () => {
