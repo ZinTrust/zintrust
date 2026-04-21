@@ -1,6 +1,0 @@
-Patch coverage base: e76810eaef5c7753683791dc20bd38131467aabe
-Patch coverage reports directory: /var/folders/m8/pz2rx2296lgbnfdvkctnkxbm0000gn/T//zintrust-coverage-patch.P0Sa8g
-
-[1m[30m[46m RUN [49m[39m[22m [36mv4.1.4 [39m[90m/opt/homebrew/var/www/Sites/zintrust[39m
-      [2mCoverage enabled with [22m[33mv8[39m
-

@@ -340,15 +340,15 @@ function createSameMinorRange(version) {
   return `>=${parsed.major}.${parsed.minor}.0 <${parsed.major}.${parsed.minor + 1}.0`;
 }
 
-function getPublishedCorePeerRange(packageName, coreVersion) {
+function getPublishedCorePeerRange(coreVersion) {
   const publishedCoreVersion = getPublishedVersion('@zintrust/core');
 
-  if (packageName === '@zintrust/workers') {
-    if (typeof publishedCoreVersion === 'string' && publishedCoreVersion.length > 0) {
-      return createSameMinorRange(publishedCoreVersion);
-    }
+  if (typeof publishedCoreVersion === 'string' && publishedCoreVersion.length > 0) {
+    return createSameMinorRange(publishedCoreVersion);
+  }
 
-    return '*';
+  if (typeof coreVersion === 'string' && coreVersion.length > 0) {
+    return createSameMinorRange(coreVersion);
   }
 
   return '*';
@@ -550,7 +550,7 @@ async function transformPackageForPublish(pkg, pkgDir, coreVersion) {
   if (typeof transformed.peerDependencies?.['@zintrust/core'] === 'string') {
     transformed.peerDependencies = {
       ...transformed.peerDependencies,
-      '@zintrust/core': getPublishedCorePeerRange(transformed.name, coreVersion),
+      '@zintrust/core': getPublishedCorePeerRange(coreVersion),
     };
   }
 

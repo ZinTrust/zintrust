@@ -19,13 +19,13 @@ All exported helpers verified against `src/helper/index.ts`.
 ### Empty / Null / Undefined
 
 | Helper              | Signature                           | Description                                           |
-| ------------------- | ----------------------------------- | ----------------------------------------------------- | -------------------------------- |
+| ------------------- | ----------------------------------- | ----------------------------------------------------- |
 | `isEmpty`           | `(value) → boolean`                 | `null \| undefined \| false \| 0 \| '' \| '0'`        |
 | `isNull`            | `(value) → boolean`                 | `null`, string `'null'`, or `''`                      |
 | `isUndefined`       | `(value) → boolean`                 | Strict `undefined`                                    |
 | `isUndefinedOrNull` | `(value) → boolean`                 | `undefined` or satisfies `isNull`                     |
 | `isMissingLike`     | `(value) → boolean`                 | Alias of `isUndefinedOrNull` for broad missing checks |
-| `isNullish`         | `(value) → value is null \\         | undefined`                                            | Strict TS-safe nullish predicate |
+| `isNullish`         | `(value) → value is null \| undefined` | Strict TS-safe nullish predicate                   |
 | `isDefined`         | `(value) → value is NonNullable<T>` | Strict TS-safe defined predicate                      |
 
 ### Boolean
