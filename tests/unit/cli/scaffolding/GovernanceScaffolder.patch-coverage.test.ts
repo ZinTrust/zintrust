@@ -259,6 +259,40 @@ describe('GovernanceScaffolder patch coverage', () => {
     expect(updated.devDependencies['@zintrust/governance']).toBe('^9.9.9');
   });
 
+  it('prefers the bundled governance version over deriving from core when bundled metadata is present', async () => {
+    vi.resetModules();
+
+    existingFiles.clear();
+    writtenFiles.clear();
+
+    const projectRoot = '/tmp/bundled-governance-version';
+    const pkgPath = `${projectRoot}/package.json`;
+    existingFiles.add(pkgPath);
+    writtenFiles.set(
+      pkgPath,
+      JSON.stringify({
+        dependencies: {
+          '@zintrust/core': '^1.2.3',
+        },
+      })
+    );
+    writtenFiles.set(bundledGovernancePackageUrl, JSON.stringify({ version: '1.9.4' }));
+
+    const { GovernanceScaffolder } = await import('@cli/scaffolding/GovernanceScaffolder');
+
+    const result = await GovernanceScaffolder.scaffold(projectRoot, {
+      writeArchTests: false,
+      writeEslintConfig: false,
+    });
+
+    expect(result.success).toBe(true);
+
+    const updatedRaw = writtenFiles.get(pkgPath);
+    expect(updatedRaw).toBeTruthy();
+    const updated = JSON.parse(updatedRaw ?? '{}') as any;
+    expect(updated.devDependencies['@zintrust/governance']).toBe('^1.9.0');
+  });
+
   it('falls back to the default governance range and npm install command when no versions are available', async () => {
     vi.resetModules();
 

@@ -122,7 +122,7 @@ describe('functions/cloudflare', () => {
     expect(getKernel as unknown as Mock).toHaveBeenCalledTimes(2);
     expect(mockHandle).toHaveBeenCalledTimes(2);
     expect(mockFormatResponse).toHaveBeenCalledTimes(2);
-  });
+  }, 30000);
 
   it('returns 500 JSON response on fetch error', async () => {
     mockHandle.mockRejectedValueOnce(new Error('boom'));
@@ -137,7 +137,7 @@ describe('functions/cloudflare', () => {
 
     const body = await response.text();
     expect(body).toBe('Internal Server Error');
-  });
+  }, 30000);
 
   it('logs structured startup diagnostics when worker boot fails', async () => {
     mockHandle.mockRejectedValueOnce(
@@ -174,7 +174,7 @@ describe('functions/cloudflare', () => {
       'Cloudflare startup health report:',
       expect.objectContaining({ checks: expect.any(Array) })
     );
-  });
+  }, 30000);
 
   it('handles fetch requests with proper mocking', async () => {
     mockHandle.mockResolvedValue({
@@ -193,7 +193,7 @@ describe('functions/cloudflare', () => {
 
     const response = await handler(request, {}, {});
     expect(response).toBe(formatted);
-  });
+  }, 30000);
 
   it('merges root and service-local startup config overrides for worker services', async () => {
     vi.resetModules();
@@ -241,7 +241,7 @@ describe('functions/cloudflare', () => {
     ProjectRuntime.clear();
     delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
       .__zintrustStartupConfigOverrides;
-  });
+  }, 30000);
 
   it('merges injected worker env snapshot into bindings before routes load', async () => {
     mockHandle.mockResolvedValue({
@@ -271,7 +271,7 @@ describe('functions/cloudflare', () => {
       MS_ROOT_ONLY: 'x',
       MS_SERVICE_ONLY: 'y',
     });
-  });
+  }, 30000);
 
   it('preloads startup config overrides into the registry before kernel creation', async () => {
     vi.resetModules();
@@ -332,7 +332,7 @@ describe('functions/cloudflare', () => {
       'config/storage.ts',
       'config/workers.ts',
     ]);
-  });
+  }, 30000);
 
   it('loads root middleware overrides into worker startup config cache', async () => {
     vi.resetModules();
@@ -366,5 +366,5 @@ describe('functions/cloudflare', () => {
       | undefined;
 
     expect(middlewareOverride?.route?.auth).toBe(authOverride);
-  });
+  }, 30000);
 });

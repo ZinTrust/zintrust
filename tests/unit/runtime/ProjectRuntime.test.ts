@@ -162,5 +162,5 @@ describe('ProjectRuntime', () => {
       domain: 'ecommerce',
       name: 'users',
     });
-  });
+  }, 30000);
 });

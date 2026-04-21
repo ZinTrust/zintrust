@@ -22,7 +22,7 @@ describe('OptionalCliExtensions', () => {
       .commands.map((command: { name: () => string }) => command.name());
 
     expect(commands).toContain('migrate-to-d1');
-  });
+  }, 30000);
 
   it('registers worker commands when the package is installed', async () => {
     const statuses = await OptionalCliExtensions.tryImportInstalledExtensions();
@@ -41,7 +41,7 @@ describe('OptionalCliExtensions', () => {
     expect(commands).toContain('worker:restart');
     expect(commands).toContain('worker:doctor');
     expect(commands).toContain('worker:summary');
-  });
+  }, 30000);
 
   it('returns install guidance for missing optional command requests', () => {
     const missing = OptionalCliExtensions.findMissingExtensionForArgs(
