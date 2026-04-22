@@ -3,6 +3,10 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
 import type { IDatabase } from '@orm/Database';
 import { useDatabase } from '@orm/Database';
+import {
+  shouldRetryAuthStoreInsertWithGeneratedId,
+  withGeneratedAuthStoreId,
+} from '@security/AuthStoreIds';
 
 export type BulletproofDeviceRecord = Readonly<{
   userId?: string;
@@ -218,6 +222,17 @@ const buildIgnoreInsert = (
   return `INSERT INTO ${table} (${columnList}) VALUES (${placeholders})`;
 };
 
+const isDuplicateInsertError = (error: unknown): boolean => {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes('duplicate') ||
+    message.includes('unique constraint') ||
+    message.includes('unique failed') ||
+    message.includes('duplicate key')
+  );
+};
+
 export const BulletproofDeviceStore = Object.freeze({
   async findByDeviceId(deviceId: string): Promise<StoredBulletproofDeviceRecord | null> {
     if (!isNonEmptyString(deviceId)) return null;
@@ -262,26 +277,33 @@ export const BulletproofDeviceStore = Object.freeze({
     };
     const insertPayload = buildInsertPayload(normalizedRecord);
     const updatePayload = buildUpdatePayload(normalizedRecord);
-    const insertColumns = Object.keys(insertPayload);
-    const insertValues = insertColumns.map((column) => insertPayload[column]);
-    const insertSql = buildIgnoreInsert(db, table, insertColumns, ['device_id']);
 
     try {
       return await db.transaction(async (transactionDb) => {
         await transactionDb.table(table).where('device_id', '=', deviceId).update(updatePayload);
 
-        try {
-          await transactionDb.execute(insertSql, insertValues);
-        } catch (error) {
-          const duplicateMessage = getErrorMessage(error).toLowerCase();
-          const isDuplicateKeyError =
-            duplicateMessage.includes('duplicate') ||
-            duplicateMessage.includes('unique constraint') ||
-            duplicateMessage.includes('unique failed') ||
-            duplicateMessage.includes('duplicate key');
+        const insertRecord = async (payload: Record<string, unknown>): Promise<void> => {
+          const columns = Object.keys(payload);
+          const values = columns.map((column) => payload[column]);
+          const sql = buildIgnoreInsert(db, table, columns, ['device_id']);
+          await transactionDb.execute(sql, values);
+        };
 
-          if (!isDuplicateKeyError) {
-            throw error;
+        try {
+          await insertRecord(insertPayload);
+        } catch (error) {
+          if (!isDuplicateInsertError(error)) {
+            if (!shouldRetryAuthStoreInsertWithGeneratedId(error)) {
+              throw error;
+            }
+
+            try {
+              await insertRecord(withGeneratedAuthStoreId(insertPayload));
+            } catch (retryError) {
+              if (!isDuplicateInsertError(retryError)) {
+                throw retryError;
+              }
+            }
           }
         }
 

@@ -6,6 +6,10 @@ import { securityConfig } from '@config/security';
 import { createRedisConnection } from '@config/workers';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase } from '@orm/Database';
+import {
+  shouldRetryAuthStoreInsertWithGeneratedId,
+  withGeneratedAuthStoreId,
+} from '@security/AuthStoreIds';
 import { JwtManager } from '@security/JwtManager';
 
 type AuthorizationHeader = string | string[] | undefined;
@@ -181,7 +185,15 @@ const createDatabaseStore = (params: {
         if (existing) {
           await db.table(params.table).where('jti', '=', key.id).update(payload);
         } else {
-          await db.table(params.table).insert(payload);
+          try {
+            await db.table(params.table).insert(payload);
+          } catch (error) {
+            if (!shouldRetryAuthStoreInsertWithGeneratedId(error)) {
+              throw error;
+            }
+
+            await db.table(params.table).insert(withGeneratedAuthStoreId(payload));
+          }
         }
       } catch (error) {
         logWarnBestEffort('TokenRevocation database revoke failed (token will not be revoked)', {

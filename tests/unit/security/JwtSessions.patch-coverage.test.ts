@@ -525,6 +525,87 @@ describe('patch coverage: JwtSessions', () => {
     expect(table2.delete).toHaveBeenCalled();
   });
 
+  it('database driver: retries inserts with a generated uuid id when uuid auth tables require it', async () => {
+    vi.resetModules();
+
+    mockEnvModule();
+    mockWorkersModule();
+
+    const inserts: Array<Record<string, unknown>> = [];
+    const table: any = {
+      where: vi.fn().mockReturnThis(),
+      update: vi.fn(async () => undefined),
+      first: vi.fn(async () => null),
+      insert: vi.fn(async (payload: Record<string, unknown>) => {
+        inserts.push(payload);
+        if (inserts.length === 1) {
+          throw new Error("Field 'id' doesn't have a default value");
+        }
+        return undefined;
+      }),
+      delete: vi.fn(async () => undefined),
+    };
+
+    vi.doMock('@orm/Database', () => ({
+      useDatabase: () => ({
+        table: () => table,
+      }),
+    }));
+
+    vi.doMock('@common/utility', () => ({
+      generateUuid: () => 'jwt-session-uuid',
+    }));
+
+    vi.doMock('@exceptions/ZintrustError', () => ({
+      ErrorFactory: {
+        createConfigError: (message: string) => new Error(message),
+      },
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: {
+        debug: vi.fn(),
+      },
+    }));
+
+    const now = Date.now();
+    vi.doMock('@security/JwtManager', () => ({
+      JwtManager: {
+        create: () => ({
+          decode: () => ({
+            exp: Math.floor((now + 10_000) / 1000),
+            jti: 'db-jti-uuid',
+            sub: 'db-sub-uuid',
+          }),
+        }),
+      },
+    }));
+
+    vi.doMock('@config/security', () => ({
+      securityConfig: {
+        jwt: {
+          expiresIn: 60,
+        },
+      },
+    }));
+
+    const env = makeEnv({ JWT_SESSION_DRIVER: 'database' });
+    for (const [k, v] of Object.entries(env)) process.env[k] = v;
+
+    const { JwtSessions } = await import('@/security/JwtSessions');
+    JwtSessions._resetForTests();
+
+    await expect(JwtSessions.register('uuid-token')).resolves.toBeUndefined();
+    expect(inserts).toHaveLength(2);
+    expect(inserts[1]).toMatchObject({
+      id: 'jwt-session-uuid',
+      jti: 'db-jti-uuid',
+      sub: 'db-sub-uuid',
+      user_id: 'db-sub-uuid',
+      kind: 'active',
+    });
+  });
+
   it('redis driver: indexes by sub and supports logoutAll', async () => {
     vi.resetModules();
 

@@ -73,6 +73,22 @@ describe('RemoteSignedJson (coverage extras)', () => {
     );
   });
 
+  it('enriches 5xx errors with top-level proxy code and message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ status: 500, code: 'D1_ERROR', message: 'id missing' }), {
+            status: 500,
+          })
+      )
+    );
+
+    await expect(RemoteSignedJson.request(settings, '/zin/test', { a: 1 })).rejects.toThrow(
+      /proxy error \(D1_ERROR: id missing\)/
+    );
+  });
+
   it('does not enrich when response body is not the expected shape', async () => {
     vi.stubGlobal(
       'fetch',

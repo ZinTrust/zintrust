@@ -187,6 +187,23 @@ describe('trace register startup DX', () => {
     }
   );
 
+  it('tells eager startup imports to switch to @zintrust/trace/plugin when TRACE_DB_CONNECTION cannot resolve', async () => {
+    state.driver = 'sqlite';
+    state.useDatabase.mockReturnValue(undefined);
+
+    await expect(importRegister()).rejects.toMatchObject({
+      code: 'CONFIG_ERROR',
+      name: 'ConfigError',
+    });
+
+    expect(state.createConfigError).toHaveBeenCalledWith(
+      'Trace connection "sqlite" could not be resolved.',
+      expect.objectContaining({
+        hint: expect.stringContaining('@zintrust/trace/plugin'),
+      })
+    );
+  });
+
   it.each(supportedDrivers)('fails fast for missing trace migrations on %s', async (driver) => {
     state.driver = driver;
     const readinessError = new Error(`missing trace tables for ${driver}`);

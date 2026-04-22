@@ -100,8 +100,8 @@ describe('ProjectScaffolder extra tests', () => {
   });
 
   it('prefers the latest published governance version in scaffolded package.json', async () => {
-    const publishedGovernanceVersion = '0.7.0';
-    const publishedCoreVersion = '0.7.0';
+    const publishedGovernanceVersion = '0.9.2';
+    const publishedCoreVersion = '0.9.2';
     const projectPath = path.join(tmpRoot, `published-governance-${Date.now()}`);
 
     vi.resetModules();
@@ -145,8 +145,8 @@ describe('ProjectScaffolder extra tests', () => {
       devDependencies?: Record<string, string>;
     };
 
-    expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.7.0');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.9.2');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
     expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
@@ -182,11 +182,11 @@ describe('ProjectScaffolder extra tests', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(capturedEnv[0]?.PATH).toBe('/usr/local/bin:/usr/bin:/bin');
+    expect(capturedEnv[0]?.['PATH']).toBe('/usr/local/bin:/usr/bin:/bin');
     expect(capturedEnv[0]?.NODE_ENV).toBe('production');
-    expect(capturedEnv[0]?.HOME).toBe('/Users/tester');
-    expect(capturedEnv[0]?.npm_config_registry).toBe('https://registry.npmjs.org/');
-    expect(capturedEnv[0]?.SHELL).toBeUndefined();
+    expect(capturedEnv[0]?.['HOME']).toBe('/Users/tester');
+    expect(capturedEnv[0]?.['npm_config_registry']).toBe('https://registry.npmjs.org/');
+    expect(capturedEnv[0]?.['SHELL']).toBeUndefined();
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
@@ -230,7 +230,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
     expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
@@ -267,7 +267,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
     expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
@@ -277,7 +277,7 @@ describe('ProjectScaffolder extra tests', () => {
 
   it('uses * for core when core lookup misses but governance lookup still succeeds', async () => {
     const projectPath = path.join(tmpRoot, `microservice-published-fallback-${Date.now()}`);
-    const publishedGovernanceVersion = '0.7.0';
+    const publishedGovernanceVersion = '0.9.2';
 
     vi.resetModules();
     mockChildProcessExecFileSync((command, args, _options) => {
@@ -322,7 +322,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
@@ -365,7 +365,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.7.0');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');

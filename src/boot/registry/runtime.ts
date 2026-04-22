@@ -82,6 +82,14 @@ const importFromExistingCandidates = async <T>(
   return undefined;
 };
 
+const loadBundledSystemTraceModule = async (): Promise<ILocalSystemTraceModule | undefined> => {
+  try {
+    return (await import('../../runtime/plugins/trace-runtime')) as ILocalSystemTraceModule;
+  } catch {
+    return undefined;
+  }
+};
+
 const loadLocalSystemTraceModule = async (): Promise<ILocalSystemTraceModule | undefined> => {
   const globalTracePluginState = globalThis as unknown as GlobalTracePluginState;
   if (globalTracePluginState.__zintrust_system_trace_runtime__ !== undefined) {
@@ -104,13 +112,25 @@ const loadLocalSystemTraceModule = async (): Promise<ILocalSystemTraceModule | u
 
     if (localModule !== undefined) {
       if (typeof localModule.isAvailable === 'function' && localModule.isAvailable() === false) {
-        return undefined;
+        return {
+          isAvailable: () => false,
+          ensureSystemTraceRegistered: async () => {
+            await Promise.resolve();
+          },
+        };
       }
       return localModule;
     }
   }
 
-  return tryImportOptional<ILocalSystemTraceModule>('@runtime/plugins/trace-runtime');
+  const runtimeAliasModule = await tryImportOptional<ILocalSystemTraceModule>(
+    '@runtime/plugins/trace-runtime'
+  );
+  if (runtimeAliasModule !== undefined) {
+    return runtimeAliasModule;
+  }
+
+  return loadBundledSystemTraceModule();
 };
 
 const loadRuntimeQueueConfig = async (): Promise<RuntimeQueueConfig | undefined> => {
@@ -541,7 +561,9 @@ const initializeSystemTrace = async (router: IRouter): Promise<void> => {
     (await tryImportOptional<ILocalSystemTraceModule>('@runtime/plugins/trace-runtime')) ??
     (await loadLocalSystemTraceModule());
   if (traceModule === undefined) {
-    Logger.debug('System Trace is enabled but the optional package is unavailable.');
+    Logger.debug(
+      'System Trace is enabled but no trace runtime bridge could be resolved. Install @zintrust/trace and ensure the bundled or project trace-runtime bridge is available.'
+    );
     return;
   }
 

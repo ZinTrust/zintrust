@@ -3,9 +3,20 @@
  * Mounts the SPA + all REST API endpoints under the configured basePath.
  * Auth is NOT applied here — callers add middleware via routeOptions.
  */
-import { appConfig, Router, useDatabase, type IRouter, type RouteOptions } from '@zintrust/core';
+import {
+  appConfig,
+  ErrorFactory,
+  Router,
+  useDatabase,
+  type IRouter,
+  type RouteOptions,
+} from '@zintrust/core';
 import { TraceConfig } from '../config';
 import { TraceStorage } from '../storage';
+import {
+  assertTraceConnectionResolved,
+  resolveDashboardTraceConnectionName,
+} from '../TraceConnection';
 import type { ITraceStorage } from '../types';
 import {
   addMonitoring,
@@ -34,29 +45,6 @@ export type TraceDashboardOptions = {
 export type TraceDashboardRegistrationOptions = TraceDashboardOptions & {
   /** Optional trace storage connection override. Defaults to TraceConfig / runtime default. */
   connectionName?: string;
-};
-
-type GlobalTraceDashboardState = {
-  __zintrust_system_trace_connection_name__?: string;
-};
-
-const resolveDashboardConnectionName = (connectionName?: string): string | undefined => {
-  const explicitConnection = connectionName?.trim();
-  if (explicitConnection !== undefined && explicitConnection !== '') {
-    return explicitConnection;
-  }
-
-  const runtimeConnection = (
-    globalThis as GlobalTraceDashboardState
-  ).__zintrust_system_trace_connection_name__?.trim();
-  if (runtimeConnection !== undefined && runtimeConnection !== '') {
-    return runtimeConnection;
-  }
-
-  const configuredConnection = TraceConfig.merge().connection?.trim();
-  return configuredConnection === undefined || configuredConnection === ''
-    ? undefined
-    : configuredConnection;
 };
 
 export const registerTraceRoutes = (
@@ -108,9 +96,19 @@ export const registerTraceDashboard = (
   router: IRouter,
   options: TraceDashboardRegistrationOptions = {}
 ): void => {
-  const storage = TraceStorage.resolveStorage(
-    useDatabase(undefined, resolveDashboardConnectionName(options.connectionName))
+  const connectionName = resolveDashboardTraceConnectionName(
+    { ErrorFactory },
+    {
+      explicitConnectionName: options.connectionName,
+      configuredConnectionName: TraceConfig.merge().connection,
+    }
   );
+  const db = useDatabase(undefined, connectionName);
+  assertTraceConnectionResolved({ ErrorFactory }, db, {
+    connectionName,
+    envKey: 'TRACE_DB_CONNECTION',
+  });
+  const storage = TraceStorage.resolveStorage(db);
 
   registerTraceRoutes(router, storage, options);
 };

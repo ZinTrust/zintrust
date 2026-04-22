@@ -205,6 +205,39 @@ describe('runtime registry (coverage extras)', () => {
     rmSync(tempProjectRoot, { recursive: true, force: true });
   });
 
+  it('boot() falls back to the bundled trace runtime bridge when no project bridge is present', async () => {
+    envStrings.TRACE_ENABLED = 'true';
+    (globalThis as Record<string, unknown>).__zintrust_system_trace_plugin_requested__ = true;
+
+    const ensureSystemTraceRegistered = vi.fn(async () => undefined);
+    const registerTraceDashboard = vi.fn();
+
+    vi.doMock('../../../../src/runtime/plugins/trace-runtime', () => ({
+      isAvailable: () => true,
+      ensureSystemTraceRegistered,
+      registerTraceDashboard,
+    }));
+
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/workspace-without-trace-bridge');
+    let booted = false;
+    const lifecycle = createLifecycle({
+      environment: 'production',
+      resolvedBasePath: '/',
+      router: {} as any,
+      shutdownManager: { run: vi.fn(async () => undefined) } as any,
+      getBooted: () => booted,
+      setBooted: (value: boolean) => {
+        booted = value;
+      },
+    });
+
+    await expect(lifecycle.boot()).resolves.toBeUndefined();
+
+    expect(ensureSystemTraceRegistered).toHaveBeenCalledTimes(1);
+
+    cwdSpy.mockRestore();
+  });
+
   it('boot() continues when trace runtime registration throws', async () => {
     envStrings.TRACE_ENABLED = 'true';
     const traceInitError = Object.assign(new Error('trace storage missing'), {

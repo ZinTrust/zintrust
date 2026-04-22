@@ -22,6 +22,15 @@ const {
 
 vi.mock('@zintrust/core', () => ({
   appConfig: { name: 'ZinTrust Test App' },
+  ErrorFactory: {
+    createConfigError: (message: string, details?: unknown) =>
+      Object.assign(new Error(message), {
+        code: 'CONFIG_ERROR',
+        details,
+        name: 'ConfigError',
+        statusCode: 500,
+      }),
+  },
   Router: {
     get: registerGet,
     group: registerGroup,
@@ -94,5 +103,23 @@ describe('registerTraceDashboard', () => {
     });
 
     expect(useDatabase).toHaveBeenCalledWith(undefined, 'sqlite');
+  });
+
+  it('fails fast when no trace dashboard connection can be resolved', () => {
+    mergeConfig.mockReturnValue({ connection: undefined });
+
+    expect(() => registerTraceDashboard({} as never, { basePath: '/trace' })).toThrow(
+      'Trace dashboard connection is not configured.'
+    );
+    expect(useDatabase).not.toHaveBeenCalled();
+  });
+
+  it('fails fast when the resolved dashboard connection is not registered', () => {
+    useDatabase.mockReturnValue(undefined);
+
+    expect(() => registerTraceDashboard({} as never, { connectionName: 'sqlite' })).toThrow(
+      'Trace connection "sqlite" could not be resolved.'
+    );
+    expect(resolveStorage).not.toHaveBeenCalled();
   });
 });

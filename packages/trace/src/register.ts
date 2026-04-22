@@ -26,6 +26,12 @@ import { TraceContentBudget } from './storage/TraceContentBudget';
 import { TraceContentRedaction } from './storage/TraceContentRedaction';
 import { TraceEntryFiltering } from './storage/TraceEntryFiltering';
 import { TraceWriteDiagnostics } from './storage/TraceWriteDiagnostics';
+import {
+  assertTraceConnectionResolved,
+  assertTraceStorageReady,
+  resolveObservedConnectionName,
+  resolveTraceConnectionName,
+} from './TraceConnection';
 import type { ITraceWatcherConfig, TraceConfigOverrides } from './types';
 
 export type {}; // side-effect ESM module
@@ -38,7 +44,6 @@ type GlobalTraceRegisterState = {
 };
 
 const globalTraceRegisterState = globalThis as unknown as GlobalTraceRegisterState;
-globalTraceRegisterState.__zintrust_system_trace_plugin_requested__ = true;
 const traceAlreadyInitialized =
   globalTraceRegisterState.__zintrust_system_trace_register_initialized__ === true;
 
@@ -80,14 +85,6 @@ type CoreApi = {
   };
 };
 
-type CoreDatabase = import('@zintrust/core').IDatabase;
-
-const TRACE_REQUIRED_TABLES = [
-  'zin_trace_entries',
-  'zin_trace_entries_tags',
-  'zin_trace_monitoring',
-] as const;
-
 type GlobalMiddlewareRegistrarState = {
   __zintrust_register_global_middleware__?: ITraceWatcherConfig['registerMiddleware'];
   __zintrust_pending_global_middlewares__?: Array<
@@ -109,44 +106,6 @@ const resolveRegisterMiddleware = (): NonNullable<ITraceWatcherConfig['registerM
     globalMiddlewareRegistrarState.__zintrust_pending_global_middlewares__ ??= [];
     globalMiddlewareRegistrarState.__zintrust_pending_global_middlewares__.push(middleware);
   };
-};
-
-const resolveTraceConnectionName = (
-  env: Pick<NonNullable<CoreApi['Env']>, 'get'> | undefined,
-  configuredConnection?: string
-): string => {
-  const resolveDefaultConnection = (): string => {
-    const defaultConnection = env?.get('DB_CONNECTION', '').trim() ?? '';
-    if (defaultConnection === '' || defaultConnection === 'default') return 'default';
-    return defaultConnection;
-  };
-
-  const explicitConnection = configuredConnection?.trim();
-  if (explicitConnection !== undefined && explicitConnection !== '') {
-    return explicitConnection === 'default' ? resolveDefaultConnection() : explicitConnection;
-  }
-
-  return resolveDefaultConnection();
-};
-
-const resolveObservedConnectionName = (
-  env: Pick<NonNullable<CoreApi['Env']>, 'get'> | undefined,
-  configuredObservedConnection: string | undefined,
-  storageConnectionName: string
-): string => {
-  if (
-    typeof configuredObservedConnection === 'string' &&
-    configuredObservedConnection.trim() !== ''
-  ) {
-    return resolveTraceConnectionName(env, configuredObservedConnection);
-  }
-
-  const defaultConnectionName = resolveTraceConnectionName(env);
-  if (storageConnectionName !== defaultConnectionName) {
-    return defaultConnectionName;
-  }
-
-  return storageConnectionName;
 };
 
 const isObjectValue = (value: unknown): value is Record<string, unknown> => {
@@ -238,71 +197,6 @@ const buildTraceRedactionOverrides = (input: {
   return Object.keys(redaction).length > 0
     ? (redaction as NonNullable<TraceConfigOverrides['redaction']>)
     : undefined;
-};
-
-const createTraceConfigError = (coreApi: CoreApi, message: string, details?: unknown): Error => {
-  if (coreApi.ErrorFactory?.createConfigError !== undefined) {
-    return coreApi.ErrorFactory.createConfigError(message, details);
-  }
-
-  const error = new globalThis.Error(message) as Error & {
-    code?: string;
-    details?: unknown;
-    name?: string;
-    statusCode?: number;
-  };
-  error.name = 'ConfigError';
-  error.code = 'CONFIG_ERROR';
-  error.statusCode = 500;
-  error.details = details;
-  return error;
-};
-
-function assertTraceConnectionResolved(
-  coreApi: CoreApi,
-  db: CoreDatabase | undefined,
-  params: { connectionName: string; envKey: 'TRACE_DB_CONNECTION' | 'TRACE_QUERY_CONNECTION' }
-): asserts db is CoreDatabase {
-  if (db !== undefined) {
-    return;
-  }
-
-  throw createTraceConfigError(
-    coreApi,
-    `Trace connection "${params.connectionName}" could not be resolved.`,
-    {
-      connectionName: params.connectionName,
-      envKey: params.envKey,
-      hint:
-        params.envKey === 'TRACE_DB_CONNECTION'
-          ? 'Configure TRACE_DB_CONNECTION to an existing database connection before enabling TRACE_ENABLED.'
-          : 'Configure TRACE_QUERY_CONNECTION, or ensure DB_CONNECTION resolves to an existing database connection.',
-    }
-  );
-}
-
-const assertTraceStorageReady = async (
-  coreApi: CoreApi,
-  db: CoreDatabase,
-  connectionName: string
-): Promise<void> => {
-  try {
-    await Promise.all(
-      TRACE_REQUIRED_TABLES.map(async (table) => {
-        await db.queryOne(`SELECT 1 AS ok FROM ${table} LIMIT 1`, []);
-      })
-    );
-  } catch (error) {
-    throw createTraceConfigError(
-      coreApi,
-      `Trace storage connection "${connectionName}" is not ready. Create the database if needed and run \`zin migrate:trace\` before enabling TRACE_ENABLED.`,
-      {
-        connectionName,
-        error,
-        requiredTables: [...TRACE_REQUIRED_TABLES],
-      }
-    );
-  }
 };
 
 const core = (await importCore()) as CoreApi;

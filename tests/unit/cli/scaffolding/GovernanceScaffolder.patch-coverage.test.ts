@@ -109,7 +109,7 @@ describe('GovernanceScaffolder patch coverage', () => {
 
     // devDependencies ensured
     expect(updated.devDependencies.eslint).toBe('^9.0.0');
-    expect(updated.devDependencies['@zintrust/governance']).toBe('^1.2.0');
+    expect(updated.devDependencies['@zintrust/governance']).toBe('^1.2.2');
   });
 
   it('writes eslint config that imports the governance eslint subpath', async () => {
@@ -162,7 +162,7 @@ describe('GovernanceScaffolder patch coverage', () => {
     expect(result.success).toBe(true);
     expect(spawnAndWait).toHaveBeenCalledWith({
       command: 'yarn',
-      args: ['add', '--dev', 'eslint', '@zintrust/governance@^0.4.0'],
+      args: ['add', '--dev', 'eslint', '@zintrust/governance@^0.4.2'],
       cwd: projectRoot,
     });
   });
@@ -290,7 +290,7 @@ describe('GovernanceScaffolder patch coverage', () => {
     const updatedRaw = writtenFiles.get(pkgPath);
     expect(updatedRaw).toBeTruthy();
     const updated = JSON.parse(updatedRaw ?? '{}') as any;
-    expect(updated.devDependencies['@zintrust/governance']).toBe('^1.9.0');
+    expect(updated.devDependencies['@zintrust/governance']).toBe('^1.9.2');
   });
 
   it('falls back to the default governance range and npm install command when no versions are available', async () => {

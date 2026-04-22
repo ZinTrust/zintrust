@@ -333,22 +333,15 @@ function parseSemver(version) {
   };
 }
 
-function createSameMinorRange(version) {
-  const parsed = parseSemver(version);
-  if (!parsed) return `^${version}`;
-
-  return `>=${parsed.major}.${parsed.minor}.0 <${parsed.major}.${parsed.minor + 1}.0`;
-}
-
 function getPublishedCorePeerRange(coreVersion) {
   const publishedCoreVersion = getPublishedVersion('@zintrust/core');
 
   if (typeof publishedCoreVersion === 'string' && publishedCoreVersion.length > 0) {
-    return createSameMinorRange(publishedCoreVersion);
+    return `^${publishedCoreVersion}`;
   }
 
   if (typeof coreVersion === 'string' && coreVersion.length > 0) {
-    return createSameMinorRange(coreVersion);
+    return `^${coreVersion}`;
   }
 
   return '*';
