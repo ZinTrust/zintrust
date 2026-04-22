@@ -8,6 +8,8 @@
 
 - Expanded `RemoteSignedJson` proxy error extraction so non-2xx signed JSON calls now surface the most specific proxy detail they can find from top-level `{ code, message }`, nested `body`, nested `error`, or plain-text/top-level `message` fallback shapes.
 
+- Fixed the `kv-remote` proxy credential gate so it now falls back to the normalized signing identity from `APP_NAME` and `APP_KEY` the same way `d1-remote` already does. When explicit `KV_REMOTE_KEY_ID` / `KV_REMOTE_SECRET` values are absent, the driver keeps the signed proxy path available instead of prematurely forcing the Cloudflare KV API path.
+
 - Fixed `npm run release:sync-versions` so it now detects changed core source and changed package directories, looks up the currently published npm version for each affected manifest, and bumps only to the next release patch instead of leaving publishable packages stuck at an already-published version. The release sync path now uses ZinTrust's bounded carry rule for patch increments, so it advances sequentially and rolls `x.9.99 -> (x+1).0.0` without skipping intermediate publish versions.
 
 # 2026-04-21

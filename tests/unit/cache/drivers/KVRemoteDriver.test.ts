@@ -82,6 +82,8 @@ describe('KVRemoteDriver', () => {
 
     const KVRemoteDriver = await loadDriver({
       KV_REMOTE_KEY_ID: '',
+      KV_REMOTE_SECRET: '',
+      APP_KEY: '',
       CLOUDFLARE_ACCOUNT_ID: 'cf-account',
       CLOUDFLARE_API_TOKEN: 'cf-token',
       CLOUDFLARE_KV_NAMESPACE_ID: 'cf-namespace',
@@ -90,6 +92,27 @@ describe('KVRemoteDriver', () => {
 
     await expect(driver.get('a')).resolves.toEqual({ ok: true });
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses APP_NAME and APP_KEY fallback credentials for proxy requests when KV remote creds are unset', async () => {
+    globalThis.fetch = vi.fn(async () => createFetchResponse(200, { value: { ok: true } })) as any;
+
+    const KVRemoteDriver = await loadDriver({
+      APP_NAME: 'My Test App',
+      APP_KEY: 'fallback-secret',
+      KV_REMOTE_KEY_ID: '',
+      KV_REMOTE_SECRET: '',
+      CLOUDFLARE_ACCOUNT_ID: 'cf-account',
+      CLOUDFLARE_API_TOKEN: 'cf-token',
+      CLOUDFLARE_KV_NAMESPACE_ID: 'cf-namespace',
+    });
+    const driver = KVRemoteDriver.create();
+
+    await expect(driver.get('a')).resolves.toEqual({ ok: true });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+    const [url] = (globalThis.fetch as any).mock.calls[0] as [string];
+    expect(String(url)).toContain('/base/zin/kv/get');
   });
 
   it('maps 401/403/429/4xx/5xx responses to typed errors', async () => {

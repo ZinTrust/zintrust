@@ -9,6 +9,7 @@ import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteS
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { normalizeSigningCredentials } from '@proxy/SigningService';
 
 type KvValueType = 'text' | 'json' | 'arrayBuffer';
 
@@ -55,7 +56,7 @@ const normalizeNamespace = (defaultNamespace: string): string | undefined =>
 const getSettings = (): KvRemoteSettings => ({
   baseUrl: Env.get('KV_REMOTE_URL'),
   keyId: Env.get('KV_REMOTE_KEY_ID'),
-  secret: Env.get('KV_REMOTE_SECRET', Env.APP_KEY),
+  secret: Env.get('KV_REMOTE_SECRET', ''),
   defaultNamespace: Env.get('KV_REMOTE_NAMESPACE'),
   timeoutMs: Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT),
 });
@@ -72,8 +73,14 @@ const hasCloudflareApiCreds = (): boolean => {
   return creds.accountId !== '' && creds.apiToken !== '';
 };
 
-const hasProxySigningCreds = (settings: KvRemoteSettings): boolean =>
-  settings.keyId.trim() !== '' && settings.secret.trim() !== '';
+const hasProxySigningCreds = (settings: KvRemoteSettings): boolean => {
+  const normalized = normalizeSigningCredentials({
+    keyId: settings.keyId,
+    secret: settings.secret,
+  });
+
+  return normalized.keyId.trim() !== '' && normalized.secret.trim() !== '';
+};
 
 const buildCloudflareValueUrl = (
   creds: { accountId: string; namespaceId: string },
