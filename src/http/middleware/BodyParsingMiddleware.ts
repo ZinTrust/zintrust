@@ -144,7 +144,7 @@ const getTextFromRaw = (rawResult: ReadBodyResult & { ok: true }): string => {
 const convertExistingToRawResult = (
   existingBytes: unknown,
   existingText: unknown
-): ReadBodyResult => {
+): ReadBodyResult & { ok: true } => {
   if (Buffer.isBuffer(existingBytes)) {
     return { ok: true, bytes: existingBytes };
   }
