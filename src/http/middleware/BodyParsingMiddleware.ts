@@ -209,6 +209,34 @@ const applyParsedRequestBody = (
   return true;
 };
 
+const getMaxBodySize = (contentType: string): number => {
+  const isJson = contentType.includes('application/json');
+  const maxJsonSize = Env.getInt('MAX_JSON_SIZE', 1024 * 1024);
+  return isJson ? maxJsonSize : Env.MAX_BODY_SIZE;
+};
+
+const reuseExistingRawBody = (
+  req: IRequest,
+  res: IResponse,
+  contentType: string,
+  existingBytes: unknown,
+  existingText: unknown
+): boolean => {
+  const rawResult = convertExistingToRawResult(existingBytes, existingText);
+  if (rawResult.ok === false) {
+    return false;
+  }
+
+  req.context['rawBodyBytes'] = rawResult.bytes;
+  if (shouldStoreRawText(contentType)) {
+    req.context['rawBodyText'] = getTextFromRaw(rawResult);
+  } else {
+    req.context['rawBodyText'] = undefined;
+  }
+
+  return applyParsedRequestBody(req, res, rawResult, contentType);
+};
+
 const parseUrlEncodedBody = (text: string): Record<string, string | string[]> => {
   const out: Record<string, string | string[]> = {};
   const params = new URLSearchParams(text);
@@ -304,24 +332,12 @@ export const bodyParsingMiddleware: Middleware = async (
   const hasExisting = Buffer.isBuffer(existingBytes) || typeof existingText === 'string';
 
   // Calculate size limit based on content type
-  const isJson = contentType.includes('application/json');
-  const maxJsonSize = Env.getInt('MAX_JSON_SIZE', 1024 * 1024);
-  const maxBytes = isJson ? maxJsonSize : Env.MAX_BODY_SIZE;
+  const maxBytes = getMaxBodySize(contentType);
 
   // Read or reuse raw body
   if (hasExisting) {
-    const rawResult = convertExistingToRawResult(existingBytes, existingText);
-    if (rawResult.ok) {
-      req.context['rawBodyBytes'] = rawResult.bytes;
-      if (shouldStoreRawText(contentType)) {
-        req.context['rawBodyText'] = getTextFromRaw(rawResult);
-      } else {
-        req.context['rawBodyText'] = undefined;
-      }
-
-      if (!applyParsedRequestBody(req, res, rawResult, contentType)) {
-        return;
-      }
+    if (!reuseExistingRawBody(req, res, contentType, existingBytes, existingText)) {
+      return;
     }
   } else {
     await processBodyParsing(req, res, contentType, maxBytes);
