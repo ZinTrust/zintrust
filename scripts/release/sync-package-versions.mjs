@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { compareReleaseVersions, getNextVersionFromPublished } from './version-utils.mjs';
 
 const repoRoot = process.cwd();
 const packagesDir = path.join(repoRoot, 'packages');
@@ -27,6 +28,19 @@ const onlyDirs = onlyDirsRaw
         .filter(Boolean)
     )
   : undefined;
+
+const baseShaRaw = getArgValue('--base');
+const explicitSrcChangedRaw = getArgValue('--src-changed');
+const explicitChangedDirsRaw = getArgValue('--changed');
+const explicitChangedDirs =
+  explicitChangedDirsRaw === undefined
+    ? undefined
+    : new Set(
+        explicitChangedDirsRaw
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      );
 
 async function readJson(filePath) {
   const raw = await fs.readFile(filePath, 'utf8');
@@ -69,20 +83,6 @@ function normalizePeerRange(version, packageName) {
 
 function normalizeWorkspaceDependencyRange(version) {
   return version;
-}
-
-function incrementPatchVersion(version) {
-  const parts = String(version).split('.');
-  if (parts.length !== 3) {
-    return version;
-  }
-
-  const patch = Number(parts[2]);
-  if (Number.isNaN(patch)) {
-    return version;
-  }
-
-  return `${parts[0]}.${parts[1]}.${patch + 1}`;
 }
 
 function isLocalDependencyRange(version) {
@@ -162,31 +162,125 @@ function getWorkspaceDependencyVersions(packageInfos) {
 }
 
 function compareVersions(a, b) {
-  const pa = String(a).split('.').map(Number);
-  const pb = String(b).split('.').map(Number);
-
-  for (let i = 0; i < 3; i++) {
-    const av = pa[i] ?? 0;
-    const bv = pb[i] ?? 0;
-    if (av > bv) return 1;
-    if (av < bv) return -1;
-  }
-
-  return 0;
+  return compareReleaseVersions(a, b);
 }
 
 function getNextRootVersion(packageName, currentVersion) {
   const publishedVersion = getPublishedNpmVersion(packageName);
-  if (typeof publishedVersion !== 'string' || publishedVersion.length === 0) {
+  if (
+    typeof publishedVersion !== 'string' ||
+    publishedVersion.length === 0 ||
+    publishedVersion === '*'
+  ) {
     return currentVersion;
   }
 
-  const nextPublishedPatch = incrementPatchVersion(publishedVersion);
-  if (compareVersions(nextPublishedPatch, currentVersion) > 0) {
-    return nextPublishedPatch;
+  return getNextVersionFromPublished(publishedVersion, currentVersion);
+}
+
+function parseBooleanFlag(value) {
+  if (value === undefined) {
+    return undefined;
   }
 
-  return currentVersion;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+    return true;
+  }
+
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+    return false;
+  }
+
+  return undefined;
+}
+
+function isValidCommitish(ref) {
+  if (!ref) {
+    return false;
+  }
+
+  try {
+    execFileSync('git', ['cat-file', '-e', `${ref}^{commit}`], {
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runGit(args) {
+  try {
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+function getLastTag() {
+  const tag = runGit(['describe', '--tags', '--abbrev=0']);
+  return tag.length > 0 ? tag : undefined;
+}
+
+function getDiffBase() {
+  if (isValidCommitish(baseShaRaw)) {
+    return baseShaRaw;
+  }
+
+  return getLastTag();
+}
+
+function getChangedFiles(base, targetPath) {
+  if (!base) {
+    return [];
+  }
+
+  const output = runGit(['diff', '--name-only', `${base}...HEAD`, '--', targetPath]);
+  if (!output) {
+    return [];
+  }
+
+  return output
+    .split('\n')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function getChangedPackageDirs(base, packageDirs) {
+  if (explicitChangedDirs !== undefined) {
+    return new Set(
+      Array.from(explicitChangedDirs).filter((dirName) => packageDirs.includes(dirName))
+    );
+  }
+
+  const changedFiles = getChangedFiles(base, 'packages/');
+  const changedDirs = new Set();
+
+  for (const filePath of changedFiles) {
+    const match = /^packages\/([^/]+)\//.exec(filePath);
+    if (!match?.[1]) {
+      continue;
+    }
+
+    if (packageDirs.includes(match[1])) {
+      changedDirs.add(match[1]);
+    }
+  }
+
+  return changedDirs;
+}
+
+function hasCoreSourceChanges(base) {
+  const explicitSrcChanged = parseBooleanFlag(explicitSrcChangedRaw);
+  if (explicitSrcChanged !== undefined) {
+    return explicitSrcChanged;
+  }
+
+  return getChangedFiles(base, 'src/').length > 0;
 }
 
 function isEnoent(error) {
@@ -221,9 +315,19 @@ async function getPackageDirsList() {
   return packageDirs;
 }
 
-async function syncPackageJson(pkgPath, coreName, coreVersion, publishedCoreVersion) {
+async function syncPackageJson(
+  pkgPath,
+  coreName,
+  coreVersion,
+  publishedCoreVersion,
+  shouldBumpVersion
+) {
   try {
     const pkg = await readJson(pkgPath);
+
+    if (shouldBumpVersion && typeof pkg.name === 'string' && typeof pkg.version === 'string') {
+      pkg.version = getNextRootVersion(pkg.name, pkg.version);
+    }
 
     pkg.peerDependencies = pkg.peerDependencies ?? {};
     if (typeof pkg.peerDependencies !== 'object' || pkg.peerDependencies === null) {
@@ -316,11 +420,7 @@ function syncPublishedZintrustDependencySection(deps, dependencyVersions) {
 }
 
 function syncPublishedZintrustDependencies(pkg, dependencyVersions) {
-  const dependencySections = [
-    'dependencies',
-    'devDependencies',
-    'optionalDependencies',
-  ];
+  const dependencySections = ['dependencies', 'devDependencies', 'optionalDependencies'];
 
   return dependencySections.some((section) =>
     syncPublishedZintrustDependencySection(pkg[section], dependencyVersions)
@@ -535,11 +635,7 @@ function syncPackageLock(
 
 function syncRootWorkspaceDependencies(rootPkg, dependencyVersions) {
   let didChange = false;
-  const dependencySections = [
-    'dependencies',
-    'devDependencies',
-    'optionalDependencies',
-  ];
+  const dependencySections = ['dependencies', 'devDependencies', 'optionalDependencies'];
 
   for (const section of dependencySections) {
     const deps = rootPkg[section];
@@ -578,13 +674,25 @@ async function syncPackageDependencyVersions(pkgPath, dependencyVersions) {
   }
 }
 
-async function syncPackages(packageDirs, coreName, coreVersion, publishedCoreVersion) {
+async function syncPackages(
+  packageDirs,
+  coreName,
+  coreVersion,
+  publishedCoreVersion,
+  changedPackageDirs
+) {
   const touched = new Set();
   const packageInfos = [];
 
   for (const dirName of packageDirs) {
     const pkgPath = path.join(packagesDir, dirName, 'package.json');
-    const pkg = await syncPackageJson(pkgPath, coreName, coreVersion, publishedCoreVersion);
+    const pkg = await syncPackageJson(
+      pkgPath,
+      coreName,
+      coreVersion,
+      publishedCoreVersion,
+      changedPackageDirs.has(dirName)
+    );
 
     if (pkg) {
       touched.add(path.relative(repoRoot, pkgPath));
@@ -758,11 +866,7 @@ function collectPackageLockIssues({
 
 function collectRootWorkspaceDependencyIssues({ issues, rootPkg, dependencyVersions }) {
   const relRootPkgPath = 'package.json';
-  const dependencySections = [
-    'dependencies',
-    'devDependencies',
-    'optionalDependencies',
-  ];
+  const dependencySections = ['dependencies', 'devDependencies', 'optionalDependencies'];
 
   for (const section of dependencySections) {
     const deps = rootPkg[section];
@@ -837,8 +941,11 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
 }
 
 async function main() {
-  const { coreName } = await readRootPackageInfo();
   const packageDirs = await getPackageDirsList();
+  const diffBase = getDiffBase();
+  const changedPackageDirs = getChangedPackageDirs(diffBase, packageDirs);
+  const hasChangedCoreSource = hasCoreSourceChanges(diffBase);
+  const { coreName } = await readRootPackageInfo();
 
   if (isCheckOnly) {
     const { coreVersion } = await readRootPackageInfo();
@@ -863,7 +970,7 @@ async function main() {
 
   let preTouched = [];
 
-  if (shouldBumpRootToNext) {
+  if (shouldBumpRootToNext || hasChangedCoreSource) {
     const rootPkgPath = path.join(repoRoot, 'package.json');
     const rootPkg = await readJson(rootPkgPath);
     const nextVersion = getNextRootVersion(rootPkg.name, rootPkg.version);
@@ -881,7 +988,13 @@ async function main() {
   const touched = Array.from(
     new Set([
       ...preTouched,
-      ...(await syncPackages(packageDirs, coreName, coreVersion, publishedCoreVersion)),
+      ...(await syncPackages(
+        packageDirs,
+        coreName,
+        coreVersion,
+        publishedCoreVersion,
+        changedPackageDirs
+      )),
     ])
   );
 
