@@ -133,6 +133,28 @@ export const migration: Migration = {
 };
 ```
 
+## Column Helpers
+
+Use the migration blueprint helper that matches the value you need to store:
+
+- `table.date('blocked_date')` for a date-only column such as `2026-04-22`
+- `table.timestamp('blocked_at')` for a date-time column
+
+Example:
+
+```ts
+await schema.table('users', (table: Blueprint) => {
+  table.date('blocked_date').nullable();
+  table.timestamp('blocked_at').nullable();
+});
+```
+
+For your specific case, the right migration API is:
+
+```ts
+table.date('blocked_date');
+```
+
 ## Running Migrations
 
 Run pending migrations:

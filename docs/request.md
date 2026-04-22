@@ -193,6 +193,8 @@ ZinTrust provides a unified, priority-based API for accessing request data, elim
 
 The `req.data()` method returns a single object containing all input data, merged with strict precedence.
 
+That contract also holds when the runtime adapter has already populated the raw request payload in `req.context`. The core body parser now applies the same parse-and-set path in both cases, so `req.getBody()`, `req.data()`, and `req.get(key)` stay aligned instead of drifting across runtimes.
+
 #### Precedence Rules (High to Low)
 
 1. **Body** (POST/PUT/PATCH payload) - Highest priority

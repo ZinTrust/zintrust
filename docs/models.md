@@ -121,6 +121,43 @@ export const User = Model.define(
 );
 ```
 
+### Primary Key Generation For Model-Owned IDs
+
+If your model owns its identifier and you want ZinTrust to generate it before insert, use the built-in `Model.primaryKey` helper instead of hand-writing a `creating` observer guard.
+
+```typescript
+import { Model } from '@zintrust/core';
+
+export const ApiKey = Model.define({
+  table: 'api_keys',
+  fillable: ['name', 'id'],
+  hidden: [],
+  timestamps: true,
+  casts: {},
+  observers: [Model.primaryKey.uuid('id')],
+});
+```
+
+The built-in helper treats these values as missing before insert:
+
+- `undefined`
+- `null`
+- `''`
+- whitespace-only strings such as `'   '`
+
+If an explicit id is already present, ZinTrust preserves it unchanged.
+
+For custom strategies, use `Model.primaryKey.using(...)` and reuse the shared predicate via `Model.primaryKey.isMissing(...)`.
+
+```typescript
+observers: [
+  Model.primaryKey.using({
+    key: 'id',
+    generate: () => `key_${crypto.randomUUID()}`,
+  }),
+];
+```
+
 ### Reading Attributes
 
 Hydrated model instances expose attribute values in three useful ways:

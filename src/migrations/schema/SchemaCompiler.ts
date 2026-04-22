@@ -72,6 +72,7 @@ const TYPE_SQL: Record<ColumnDefinition['type'], ColumnTypeSqlHandler> = Object.
       typeof def.length === SchOther.NUMBER && Number.isFinite(def.length) ? def.length : 255;
     return isSqliteFamily(driver) ? ColumnType.TEXT : `${ColumnType.VARCHAR}(${len})`;
   },
+  DATE: (driver) => (isSqliteFamily(driver) ? ColumnType.TEXT : ColumnType.DATE),
   INTEGER: (driver) => (driver === AdaptersEnum.mysql ? ColumnType.INT : ColumnType.INTEGER),
   BIGINT: () => ColumnType.BIGINT,
   UUID: (driver) => {

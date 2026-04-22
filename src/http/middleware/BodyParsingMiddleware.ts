@@ -144,7 +144,7 @@ const getTextFromRaw = (rawResult: ReadBodyResult & { ok: true }): string => {
 const convertExistingToRawResult = (
   existingBytes: unknown,
   existingText: unknown
-): ReadBodyResult => {
+): ReadBodyResult & { ok: true } => {
   if (Buffer.isBuffer(existingBytes)) {
     return { ok: true, bytes: existingBytes };
   }
@@ -189,6 +189,51 @@ const setRequestBody = (
   }
 };
 
+const applyParsedRequestBody = (
+  req: IRequest,
+  res: IResponse,
+  rawResult: ReadBodyResult & { ok: true },
+  contentType: string
+): boolean => {
+  if (contentType.includes('application/json')) {
+    const parsed = parseJsonBody(getTextFromRaw(rawResult), contentType, res);
+    if (parsed === null && res.getStatus() === 400) {
+      return false;
+    }
+
+    req.setBody(parsed);
+    return true;
+  }
+
+  setRequestBody(req, rawResult, contentType);
+  return true;
+};
+
+const getMaxBodySize = (contentType: string): number => {
+  const isJson = contentType.includes('application/json');
+  const maxJsonSize = Env.getInt('MAX_JSON_SIZE', 1024 * 1024);
+  return isJson ? maxJsonSize : Env.MAX_BODY_SIZE;
+};
+
+const reuseExistingRawBody = (
+  req: IRequest,
+  res: IResponse,
+  contentType: string,
+  existingBytes: unknown,
+  existingText: unknown
+): boolean => {
+  const rawResult = convertExistingToRawResult(existingBytes, existingText);
+
+  req.context['rawBodyBytes'] = rawResult.bytes;
+  if (shouldStoreRawText(contentType)) {
+    req.context['rawBodyText'] = getTextFromRaw(rawResult);
+  } else {
+    req.context['rawBodyText'] = undefined;
+  }
+
+  return applyParsedRequestBody(req, res, rawResult, contentType);
+};
+
 const parseUrlEncodedBody = (text: string): Record<string, string | string[]> => {
   const out: Record<string, string | string[]> = {};
   const params = new URLSearchParams(text);
@@ -230,15 +275,8 @@ const processBodyParsing = async (
 
   // Parse and set body based on content type
   try {
-    const isJson = contentType.includes('application/json');
-    if (isJson) {
-      const parsed = parseJsonBody(getTextFromRaw(rawResult), contentType, res);
-      if (parsed === null && res.getStatus() === 400) {
-        return false; // JSON parsing failed, response already sent
-      }
-      req.setBody(parsed);
-    } else {
-      setRequestBody(req, rawResult, contentType);
+    if (!applyParsedRequestBody(req, res, rawResult, contentType)) {
+      return false;
     }
 
     if (Env.getBool('ZIN_DEBUG_BODY_PARSING', false)) {
@@ -291,20 +329,12 @@ export const bodyParsingMiddleware: Middleware = async (
   const hasExisting = Buffer.isBuffer(existingBytes) || typeof existingText === 'string';
 
   // Calculate size limit based on content type
-  const isJson = contentType.includes('application/json');
-  const maxJsonSize = Env.getInt('MAX_JSON_SIZE', 1024 * 1024);
-  const maxBytes = isJson ? maxJsonSize : Env.MAX_BODY_SIZE;
+  const maxBytes = getMaxBodySize(contentType);
 
   // Read or reuse raw body
   if (hasExisting) {
-    const rawResult = convertExistingToRawResult(existingBytes, existingText);
-    if (rawResult.ok) {
-      req.context['rawBodyBytes'] = rawResult.bytes;
-      if (shouldStoreRawText(contentType)) {
-        req.context['rawBodyText'] = getTextFromRaw(rawResult);
-      } else {
-        req.context['rawBodyText'] = undefined;
-      }
+    if (!reuseExistingRawBody(req, res, contentType, existingBytes, existingText)) {
+      return;
     }
   } else {
     await processBodyParsing(req, res, contentType, maxBytes);

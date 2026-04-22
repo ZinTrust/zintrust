@@ -25,11 +25,24 @@ describe('MigrationSchemaCompiler', () => {
 
     table.id();
     table.string('name');
+    table.date('blocked_date');
 
     const sql = MigrationSchemaCompiler.compileCreateTable('mysql', table.getDefinition());
 
     expect(sql[0]).toContain('CREATE TABLE IF NOT EXISTS `users`');
     expect(sql[0]).toContain('`id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY');
+    expect(sql[0]).toContain('`blocked_date` DATE NOT NULL');
+  });
+
+  it('should compile sqlite date columns as text for portability', () => {
+    const table = MigrationBlueprint.create('users');
+
+    table.id();
+    table.date('blocked_date').nullable();
+
+    const sql = MigrationSchemaCompiler.compileCreateTable('sqlite', table.getDefinition());
+
+    expect(sql[0]).toContain('"blocked_date" TEXT');
   });
 
   it('should reject invalid identifiers', () => {

@@ -89,14 +89,41 @@ describe('RemoteSignedJson (coverage extras)', () => {
     );
   });
 
-  it('does not enrich when response body is not the expected shape', async () => {
+  it('enriches 5xx errors with nested error code and message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { code: 'D1_ERROR', message: 'proxy failed' } }), {
+            status: 500,
+          })
+      )
+    );
+
+    await expect(RemoteSignedJson.request(settings, '/zin/test', { a: 1 })).rejects.toThrow(
+      /proxy error \(D1_ERROR: proxy failed\)/
+    );
+  });
+
+  it('enriches 5xx errors with a top-level message fallback', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ message: 'proxy failed' }), { status: 500 }))
+    );
+
+    await expect(RemoteSignedJson.request(settings, '/zin/test', { a: 1 })).rejects.toThrow(
+      /proxy error \(proxy failed\)/
+    );
+  });
+
+  it('uses the plain-text body as the fallback proxy error message', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('plain text', { status: 500 }))
     );
 
     await expect(RemoteSignedJson.request(settings, '/zin/test', { a: 1 })).rejects.toThrow(
-      /proxy error(?! \()/
+      /proxy error \(plain text\)/
     );
   });
 });

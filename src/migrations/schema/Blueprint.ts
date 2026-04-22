@@ -166,6 +166,7 @@ function buildDefinition(state: BlueprintState): TableDefinition {
 function createBlueprintApi(state: BlueprintState): Blueprint {
   const api: Blueprint = {
     string: (name, length = 255) => addColumn(state, name, ColumnTypeName.STRING, length),
+    date: (name) => addColumn(state, name, ColumnTypeName.DATE),
     integer: (name) => addColumn(state, name, ColumnTypeName.INTEGER),
     bigInteger: (name) => addColumn(state, name, ColumnTypeName.BIGINT).unsigned(),
     uuid: (name) => addColumn(state, name, ColumnTypeName.UUID),
