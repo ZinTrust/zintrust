@@ -206,14 +206,20 @@ describe('Model', () => {
       __getLastBuilder: () => MockBuilder | undefined;
     };
 
-    for (const currentId of [undefined, null, '', '   ']) {
-      const model = TestModel.make({ id: currentId, name: 'Generated' });
-      await expect(model.save()).resolves.toBe(true);
+    const generatedResults = await Promise.all(
+      [undefined, null, '', '   '].map(async (currentId) => {
+        const model = TestModel.make({ id: currentId, name: 'Generated' });
+        await expect(model.save()).resolves.toBe(true);
 
-      const inserted = qb.__getLastBuilder()?.insert.mock.calls.at(-1)?.[0] as
-        | Record<string, unknown>
-        | undefined;
+        const inserted = qb.__getLastBuilder()?.insert.mock.calls.at(-1)?.[0] as
+          | Record<string, unknown>
+          | undefined;
 
+        return { currentId, inserted };
+      })
+    );
+
+    for (const { currentId, inserted } of generatedResults) {
       expect(typeof inserted?.['id']).toBe('string');
       expect(String(inserted?.['id']).trim().length).toBeGreaterThan(0);
       expect(inserted?.['id']).not.toBe(currentId);

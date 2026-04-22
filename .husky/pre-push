@@ -9,4 +9,3 @@ node scripts/ci/check-dist-package-files.mjs
 
 # Block pushes when patch coverage would fail Codecov.
 npm run -s coverage:patch
-w
