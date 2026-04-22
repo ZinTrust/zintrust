@@ -7,6 +7,7 @@ describe('MigrationBlueprint (coverage)', () => {
     const table = MigrationBlueprint.create('users');
 
     table.string('email', 120).unique().nullable().default('test@example.com');
+    table.date('blocked_date').nullable();
     table.integer('age').default(21);
     table.bigInteger('account_id');
     table.boolean('active').default(true);
@@ -23,6 +24,7 @@ describe('MigrationBlueprint (coverage)', () => {
 
     expect(def.name).toBe('users');
     expect(def.columns.some((c) => c.name === 'email' && c.unique === true)).toBe(true);
+    expect(def.columns.some((c) => c.name === 'blocked_date' && c.type === 'DATE')).toBe(true);
     expect(def.columns.some((c) => c.name === 'account_id' && c.unsigned === true)).toBe(true);
     expect(def.indexes.some((i) => i.name === 'uniq_users_email')).toBe(true);
 

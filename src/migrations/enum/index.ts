@@ -1,5 +1,6 @@
 export const ColumnType = {
   STRING: 'STRING',
+  DATE: 'DATE',
   INTEGER: 'INTEGER',
   BIGINT: 'BIGINT',
   UUID: 'UUID',

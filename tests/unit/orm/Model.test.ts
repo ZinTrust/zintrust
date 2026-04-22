@@ -187,6 +187,47 @@ describe('Model', () => {
     vi.useRealTimers();
   });
 
+  it('provides a framework-owned primary-key observer for missing model-owned ids', async (): Promise<void> => {
+    const TestModel = Model.define({
+      ...baseConfig,
+      fillable: [...baseConfig.fillable, 'id'],
+      casts: {},
+      timestamps: false,
+      observers: [Model.primaryKey.uuid()],
+    });
+
+    expect(Model.primaryKey.isMissing(undefined)).toBe(true);
+    expect(Model.primaryKey.isMissing(null)).toBe(true);
+    expect(Model.primaryKey.isMissing('')).toBe(true);
+    expect(Model.primaryKey.isMissing('   ')).toBe(true);
+    expect(Model.primaryKey.isMissing('existing-id')).toBe(false);
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+
+    for (const currentId of [undefined, null, '', '   ']) {
+      const model = TestModel.make({ id: currentId, name: 'Generated' });
+      await expect(model.save()).resolves.toBe(true);
+
+      const inserted = qb.__getLastBuilder()?.insert.mock.calls.at(-1)?.[0] as
+        | Record<string, unknown>
+        | undefined;
+
+      expect(typeof inserted?.['id']).toBe('string');
+      expect(String(inserted?.['id']).trim().length).toBeGreaterThan(0);
+      expect(inserted?.['id']).not.toBe(currentId);
+    }
+
+    const preserved = TestModel.make({ id: 'already-present', name: 'Preserved' });
+    await expect(preserved.save()).resolves.toBe(true);
+
+    const inserted = qb.__getLastBuilder()?.insert.mock.calls.at(-1)?.[0] as
+      | Record<string, unknown>
+      | undefined;
+    expect(inserted?.['id']).toBe('already-present');
+  });
+
   it('top-level create persists and defined new returns an unsaved model', async (): Promise<void> => {
     const config = { ...baseConfig, casts: {}, timestamps: false };
     const qb = (await import('@orm/QueryBuilder')) as unknown as {

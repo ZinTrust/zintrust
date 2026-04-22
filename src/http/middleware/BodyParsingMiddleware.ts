@@ -189,6 +189,26 @@ const setRequestBody = (
   }
 };
 
+const applyParsedRequestBody = (
+  req: IRequest,
+  res: IResponse,
+  rawResult: ReadBodyResult & { ok: true },
+  contentType: string
+): boolean => {
+  if (contentType.includes('application/json')) {
+    const parsed = parseJsonBody(getTextFromRaw(rawResult), contentType, res);
+    if (parsed === null && res.getStatus() === 400) {
+      return false;
+    }
+
+    req.setBody(parsed);
+    return true;
+  }
+
+  setRequestBody(req, rawResult, contentType);
+  return true;
+};
+
 const parseUrlEncodedBody = (text: string): Record<string, string | string[]> => {
   const out: Record<string, string | string[]> = {};
   const params = new URLSearchParams(text);
@@ -230,15 +250,8 @@ const processBodyParsing = async (
 
   // Parse and set body based on content type
   try {
-    const isJson = contentType.includes('application/json');
-    if (isJson) {
-      const parsed = parseJsonBody(getTextFromRaw(rawResult), contentType, res);
-      if (parsed === null && res.getStatus() === 400) {
-        return false; // JSON parsing failed, response already sent
-      }
-      req.setBody(parsed);
-    } else {
-      setRequestBody(req, rawResult, contentType);
+    if (!applyParsedRequestBody(req, res, rawResult, contentType)) {
+      return false;
     }
 
     if (Env.getBool('ZIN_DEBUG_BODY_PARSING', false)) {
@@ -304,6 +317,10 @@ export const bodyParsingMiddleware: Middleware = async (
         req.context['rawBodyText'] = getTextFromRaw(rawResult);
       } else {
         req.context['rawBodyText'] = undefined;
+      }
+
+      if (!applyParsedRequestBody(req, res, rawResult, contentType)) {
+        return;
       }
     }
   } else {

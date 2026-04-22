@@ -3,10 +3,12 @@
  * Full ORM capabilities with eager/lazy loading
  */
 
+import { generateUuid } from '@common/utility';
 import { DEFAULTS } from '@config/constants';
 import { Logger } from '@config/logger';
 import type { Paginator } from '@database/Paginator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isMissingLike, isWhitespaceOnly } from '@helper/index';
 import { useDatabase, type IDatabase } from '@orm/Database';
 import type {
   EagerLoadConstraints,
@@ -64,6 +66,14 @@ export interface ModelConfig {
   }>;
   connection?: string;
 }
+
+type ModelObserver = NonNullable<ModelConfig['observers']>[number];
+
+export type PrimaryKeyObserverOptions = {
+  key?: string;
+  whenMissing?: boolean;
+  generate: () => unknown;
+};
 
 export interface ModelStatic {
   query(): IQueryBuilder;
@@ -481,6 +491,41 @@ const emitTraceModelEvent = (
     // best-effort trace emission must not affect ORM operations
   }
 };
+
+const isMissingPrimaryKeyValue = (value: unknown): boolean => {
+  if (isMissingLike(value)) return true;
+  return typeof value === 'string' && (value.length === 0 || isWhitespaceOnly(value));
+};
+
+const createPrimaryKeyObserver = (options: PrimaryKeyObserverOptions): ModelObserver => {
+  const key = options.key ?? 'id';
+  const whenMissing = options.whenMissing ?? true;
+
+  return Object.freeze({
+    creating(model: IModel): void {
+      if (!whenMissing) return;
+
+      const currentValue = model.getAttribute(key);
+      if (!isMissingPrimaryKeyValue(currentValue)) return;
+
+      const nextValue = options.generate();
+      if (isMissingPrimaryKeyValue(nextValue)) {
+        throw ErrorFactory.createValidationError(
+          `Generated primary key for ${key} is missing or blank`
+        );
+      }
+
+      model.setAttribute(key, nextValue);
+    },
+  });
+};
+
+const ModelPrimaryKey = Object.freeze({
+  isMissing: isMissingPrimaryKeyValue,
+  using: (options: PrimaryKeyObserverOptions): ModelObserver => createPrimaryKeyObserver(options),
+  uuid: (key: string = 'id'): ModelObserver =>
+    createPrimaryKeyObserver({ key, whenMissing: true, generate: generateUuid }),
+});
 
 const persistNewModel = async (
   config: ModelConfig,
@@ -1457,4 +1502,5 @@ export const Model = Object.freeze({
   insert,
   bulkInsert,
   define,
+  primaryKey: ModelPrimaryKey,
 });

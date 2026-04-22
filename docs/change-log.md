@@ -1,5 +1,13 @@
 # 2026-04-22
 
+- Added a first-class date migration helper so you can now write `table.date('blocked_date')` for date-only columns and keep `table.timestamp(...)` for date-time values. The migration blueprint/types/compiler all support the new helper.
+
+- Added a framework-owned ORM contract for model-owned primary keys through `Model.primaryKey`. Projects can now use `Model.primaryKey.uuid('id')` or `Model.primaryKey.using(...)` instead of repeating fragile `creating` observer guards, and the built-in missing-value check correctly treats `undefined`, `null`, empty strings, and whitespace-only strings as missing before insert.
+
+- Fixed the unified request-input contract so adapter-populated cached raw bodies now go through the same parse-and-set path as streamed request bodies. That keeps `req.getBody()`, `req.data()`, and `req.get(key)` aligned in both Node.js and Workers runtimes.
+
+- Expanded `RemoteSignedJson` proxy error extraction so non-2xx signed JSON calls now surface the most specific proxy detail they can find from top-level `{ code, message }`, nested `body`, nested `error`, or plain-text/top-level `message` fallback shapes.
+
 - Fixed `npm run release:sync-versions` so it now detects changed core source and changed package directories, looks up the currently published npm version for each affected manifest, and bumps only to the next release patch instead of leaving publishable packages stuck at an already-published version. The release sync path now uses ZinTrust's bounded carry rule for patch increments, so it advances sequentially and rolls `x.9.99 -> (x+1).0.0` without skipping intermediate publish versions.
 
 # 2026-04-21

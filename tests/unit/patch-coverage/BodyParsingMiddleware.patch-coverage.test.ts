@@ -187,6 +187,7 @@ describe('patch coverage: BodyParsingMiddleware', () => {
 
     await bodyParsingMiddleware(reqExistingBytes, resExistingBytes, next);
     expect(reqExistingBytes.context['rawBodyText']).toBe('hi');
+    expect(reqExistingBytes.setBody).toHaveBeenCalledWith('hi');
 
     // Reuse existing rawBodyText (string branch)
     const reqExistingText = {
@@ -201,6 +202,24 @@ describe('patch coverage: BodyParsingMiddleware', () => {
 
     await bodyParsingMiddleware(reqExistingText, resExistingText, next);
     expect(Buffer.isBuffer(reqExistingText.context['rawBodyBytes'])).toBe(true);
+    expect(reqExistingText.setBody).toHaveBeenCalledWith('hello');
+
+    // Reuse existing raw JSON should parse and feed req.data()/req.get() from the same body state.
+    const reqExistingJson = {
+      context: { rawBodyText: '{"blocked":true,"blocked_date":"2026-04-22"}' },
+      getHeader: () => 'application/json',
+      getMethod: () => 'POST',
+      getBody: () => undefined,
+      setBody: vi.fn(),
+      getRaw: () => ({}) as any,
+    } as unknown as IRequest;
+    const resExistingJson = makeRes();
+
+    await bodyParsingMiddleware(reqExistingJson, resExistingJson, next);
+    expect(reqExistingJson.setBody).toHaveBeenCalledWith({
+      blocked: true,
+      blocked_date: '2026-04-22',
+    });
 
     // URL-encoded duplicate keys should aggregate into arrays (hits existing.push branch)
     const reqUrlEncoded = {
