@@ -223,9 +223,6 @@ const reuseExistingRawBody = (
   existingText: unknown
 ): boolean => {
   const rawResult = convertExistingToRawResult(existingBytes, existingText);
-  if (rawResult.ok === false) {
-    return false;
-  }
 
   req.context['rawBodyBytes'] = rawResult.bytes;
   if (shouldStoreRawText(contentType)) {
