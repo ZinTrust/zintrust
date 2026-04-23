@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/storage-gcs",
-  "version": "0.9.2",
+  "version": "1.0.0",
   "description": "Google Cloud Storage driver for ZinTrust.",
   "private": false,
   "type": "module",
@@ -44,7 +44,7 @@
     }
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.9.2"
+    "@zintrust/core": "*"
   },
   "publishConfig": {
     "access": "public"
