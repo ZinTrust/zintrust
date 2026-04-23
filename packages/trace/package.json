@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/trace",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Trace assistant for ZinTrust: logs requests, queries, exceptions, jobs, and more.",
   "private": false,
   "type": "module",
