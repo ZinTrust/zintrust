@@ -105,7 +105,7 @@ export const EnvKeyGenerateCommand = Object.freeze({
 
           envContent = upsertEnvValue(envContent, envKey, key);
           await fs.writeFile(envPath, envContent);
-          Logger.info(`${envKey} set successfully. [${key}]`);
+          Logger.info(`${envKey} set successfully.`);
         } catch (error) {
           Logger.error(`Failed to update ${envKey} in .env`, error);
         }
