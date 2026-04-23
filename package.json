@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -240,14 +240,19 @@
     "miniflare": {
       "undici": "^7.24.4"
     },
-    "gaxios": "7.1.4",
+    "gaxios": {
+      "uuid": "14.0.0"
+    },
     "http-proxy-agent": "7.0.2",
     "retry-request": "8.0.2",
-    "teeny-request": "10.1.2",
-    "@google-cloud/storage": { "uuid": "14.0.0" },
-    "gaxios": { "uuid": "14.0.0" },
-    "teeny-request": { "uuid": "14.0.0" },
-    "teeny-request": { "http-proxy-agent": { "@tootallnate/once": "3.0.1" } }
+    "teeny-request": {
+      "http-proxy-agent": {
+        "@tootallnate/once": "3.0.1"
+      }
+    },
+    "@google-cloud/storage": {
+      "uuid": "14.0.0"
+    }
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.2",
