@@ -26,11 +26,9 @@
     "@zintrust/core": "*"
   },
   "overrides": {
-    "fast-xml-parser": "^5.7.1",
+    "fast-xml-parser": "5.7.1",
     "flatted": "^3.4.2",
-    "@aws-sdk/xml-builder": {
-      "fast-xml-parser": "^5.7.1"
-    }
+    "uuid": "14.0.0"
   },
   "publishConfig": {
     "access": "public"

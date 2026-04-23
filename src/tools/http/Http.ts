@@ -62,6 +62,11 @@ interface RequestState {
   customMode?: HttpRequestCustomMode;
 }
 
+type NormalizedRequestTarget = {
+  url: string;
+  headers: Record<string, string>;
+};
+
 const headersToRecord = (
   headers:
     | Headers
@@ -153,6 +158,71 @@ const normalizeBodyInit = (body: BodyInitLocal | HttpRequestBody): BodyInitLocal
   return body as BodyInitLocal;
 };
 
+const hasAuthorizationHeader = (headers: Record<string, string>): boolean => {
+  return Object.keys(headers).some((name) => name.toLowerCase() === 'authorization');
+};
+
+const decodeCredentialComponent = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const encodeBase64Utf8 = (value: string): string => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'utf8').toString('base64');
+  }
+
+  if (typeof globalThis.btoa === 'function') {
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    for (const byte of bytes) {
+      binary += String.fromCodePoint(byte);
+    }
+    return globalThis.btoa(binary);
+  }
+
+  throw ErrorFactory.createTryCatchError('HTTP basic auth encoding is unavailable');
+};
+
+const normalizeCredentialUrl = (
+  url: string,
+  headers: Record<string, string>
+): NormalizedRequestTarget => {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { url, headers };
+  }
+
+  const username = parsed.username;
+  const password = parsed.password;
+
+  if (username === '' && password === '') {
+    return { url, headers };
+  }
+
+  const nextHeaders = { ...headers };
+  if (!hasAuthorizationHeader(nextHeaders)) {
+    const credentials = encodeBase64Utf8(
+      `${decodeCredentialComponent(username)}:${decodeCredentialComponent(password)}`
+    );
+    nextHeaders['Authorization'] = `Basic ${credentials}`;
+  }
+
+  parsed.username = '';
+  parsed.password = '';
+
+  return {
+    url: parsed.toString(),
+    headers: nextHeaders,
+  };
+};
+
 const serializeFormBody = (
   body: HttpRequestBody | null | undefined
 ): BodyInitLocal | null | undefined => {
@@ -242,9 +312,9 @@ const captureTraceResponseBody = async (response: Response): Promise<string | un
  * Perform the actual request for a given state. Separated to keep the builder small
  */
 async function performRequest(state: RequestState): Promise<IHttpResponse> {
-  const { response, bodyText, durationMs } = await performRequestRaw(state);
+  const { response, bodyText, durationMs, effectiveState } = await performRequestRaw(state);
 
-  Logger.debug(`HTTP ${state.method} ${state.url}`, {
+  Logger.debug(`HTTP ${effectiveState.method} ${effectiveState.url}`, {
     status: response.status,
     duration: `${durationMs}ms`,
     size: bodyText.length,
@@ -258,18 +328,37 @@ async function performRequestRaw(state: RequestState): Promise<{
   bodyText: string;
   durationMs: number;
   requestBody?: BodyInitLocal | null;
+  effectiveState: RequestState;
 }> {
-  const { response, durationMs, requestBody } = await performFetch(state);
+  const { response, durationMs, requestBody, effectiveState } = await performFetch(state);
   const bodyText = await response.text();
-  emitHttpClientTrace({ state, requestBody, response, responseBody: bodyText, durationMs });
-  return { response, bodyText, durationMs, requestBody };
+  emitHttpClientTrace({
+    state: effectiveState,
+    requestBody,
+    response,
+    responseBody: bodyText,
+    durationMs,
+  });
+  return { response, bodyText, durationMs, requestBody, effectiveState };
 }
 
-async function performFetch(
-  state: RequestState
-): Promise<{ response: Response; durationMs: number; requestBody?: BodyInitLocal | null }> {
+async function performFetch(state: RequestState): Promise<{
+  response: Response;
+  durationMs: number;
+  requestBody?: BodyInitLocal | null;
+  effectiveState: RequestState;
+}> {
   const timeout = state.timeout ?? Env.getInt('HTTP_TIMEOUT', 30000);
   const controller = new AbortController();
+  const normalizedTarget = normalizeCredentialUrl(state.url, state.headers);
+  const effectiveState: RequestState =
+    normalizedTarget.url === state.url && normalizedTarget.headers === state.headers
+      ? state
+      : {
+          ...state,
+          url: normalizedTarget.url,
+          headers: normalizedTarget.headers,
+        };
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   if (timeout > 0) {
@@ -278,21 +367,21 @@ async function performFetch(
 
   const buildInit = (): { init: RequestInit; requestBody?: BodyInitLocal | null } => {
     if (OpenTelemetry.isEnabled()) {
-      OpenTelemetry.injectTraceHeaders(state.headers);
+      OpenTelemetry.injectTraceHeaders(effectiveState.headers);
     }
 
-    const requestBody = serializeRequestBody(state);
+    const requestBody = serializeRequestBody(effectiveState);
 
     const init: RequestInit = {
-      method: state.method,
-      headers: state.headers,
+      method: effectiveState.method,
+      headers: effectiveState.headers,
       signal: controller.signal,
     };
 
     if (
       requestBody !== undefined &&
       requestBody !== null &&
-      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(state.method)
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(effectiveState.method)
     ) {
       init.body = requestBody;
     }
@@ -304,29 +393,29 @@ async function performFetch(
 
   try {
     const { init, requestBody } = buildInit();
-    const response = await globalThis.fetch(state.url, init);
+    const response = await globalThis.fetch(effectiveState.url, init);
     const duration = Date.now() - startTime;
-    return { response, durationMs: duration, requestBody };
+    return { response, durationMs: duration, requestBody, effectiveState };
   } catch (error) {
     const duration = Date.now() - startTime;
     emitHttpClientTrace({
-      state,
-      requestBody: serializeRequestBody(state),
+      state: effectiveState,
+      requestBody: serializeRequestBody(effectiveState),
       durationMs: duration,
       error: error instanceof Error ? error.message : String(error),
     });
 
     if (error instanceof Error && error.name === 'AbortError') {
       throw ErrorFactory.createConnectionError(`HTTP request timeout after ${timeout}ms`, {
-        url: state.url,
-        method: state.method,
+        url: effectiveState.url,
+        method: effectiveState.method,
         timeout,
       });
     }
 
     throw ErrorFactory.createTryCatchError(`HTTP request failed: ${(error as Error).message}`, {
-      url: state.url,
-      method: state.method,
+      url: effectiveState.url,
+      method: effectiveState.method,
       error: error instanceof Error ? error.message : String(error),
     });
   } finally {
@@ -334,6 +423,24 @@ async function performFetch(
       globalThis.clearTimeout(timeoutId);
     }
   }
+}
+
+async function performFetchWithTrace(state: RequestState): Promise<{
+  response: Response;
+  durationMs: number;
+  requestBody?: BodyInitLocal | null;
+  effectiveState: RequestState;
+}> {
+  const result = await performFetch(state);
+  const responseBody = await captureTraceResponseBody(result.response);
+  emitHttpClientTrace({
+    state: result.effectiveState,
+    requestBody: result.requestBody,
+    response: result.response,
+    responseBody,
+    durationMs: result.durationMs,
+  });
+  return result;
 }
 
 /**
@@ -370,7 +477,7 @@ function createRequestBuilder(
     },
 
     withBasicAuth(username: string, password: string): IHttpRequest {
-      const credentials = Buffer.from(`${username}:${password}`).toString('base64');
+      const credentials = encodeBase64Utf8(`${username}:${password}`);
       state.headers['Authorization'] = `Basic ${credentials}`;
       return self;
     },
@@ -408,16 +515,12 @@ function createRequestBuilder(
     },
 
     async sendRaw(): Promise<Response> {
-      const { response, durationMs, requestBody } = await performFetch(state);
-      const responseBody = await captureTraceResponseBody(response);
-      emitHttpClientTrace({ state, requestBody, response, responseBody, durationMs });
+      const { response } = await performFetchWithTrace(state);
       return response;
     },
 
     async sendStream(): Promise<{ response: Response; stream: ReadableStream<Uint8Array> | null }> {
-      const { response, durationMs, requestBody } = await performFetch(state);
-      const responseBody = await captureTraceResponseBody(response);
-      emitHttpClientTrace({ state, requestBody, response, responseBody, durationMs });
+      const { response } = await performFetchWithTrace(state);
       return { response, stream: response.body };
     },
   };

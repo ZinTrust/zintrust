@@ -222,20 +222,6 @@
     "@tootallnate/once": "3.0.1",
     "node-forge": "^1.4.0",
     "fast-xml-parser": "5.7.1",
-    "@zintrust/client-rds-data": {
-      "fast-xml-parser": "5.7.1",
-      "uuid": "14.0.0"
-    },
-    "@zintrust/queue-sqs": {
-      "fast-xml-parser": "5.7.1"
-    },
-    "@zintrust/storage-gcs": {
-      "@tootallnate/once": "3.0.1",
-      "gaxios": "7.1.4",
-      "retry-request": "8.0.2",
-      "teeny-request": "10.1.2",
-      "uuid": "14.0.0"
-    },
     "brace-expansion": "^5.0.5",
     "picomatch": "^4.0.4",
     "cross-spawn": "^7.0.5",
@@ -254,24 +240,10 @@
     "miniflare": {
       "undici": "^7.24.4"
     },
-    "@aws-sdk/xml-builder": {
-      "fast-xml-parser": "5.7.1"
-    },
-    "@google-cloud/storage": {
-      "uuid": "14.0.0"
-    },
-    "@google-cloud/storage@7.19.0": {
-      "uuid": "14.0.0"
-    },
     "gaxios": "7.1.4",
-    "gaxios": {
-      "uuid": "14.0.0"
-    },
+    "http-proxy-agent": "7.0.2",
     "retry-request": "8.0.2",
-    "teeny-request": "10.1.2",
-    "teeny-request": {
-      "uuid": "14.0.0"
-    }
+    "teeny-request": "10.1.2"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.2",

@@ -27,21 +27,13 @@
     "fast-xml-parser": "^5.7.1"
   },
   "overrides": {
-    "fast-xml-parser": "^5.7.1",
-    "@tootallnate/once": "^3.0.1",
-    "uuid": "^14.0.0",
-    "@google-cloud/storage": {
-      "uuid": "^14.0.0"
-    },
-    "@google-cloud/storage@7.19.0": {
-      "uuid": "^14.0.0"
-    },
-    "gaxios": {
-      "uuid": "^14.0.0"
-    },
-    "teeny-request": {
-      "uuid": "^14.0.0"
-    }
+    "@tootallnate/once": "3.0.1",
+    "fast-xml-parser": "5.7.1",
+    "gaxios": "7.1.4",
+    "http-proxy-agent": "7.0.2",
+    "retry-request": "8.0.2",
+    "teeny-request": "10.1.2",
+    "uuid": "14.0.0"
   },
   "peerDependencies": {
     "@zintrust/core": "*"
