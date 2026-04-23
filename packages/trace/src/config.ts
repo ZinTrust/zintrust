@@ -8,6 +8,7 @@ import type {
   TraceConfigOverrides,
   TraceContentDispatchConfig,
   TraceFilterRule,
+  TraceProxyConfig,
   TraceRequestWatcherConfig,
   TraceWatcherToggle,
 } from './types';
@@ -253,10 +254,31 @@ const mergeContentDispatch = (
   };
 };
 
+const mergeProxyConfig = (
+  base: TraceProxyConfig,
+  override?: TraceConfigOverrides['proxy']
+): TraceProxyConfig => {
+  if (override === undefined) return base;
+
+  return {
+    ...base,
+    ...override,
+  };
+};
+
 const DEFAULTS: ITraceConfig = Object.freeze({
   enabled: false,
   connection: undefined,
   observeConnection: undefined,
+  serviceTag: undefined,
+  proxy: {
+    enabled: false,
+    url: undefined,
+    path: '/zin/trace/write',
+    keyId: undefined,
+    secret: undefined,
+    timeoutMs: 30000,
+  },
   pruneAfterHours: 24,
   ignoreRoutes: ['/trace', '/health', '/ping'],
   ignorePaths: [],
@@ -342,6 +364,7 @@ export const TraceConfig = Object.freeze({
     return Object.freeze({
       ...DEFAULTS,
       ...overrides,
+      proxy: mergeProxyConfig(DEFAULTS.proxy, overrides.proxy),
       contentDispatch: mergeContentDispatch(DEFAULTS.contentDispatch, overrides.contentDispatch),
       watchers: mergeWatchers(DEFAULTS.watchers, overrides.watchers),
       redaction: {

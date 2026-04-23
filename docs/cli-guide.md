@@ -210,6 +210,8 @@ zin config reset               # Reset to defaults
 # Application key
 zin key:generate               # Generate APP_KEY
 zin key:generate --show        # Show key without saving
+zin key:D1_REMOTE_SECRET       # Generate an arbitrary env key in .env
+zin key:D1_REMOTE_SECRET --yes # Overwrite existing value without prompt
 
 # Bulletproof Auth signing secret (generates BULLETPROOF_SIGNING_SECRET)
 zin key:bulletproof            # Generate and rotate into .env

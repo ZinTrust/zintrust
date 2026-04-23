@@ -24,6 +24,7 @@
 - `zin schedule:run`: Run a single schedule once (by name)
 - `zin schedule:start`: Start the schedules daemon (Node/Fargate) and block until shutdown
 - `zin jwt:dev`: Mint a local development JWT (for manual API testing, now supports Bulletproof-compatible claims)
+- `zin key:env <ENV_KEY>`: Generate or rotate an arbitrary `.env` key
 - `zin key:bulletproof` (aliases: `bulletproof:key`, `key:signer`): Generate/rotate `BULLETPROOF_SIGNING_SECRET` in `.env` with automatic backup rotation
 - `zin make:mail-template`: Scaffold a mail markdown template into your app
 - `zin make:notification-template`: Scaffold a notification markdown template into your app
@@ -522,6 +523,9 @@ Notes:
 
 - `zin key:generate`: Generate and set the application key (`APP_KEY`)
 - `zin key:generate --show`: Display the key without modifying `.env`
+- `zin key:env <ENV_KEY>`: Generate and set an arbitrary env key in `.env`
+- `zin key:<ENV_KEY>`: Shortcut form for `zin key:env <ENV_KEY>`
+- `zin key:<ENV_KEY> --yes`: Overwrite an existing value without prompting
 - `zin key:bulletproof`: Generate/rotate `BULLETPROOF_SIGNING_SECRET` (aliases: `bulletproof:key`, `key:signer`)
 - `zin key:bulletproof --show`: Print key only, do not modify `.env`
 - `zin key:bulletproof --max-backups <n>`: Set max rotation backup count (default: 5)

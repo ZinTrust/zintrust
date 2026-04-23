@@ -16,6 +16,17 @@ import type { TraceConfigOverrides } from '@zintrust/trace';
 export default {
   enabled: Env.getBool('TRACE_ENABLED', false),
 
+  serviceTag: Env.get('TRACE_SERVICE_TAG', '') || Env.get('APP_NAME', '') || undefined,
+
+  proxy: {
+    enabled: Env.getBool('TRACE_PROXY', false),
+    url: Env.get('TRACE_PROXY_URL', '') || undefined,
+    path: Env.get('TRACE_PROXY_PATH', '/zin/trace/write'),
+    keyId: Env.get('TRACE_PROXY_KEY_ID', '') || Env.get('APP_NAME', '') || undefined,
+    secret: Env.get('TRACE_PROXY_SECRET', '') || Env.get('APP_KEY', '') || undefined,
+    timeoutMs: Env.getInt('TRACE_PROXY_TIMEOUT_MS', 30000),
+  },
+
   // Optional: use a separate DB connection for trace tables.
   // Leave undefined to fall back to the app's default connection.
   connection: Env.get('TRACE_DB_CONNECTION', '') || undefined,

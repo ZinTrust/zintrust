@@ -1,5 +1,9 @@
 # 2026-04-22
 
+- Added signed remote trace transport support to `@zintrust/trace`. Apps can now set `TRACE_PROXY=true` to send the same write/update/latest-family trace operations they already produce to a remote ingest server via `TRACE_PROXY_URL` + `TRACE_PROXY_PATH`, while trace servers can mount `registerTraceIngestGateway(...)` to verify and persist those requests through the existing `TraceStorage` flow. The trace runtime also now supports `TRACE_SERVICE_TAG`, falling back to `APP_NAME` so multi-project trace servers can tag incoming data consistently.
+
+- Added arbitrary env-key generation to the CLI. `zin key:<ENV_KEY>` now normalizes to `zin key:env <ENV_KEY>`, generates a new secret value, writes it into `.env`, and prompts before overwriting an existing key unless `--yes` is provided.
+
 - Added a first-class date migration helper so you can now write `table.date('blocked_date')` for date-only columns and keep `table.timestamp(...)` for date-time values. The migration blueprint/types/compiler all support the new helper.
 
 - Added a framework-owned ORM contract for model-owned primary keys through `Model.primaryKey`. Projects can now use `Model.primaryKey.uuid('id')` or `Model.primaryKey.using(...)` instead of repeating fragile `creating` observer guards, and the built-in missing-value check correctly treats `undefined`, `null`, empty strings, and whitespace-only strings as missing before insert.

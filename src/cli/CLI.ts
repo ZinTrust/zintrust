@@ -26,6 +26,7 @@ import { DeployContainerWorkersCommand } from '@cli/commands/DeployContainerWork
 import { DockerCommand } from '@cli/commands/DockerCommand';
 import { DockerPushCommand } from '@cli/commands/DockerPushCommand';
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
+import { EnvKeyGenerateCommand } from '@cli/commands/EnvKeyGenerateCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
 import { InitContainersProxyCommand } from '@cli/commands/InitContainersProxyCommand';
@@ -143,6 +144,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     QACommand(),
     FixCommand.create(),
     KeyGenerateCommand.create(),
+    EnvKeyGenerateCommand.create(),
     BulletproofKeyGenerateCommand.create(),
     SimulateCommand,
     TemplatesCommand,
@@ -321,6 +323,15 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
     let processedArgs = args;
     if (args[0] === '-sim' || args[0] === '--sim') {
       processedArgs = ['simulate', ...args.slice(1)];
+    }
+
+    const firstArg = processedArgs[0] ?? '';
+    if (
+      firstArg.startsWith('key:') &&
+      !['key:generate', 'key:bulletproof', 'key:signer', 'key:env'].includes(firstArg)
+    ) {
+      const envKey = firstArg.slice(4);
+      processedArgs = ['key:env', envKey, ...processedArgs.slice(1)];
     }
 
     await program.parseAsync(['node', 'zintrust', ...processedArgs]);

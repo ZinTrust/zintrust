@@ -21,7 +21,7 @@
  */
 import { TraceConfig } from './config';
 import { TraceContext } from './context';
-import { TraceStorage } from './storage';
+import { ProxyTraceStorage, TraceServiceTag, TraceStorage } from './storage';
 import { TraceContentBudget } from './storage/TraceContentBudget';
 import { TraceContentRedaction } from './storage/TraceContentRedaction';
 import { TraceEntryFiltering } from './storage/TraceEntryFiltering';
@@ -212,6 +212,15 @@ if (!traceAlreadyInitialized && Env) {
     const pruneAfterHoursRaw = Env.get('TRACE_PRUNE_HOURS', '').trim();
     const slowQueryThresholdRaw = Env.get('TRACE_SLOW_QUERY_MS', '').trim();
     const logMinLevelRaw = Env.get('TRACE_LOG_LEVEL', '').trim();
+    const traceProxyRaw = Env.get('TRACE_PROXY', '').trim();
+    const traceProxyUrlRaw = Env.get('TRACE_PROXY_URL', '').trim();
+    const traceProxyPathRaw = Env.get('TRACE_PROXY_PATH', '').trim();
+    const traceProxyKeyIdRaw = Env.get('TRACE_PROXY_KEY_ID', '').trim();
+    const traceProxySecretRaw = Env.get('TRACE_PROXY_SECRET', '').trim();
+    const traceProxyTimeoutRaw = Env.get('TRACE_PROXY_TIMEOUT_MS', '').trim();
+    const traceServiceTagRaw = Env.get('TRACE_SERVICE_TAG', '').trim();
+    const appNameRaw = Env.get('APP_NAME', '').trim();
+    const appKeyRaw = Env.get('APP_KEY', '').trim();
     const captureCachePayloadsRaw = Env.get('TRACE_CACHE_PAYLOADS', '').trim();
     const captureQueryBindingsRaw = Env.get('TRACE_QUERY_BINDINGS', '').trim();
     const contentDispatchDriverRaw = Env.get('TRACE_CONTENT_QUEUE_DRIVER', '').trim();
@@ -262,6 +271,26 @@ if (!traceAlreadyInitialized && Env) {
       parseEnvBool(captureCachePayloadsRaw) ?? startupOverrides?.captureCachePayloads;
     const captureQueryBindings =
       parseEnvBool(captureQueryBindingsRaw) ?? startupOverrides?.captureQueryBindings;
+    const traceProxyEnabled = parseEnvBool(traceProxyRaw) ?? startupOverrides?.proxy?.enabled;
+    const traceProxyUrl = traceProxyUrlRaw === '' ? startupOverrides?.proxy?.url : traceProxyUrlRaw;
+    const traceProxyPath =
+      traceProxyPathRaw === '' ? startupOverrides?.proxy?.path : traceProxyPathRaw;
+    const traceProxyKeyId =
+      traceProxyKeyIdRaw === ''
+        ? (startupOverrides?.proxy?.keyId ?? appNameRaw)
+        : traceProxyKeyIdRaw;
+    const traceProxySecret =
+      traceProxySecretRaw === ''
+        ? (startupOverrides?.proxy?.secret ?? appKeyRaw)
+        : traceProxySecretRaw;
+    const traceProxyTimeout =
+      traceProxyTimeoutRaw === ''
+        ? startupOverrides?.proxy?.timeoutMs
+        : Number.parseInt(traceProxyTimeoutRaw, 10);
+    const traceServiceTag =
+      traceServiceTagRaw === ''
+        ? (startupOverrides?.serviceTag ?? appNameRaw).trim() || undefined
+        : traceServiceTagRaw;
     const contentDispatchDriver =
       contentDispatchDriverRaw === ''
         ? startupOverrides?.contentDispatch?.driver
@@ -305,6 +334,29 @@ if (!traceAlreadyInitialized && Env) {
       enabled,
       connection,
       observeConnection,
+      ...(typeof traceServiceTag === 'string' && traceServiceTag !== ''
+        ? { serviceTag: traceServiceTag }
+        : {}),
+      proxy: {
+        ...TraceConfig.defaults().proxy,
+        ...startupOverrides?.proxy,
+        ...(typeof traceProxyEnabled === 'boolean' ? { enabled: traceProxyEnabled } : {}),
+        ...(typeof traceProxyUrl === 'string' && traceProxyUrl !== ''
+          ? { url: traceProxyUrl }
+          : {}),
+        ...(typeof traceProxyPath === 'string' && traceProxyPath !== ''
+          ? { path: traceProxyPath }
+          : {}),
+        ...(typeof traceProxyKeyId === 'string' && traceProxyKeyId !== ''
+          ? { keyId: traceProxyKeyId }
+          : {}),
+        ...(typeof traceProxySecret === 'string' && traceProxySecret !== ''
+          ? { secret: traceProxySecret }
+          : {}),
+        ...(typeof traceProxyTimeout === 'number' && Number.isFinite(traceProxyTimeout)
+          ? { timeoutMs: traceProxyTimeout }
+          : {}),
+      },
       ...(typeof pruneAfterHours === 'number' && Number.isFinite(pruneAfterHours)
         ? { pruneAfterHours }
         : {}),
@@ -379,10 +431,23 @@ if (!traceAlreadyInitialized && Env) {
     });
     await assertTraceStorageReady(core, storageDb, resolvedConnectionName);
 
+    const resolvedStorage = config.proxy.enabled
+      ? ProxyTraceStorage.create({
+          baseUrl: config.proxy.url ?? '',
+          path: config.proxy.path,
+          keyId: config.proxy.keyId ?? '',
+          secret: config.proxy.secret ?? '',
+          timeoutMs: config.proxy.timeoutMs,
+        })
+      : TraceStorage.resolveStorage(storageDb);
+
     const storage = TraceWriteDiagnostics.wrapStorage(
       TraceContentBudget.wrapStorage(
         TraceContentRedaction.wrapStorage(
-          TraceEntryFiltering.wrapStorage(TraceStorage.resolveStorage(storageDb), config),
+          TraceEntryFiltering.wrapStorage(
+            TraceServiceTag.wrapStorage(resolvedStorage, config),
+            config
+          ),
           config.redaction
         ),
         config
