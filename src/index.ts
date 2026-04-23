@@ -113,6 +113,8 @@ export type {
   ContextLoaderResolver,
 } from '@common/ContextLoader';
 export { delay, ensureDirSafe } from '@common/index';
+export { RemoteSignedJson } from '@common/RemoteSignedJson';
+export type { RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 
 // Collections
 export { collect, Collection } from '@/collections/index';

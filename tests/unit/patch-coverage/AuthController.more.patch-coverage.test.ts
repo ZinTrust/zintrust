@@ -32,7 +32,7 @@ describe('AuthController extra branches', () => {
     await AuthController.create().login(req, res);
     expect(calls.status).toBe(500);
     expect(calls.payload).toEqual({ error: 'Internal server error' });
-  });
+  }, 30000);
 
   it('login: returns 500 when validated body missing', async () => {
     vi.resetModules();

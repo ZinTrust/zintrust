@@ -1,5 +1,4 @@
-import { ErrorFactory } from '@zintrust/core';
-import { RemoteSignedJson } from '@zintrust/core/proxy';
+import { ErrorFactory, RemoteSignedJson } from '@zintrust/core';
 import type { ITraceEntry, ITraceStorage } from '../types';
 
 type ProxyTraceStorageSettings = {
@@ -40,6 +39,14 @@ const normalizePath = (value: string): string => {
   const trimmed = value.trim();
   if (trimmed === '') return '/zin/trace/write';
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+};
+
+const trimTrailingSlashes = (value: string): string => {
+  let trimmed = value;
+  while (trimmed.endsWith('/')) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return trimmed;
 };
 
 const createUnsupportedReadError = (): Error =>
@@ -91,7 +98,7 @@ const buildSettings = (settings: ProxyTraceStorageSettings): ProxyRequestSetting
 };
 
 const appendSuffix = (path: string, suffix: string): string => {
-  const base = normalizePath(path).replace(/\/+$/, '');
+  const base = trimTrailingSlashes(normalizePath(path));
   const tail = suffix.startsWith('/') ? suffix : `/${suffix}`;
   return `${base}${tail}`;
 };

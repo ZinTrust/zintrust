@@ -3,6 +3,28 @@ import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const noSuperLinearTrailingSlashRegexRule = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: String.raw`Disallow /\/+$/: use a linear-time trailing slash trim instead of a regex that can trigger Sonar S5852.`,
+    },
+    schema: [],
+    messages: {
+      forbidden: String.raw`Do not use /\/+$/. Trim trailing slashes with a linear-time string loop instead to avoid regex backtracking risk.`,
+    },
+  },
+  create(context) {
+    return {
+      Literal(node) {
+        if (node.regex?.pattern === String.raw`\/+$`) {
+          context.report({ node, messageId: 'forbidden' });
+        }
+      },
+    };
+  },
+};
+
 /**
  * ESLint Configuration for ZinTrust Framework
  * Enforces security, performance, memory management, and best practices
@@ -110,12 +132,20 @@ export default defineConfig(
     },
   },
   {
+    plugins: {
+      zintrust: {
+        rules: {
+          'no-super-linear-trailing-slash-regex': noSuperLinearTrailingSlashRegexRule,
+        },
+      },
+    },
     rules: {
       // ==================== SECURITY RULES ====================
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      'zintrust/no-super-linear-trailing-slash-regex': 'error',
       '@typescript-eslint/explicit-function-return-type': 'warn',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-extraneous-class': ['error', { allowStaticOnly: false }],

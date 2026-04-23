@@ -56,8 +56,16 @@ const parseMiddleware = (value: string): ReadonlyArray<string> =>
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 
+const trimTrailingSlashes = (value: string): string => {
+  let trimmed = value;
+  while (trimmed.endsWith('/')) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return trimmed;
+};
+
 const appendSuffix = (path: string, suffix: string): string => {
-  const base = normalizePath(path).replace(/\/+$/, '');
+  const base = trimTrailingSlashes(normalizePath(path));
   const tail = suffix.startsWith('/') ? suffix : `/${suffix}`;
   return `${base}${tail}`;
 };
@@ -259,20 +267,73 @@ const resolveStorage = (overrides?: TraceIngestGatewayOverrides): ITraceStorage 
   return TraceStorage.resolveStorage(db);
 };
 
-const readSettings = (overrides?: TraceIngestGatewayOverrides): TraceIngestGatewaySettings => {
-  const configuredSecret = (overrides?.secret ?? Env.get('TRACE_PROXY_SECRET', '')).trim();
-  const configuredKeyId = (overrides?.keyId ?? Env.get('TRACE_PROXY_KEY_ID', '')).trim();
+const readConfiguredKeyId = (overrides?: TraceIngestGatewayOverrides): string => {
+  return (overrides?.keyId ?? Env.get('TRACE_PROXY_KEY_ID', '')).trim();
+};
 
+const readConfiguredSecret = (overrides?: TraceIngestGatewayOverrides): string => {
+  return (overrides?.secret ?? Env.get('TRACE_PROXY_SECRET', '')).trim();
+};
+
+const resolveKeyId = (overrides?: TraceIngestGatewayOverrides): string => {
+  const configuredKeyId = readConfiguredKeyId(overrides);
+  if (configuredKeyId !== '') return configuredKeyId;
+  return (Env.APP_NAME || 'zintrust').trim();
+};
+
+const resolveSecret = (overrides?: TraceIngestGatewayOverrides): string => {
+  const configuredSecret = readConfiguredSecret(overrides);
+  if (configuredSecret !== '') return configuredSecret;
+  return Env.APP_KEY;
+};
+
+const resolveSigningWindowMs = (overrides?: TraceIngestGatewayOverrides): number => {
+  return overrides?.signingWindowMs ?? Env.getInt('TRACE_PROXY_SIGNING_WINDOW_MS', 60000);
+};
+
+const resolveNonceTtlMs = (overrides?: TraceIngestGatewayOverrides): number => {
+  return overrides?.nonceTtlMs ?? Env.getInt('TRACE_PROXY_NONCE_TTL_MS', 120000);
+};
+
+const resolveMiddleware = (overrides?: TraceIngestGatewayOverrides): ReadonlyArray<string> => {
+  return overrides?.middleware ?? parseMiddleware(Env.get('TRACE_PROXY_MIDDLEWARE', ''));
+};
+
+const readSettings = (overrides?: TraceIngestGatewayOverrides): TraceIngestGatewaySettings => {
   return {
     basePath: normalizePath(overrides?.basePath ?? Env.get('TRACE_PROXY_PATH', '/zin/trace/write')),
-    keyId: configuredKeyId === '' ? (Env.APP_NAME || 'zintrust').trim() : configuredKeyId,
-    secret: configuredSecret === '' ? Env.APP_KEY : configuredSecret,
-    signingWindowMs:
-      overrides?.signingWindowMs ?? Env.getInt('TRACE_PROXY_SIGNING_WINDOW_MS', 60000),
-    nonceTtlMs: overrides?.nonceTtlMs ?? Env.getInt('TRACE_PROXY_NONCE_TTL_MS', 120000),
-    middleware: overrides?.middleware ?? parseMiddleware(Env.get('TRACE_PROXY_MIDDLEWARE', '')),
+    keyId: resolveKeyId(overrides),
+    secret: resolveSecret(overrides),
+    signingWindowMs: resolveSigningWindowMs(overrides),
+    nonceTtlMs: resolveNonceTtlMs(overrides),
+    middleware: resolveMiddleware(overrides),
     storage: resolveStorage(overrides),
   };
+};
+
+const getRouteOptions = (settings: TraceIngestGatewaySettings): RouteOptions | undefined => {
+  if (settings.middleware.length === 0) return undefined;
+  return { middleware: settings.middleware } as RouteOptions;
+};
+
+const registerRoutes = (router: IRouter, settings: TraceIngestGatewaySettings): void => {
+  const routeOptions = getRouteOptions(settings);
+  const updatePath = appendSuffix(settings.basePath, '/update');
+  const markFamilyStalePath = appendSuffix(settings.basePath, '/mark-family-stale');
+
+  Router.post(
+    router,
+    settings.basePath,
+    createWriteHandler(settings, settings.basePath),
+    routeOptions
+  );
+  Router.post(router, updatePath, createUpdateHandler(settings, updatePath), routeOptions);
+  Router.post(
+    router,
+    markFamilyStalePath,
+    createMarkFamilyStaleHandler(settings, markFamilyStalePath),
+    routeOptions
+  );
 };
 
 export const TraceIngestGateway = Object.freeze({
@@ -280,28 +341,10 @@ export const TraceIngestGateway = Object.freeze({
     registerRoutes: (router: IRouter) => void;
   } {
     const settings = readSettings(overrides);
-    const routeOptions: RouteOptions | undefined =
-      settings.middleware.length > 0
-        ? ({ middleware: settings.middleware } as RouteOptions)
-        : undefined;
-    const updatePath = appendSuffix(settings.basePath, '/update');
-    const markFamilyStalePath = appendSuffix(settings.basePath, '/mark-family-stale');
 
     return {
       registerRoutes(router: IRouter): void {
-        Router.post(
-          router,
-          settings.basePath,
-          createWriteHandler(settings, settings.basePath),
-          routeOptions
-        );
-        Router.post(router, updatePath, createUpdateHandler(settings, updatePath), routeOptions);
-        Router.post(
-          router,
-          markFamilyStalePath,
-          createMarkFamilyStaleHandler(settings, markFamilyStalePath),
-          routeOptions
-        );
+        registerRoutes(router, settings);
       },
     };
   },

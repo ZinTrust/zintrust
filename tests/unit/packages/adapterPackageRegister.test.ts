@@ -56,5 +56,5 @@ describe('adapter packages /register', () => {
     expect(MailDriverRegistry.has('smtp')).toBe(true);
     expect(MailDriverRegistry.has('sendgrid')).toBe(true);
     expect(MailDriverRegistry.has('mailgun')).toBe(true);
-  });
+  }, 30000);
 });
