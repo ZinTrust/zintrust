@@ -219,9 +219,23 @@
     "axios": "^1.15.0",
     "@eslint/plugin-kit": "^0.7.1",
     "follow-redirects": "^1.16.0",
-    "@tootallnate/once": "^3.0.1",
+    "@tootallnate/once": "3.0.1",
     "node-forge": "^1.4.0",
-    "fast-xml-parser": "^5.7.1",
+    "fast-xml-parser": "5.7.1",
+    "@zintrust/client-rds-data": {
+      "fast-xml-parser": "5.7.1",
+      "uuid": "14.0.0"
+    },
+    "@zintrust/queue-sqs": {
+      "fast-xml-parser": "5.7.1"
+    },
+    "@zintrust/storage-gcs": {
+      "@tootallnate/once": "3.0.1",
+      "gaxios": "7.1.4",
+      "retry-request": "8.0.2",
+      "teeny-request": "10.1.2",
+      "uuid": "14.0.0"
+    },
     "brace-expansion": "^5.0.5",
     "picomatch": "^4.0.4",
     "cross-spawn": "^7.0.5",
@@ -230,7 +244,7 @@
     "rollup": "^4.59.0",
     "vite": "^8.0.5",
     "flatted": "^3.4.2",
-    "uuid": "^14.0.0",
+    "uuid": "14.0.0",
     "@actions/github": {
       "undici": "^6.24.0"
     },
@@ -241,22 +255,22 @@
       "undici": "^7.24.4"
     },
     "@aws-sdk/xml-builder": {
-      "fast-xml-parser": "^5.7.1"
-    },
-    "@aws-sdk/xml-builder@3.972.18": {
-      "fast-xml-parser": "^5.7.1"
+      "fast-xml-parser": "5.7.1"
     },
     "@google-cloud/storage": {
-      "uuid": "^14.0.0"
+      "uuid": "14.0.0"
     },
     "@google-cloud/storage@7.19.0": {
-      "uuid": "^14.0.0"
+      "uuid": "14.0.0"
     },
+    "gaxios": "7.1.4",
     "gaxios": {
-      "uuid": "^14.0.0"
+      "uuid": "14.0.0"
     },
+    "retry-request": "8.0.2",
+    "teeny-request": "10.1.2",
     "teeny-request": {
-      "uuid": "^14.0.0"
+      "uuid": "14.0.0"
     }
   },
   "dependencies": {

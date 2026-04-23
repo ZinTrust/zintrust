@@ -19,8 +19,8 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-rds-data": "^3.1035.0",
-    "@aws-sdk/client-secrets-manager": "^3.1035.0"
+    "@aws-sdk/client-rds-data": "3.893.0",
+    "@aws-sdk/client-secrets-manager": "3.893.0"
   },
   "peerDependencies": {
     "@zintrust/core": "^0.9.2"
@@ -29,9 +29,6 @@
     "fast-xml-parser": "^5.7.1",
     "flatted": "^3.4.2",
     "@aws-sdk/xml-builder": {
-      "fast-xml-parser": "^5.7.1"
-    },
-    "@aws-sdk/xml-builder@3.972.18": {
       "fast-xml-parser": "^5.7.1"
     }
   },

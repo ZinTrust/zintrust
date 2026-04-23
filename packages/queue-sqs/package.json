@@ -23,15 +23,12 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.1035.0"
+    "@aws-sdk/client-sqs": "3.893.0"
   },
   "overrides": {
     "fast-xml-parser": "^5.7.1",
     "flatted": "^3.4.2",
     "@aws-sdk/xml-builder": {
-      "fast-xml-parser": "^5.7.1"
-    },
-    "@aws-sdk/xml-builder@3.972.18": {
       "fast-xml-parser": "^5.7.1"
     }
   },
