@@ -304,12 +304,30 @@ const resolveRateLimitMax = (): number => {
 };
 
 const resolveRateLimitWindowMinutes = (): number => {
-  return Env.getInt('TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES', 0);
+  const windowMinutes = Env.getFloat('TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES', 0);
+  return Math.max(windowMinutes, 0);
 };
 
 const createRateLimitMiddleware = (): string | undefined => {
   const max = resolveRateLimitMax();
   const windowMinutes = resolveRateLimitWindowMinutes();
+
+  if (!Number.isFinite(max) || !Number.isInteger(max)) {
+    throw ErrorFactory.createConfigError('TRACE_PROXY_RATE_LIMIT_MAX must be a valid integer', {
+      value: max,
+      envKey: 'TRACE_PROXY_RATE_LIMIT_MAX',
+    });
+  }
+
+  if (!Number.isFinite(windowMinutes)) {
+    throw ErrorFactory.createConfigError(
+      'TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES must be a valid number',
+      {
+        value: windowMinutes,
+        envKey: 'TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES',
+      }
+    );
+  }
 
   if (max <= 0 || windowMinutes <= 0) {
     return undefined;

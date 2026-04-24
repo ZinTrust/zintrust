@@ -67,20 +67,6 @@ interface ScaffolderState {
   templateName: string;
 }
 
-// const readBundledGovernancePackage = ():
-//   | { version?: unknown; peerDependencies?: unknown }
-//   | undefined => {
-//   try {
-//     const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
-//     return JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as {
-//       version?: unknown;
-//       peerDependencies?: unknown;
-//     };
-//   } catch {
-//     return undefined;
-//   }
-// };
-
 const SAFE_PATH = '/usr/local/bin:/usr/bin:/bin';
 const NPM_VIEW_TIMEOUT_MS = 1500;
 const publishedVersionCache = new Map<string, string | undefined>();
@@ -145,27 +131,6 @@ const loadPublishedNpmVersion = (packageName: string): string | undefined => {
     return undefined;
   }
 };
-
-// const loadBundledPublishedCoreVersion = (): string | undefined => {
-//   const bundledGovernancePackage = readBundledGovernancePackage();
-//   const peerDependencies = bundledGovernancePackage?.peerDependencies;
-
-//   if (typeof peerDependencies !== 'object' || peerDependencies === null) {
-//     return undefined;
-//   }
-
-//   const corePeerRange = (peerDependencies as Record<string, unknown>)['@zintrust/core'];
-//   if (typeof corePeerRange !== 'string' || corePeerRange.trim() === '') {
-//     return undefined;
-//   }
-
-//   const publishedLineVersion = extractMajorMinorVersion(corePeerRange);
-//   if (publishedLineVersion === undefined) {
-//     return '0.9.2';
-//   }
-
-//   return `${publishedLineVersion.major}.${publishedLineVersion.minor}.2`;
-// };
 
 const toCompatibleCoreDependencyRange = (version: string): string => `^${version}`;
 

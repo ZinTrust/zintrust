@@ -303,7 +303,9 @@ describe('TraceIngestGateway', () => {
       storage: storage as never,
     }).registerRoutes(router as never);
 
-    const route = router.routes.find((item) => item.method === 'POST' && item.path === BASE_PATH);
+    const route = router.routes.find(
+      (item: any) => item.method === 'POST' && item.path === BASE_PATH
+    );
 
     expect(route?.middleware).toEqual(['auth', 'admin', 'rateLimit:100000:1']);
 
