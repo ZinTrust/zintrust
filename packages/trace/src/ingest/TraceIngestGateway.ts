@@ -56,6 +56,10 @@ const parseMiddleware = (value: string): ReadonlyArray<string> =>
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 
+const isParameterizedRateLimitMiddleware = (value: string): boolean => {
+  return /^rateLimit:\d+:\d+(?:\.\d+)?$/.test(value.trim());
+};
+
 const trimTrailingSlashes = (value: string): string => {
   let trimmed = value;
   while (trimmed.endsWith('/')) {
@@ -295,8 +299,58 @@ const resolveNonceTtlMs = (overrides?: TraceIngestGatewayOverrides): number => {
   return overrides?.nonceTtlMs ?? Env.getInt('TRACE_PROXY_NONCE_TTL_MS', 120000);
 };
 
+const resolveRateLimitMax = (): number => {
+  return Env.getInt('TRACE_PROXY_RATE_LIMIT_MAX', 0);
+};
+
+const resolveRateLimitWindowMinutes = (): number => {
+  const windowMinutes = Env.getFloat('TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES', 0);
+  return Math.max(windowMinutes, 0);
+};
+
+const createRateLimitMiddleware = (): string | undefined => {
+  const max = resolveRateLimitMax();
+  const windowMinutes = resolveRateLimitWindowMinutes();
+
+  if (!Number.isFinite(max) || !Number.isInteger(max)) {
+    throw ErrorFactory.createConfigError('TRACE_PROXY_RATE_LIMIT_MAX must be a valid integer', {
+      value: max,
+      envKey: 'TRACE_PROXY_RATE_LIMIT_MAX',
+    });
+  }
+
+  if (!Number.isFinite(windowMinutes)) {
+    throw ErrorFactory.createConfigError(
+      'TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES must be a valid number',
+      {
+        value: windowMinutes,
+        envKey: 'TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES',
+      }
+    );
+  }
+
+  if (max <= 0 || windowMinutes <= 0) {
+    return undefined;
+  }
+
+  return `rateLimit:${max}:${windowMinutes}`;
+};
+
 const resolveMiddleware = (overrides?: TraceIngestGatewayOverrides): ReadonlyArray<string> => {
-  return overrides?.middleware ?? parseMiddleware(Env.get('TRACE_PROXY_MIDDLEWARE', ''));
+  if (overrides?.middleware !== undefined) {
+    return overrides.middleware;
+  }
+
+  const configured = parseMiddleware(Env.get('TRACE_PROXY_MIDDLEWARE', ''));
+  const rateLimitMiddleware = createRateLimitMiddleware();
+  if (rateLimitMiddleware === undefined) {
+    return configured;
+  }
+
+  return [
+    ...configured.filter((entry) => !isParameterizedRateLimitMiddleware(entry)),
+    rateLimitMiddleware,
+  ];
 };
 
 const readSettings = (overrides?: TraceIngestGatewayOverrides): TraceIngestGatewaySettings => {

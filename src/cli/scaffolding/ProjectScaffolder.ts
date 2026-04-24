@@ -5,10 +5,7 @@
 
 import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { EnvData } from '@cli/scaffolding/env';
-import {
-  extractMajorMinorVersion,
-  toCompatibleGovernanceVersion,
-} from '@cli/scaffolding/ScaffoldingVersionUtils';
+import { PINNED_GOVERNANCE_SCAFFOLDER_VERSION } from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
@@ -69,20 +66,6 @@ interface ScaffolderState {
   projectPath: string;
   templateName: string;
 }
-
-const readBundledGovernancePackage = ():
-  | { version?: unknown; peerDependencies?: unknown }
-  | undefined => {
-  try {
-    const packageUrl = new URL('../../../packages/governance/package.json', import.meta.url);
-    return JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as {
-      version?: unknown;
-      peerDependencies?: unknown;
-    };
-  } catch {
-    return undefined;
-  }
-};
 
 const SAFE_PATH = '/usr/local/bin:/usr/bin:/bin';
 const NPM_VIEW_TIMEOUT_MS = 1500;
@@ -149,27 +132,6 @@ const loadPublishedNpmVersion = (packageName: string): string | undefined => {
   }
 };
 
-const loadBundledPublishedCoreVersion = (): string | undefined => {
-  const bundledGovernancePackage = readBundledGovernancePackage();
-  const peerDependencies = bundledGovernancePackage?.peerDependencies;
-
-  if (typeof peerDependencies !== 'object' || peerDependencies === null) {
-    return undefined;
-  }
-
-  const corePeerRange = (peerDependencies as Record<string, unknown>)['@zintrust/core'];
-  if (typeof corePeerRange !== 'string' || corePeerRange.trim() === '') {
-    return undefined;
-  }
-
-  const publishedLineVersion = extractMajorMinorVersion(corePeerRange);
-  if (publishedLineVersion === undefined) {
-    return '0.9.2';
-  }
-
-  return `${publishedLineVersion.major}.${publishedLineVersion.minor}.2`;
-};
-
 const toCompatibleCoreDependencyRange = (version: string): string => `^${version}`;
 
 const loadScaffoldCoreVersion = (): string => {
@@ -179,20 +141,6 @@ const loadScaffoldCoreVersion = (): string => {
   }
 
   return '*';
-};
-
-const loadGovernanceVersion = (): string => {
-  const publishedVersion = loadPublishedNpmVersion('@zintrust/governance');
-  if (typeof publishedVersion === 'string') {
-    return publishedVersion;
-  }
-
-  const bundledPublishedCoreVersion = loadBundledPublishedCoreVersion();
-  if (typeof bundledPublishedCoreVersion === 'string') {
-    return bundledPublishedCoreVersion;
-  }
-
-  return '0.9.2';
 };
 
 const createDirectories = (projectPath: string, directories: string[]): number => {
@@ -737,7 +685,7 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
 
   state.variables = {
     coreVersion: loadScaffoldCoreVersion(),
-    governanceVersion: toCompatibleGovernanceVersion(loadGovernanceVersion()),
+    governanceVersion: PINNED_GOVERNANCE_SCAFFOLDER_VERSION,
     projectName: options.name,
     projectSlug: options.name,
     author: options.author ?? 'Your Name',
