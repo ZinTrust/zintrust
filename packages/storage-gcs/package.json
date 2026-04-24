@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
-    "fast-xml-parser": "^5.7.1"
+    "fast-xml-parser": "5.7.1"
   },
   "overrides": {
     "@tootallnate/once": "3.0.1",

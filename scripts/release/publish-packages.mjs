@@ -333,20 +333,6 @@ function parseSemver(version) {
   };
 }
 
-function getPublishedCorePeerRange(coreVersion) {
-  const publishedCoreVersion = getPublishedVersion('@zintrust/core');
-
-  if (typeof publishedCoreVersion === 'string' && publishedCoreVersion.length > 0) {
-    return `^${publishedCoreVersion}`;
-  }
-
-  if (typeof coreVersion === 'string' && coreVersion.length > 0) {
-    return `^${coreVersion}`;
-  }
-
-  return '*';
-}
-
 function isPublishablePackageVersion(packageVersion, coreVersion) {
   const parsedPackageVersion = parseSemver(packageVersion);
   const parsedCoreVersion = parseSemver(coreVersion);
@@ -539,13 +525,6 @@ function maybeSkipBecausePublished({ pkg }) {
 
 async function transformPackageForPublish(pkg, pkgDir, coreVersion) {
   const transformed = { ...pkg };
-
-  if (typeof transformed.peerDependencies?.['@zintrust/core'] === 'string') {
-    transformed.peerDependencies = {
-      ...transformed.peerDependencies,
-      '@zintrust/core': getPublishedCorePeerRange(coreVersion),
-    };
-  }
 
   // d1-migrator builds against local file: adapters, then publishes with live adapter versions.
   if (transformed.name === '@zintrust/d1-migrator' && transformed.dependencies) {

@@ -1,3 +1,7 @@
+# 2026-04-24
+
+- Fixed the package publish pipeline so workspace adapters keep their checked-in `peerDependencies['@zintrust/core']` value during npm publish instead of being rewritten to a stale caret range. This closes the release-path regression that republished `@zintrust/cache-redis@1.5.0` with `@zintrust/core: ^1.2.0` on npm even though the source manifest declared `*`, and bumps `@zintrust/cache-redis` to `1.5.1` for the corrective republish.
+
 # 2026-04-22
 
 - Extracted a dedicated worker-only signing helper for Cloudflare proxy entrypoints. The D1/KV worker path now goes through `WorkerSigning` instead of embedding verification logic in shared proxy files or routing through broader runtime signing services, which makes the worker-safe import boundary explicit and keeps the proxy surface off `Env` and other app-runtime config code.
