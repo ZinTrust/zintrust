@@ -7,11 +7,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
-import {
-  extractMajorMinorVersion,
-  toCompatibleGovernanceVersion,
-} from '@cli/scaffolding/ScaffoldingVersionUtils';
-import { VersionChecker } from '@cli/services/VersionChecker';
+import { PINNED_GOVERNANCE_SCAFFOLDER_VERSION } from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
@@ -88,19 +84,6 @@ const ensureDevDependency = (
   }
 };
 
-const getBundledGovernanceVersion = (): string | undefined => {
-  try {
-    const pkgUrl = new URL('../../../packages/governance/package.json', import.meta.url);
-    const raw = FileGenerator.readFile(pkgUrl.toString());
-    const parsed = JSON.parse(raw) as { version?: unknown };
-    return typeof parsed.version === 'string' && parsed.version.trim() !== ''
-      ? toCompatibleGovernanceVersion(parsed.version)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 const inferGovernanceVersion = (pkg: PackageJson): string => {
   const devDeps = getStringRecord(pkg.devDependencies);
   const existingGovernance = devDeps?.['@zintrust/governance'];
@@ -108,25 +91,7 @@ const inferGovernanceVersion = (pkg: PackageJson): string => {
     return existingGovernance;
   }
 
-  const deps = getStringRecord(pkg.dependencies);
-  const core = deps?.['@zintrust/core'];
-  const bundledGovernanceVersion = getBundledGovernanceVersion();
-  if (typeof core === 'string' && core.trim() !== '') {
-    if (bundledGovernanceVersion !== undefined) {
-      return bundledGovernanceVersion;
-    }
-
-    if (extractMajorMinorVersion(core) !== undefined) {
-      return toCompatibleGovernanceVersion(core);
-    }
-  }
-
-  const currentVersion = VersionChecker.getCurrentVersion().trim();
-  if (currentVersion !== '' && currentVersion !== '0.0.0') {
-    return bundledGovernanceVersion ?? toCompatibleGovernanceVersion(currentVersion);
-  }
-
-  return bundledGovernanceVersion ?? '^0.4.0';
+  return PINNED_GOVERNANCE_SCAFFOLDER_VERSION;
 };
 
 const writeEslintConfig = (projectRoot: string): string[] => {
@@ -203,7 +168,7 @@ const extractImportSpecifiers = (source: string, filePath: string): ImportHit[] 
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const moduleSpecifier = node.moduleSpecifier;
-      if (moduleSpecifier && ts.isStringLiteral(moduleSpecifier)) {
+      // extractMajorMinorVersion,
         addHit(moduleSpecifier.text, moduleSpecifier.getStart(sourceFile));
       }
     }

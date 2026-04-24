@@ -99,7 +99,7 @@ describe('ProjectScaffolder extra tests', () => {
     await fsPromises.rm(projectPath, { recursive: true, force: true });
   });
 
-  it('prefers the latest published governance version in scaffolded package.json', async () => {
+  it('keeps the pinned governance version in scaffolded package.json', async () => {
     const publishedGovernanceVersion = '0.9.2';
     const publishedCoreVersion = '0.9.2';
     const projectPath = path.join(tmpRoot, `published-governance-${Date.now()}`);
@@ -146,7 +146,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('^0.9.2');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^1.2.0');
     expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
@@ -230,7 +230,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^1.2.0');
     expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
@@ -267,7 +267,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^1.2.0');
     expect(packageJson.devDependencies?.['tsx']).toBe('^4.21.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
@@ -322,7 +322,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^1.2.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
@@ -365,7 +365,7 @@ describe('ProjectScaffolder extra tests', () => {
     };
 
     expect(packageJson.dependencies?.['@zintrust/core']).toBe('*');
-    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^0.9.2');
+    expect(packageJson.devDependencies?.['@zintrust/governance']).toBe('^1.2.0');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
     vi.doUnmock('node:child_process');
