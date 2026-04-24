@@ -31,6 +31,8 @@ export const extractMajorMinorVersion = (
   return { major, minor };
 };
 
+export const PINNED_GOVERNANCE_SCAFFOLDER_VERSION = '^1.2.0';
+
 export const toCompatibleGovernanceVersion = (value: string, fallback = '^1.0.0'): string => {
   const parsed = extractMajorMinorVersion(value);
   if (parsed === undefined) return fallback;
