@@ -1,5 +1,7 @@
 # 2026-04-24
 
+- Fixed the ORM hydration contract so `Model.hydrate(...)` is now idempotent for already hydrated model instances. Passing an existing model back into `hydrate(...)` now returns that same instance unchanged instead of rebuilding a second model from enumerable properties, which preserves accessor-backed reads, raw stored attributes, attached relations, dirty tracking, and subsequent `save()` behavior across helper boundaries.
+
 - Fixed the package publish pipeline so workspace adapters keep their checked-in `peerDependencies['@zintrust/core']` value during npm publish instead of being rewritten to a stale caret range. This closes the release-path regression that republished `@zintrust/cache-redis@1.5.0` with `@zintrust/core: ^1.2.0` on npm even though the source manifest declared `*`, and bumps `@zintrust/cache-redis` to `1.5.1` for the corrective republish.
 
 # 2026-04-22
