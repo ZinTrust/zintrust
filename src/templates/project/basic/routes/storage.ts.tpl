@@ -8,6 +8,31 @@ import {
 } from '@zintrust/core';
 
 export function registerStorageRoutes(router: IRouter): void {
+  // Public file serving: /storage/<path>
+  Router.get(router, '/storage/:path*', async (req, res) => {
+    const raw = req.getParam('path') ?? '';
+    const key = typeof raw === 'string' ? decodeURIComponent(raw).replaceAll('\\\u005C', '/') : '';
+
+    if (key.trim() === '') {
+      res.setStatus(400).json({ message: 'Missing path' });
+      return;
+    }
+
+    // Respect private folder convention: do not expose keys under `private/`
+    if (key.startsWith('private/') || key === 'private') {
+      res.setStatus(404).json({ message: 'Not Found' });
+      return;
+    }
+
+    try {
+      const contents = await Storage.get('local', key);
+      res.setHeader(HTTP_HEADERS.CONTENT_TYPE, 'application/octet-stream');
+      res.setStatus(200).send(contents);
+    } catch {
+      res.setStatus(404).json({ message: 'Not Found' });
+    }
+  });
+
   Router.get(router, '/storage/download', async (req, res) => {
     const tokenRaw = req.getQueryParam('token');
     const token = typeof tokenRaw === 'string' ? tokenRaw : '';
