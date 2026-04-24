@@ -373,6 +373,15 @@ export type TraceContentDispatchConfig = {
   worker: TraceContentDispatchWorkerConfig;
 };
 
+export type TraceProxyConfig = {
+  enabled: boolean;
+  url?: string;
+  path: string;
+  keyId?: string;
+  secret?: string;
+  timeoutMs: number;
+};
+
 export type TraceWatcherToggle = boolean | TraceFilterRule;
 export type TraceRequestWatcherToggle = boolean | TraceRequestWatcherConfig;
 export type TraceClientRequestWatcherToggle = boolean | TraceClientRequestWatcherConfig;
@@ -404,6 +413,8 @@ export interface ITraceConfig {
   enabled: boolean;
   connection?: string;
   observeConnection?: string;
+  serviceTag?: string;
+  proxy: TraceProxyConfig;
   pruneAfterHours: number;
   ignoreRoutes: string[];
   ignorePaths: string[];

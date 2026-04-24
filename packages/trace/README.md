@@ -32,6 +32,13 @@ You can still import the package migrations manually if you prefer to keep them 
 TRACE_ENABLED=true
 TRACE_DB_CONNECTION=d1        # optional — omit to inherit DB_CONNECTION
 TRACE_QUERY_CONNECTION=main   # optional — app DB to observe for SQL traces
+TRACE_SERVICE_TAG=            # optional — global trace tag, falls back to APP_NAME when empty
+TRACE_PROXY=false             # optional — send writes to a remote trace server instead of local DB
+TRACE_PROXY_URL=              # required when TRACE_PROXY=true
+TRACE_PROXY_PATH=/zin/trace/write
+TRACE_PROXY_KEY_ID=           # optional — falls back to APP_NAME
+TRACE_PROXY_SECRET=           # optional — falls back to APP_KEY
+TRACE_PROXY_TIMEOUT_MS=30000
 TRACE_PRUNE_HOURS=24          # how long entries are kept (default: 24)
 TRACE_SLOW_QUERY_MS=100       # slow-query threshold in ms (default: 100)
 TRACE_LOG_LEVEL=info          # minimum log level captured (default: info)
@@ -51,6 +58,8 @@ TRACE_REDACT_QUERY=
 ```
 
 When `TRACE_CONTENT_QUEUE_DRIVER` is set, trace writes enqueue through that registered queue driver and an internal trace worker drains them outside the live request path. When it is unset, oversized content is replaced with `Trace content exceeded budget and was replaced.` before persistence instead of running the heavy compaction loop inline.
+
+When `TRACE_PROXY=true`, the local runtime keeps collecting the same trace payload it would normally send to storage, but it sends the write/update/stale-family operations to `TRACE_PROXY_URL + TRACE_PROXY_PATH` instead of writing directly to the local trace database. The receiver can then persist those entries with the standard `TraceStorage` flow.
 
 This currently works with any queue driver already registered in ZinTrust. First-class Cloudflare Queue support still requires a dedicated queue driver and queue-runtime registration for that transport.
 
@@ -153,6 +162,28 @@ registerTraceDashboard(router, {
   middleware: ['admin'], // apply your auth middleware here
 });
 ```
+
+### 3b. Optional remote trace ingest gateway
+
+If you want one project to send trace writes to another project, mount the signed ingest gateway on the trace server:
+
+```ts
+// routes/api.ts
+import { registerTraceIngestGateway } from '@zintrust/trace';
+
+registerTraceIngestGateway(router, {
+  basePath: '/zin/trace/write',
+  middleware: ['admin'], // optional
+});
+```
+
+The sender runtime uses `TRACE_PROXY_URL`, `TRACE_PROXY_PATH`, `TRACE_PROXY_KEY_ID`, and `TRACE_PROXY_SECRET` to sign write requests. On the receiver side, `TRACE_PROXY_KEY_ID` and `TRACE_PROXY_SECRET` must match the sender pair or fall back to the same `APP_NAME` and `APP_KEY` values.
+
+The ingest gateway exposes exactly these signed POST endpoints:
+
+- `TRACE_PROXY_PATH` for new trace entries
+- `TRACE_PROXY_PATH + /update` for trace content updates
+- `TRACE_PROXY_PATH + /mark-family-stale` for latest-entry rotation
 
 The dashboard SPA will be available at `GET /trace` (or your chosen `basePath`).
 

@@ -726,6 +726,14 @@ export declare const Cloudflare: any;
 export declare const Router: any;
 export declare const Broadcast: any;
 export declare const Notification: any;
+export type RemoteSignedJsonSettings = any;
+export declare const RemoteSignedJson: {
+  request<T>(
+    settings: RemoteSignedJsonSettings,
+    path: string,
+    payload: Record<string, unknown>
+  ): Promise<T>;
+};
 export declare const NodeSingletons: {
   fs: any;
   path: any;
@@ -940,6 +948,11 @@ export const Cloudflare = {};
 export const Router = {};
 export const Broadcast = {};
 export const Notification = {};
+export const RemoteSignedJson = {
+  async request() {
+    return {};
+  },
+};
 export const NodeSingletons = {
   fs: {},
   path: {},

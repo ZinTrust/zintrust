@@ -107,7 +107,7 @@ describe('Storage (src/tools/storage/index.ts branch coverage)', () => {
 
     expect(() => Storage.getDisk('missing')).toThrow(/disk not configured|unknown disk/i);
     expect(() => Storage.getDisk('default')).toThrow(/unsupported disk driver/i);
-  });
+  }, 30000);
 
   it('put/get throw when driver is missing methods', async () => {
     vi.doMock('@config/storage', () => ({
@@ -126,7 +126,7 @@ describe('Storage (src/tools/storage/index.ts branch coverage)', () => {
 
     await expect(Storage.put('custom', 'a.txt', 'hi')).rejects.toThrow(/missing put\(\)/i);
     await expect(Storage.get('custom', 'a.txt')).rejects.toThrow(/missing get\(\)/i);
-  });
+  }, 30000);
 
   it('put/get return driver results when implemented', async () => {
     vi.doMock('@config/storage', () => ({

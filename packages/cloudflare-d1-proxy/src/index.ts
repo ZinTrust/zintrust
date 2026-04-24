@@ -1,4 +1,4 @@
-import { ErrorHandler, RequestValidator, SigningService } from '@zintrust/core/proxy';
+import { ErrorHandler, RequestValidator, WorkerSigning } from '@zintrust/core/proxy';
 
 type KvGetType = 'text' | 'json' | 'arrayBuffer';
 
@@ -9,9 +9,9 @@ type KVNamespacePutOptions = {
 type KVNamespace = {
   get: {
     (key: string): Promise<string | null>;
-    (key: string, type: 'json'): Promise<unknown | null>;
+    (key: string, type: 'json'): Promise<unknown>;
     (key: string, type: 'arrayBuffer'): Promise<ArrayBuffer | null>;
-    (key: string, type: KvGetType): Promise<unknown | ArrayBuffer | string | null>;
+    (key: string, type: KvGetType): Promise<ArrayBuffer | string | null>;
   };
   put: (key: string, value: string, options?: KVNamespacePutOptions) => Promise<void>;
 };
@@ -173,16 +173,6 @@ const parseOptionalJson = (
   return { ok: true, payload: successResult.value };
 };
 
-const loadSigningSecret = (env: D1Env): string | null => {
-  const direct = typeof env.D1_REMOTE_SECRET === 'string' ? env.D1_REMOTE_SECRET.trim() : '';
-  if (direct !== '') return direct;
-
-  const fallback = typeof env.APP_KEY === 'string' ? env.APP_KEY.trim() : '';
-  if (fallback !== '') return fallback;
-
-  return null;
-};
-
 const loadStatements = (env: D1Env): Record<string, string> | null => {
   const raw = env.ZT_D1_STATEMENTS_JSON;
   if (typeof raw !== 'string' || raw.trim() === '') return null;
@@ -208,48 +198,16 @@ const isMutatingSql = (sql: string): boolean => {
   );
 };
 
-const verifyNonceKv = async (
-  kv: KVNamespace,
-  keyId: string,
-  nonce: string,
-  ttlMs: number
-): Promise<boolean> => {
-  const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
-  const storageKey = `nonce:${keyId}:${nonce}`;
-  const existing = await kv.get(storageKey);
-  if (existing !== null) return false;
-  await kv.put(storageKey, '1', { expirationTtl: ttlSeconds });
-  return true;
-};
-
 const verifySignedRequest = async (
   request: Request,
   env: D1Env,
   bodyBytes: Uint8Array
 ): Promise<Response | { ok: true }> => {
-  const secret = loadSigningSecret(env);
-  if (secret === null) {
-    return toErrorResponse(
-      401,
-      'CONFIG_ERROR',
-      'Missing signing secret (D1_REMOTE_SECRET or APP_KEY)'
-    );
-  }
-
-  const windowMs = getEnvInt(env, 'ZT_PROXY_SIGNING_WINDOW_MS', DEFAULT_SIGNING_WINDOW_MS);
-
-  const verifyResult = await SigningService.verifyWithKeyProvider({
-    method: request.method,
-    url: request.url,
-    body: bodyBytes,
-    headers: request.headers,
-    windowMs,
-    getSecretForKeyId: async (_keyId: string) => secret,
-    verifyNonce:
-      env.ZT_NONCES === undefined
-        ? undefined
-        : async (keyId: string, nonce: string, ttlMs: number): Promise<boolean> =>
-            verifyNonceKv(env.ZT_NONCES as KVNamespace, keyId, nonce, ttlMs),
+  const verifyResult = await WorkerSigning.verifySignedRequest(request, env, bodyBytes, {
+    secretEnvVar: 'D1_REMOTE_SECRET',
+    missingSecretStatus: 401,
+    missingSecretMessage: 'Missing signing secret (D1_REMOTE_SECRET or APP_KEY)',
+    defaultSigningWindowMs: DEFAULT_SIGNING_WINDOW_MS,
   });
 
   if (verifyResult.ok === false) {
@@ -322,7 +280,8 @@ const readAndVerifyJson = async (
   request: Request,
   env: D1Env
 ): Promise<
-  { ok: true; payload: unknown | null; bodyBytes: Uint8Array } | { ok: false; response: Response }
+  | { ok: true; payload: Record<string, unknown> | null; bodyBytes: Uint8Array }
+  | { ok: false; response: Response }
 > => {
   const maxBodyBytes = getEnvInt(env, 'ZT_MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES);
   const bodyResult = await readBodyBytes(request, maxBodyBytes);

@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cloudflare-d1-proxy",
-  "version": "0.9.2",
+  "version": "1.2.0",
   "description": "Cloudflare D1 proxy package for ZinTrust.",
   "type": "module",
   "private": false,
@@ -20,7 +20,7 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.9.2"
+    "@zintrust/core": "*"
   },
   "keywords": [
     "zintrust",

@@ -1,5 +1,15 @@
 # 2026-04-22
 
+- Extracted a dedicated worker-only signing helper for Cloudflare proxy entrypoints. The D1/KV worker path now goes through `WorkerSigning` instead of embedding verification logic in shared proxy files or routing through broader runtime signing services, which makes the worker-safe import boundary explicit and keeps the proxy surface off `Env` and other app-runtime config code.
+
+- Fixed the shared Cloudflare D1/KV proxy verification path so the worker entrypoints no longer pull `SigningService` and `Env` from the broader app runtime config graph. The common proxy helper now verifies signed requests directly with `SignedRequest`, which keeps both core and standalone Cloudflare proxy bundles on a Worker-safe import surface instead of reintroducing startup failures through shared config imports.
+
+- Fixed the Cloudflare Worker startup path so `WorkerAdapterImports` no longer uses top-level `await` in the core Worker bundle. Worker boot still awaits the same readiness promise at runtime, but the generated service entry now stays parseable under Wrangler/Miniflare instead of failing early with `Unexpected reserved word` during `ZintrustD1Proxy.js` startup.
+
+- Added signed remote trace transport support to `@zintrust/trace`. Apps can now set `TRACE_PROXY=true` to send the same write/update/latest-family trace operations they already produce to a remote ingest server via `TRACE_PROXY_URL` + `TRACE_PROXY_PATH`, while trace servers can mount `registerTraceIngestGateway(...)` to verify and persist those requests through the existing `TraceStorage` flow. The trace runtime also now supports `TRACE_SERVICE_TAG`, falling back to `APP_NAME` so multi-project trace servers can tag incoming data consistently.
+
+- Added arbitrary env-key generation to the CLI. `zin key:<ENV_KEY>` now normalizes to `zin key:env <ENV_KEY>`, generates a new secret value, writes it into `.env`, and prompts before overwriting an existing key unless `--yes` is provided.
+
 - Added a first-class date migration helper so you can now write `table.date('blocked_date')` for date-only columns and keep `table.timestamp(...)` for date-time values. The migration blueprint/types/compiler all support the new helper.
 
 - Added a framework-owned ORM contract for model-owned primary keys through `Model.primaryKey`. Projects can now use `Model.primaryKey.uuid('id')` or `Model.primaryKey.using(...)` instead of repeating fragile `creating` observer guards, and the built-in missing-value check correctly treats `undefined`, `null`, empty strings, and whitespace-only strings as missing before insert.

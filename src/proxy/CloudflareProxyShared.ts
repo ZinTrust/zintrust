@@ -1,25 +1,16 @@
 import { isString } from '@helper/index';
 import { ErrorHandler } from '@proxy/ErrorHandler';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { SigningService } from '@proxy/SigningService';
+import type { WorkerSigningOptions } from '@proxy/WorkerSigning';
+import { WorkerSigning } from '@proxy/WorkerSigning';
 
-export type ProxyNoncePutOptions = {
-  expirationTtl?: number;
-};
+export type {
+  ProxyNonceNamespace,
+  ProxyNoncePutOptions,
+  WorkerSigningOptions,
+} from '@proxy/WorkerSigning';
 
-export type ProxyNonceNamespace = {
-  get: (key: string) => Promise<string | null>;
-  put: (key: string, value: string, options?: ProxyNoncePutOptions) => Promise<void>;
-};
-
-type SignedRequestOptions = Readonly<{
-  secretEnvVar: string;
-  missingSecretStatus: number;
-  missingSecretMessage: string;
-  defaultSigningWindowMs: number;
-}>;
-
-type ReadAndVerifyJsonOptions = SignedRequestOptions &
+type ReadAndVerifyJsonOptions = WorkerSigningOptions &
   Readonly<{
     defaultMaxBodyBytes: number;
   }>;
@@ -94,62 +85,13 @@ export const parseOptionalJson = (
   return { ok: true, payload: parsed.value };
 };
 
-const loadSigningSecret = (env: ProxyRequestEnv, secretEnvVar: string): string | null => {
-  const directValue = getEnvValue(env, secretEnvVar);
-  const direct = isString(directValue) ? directValue.trim() : '';
-  if (direct !== '') return direct;
-
-  const fallbackValue = getEnvValue(env, 'APP_KEY');
-  const fallback = isString(fallbackValue) ? fallbackValue.trim() : '';
-  if (fallback !== '') return fallback;
-
-  return null;
-};
-
-export const verifyNonceKv = async (
-  kv: ProxyNonceNamespace,
-  keyId: string,
-  nonce: string,
-  ttlMs: number
-): Promise<boolean> => {
-  const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
-  const storageKey = `nonce:${keyId}:${nonce}`;
-  const existing = await kv.get(storageKey);
-  if (existing !== null) return false;
-  await kv.put(storageKey, '1', { expirationTtl: ttlSeconds });
-  return true;
-};
-
 export const verifySignedRequest = async (
   request: Request,
   env: ProxyRequestEnv,
   bodyBytes: Uint8Array,
-  options: SignedRequestOptions
+  options: WorkerSigningOptions
 ): Promise<Response | { ok: true }> => {
-  const secret = loadSigningSecret(env, options.secretEnvVar);
-  if (secret === null) {
-    return toErrorResponse(
-      options.missingSecretStatus,
-      'CONFIG_ERROR',
-      options.missingSecretMessage
-    );
-  }
-
-  const windowMs = getEnvInt(env, 'ZT_PROXY_SIGNING_WINDOW_MS', options.defaultSigningWindowMs);
-  const nonceStore = getEnvValue(env, 'ZT_NONCES');
-  const verifyResult = await SigningService.verifyWithKeyProvider({
-    method: request.method,
-    url: request.url,
-    body: bodyBytes,
-    headers: request.headers,
-    windowMs,
-    getSecretForKeyId: (_keyId: string) => secret,
-    verifyNonce:
-      nonceStore === undefined || nonceStore === null
-        ? undefined
-        : async (keyId: string, nonce: string, ttlMs: number): Promise<boolean> =>
-            verifyNonceKv(nonceStore as ProxyNonceNamespace, keyId, nonce, ttlMs),
-  });
+  const verifyResult = await WorkerSigning.verifySignedRequest(request, env, bodyBytes, options);
 
   if (!verifyResult.ok) {
     return toErrorResponse(verifyResult.status, verifyResult.code, verifyResult.message);

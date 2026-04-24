@@ -285,6 +285,7 @@ const getCoreRuntime = async (): Promise<{
 
 const getQueueWorkerApi = async (): Promise<QueueWorkerApi | null> => {
   try {
+    // @ts-ignore
     const mod = (await import('@zintrust/workers')) as unknown as QueueWorkerApi;
     return typeof mod.createQueueWorker === 'function' ? mod : null;
   } catch {

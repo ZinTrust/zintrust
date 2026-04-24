@@ -100,6 +100,28 @@ describe('TraceConfig', () => {
     expect(config.observeConnection).toBe('primary');
   });
 
+  it('supports trace proxy and service-tag overrides', () => {
+    const config = TraceConfig.merge({
+      serviceTag: 'payments-api',
+      proxy: {
+        enabled: true,
+        url: 'https://trace.example.test/gateway',
+        path: '/zin/trace/write',
+        timeoutMs: 1500,
+      },
+    });
+
+    expect(config.serviceTag).toBe('payments-api');
+    expect(config.proxy).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        url: 'https://trace.example.test/gateway',
+        path: '/zin/trace/write',
+        timeoutMs: 1500,
+      })
+    );
+  });
+
   it('accepts contains-based ignorePaths filters separately from ignoreRoutes', () => {
     const config = TraceConfig.merge({
       ignoreRoutes: ['/trace'],

@@ -93,6 +93,16 @@ describe('CLI.run', () => {
     expect(program.parseAsync).toHaveBeenCalledWith(['node', 'zintrust', 'new', 'my-app']);
   });
 
+  it('should normalize key:ANY_KEY syntax to key:env', async () => {
+    await cli.run(['key:D1_REMOTE_SECRET']);
+    expect(program.parseAsync).toHaveBeenCalledWith([
+      'node',
+      'zintrust',
+      'key:env',
+      'D1_REMOTE_SECRET',
+    ]);
+  });
+
   it('should handle commander error with exitCode 0', async () => {
     const commanderError = new Error('commander error');
     (commanderError as any).code = 'commander.helpDisplayed';

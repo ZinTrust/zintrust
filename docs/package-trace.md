@@ -52,6 +52,13 @@ TRACE_ENABLED=true
 TRACE_AUTO_MOUNT=true         # optional — stock bootstrap auto-mounts /trace when true
 TRACE_DB_CONNECTION=
 TRACE_QUERY_CONNECTION=
+TRACE_SERVICE_TAG=
+TRACE_PROXY=false
+TRACE_PROXY_URL=
+TRACE_PROXY_PATH=/zin/trace/write
+TRACE_PROXY_KEY_ID=
+TRACE_PROXY_SECRET=
+TRACE_PROXY_TIMEOUT_MS=30000
 TRACE_PRUNE_HOURS=24
 TRACE_SLOW_QUERY_MS=100
 TRACE_LOG_LEVEL=info
@@ -71,6 +78,8 @@ TRACE_REDACT_QUERY=
 ```
 
 When `TRACE_CONTENT_QUEUE_DRIVER` is set, trace writes enqueue through that registered queue driver and an internal trace drain worker handles persistence outside the live request path. If it is not set, oversized trace content is replaced with `Trace content exceeded budget and was replaced.` instead of using the heavier inline compaction path.
+
+When `TRACE_PROXY=true`, the runtime still builds the normal trace write payload locally, but it sends the write/update/family-stale operations to a remote signed trace gateway instead of writing to the local trace database. `TRACE_SERVICE_TAG` is appended once to outgoing trace entries and falls back to `APP_NAME` when empty.
 
 That means the current architecture already supports Redis or any other registered async queue driver. First-class Cloudflare Queue support still requires a dedicated queue driver plus queue-runtime registration for that transport.
 
@@ -103,6 +112,20 @@ registerTraceDashboard(router, {
   middleware: ['admin'],
 });
 ```
+
+### 3. Optional remote ingest server
+
+If you want a dedicated trace server, mount the signed ingest gateway there:
+
+```ts
+import { registerTraceIngestGateway } from '@zintrust/trace';
+
+registerTraceIngestGateway(router, {
+  basePath: '/zin/trace/write',
+});
+```
+
+The sender app uses `TRACE_PROXY_URL` plus `TRACE_PROXY_PATH` for transport, and the trace server verifies requests with `TRACE_PROXY_KEY_ID` + `TRACE_PROXY_SECRET` or their `APP_NAME` + `APP_KEY` fallbacks. The gateway writes through the normal `TraceStorage` implementation after signature verification.
 
 This is the recommended path when you want the dashboard without importing the full package root re-export surface in route code.
 
@@ -206,6 +229,13 @@ Key config knobs include:
 
 - `enabled`
 - `connection`
+- `serviceTag`
+- `proxy.enabled`
+- `proxy.url`
+- `proxy.path`
+- `proxy.keyId`
+- `proxy.secret`
+- `proxy.timeoutMs`
 - `pruneAfterHours`
 - `slowQueryThreshold`
 - `logMinLevel`

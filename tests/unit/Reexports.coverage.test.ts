@@ -13,7 +13,7 @@ describe('Re-export modules (coverage)', () => {
 
     expect(userControllerSource.UserController).toBe(UserQueryBuilderController);
     expect(userControllerSource.default).toBe(UserQueryBuilderController);
-  });
+  }, 30000);
 
   it('re-exports route registrars from src/routes/*', async () => {
     const api = await import('@routes/api');

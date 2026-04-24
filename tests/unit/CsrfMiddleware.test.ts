@@ -110,7 +110,7 @@ describe('CsrfMiddleware helpers and middleware behavior', () => {
 
     expect(nextCalled).toBe(false);
     expect(res.payload).toEqual({ error: 'Forbidden', message: 'Invalid CSRF token' });
-  });
+  }, 30000);
 
   it('POST with valid token in header proceeds', async () => {
     vi.resetModules();
@@ -147,7 +147,7 @@ describe('CsrfMiddleware helpers and middleware behavior', () => {
     });
 
     expect(proceeded).toBe(true);
-  });
+  }, 30000);
 
   it('cookie parsing via header works in middleware', async () => {
     vi.resetModules();

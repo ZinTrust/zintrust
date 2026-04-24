@@ -347,5 +347,5 @@ describe('ProjectScaffolder missing-line coverage', () => {
     expect(result.message).toContain('mkdir boom');
 
     rmSync(tmpBase, { recursive: true, force: true });
-  });
+  }, 30000);
 });

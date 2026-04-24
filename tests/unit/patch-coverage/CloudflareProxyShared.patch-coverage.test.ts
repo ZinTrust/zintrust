@@ -26,9 +26,9 @@ describe('patch coverage: CloudflareProxyShared', () => {
         }),
       },
     }));
-    vi.doMock('@proxy/SigningService', () => ({
-      SigningService: {
-        verifyWithKeyProvider: vi.fn(),
+    vi.doMock('@proxy/WorkerSigning', () => ({
+      WorkerSigning: {
+        verifySignedRequest: vi.fn(),
       },
     }));
 

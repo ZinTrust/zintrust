@@ -31,6 +31,7 @@ export { TraceContext } from './context';
 // ---------------------------------------------------------------------------
 export { registerTraceDashboard, registerTraceRoutes } from './dashboard/routes';
 export type { TraceDashboardOptions, TraceDashboardRegistrationOptions } from './dashboard/routes';
+export { registerTraceIngestGateway, TraceIngestGateway } from './ingest/TraceIngestGateway';
 
 // ---------------------------------------------------------------------------
 // Watchers (named re-exports for use with custom wiring)

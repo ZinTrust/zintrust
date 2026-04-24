@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ErrorHandler,
   RequestValidator,
-  SigningService,
+  WorkerSigning,
   ZintrustD1Proxy,
   ZintrustKvProxy,
 } from '@/proxy';
@@ -16,7 +16,7 @@ describe('entrypoint coverage', () => {
   it('covers proxy and worker entrypoint exports', () => {
     expect(ErrorHandler).toBeDefined();
     expect(RequestValidator).toBeDefined();
-    expect(SigningService).toBeDefined();
+    expect(WorkerSigning).toBeDefined();
     expect(ZintrustD1Proxy).toBeDefined();
     expect(ZintrustKvProxy).toBeDefined();
     expect(WorkerCommands).toBeDefined();

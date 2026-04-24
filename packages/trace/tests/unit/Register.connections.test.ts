@@ -60,6 +60,12 @@ vi.mock('@zintrust/core', () => ({
 }));
 
 vi.mock('../../src/storage', () => ({
+  ProxyTraceStorage: {
+    create: vi.fn((settings: unknown) => ({ settings })),
+  },
+  TraceServiceTag: {
+    wrapStorage: vi.fn((storage: unknown) => storage),
+  },
   TraceStorage: {
     resolveStorage,
   },

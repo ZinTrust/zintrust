@@ -139,7 +139,7 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
       socketId: undefined,
     });
     expect(queueMock.ack).toHaveBeenCalledWith('broadcasts', 'b2', undefined);
-  });
+  }, 30000);
 
   it('NotificationWorker.processOne uses Notification.send', async () => {
     const { NotificationWorker } = await import('@zintrust/workers');

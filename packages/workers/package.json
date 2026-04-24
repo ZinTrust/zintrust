@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/workers",
-  "version": "0.9.2",
+  "version": "1.2.0",
   "description": "Worker orchestration and background job management for ZinTrust.",
   "private": false,
   "type": "module",
@@ -40,7 +40,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.9.2",
+    "@zintrust/core": "*",
     "@zintrust/queue-monitor": "*",
     "@zintrust/queue-redis": "*"
   },
