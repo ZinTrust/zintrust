@@ -128,7 +128,7 @@ const getRouteHandler = (path: string) => {
     throw ErrorFactory.createConfigError('Trace ingest route not registered.', { path });
   }
 
-  return { handler: route.handler, storage };
+  return { handler: route.handler, route, storage };
 };
 
 describe('TraceIngestGateway', () => {
@@ -271,5 +271,42 @@ describe('TraceIngestGateway', () => {
       ok: false,
       error: { code: 'VALIDATION_ERROR', message: 'familyHash is required' },
     });
+  });
+
+  it('builds proxy rate-limit middleware from first-class env vars', () => {
+    vi.stubEnv('TRACE_PROXY_MIDDLEWARE', 'auth,admin,rateLimit:5:1');
+    vi.stubEnv('TRACE_PROXY_RATE_LIMIT_MAX', '100000');
+    vi.stubEnv('TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES', '1');
+
+    const router = Router.createRouter();
+    const storage = {
+      writeEntry: vi.fn(async () => undefined),
+      updateEntry: vi.fn(async () => undefined),
+      markFamilyStale: vi.fn(async () => undefined),
+      queryEntries: vi.fn(),
+      getEntry: vi.fn(),
+      getBatch: vi.fn(),
+      queryBatchEntries: vi.fn(),
+      prune: vi.fn(),
+      clear: vi.fn(),
+      getMonitoring: vi.fn(),
+      addMonitoring: vi.fn(),
+      removeMonitoring: vi.fn(),
+      stats: vi.fn(),
+    };
+
+    TraceIngestGateway.create({
+      basePath: BASE_PATH,
+      keyId: 'trace-key',
+      secret: 'trace-secret',
+      signingWindowMs: 600000000000,
+      storage: storage as never,
+    }).registerRoutes(router as never);
+
+    const route = router.routes.find((item) => item.method === 'POST' && item.path === BASE_PATH);
+
+    expect(route?.middleware).toEqual(['auth', 'admin', 'rateLimit:100000:1']);
+
+    vi.unstubAllEnvs();
   });
 });

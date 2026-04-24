@@ -39,6 +39,9 @@ TRACE_PROXY_PATH=/zin/trace/write
 TRACE_PROXY_KEY_ID=           # optional — falls back to APP_NAME
 TRACE_PROXY_SECRET=           # optional — falls back to APP_KEY
 TRACE_PROXY_TIMEOUT_MS=30000
+TRACE_PROXY_MIDDLEWARE=       # optional — comma-separated route middleware applied on the receiver
+TRACE_PROXY_RATE_LIMIT_MAX=0  # optional — when > 0, adds rateLimit:<max>:<window> automatically
+TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES=0
 TRACE_PRUNE_HOURS=24          # how long entries are kept (default: 24)
 TRACE_SLOW_QUERY_MS=100       # slow-query threshold in ms (default: 100)
 TRACE_LOG_LEVEL=info          # minimum log level captured (default: info)
@@ -60,6 +63,8 @@ TRACE_REDACT_QUERY=
 When `TRACE_CONTENT_QUEUE_DRIVER` is set, trace writes enqueue through that registered queue driver and an internal trace worker drains them outside the live request path. When it is unset, oversized content is replaced with `Trace content exceeded budget and was replaced.` before persistence instead of running the heavy compaction loop inline.
 
 When `TRACE_PROXY=true`, the local runtime keeps collecting the same trace payload it would normally send to storage, but it sends the write/update/stale-family operations to `TRACE_PROXY_URL + TRACE_PROXY_PATH` instead of writing directly to the local trace database. The receiver can then persist those entries with the standard `TraceStorage` flow.
+
+On the receiver, use `TRACE_PROXY_MIDDLEWARE` for any gateway middleware such as `auth,admin`. If you want a dedicated ingest rate limit without encoding `rateLimit:<max>:<window>` by hand, set `TRACE_PROXY_RATE_LIMIT_MAX` and `TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES`; the gateway appends that parameterized rate-limit middleware automatically.
 
 This currently works with any queue driver already registered in ZinTrust. First-class Cloudflare Queue support still requires a dedicated queue driver and queue-runtime registration for that transport.
 
