@@ -4,6 +4,9 @@ import { defineConfig } from 'vitest/config';
 
 const COVERAGE_STRICT = process.env.COVERAGE_STRICT === 'true';
 const COVERAGE_REPORTS_DIRECTORY = process.env.ZINTRUST_COVERAGE_REPORTS_DIR?.trim() || 'coverage';
+const IS_COVERAGE_RUN = process.argv.some(
+  (arg) => arg === '--coverage' || arg.startsWith('--coverage.')
+);
 const coverageThresholds = COVERAGE_STRICT
   ? {
       lines: 83,
@@ -119,6 +122,7 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts', 'packages/**/*.test.ts'],
     setupFiles: ['tests/vitest.setup.ts'],
+    hookTimeout: IS_COVERAGE_RUN ? 60000 : 30000,
     coverage: {
       provider: 'v8',
       reportsDirectory: COVERAGE_REPORTS_DIRECTORY,
@@ -198,6 +202,6 @@ export default defineConfig({
       ],
       thresholds: coverageThresholds,
     },
-    testTimeout: 10000,
+    testTimeout: IS_COVERAGE_RUN ? 60000 : 10000,
   },
 });
