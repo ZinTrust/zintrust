@@ -1,5 +1,7 @@
 # 2026-04-24
 
+- Added a package-local `lint` script to `@zintrust/storage-gcs` so workspace-level checks like `npm run lint -- --max-warnings=0` work when run from `packages/storage-gcs` instead of failing with a missing-script error.
+
 - Stabilized the Husky pre-push `coverage:patch` path by raising Vitest `testTimeout` and `hookTimeout` only during `--coverage` runs. Normal `npm test` still keeps the tighter fast-feedback budget, while full V8 coverage runs now have enough headroom for the repo's slower import-heavy CLI, broadcast, and schedule slices without intermittent timeout failures.
 
 - Stabilized the remaining per-test timeout overrides that were still bypassing the coverage-only Vitest timeout policy. `tests/unit/CoverageBoost.test.ts` and `tests/integration/cli/ScheduleCli.SourceFirst.integration.test.ts` now allow enough time for aggregate patch-coverage runs instead of failing intermittently under Husky with explicit 10s and 30s caps.
