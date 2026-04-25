@@ -117,7 +117,7 @@ const securityConfigObj = {
    */
   rateLimit: {
     enabled: Env.getBool('RATE_LIMIT_ENABLED', true),
-    windowMs: Env.getInt('RATE_LIMIT_WINDOW_MS', 900000), // 15 minutes
+    windowMs: Env.getInt('RATE_LIMIT_WINDOW_MS', 60_000), // 1 minute
     maxRequests: Env.getInt('RATE_LIMIT_MAX_REQUESTS', 100),
     message: Env.get('RATE_LIMIT_MESSAGE', 'Too many requests, please try again later'),
   },

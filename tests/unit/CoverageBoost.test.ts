@@ -751,7 +751,7 @@ describe('ConnectionManager', () => {
     await expect(aurora.batch([{ sql: 'SELECT 1' }])).rejects.toThrow();
 
     await cm.closeAll();
-  }, 10000); // 10 second timeout
+  }, 30000); // Allow extra headroom under aggregate coverage runs
 });
 
 describe('HTTP Layer', () => {

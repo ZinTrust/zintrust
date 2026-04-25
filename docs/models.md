@@ -199,7 +199,13 @@ const wallet = Wallet.hydrate({ amount_cents: 1250 });
 wallet.amount_cents; // 12.5
 wallet.getAttribute('amount_cents'); // 12.5
 wallet.getAttributes().amount_cents; // 1250
+
+const sameWallet = Wallet.hydrate(wallet);
+
+sameWallet === wallet; // true
 ```
+
+`Model.hydrate(...)` treats plain records as raw stored attributes. If you pass an already hydrated model instance back into `hydrate(...)`, ZinTrust now returns that same instance unchanged instead of rebuilding model state from enumerable properties. This keeps accessor-backed reads, attached relations, dirty tracking, and save-capable mutability stable across helper boundaries.
 
 ### Safe Mass Assignment (fillable)
 

@@ -1,4 +1,5 @@
 import { Env } from '@config/env';
+import { securityConfig } from '@config/security';
 import type { MiddlewareConfigType } from '@config/type';
 import { isArray, isObject } from '@helper/index';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
@@ -80,9 +81,9 @@ export const MiddlewareBody = {
 
 export type MiddlewaresType = {
   skipPaths: ReadonlyArray<string>;
-  fillRateLimit: { windowMs: number; max: number; message: string };
-  authRateLimit: { windowMs: number; max: number; message: string };
-  userMutationRateLimit: { windowMs: number; max: number; message: string };
+  fillRateLimit: { windowMs: number; maxRequests: number; message: string };
+  authRateLimit: { windowMs: number; maxRequests: number; message: string };
+  userMutationRateLimit: { windowMs: number; maxRequests: number; message: string };
   responders?: MiddlewareResponderConfig;
   global?: ReadonlyArray<Middleware>;
   route?: Record<string, Middleware>;
@@ -115,7 +116,7 @@ type StaticMiddlewareKey = keyof typeof MiddlewareKeys;
 export type MiddlewareKey = StaticMiddlewareKey | ParameterizedRateLimitMiddlewareKey;
 
 type ParameterizedRateLimitConfig = Readonly<{
-  max: number;
+  maxRequests: number;
   windowMs: number;
 }>;
 
@@ -125,16 +126,16 @@ const parseParameterizedRateLimitKey = (
   const match = /^rateLimit:(\d+):(\d+(?:\.\d+)?)$/.exec(value.trim());
   if (!match) return undefined;
 
-  const max = Number.parseInt(match[1] ?? '', 10);
+  const maxRequests = Number.parseInt(match[1] ?? '', 10);
   const windowMinutes = Number.parseFloat(match[2] ?? '');
 
-  if (!Number.isInteger(max) || max < 1) return undefined;
+  if (!Number.isInteger(maxRequests) || maxRequests < 1) return undefined;
   if (!Number.isFinite(windowMinutes) || windowMinutes <= 0) return undefined;
 
   const windowMs = Math.round(windowMinutes * 60_000);
   if (!Number.isFinite(windowMs) || windowMs < 1) return undefined;
 
-  return Object.freeze({ max, windowMs });
+  return Object.freeze({ maxRequests, windowMs });
 };
 
 export const isKnownMiddlewareName = (value: string): value is MiddlewareKey => {
@@ -165,10 +166,10 @@ type SharedRateLimitMiddlewares = Pick<
 
 const resolveFillRateLimit = (
   loadMiddlewareConfig: Partial<MiddlewaresType>
-): { windowMs: number; max: number; message: string } => {
+): { windowMs: number; maxRequests: number; message: string } => {
   return {
     windowMs: loadMiddlewareConfig.fillRateLimit?.windowMs ?? 60_000,
-    max: loadMiddlewareConfig.fillRateLimit?.max ?? 5,
+    maxRequests: loadMiddlewareConfig.fillRateLimit?.maxRequests ?? 5,
     message:
       loadMiddlewareConfig.fillRateLimit?.message ??
       'Too many requests, please try again after 1 minute.',
@@ -177,10 +178,10 @@ const resolveFillRateLimit = (
 
 const resolveAuthRateLimit = (
   loadMiddlewareConfig: Partial<MiddlewaresType>
-): { windowMs: number; max: number; message: string } => {
+): { windowMs: number; maxRequests: number; message: string } => {
   return {
     windowMs: loadMiddlewareConfig.authRateLimit?.windowMs ?? 60_000,
-    max: loadMiddlewareConfig.authRateLimit?.max ?? 10,
+    maxRequests: loadMiddlewareConfig.authRateLimit?.maxRequests ?? 10,
     message:
       loadMiddlewareConfig.authRateLimit?.message ??
       'Too many login attempts, please try again after 1 minute.',
@@ -189,10 +190,10 @@ const resolveAuthRateLimit = (
 
 const resolveUserMutationRateLimit = (
   loadMiddlewareConfig: Partial<MiddlewaresType>
-): { windowMs: number; max: number; message: string } => {
+): { windowMs: number; maxRequests: number; message: string } => {
   return {
     windowMs: loadMiddlewareConfig.userMutationRateLimit?.windowMs ?? 60_000,
-    max: loadMiddlewareConfig.userMutationRateLimit?.max ?? 20,
+    maxRequests: loadMiddlewareConfig.userMutationRateLimit?.maxRequests ?? 20,
     message:
       loadMiddlewareConfig.userMutationRateLimit?.message ??
       'Too many user requests, please try again after 1 minute.',
@@ -218,9 +219,8 @@ function createRateLimitMiddlewares(
 
   return Object.freeze({
     rateLimit: RateLimiter.create({
-      windowMs: 60_000,
-      max: 100,
       onFailure: responders.rateLimit,
+      ...securityConfig.rateLimit,
     }),
     fillRateLimit,
     authRateLimit,
@@ -451,7 +451,7 @@ const createRouteMiddlewareRegistry = (
       if (parsed === undefined) return undefined;
 
       const middleware = RateLimiter.create({
-        max: parsed.max,
+        maxRequests: parsed.maxRequests,
         windowMs: parsed.windowMs,
         onFailure: responders.rateLimit,
       });

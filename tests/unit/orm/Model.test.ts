@@ -513,6 +513,44 @@ describe('Model', () => {
     expect((hydrated as IModel & { secret: string }).secret).toBe('next');
   });
 
+  it('hydrate returns the same existing hydrated model instance unchanged', async (): Promise<void> => {
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'secret'],
+      hidden: [],
+      casts: {},
+      timestamps: false,
+      mutators: {
+        secret: (value) => `enc:${String(value)}`,
+      },
+      accessors: {
+        secret: (value) => String(value).replace(/^enc:/, ''),
+      },
+    });
+
+    const existing = Test.hydrate({ id: 9, secret: 'enc:old' });
+    existing.setRelation('profile', { role: 'admin' });
+
+    const again = Test.hydrate(existing);
+
+    expect(again).toBe(existing);
+    expect(again.getAttribute('secret')).toBe('old');
+    expect((again as IModel & { secret: string }).secret).toBe('old');
+    expect(again.getAttributes()['secret']).toBe('enc:old');
+    expect(again.getRelation<{ role: string }>('profile')).toEqual({ role: 'admin' });
+
+    (again as IModel & { secret: string }).secret = 'next';
+    expect(again.getAttributes()['secret']).toBe('enc:next');
+
+    await expect(again.save()).resolves.toBe(true);
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.where).toHaveBeenCalledWith('id', '=', 9);
+    expect(qb.__getLastBuilder()?.update).toHaveBeenCalledWith({ secret: 'enc:next' });
+  });
+
   it('hydrates first() and firstOrFail() results like get()', async (): Promise<void> => {
     const config = {
       ...baseConfig,

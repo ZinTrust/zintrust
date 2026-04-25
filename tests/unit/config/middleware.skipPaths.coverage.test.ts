@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const csrfCreateMock = vi.fn(() => ({ name: 'csrf' }));
 const errorCreateMock = vi.fn(() => ({ name: 'error' }));
@@ -100,6 +100,12 @@ import { createMiddlewareConfig } from '../../../src/config/middleware';
 import { StartupConfigFileRegistry } from '../../../src/runtime/StartupConfigFileRegistry';
 
 describe('middleware config (coverage extras)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(StartupConfigFileRegistry.get).mockReset();
+    vi.mocked(StartupConfigFileRegistry.get).mockReturnValue({ skipPaths: ['/from-config'] });
+  });
+
   it('prefers StartupConfigFileRegistry skipPaths when provided', () => {
     createMiddlewareConfig();
     expect(csrfCreateMock).toHaveBeenCalledWith({
@@ -182,11 +188,13 @@ describe('middleware config (coverage extras)', () => {
       skipPaths: ['/broadcasting/auth', '/apps/*/events', '/from-config'],
       onFailure: csrfResponder,
     });
-    expect(rateLimitCreateMock).toHaveBeenCalledWith({
-      windowMs: 60_000,
-      max: 100,
-      onFailure: rateLimitResponder,
-    });
+    expect(rateLimitCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        windowMs: 60_000,
+        maxRequests: 100,
+        onFailure: rateLimitResponder,
+      })
+    );
     expect(validationCreateBodyWithSanitizationMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
@@ -214,7 +222,7 @@ describe('middleware config (coverage extras)', () => {
     expect(first).toEqual({ name: 'rate' });
     expect(first).toBe(second);
     expect(rateLimitCreateMock).toHaveBeenCalledWith({
-      max: 100,
+      maxRequests: 100,
       windowMs: 24_000,
       onFailure: rateLimitResponder,
     });

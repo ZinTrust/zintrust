@@ -1,3 +1,15 @@
+# 2026-04-24
+
+- Added a package-local `lint` script to `@zintrust/storage-gcs` so workspace-level checks like `npm run lint -- --max-warnings=0` work when run from `packages/storage-gcs` instead of failing with a missing-script error.
+
+- Stabilized the Husky pre-push `coverage:patch` path by raising Vitest `testTimeout` and `hookTimeout` only during `--coverage` runs. Normal `npm test` still keeps the tighter fast-feedback budget, while full V8 coverage runs now have enough headroom for the repo's slower import-heavy CLI, broadcast, and schedule slices without intermittent timeout failures.
+
+- Stabilized the remaining per-test timeout overrides that were still bypassing the coverage-only Vitest timeout policy. `tests/unit/CoverageBoost.test.ts` and `tests/integration/cli/ScheduleCli.SourceFirst.integration.test.ts` now allow enough time for aggregate patch-coverage runs instead of failing intermittently under Husky with explicit 10s and 30s caps.
+
+- Fixed the ORM hydration contract so `Model.hydrate(...)` is now idempotent for already hydrated model instances. Passing an existing model back into `hydrate(...)` now returns that same instance unchanged instead of rebuilding a second model from enumerable properties, which preserves accessor-backed reads, raw stored attributes, attached relations, dirty tracking, and subsequent `save()` behavior across helper boundaries.
+
+- Fixed the package publish pipeline so workspace adapters keep their checked-in `peerDependencies['@zintrust/core']` value during npm publish instead of being rewritten to a stale caret range. This closes the release-path regression that republished `@zintrust/cache-redis@1.5.0` with `@zintrust/core: ^1.2.0` on npm even though the source manifest declared `*`, and bumps `@zintrust/cache-redis` to `1.5.1` for the corrective republish.
+
 # 2026-04-22
 
 - Extracted a dedicated worker-only signing helper for Cloudflare proxy entrypoints. The D1/KV worker path now goes through `WorkerSigning` instead of embedding verification logic in shared proxy files or routing through broader runtime signing services, which makes the worker-safe import boundary explicit and keeps the proxy surface off `Env` and other app-runtime config code.

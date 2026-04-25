@@ -8,7 +8,7 @@ import { DEFAULTS } from '@config/constants';
 import { Logger } from '@config/logger';
 import type { Paginator } from '@database/Paginator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { isMissingLike, isWhitespaceOnly } from '@helper/index';
+import { isFunction, isMissingLike, isObject, isWhitespaceOnly } from '@helper/index';
 import { useDatabase, type IDatabase } from '@orm/Database';
 import type {
   EagerLoadConstraints,
@@ -79,7 +79,7 @@ export interface ModelStatic {
   query(): IQueryBuilder;
   getTable?(): string;
   name?: string;
-  hydrate?(attributes: Record<string, unknown>): IModel;
+  hydrate?(attributes: Record<string, unknown> | IModel): IModel;
 }
 
 export interface IModel {
@@ -149,6 +149,18 @@ export interface IModel {
     secondLocalKey?: string
   ): IRelationship;
 }
+
+const isHydratedModelInstance = (value: unknown): value is IModel => {
+  if (!isObject(value)) return false;
+
+  return (
+    isFunction(value['getAttribute']) &&
+    isFunction(value['setAttribute']) &&
+    isFunction(value['getAttributes']) &&
+    isFunction(value['save']) &&
+    isFunction(value['exists'])
+  );
+};
 
 /**
  * Cast attribute value based on config
@@ -932,7 +944,7 @@ export type DefinedModel<T extends BoundModelMethods> = {
   create: (attributes?: Record<string, unknown> | undefined) => Promise<IModel & T>;
   make: (attributes?: Record<string, unknown> | undefined) => IModel & T;
   new: (attributes?: Record<string, unknown> | undefined) => IModel & T;
-  hydrate: (attributes: Record<string, unknown>) => IModel & T;
+  hydrate: (attributes: Record<string, unknown> | (IModel & T)) => IModel & T;
   hydrateWithRelations(
     attributes: Record<string, unknown>,
     related: Record<string, unknown>
@@ -996,7 +1008,13 @@ const createHydrator = (
   cfg: ModelConfig,
   attach: (model: IModel) => IModel & BoundModelMethods
 ) => {
-  return (attributes: Record<string, unknown>): IModel & BoundModelMethods => {
+  return (
+    attributes: Record<string, unknown> | (IModel & BoundModelMethods)
+  ): IModel & BoundModelMethods => {
+    if (isHydratedModelInstance(attributes)) {
+      return attributes;
+    }
+
     const model = createModel(cfg, attributes, { hydrate: true, exists: true });
     return attach(model);
   };
@@ -1385,8 +1403,9 @@ const createDefinedModelInternal = (
       makeModel(attributes),
     new: (attributes: Record<string, unknown> = {}): IModel & BoundModelMethods =>
       makeModel(attributes),
-    hydrate: (attributes: Record<string, unknown>): IModel & BoundModelMethods =>
-      hydrateModel(attributes),
+    hydrate: (
+      attributes: Record<string, unknown> | (IModel & BoundModelMethods)
+    ): IModel & BoundModelMethods => hydrateModel(attributes),
     find: async (id: unknown): Promise<(IModel & BoundModelMethods) | null> => {
       const model = await find(cfg, id);
       return model === null ? null : attach(model);
@@ -1436,18 +1455,19 @@ const createDefinedModelInternal = (
 /**
  * Define a new model type
  */
+export function define(config: ModelConfig): DefinedModel<BoundModelMethods>;
 export function define<const T extends UnboundModelMethods>(
   config: ModelConfig,
-  methods?: T
+  methods: T
 ): DefinedModel<BoundFromUnbound<T>>;
 export function define<const T extends BoundModelMethods>(
   config: ModelConfig,
   plan: (model: IModel) => T
 ): DefinedModel<T>;
-export function define(
+export function define<const T extends UnboundModelMethods | BoundModelMethods = BoundModelMethods>(
   config: ModelConfig,
-  methodsOrPlan?: UnboundModelMethods | ((model: IModel) => BoundModelMethods)
-): DefinedModel<BoundModelMethods> {
+  methodsOrPlan?: T | ((model: IModel) => T)
+): DefinedModel<T extends UnboundModelMethods ? BoundFromUnbound<T> : T> {
   const plan = typeof methodsOrPlan === 'function' ? methodsOrPlan : undefined;
   const unboundMethods = typeof methodsOrPlan === 'function' ? undefined : methodsOrPlan;
 
@@ -1460,7 +1480,12 @@ export function define(
     return extendModel(model, methods);
   };
 
-  return createDefinedModelInternal(config, methodsOrPlan, attach, resolveMethods);
+  return createDefinedModelInternal(
+    config,
+    methodsOrPlan as MethodsOrPlan,
+    attach,
+    resolveMethods
+  ) as unknown as DefinedModel<T extends UnboundModelMethods ? BoundFromUnbound<T> : T>;
 }
 
 /**
