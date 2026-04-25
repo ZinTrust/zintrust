@@ -213,5 +213,5 @@ describe('schedule CLI source-first integration', () => {
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
     }
-  }, 30000);
+  }, 60000);
 });

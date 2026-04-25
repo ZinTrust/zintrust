@@ -17,7 +17,7 @@ import type { Middleware } from '@middleware/MiddlewareStack';
 
 export interface RateLimitOptions {
   windowMs: number; // Time window in milliseconds
-  max: number; // Max requests per window
+  maxRequests: number; // Max requests per window
   message?: string;
   statusCode?: number;
   headers?: boolean;
@@ -136,7 +136,7 @@ const prefixKey = (purpose: 'service' | 'middleware', key: string): string => {
 const consume = async (params: {
   store: RateLimitStore;
   key: string;
-  max: number;
+  maxRequests: number;
   windowMs: number;
 }): Promise<{ count: number; resetTime: number; allowed: boolean }> => {
   const now = Date.now();
@@ -154,7 +154,7 @@ const consume = async (params: {
   return {
     count: nextCount,
     resetTime: nextState.resetTime,
-    allowed: nextCount <= params.max,
+    allowed: nextCount <= params.maxRequests,
   };
 };
 
@@ -181,7 +181,7 @@ const resolveRemoteAddressFromRaw = (raw: unknown): string | undefined => {
 
 const DEFAULT_OPTIONS: RateLimitOptions = {
   windowMs: 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute
+  maxRequests: 100, // 100 requests per minute
   message: 'Too many requests, please try again later.',
   statusCode: 429,
   headers: true,
@@ -220,7 +220,7 @@ export const RateLimiter = Object.freeze({
     const out = await consume({
       store: serviceStore,
       key: namespacedKey,
-      max: maxAttempts,
+      maxRequests: maxAttempts,
       windowMs,
     });
     return out.allowed;
@@ -305,29 +305,32 @@ export const RateLimiter = Object.freeze({
         resetAt = client.resetTime;
       } else {
         // Include limiter config to avoid collisions between different middleware instances.
-        const middlewareKey = prefixKey('middleware', `${config.max}:${config.windowMs}:${key}`);
+        const middlewareKey = prefixKey(
+          'middleware',
+          `${config.maxRequests}:${config.windowMs}:${key}`
+        );
         const out = await consume({
           store,
           key: middlewareKey,
-          max: config.max,
+          maxRequests: config.maxRequests,
           windowMs: config.windowMs,
         });
         count = out.count;
         resetAt = out.resetTime;
       }
 
-      const remaining = Math.max(0, config.max - count);
+      const remaining = Math.max(0, config.maxRequests - count);
       const resetTime = Math.ceil((resetAt - now) / 1000);
 
       // Set headers
       if (config.headers ?? false) {
-        res.setHeader('X-RateLimit-Limit', config.max.toString());
+        res.setHeader('X-RateLimit-Limit', config.maxRequests.toString());
         res.setHeader('X-RateLimit-Remaining', remaining.toString());
         res.setHeader('X-RateLimit-Reset', resetTime.toString());
       }
 
       // Check limit
-      if (count > config.max) {
+      if (count > config.maxRequests) {
         Logger.warn(`Rate limit exceeded for IP: ${key}`);
         const resolvedMessage = config.message ?? 'Too many requests';
         await respondWithMiddlewareFailure(req, res, config.onFailure, {

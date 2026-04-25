@@ -34,7 +34,7 @@ describe('RateLimiter', () => {
   });
 
   it('should allow requests within limit', async () => {
-    const middleware = RateLimiter.create({ max: 2, windowMs: 1000 });
+    const middleware = RateLimiter.create({ maxRequests: 2, windowMs: 1000 });
 
     await middleware(req, res, next);
     expect(next).toHaveBeenCalledTimes(1);
@@ -46,7 +46,7 @@ describe('RateLimiter', () => {
   });
 
   it('should block requests exceeding limit', async () => {
-    const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
+    const middleware = RateLimiter.create({ maxRequests: 1, windowMs: 1000 });
 
     await middleware(req, res, next); // 1st request (ok)
     await middleware(req, res, next); // 2nd request (blocked)
@@ -64,7 +64,7 @@ describe('RateLimiter', () => {
     const onFailure = vi.fn(async (_req, response, context) => {
       response.setStatus(context.statusCode).json({ reason: context.reason });
     });
-    const middleware = RateLimiter.create({ max: 1, windowMs: 1000, onFailure });
+    const middleware = RateLimiter.create({ maxRequests: 1, windowMs: 1000, onFailure });
 
     await middleware(req, res, next);
     await middleware(req, res, next);
@@ -82,7 +82,7 @@ describe('RateLimiter', () => {
   });
 
   it('should reset limit after window expires', async () => {
-    const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
+    const middleware = RateLimiter.create({ maxRequests: 1, windowMs: 1000 });
 
     await middleware(req, res, next); // 1st request
     expect(headers['x-ratelimit-remaining']).toBe('0');
@@ -97,7 +97,7 @@ describe('RateLimiter', () => {
 
   it('should not create background timers (lazy cleanup)', () => {
     const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
-    RateLimiter.create({ max: 2, windowMs: 1000 });
+    RateLimiter.create({ maxRequests: 2, windowMs: 1000 });
     expect(setIntervalSpy).not.toHaveBeenCalled();
     setIntervalSpy.mockRestore();
   });
@@ -106,7 +106,7 @@ describe('RateLimiter', () => {
     (req.getHeader as any).mockReturnValue(' 1.2.3.4, 5.6.7.8 ');
     (req.getRaw as any).mockReturnValue({});
 
-    const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
+    const middleware = RateLimiter.create({ maxRequests: 1, windowMs: 1000 });
     await middleware(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
@@ -116,7 +116,7 @@ describe('RateLimiter', () => {
     (req.getHeader as any).mockReturnValue('');
     (req.getRaw as any).mockReturnValue({ connection: { remoteAddress: '10.0.0.10' } });
 
-    const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
+    const middleware = RateLimiter.create({ maxRequests: 1, windowMs: 1000 });
     await middleware(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
@@ -126,7 +126,7 @@ describe('RateLimiter', () => {
     (req.getHeader as any).mockReturnValue('');
     (req.getRaw as any).mockReturnValue({ remoteAddress: '10.0.0.11' });
 
-    const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
+    const middleware = RateLimiter.create({ maxRequests: 1, windowMs: 1000 });
     await middleware(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
