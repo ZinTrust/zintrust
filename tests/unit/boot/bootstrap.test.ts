@@ -2,6 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/zintrust.plugins', () => ({}));
 
+const bootstrapImports = {
+  'start-fails': () => import('@boot/bootstrap?case=start-fails'),
+  'logger-fails': () => import('@boot/bootstrap?case=logger-fails'),
+} as const;
+
+const importBootstrap = async (suffix: keyof typeof bootstrapImports) => {
+  const bootstrapModule = await bootstrapImports[suffix]();
+  await bootstrapModule.bootstrapReady;
+  return bootstrapModule;
+};
+
 beforeEach(() => {
   vi.resetModules();
   // prevent real process.exit
@@ -9,7 +20,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.doUnmock('@boot/Application');
+  vi.doUnmock('@boot/Server');
+  vi.doUnmock('@config/app');
+  vi.doUnmock('@config/logger');
+  vi.doUnmock('@/scheduler/ScheduleRunner');
+  vi.doUnmock('@/schedules');
   vi.restoreAllMocks();
+  vi.resetModules();
   process.removeAllListeners('SIGTERM');
   process.removeAllListeners('SIGINT');
   process.removeAllListeners('SIGUSR2');
@@ -95,6 +113,7 @@ describe('Bootstrap start flow', () => {
   });
 
   it('exits process when start fails', async () => {
+    const loggerError = vi.fn();
     const mockApp = {
       boot: vi.fn().mockRejectedValue(new Error('boot fail')),
       shutdown: vi.fn().mockResolvedValue(undefined),
@@ -102,23 +121,48 @@ describe('Bootstrap start flow', () => {
     } as any;
 
     // Use global hook for hoisted mock factory
-    vi.mock('@boot/Application', () => ({
+    vi.doMock('@boot/Application', () => ({
       Application: { create: () => (globalThis as any).__mockApp },
     }));
     (globalThis as any).__mockApp = mockApp;
 
-    vi.mock('@boot/Server', () => ({ Server: { create: () => ({ listen: vi.fn() }) } }));
+    vi.doMock('@boot/Server', () => ({ Server: { create: () => ({ listen: vi.fn() }) } }));
 
-    vi.mock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: loggerError, debug: vi.fn() },
+    }));
 
     // Importing bootstrap will run start and then cause process.exit(1)
-    try {
-      const bootstrapModule = await import('@boot/bootstrap');
-      await bootstrapModule.bootstrapReady;
-    } catch {
-      // import may reject - ignore
-    }
+    await importBootstrap('start-fails');
 
+    expect(loggerError).toHaveBeenCalledWith('Failed to bootstrap application:', expect.any(Error));
+    expect(process.exit).toHaveBeenCalledWith(1);
+  });
+
+  it('still exits when logger.error throws during bootstrap failure handling', async () => {
+    const mockApp = {
+      boot: vi.fn().mockRejectedValue(new Error('boot fail')),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+      getContainer: vi.fn().mockReturnValue({ get: () => ({}) }),
+    } as any;
+
+    vi.doMock('@boot/Application', () => ({
+      Application: { create: () => (globalThis as any).__mockApp },
+    }));
+    (globalThis as any).__mockApp = mockApp;
+
+    vi.doMock('@boot/Server', () => ({ Server: { create: () => ({ listen: vi.fn() }) } }));
+
+    const loggerError = vi.fn(() => {
+      throw new Error('logger failed');
+    });
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: loggerError, debug: vi.fn() },
+    }));
+
+    await importBootstrap('logger-fails');
+
+    expect(loggerError).toHaveBeenCalledWith('Failed to bootstrap application:', expect.any(Error));
     expect(process.exit).toHaveBeenCalledWith(1);
   });
 });

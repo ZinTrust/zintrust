@@ -24,6 +24,7 @@ describe('SpawnUtil', () => {
     kill: vi.fn(),
     once: vi.fn(),
     on: vi.fn(),
+    off: vi.fn(),
   };
 
   beforeEach(() => {
@@ -163,6 +164,26 @@ describe('SpawnUtil', () => {
     });
 
     expect(code).toBe(0);
+  });
+
+  it('settles on exit events as well as close events', async () => {
+    let exitHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+    let closeHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+
+    mockChild.once.mockImplementation((event, cb) => {
+      if (event === 'exit') exitHandler = cb as typeof exitHandler;
+      if (event === 'close') closeHandler = cb as typeof closeHandler;
+    });
+
+    const promise = SpawnUtil.spawnAndWait({
+      command: 'ls',
+      args: [],
+    });
+
+    exitHandler?.(7, null);
+    closeHandler?.(0, null);
+
+    await expect(promise).resolves.toBe(7);
   });
 
   it('returns 1 for other signals', async () => {
@@ -344,6 +365,86 @@ describe('SpawnUtil', () => {
 
     closeHandler?.(0, null);
     await promise;
+
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: originalIsTTY,
+      configurable: true,
+    });
+    vi.useRealTimers();
+  });
+
+  it('clears pending delayed SIGTERM forwarding when the child exits first', async () => {
+    vi.useFakeTimers();
+    const onSpy = vi.spyOn(process, 'on');
+    const originalIsTTY = process.stdin.isTTY;
+    let closeHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: true,
+      configurable: true,
+    });
+
+    mockChild.once.mockImplementation((event, cb) => {
+      if (event === 'close') closeHandler = cb as typeof closeHandler;
+    });
+
+    const promise = SpawnUtil.spawnAndWait({
+      command: 'ls',
+      args: [],
+      forwardSignals: false,
+      ttySignalForwardDelayMs: 1500,
+    });
+
+    const sigtermHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGTERM')?.[1] as
+      | (() => void)
+      | undefined;
+
+    sigtermHandler?.();
+    closeHandler?.(0, null);
+
+    await vi.advanceTimersByTimeAsync(1500);
+    await expect(promise).resolves.toBe(0);
+    expect(mockChild.kill).not.toHaveBeenCalledWith('SIGTERM');
+
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: originalIsTTY,
+      configurable: true,
+    });
+    vi.useRealTimers();
+  });
+
+  it('ignores delayed SIGTERM scheduling after the child has already closed', async () => {
+    vi.useFakeTimers();
+    const onSpy = vi.spyOn(process, 'on');
+    const originalIsTTY = process.stdin.isTTY;
+    let closeHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: true,
+      configurable: true,
+    });
+
+    mockChild.once.mockImplementation((event, cb) => {
+      if (event === 'close') closeHandler = cb as typeof closeHandler;
+    });
+
+    const promise = SpawnUtil.spawnAndWait({
+      command: 'ls',
+      args: [],
+      forwardSignals: false,
+      ttySignalForwardDelayMs: 1500,
+    });
+
+    const sigtermHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGTERM')?.[1] as
+      | (() => void)
+      | undefined;
+
+    closeHandler?.(0, null);
+    sigtermHandler?.();
+
+    await vi.advanceTimersByTimeAsync(1500);
+    await expect(promise).resolves.toBe(0);
+    expect(mockChild.kill).not.toHaveBeenCalledWith('SIGTERM');
 
     Object.defineProperty(process.stdin, 'isTTY', {
       value: originalIsTTY,
