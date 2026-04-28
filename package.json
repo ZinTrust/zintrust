@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "1.5.1",
+  "version": "1.5.3",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -140,6 +140,7 @@
     "docker:build": "docker build --target runtime -t zintrust:latest .",
     "docker:build:prod": "docker build -t zintrust:latest --target runtime .",
     "docker:build:worker": "docker build --target worker -t zintrust-worker:latest .",
+    "docker:push": "./bin/z.ts docker push --only runtime",
     "docker:smoke": "node scripts/docker-image-smoke.mjs base && node scripts/docker-image-smoke.mjs worker",
     "docker:smoke:base": "node scripts/docker-image-smoke.mjs base",
     "docker:smoke:worker": "node scripts/docker-image-smoke.mjs worker",
@@ -177,6 +178,7 @@
     "check-up": "npx npm-check-updates",
     "pub": "npm run core:build:dist && npm publish ./dist --access public",
     "pub:ci": "npm run core:build:dist && npm publish ./dist --access public",
+    "push:docker": "npm run docker:push --",
     "rebuild:bcrypt": "npm rebuild bcrypt",
     "rebuild:native": "npm rebuild bcrypt better-sqlite3",
     "b:push": "npm run lint:strict",

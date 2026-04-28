@@ -12,13 +12,17 @@ describe('QUEUE_MONITOR_MIDDLEWARE strict validation (patch coverage)', () => {
       Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
 
-    vi.doMock('@config/middleware', () => ({
-      isKnownMiddlewareName: (value: string) => /^rateLimit:\d+:\d+(?:\.\d+)?$/.test(value),
-      middlewareConfig: {
-        route: {
-          auth: (_req: unknown, _res: unknown, next: () => unknown) => next(),
-          jwt: (_req: unknown, _res: unknown, next: () => unknown) => next(),
-        },
+    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
+      StartupConfigFile: {
+        Middleware: 'middleware',
+      },
+      StartupConfigFileRegistry: {
+        get: () => ({
+          route: {
+            auth: (_req: unknown, _res: unknown, next: () => unknown) => next(),
+            jwt: (_req: unknown, _res: unknown, next: () => unknown) => next(),
+          },
+        }),
       },
     }));
   });

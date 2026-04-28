@@ -67,7 +67,8 @@ describe('Bootstrap start flow', () => {
 
     // import bootstrap module which runs start on import
     // vitest's vi.resetModules() in beforeEach ensures a fresh module instance
-    await import('@boot/bootstrap');
+    const bootstrapModule = await import('@boot/bootstrap');
+    await bootstrapModule.bootstrapReady;
 
     expect(mockApp.boot).toHaveBeenCalled();
     expect(mockServer.listen).toHaveBeenCalled();
@@ -112,7 +113,8 @@ describe('Bootstrap start flow', () => {
 
     // Importing bootstrap will run start and then cause process.exit(1)
     try {
-      await import('@boot/bootstrap');
+      const bootstrapModule = await import('@boot/bootstrap');
+      await bootstrapModule.bootstrapReady;
     } catch {
       // import may reject - ignore
     }

@@ -173,7 +173,8 @@ describe('trace register startup config loading', () => {
       expect.objectContaining({ ignorePaths: ['/workers/events', '/queue-monitor', '.js', '.css'] })
     );
 
-    await import('../../src/register');
+    const registerModule = await import('../../src/register');
+    await registerModule.registerTraceReady;
 
     expect(state.httpRegister).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -187,7 +188,8 @@ describe('trace register startup config loading', () => {
   it('preloads trace startup overrides when the registry was not preloaded yet', async () => {
     state.startupConfigHas.mockReturnValue(false);
 
-    await import('../../src/register');
+    const registerModule = await import('../../src/register');
+    await registerModule.registerTraceReady;
 
     expect(state.startupConfigPreload).toHaveBeenCalledWith(['config/trace.ts']);
     expect(state.httpRegister).toHaveBeenCalledWith(

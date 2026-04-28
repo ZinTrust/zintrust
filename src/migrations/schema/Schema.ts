@@ -1,11 +1,18 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isNonEmptyString, isObject } from '@helper/index';
 import type { IDatabase } from '@orm/Database';
 import { BaseAdapter } from '@orm/DatabaseAdapter';
 
 import { isSqliteFamily } from '@migrations/enum';
 import { MigrationBlueprint } from '@migrations/schema/Blueprint';
 import { MigrationSchemaCompiler } from '@migrations/schema/SchemaCompiler';
-import type { Blueprint, BlueprintCallback, SchemaBuilder } from '@migrations/schema/types';
+import type {
+  Blueprint,
+  BlueprintCallback,
+  ColumnDefinition,
+  ForeignKeyDefinition,
+  SchemaBuilder,
+} from '@migrations/schema/types';
 
 const IDENT_RE = /^[A-Za-z_]\w*$/;
 
@@ -15,18 +22,190 @@ function assertIdentifier(label: string, value: string): void {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
 function getStringProp(value: unknown, key: string): string | null {
-  if (!isRecord(value)) return null;
+  if (!isObject(value)) return null;
   const v = value[key];
-  return typeof v === 'string' ? v : null;
+  return isNonEmptyString(v) ? v : null;
 }
 
 function mapNames(rows: unknown[]): string[] {
   return rows.map((r) => getStringProp(r, 'name') ?? '').filter((name) => name.length > 0);
+}
+
+type AlterTablePlan = {
+  addColumns: ColumnDefinition[];
+  dropColumns: string[];
+  createIndexes: { name: string; columns: string[]; type: 'INDEX' | 'UNIQUE' }[];
+  dropIndexes: string[];
+  addForeignKeys: ForeignKeyDefinition[];
+  dropForeignKeys: string[];
+};
+
+type SqliteColumnMeta = {
+  name: string;
+  affinity: string | null;
+};
+
+function normalizeSqliteAffinity(type: string | null): string | null {
+  if (!isNonEmptyString(type)) return null;
+
+  const normalized = type.trim().toUpperCase();
+  if (normalized.includes('INT')) return 'INTEGER';
+  if (
+    normalized.includes('CHAR') ||
+    normalized.includes('CLOB') ||
+    normalized.includes('TEXT') ||
+    normalized.includes('UUID') ||
+    normalized.includes('DATE') ||
+    normalized.includes('TIME') ||
+    normalized.includes('JSON')
+  ) {
+    return 'TEXT';
+  }
+  if (normalized.includes('BLOB')) return 'BLOB';
+  if (normalized.includes('REAL') || normalized.includes('FLOA') || normalized.includes('DOUB')) {
+    return 'REAL';
+  }
+
+  return 'NUMERIC';
+}
+
+function getPlannedSqliteAffinity(def: ColumnDefinition): string {
+  switch (def.type) {
+    case 'STRING':
+    case 'DATE':
+    case 'UUID':
+    case 'TEXT':
+    case 'JSON':
+    case 'TIMESTAMP':
+      return 'TEXT';
+    case 'INTEGER':
+    case 'BIGINT':
+      return 'INTEGER';
+    case 'REAL':
+      return 'REAL';
+    case 'BLOB':
+      return 'BLOB';
+    case 'BOOLEAN':
+      return 'NUMERIC';
+    default:
+      return 'NUMERIC';
+  }
+}
+
+async function getSqliteTableColumns(
+  db: IDatabase,
+  tableName: string
+): Promise<SqliteColumnMeta[]> {
+  assertIdentifier('table', tableName);
+
+  const rows = await db.query(`PRAGMA table_info("${tableName}")`, [], true);
+
+  return rows
+    .map((row) => {
+      const name = getStringProp(row, 'name');
+      if (!isNonEmptyString(name)) return null;
+      return {
+        name,
+        affinity: normalizeSqliteAffinity(getStringProp(row, 'type')),
+      } as SqliteColumnMeta;
+    })
+    .filter((row): row is SqliteColumnMeta => row !== null);
+}
+
+function getColumnAffinityLabel(affinity: string | null): string {
+  return affinity ?? 'unknown';
+}
+
+function buildPlannedColumnMap(columns: ColumnDefinition[]): Map<string, string> {
+  return new Map(columns.map((column) => [column.name, getPlannedSqliteAffinity(column)]));
+}
+
+function getColumnAffinity(
+  columnName: string,
+  existingColumns: Map<string, string | null>,
+  plannedColumns: Map<string, string>
+): string | null {
+  return plannedColumns.get(columnName) ?? existingColumns.get(columnName) ?? null;
+}
+
+function describeSqliteForeignKey(
+  tableName: string,
+  fk: ForeignKeyDefinition,
+  localColumns: Map<string, string | null>,
+  plannedColumns: Map<string, string>,
+  referencedColumns: Map<string, string | null>
+): string {
+  const local = fk.columns.map((column) => {
+    const affinity = getColumnAffinity(column, localColumns, plannedColumns);
+    return `${tableName}.${column} [${getColumnAffinityLabel(affinity)}]`;
+  });
+
+  const referenced = fk.referencedColumns.map((column) => {
+    const affinity = referencedColumns.get(column) ?? null;
+    return `${fk.referencedTable}.${column} [${getColumnAffinityLabel(affinity)}]`;
+  });
+
+  const hasMismatch = fk.columns.some((column, index) => {
+    const localAffinity = getColumnAffinity(column, localColumns, plannedColumns);
+    const referencedAffinity = referencedColumns.get(fk.referencedColumns[index]) ?? null;
+    return (
+      isNonEmptyString(localAffinity) &&
+      isNonEmptyString(referencedAffinity) &&
+      localAffinity !== referencedAffinity
+    );
+  });
+
+  const mismatchSuffix = hasMismatch
+    ? ' (detected SQLite affinity mismatch between local and referenced columns)'
+    : '';
+
+  return `Add foreign key "${fk.name}": ${local.join(', ')} -> ${referenced.join(', ')}${mismatchSuffix}`;
+}
+
+async function buildSqliteAlterTableDiagnostic(
+  db: IDatabase,
+  tableName: string,
+  plan: AlterTablePlan
+): Promise<string> {
+  const details: string[] = [];
+
+  if (plan.dropColumns.length > 0) {
+    details.push(`Drop columns: ${plan.dropColumns.join(', ')}`);
+  }
+
+  if (plan.addForeignKeys.length > 0) {
+    const localColumns = await getSqliteTableColumns(db, tableName);
+    const localColumnMap = new Map(localColumns.map((column) => [column.name, column.affinity]));
+    const plannedColumnMap = buildPlannedColumnMap(plan.addColumns);
+    const foreignKeyDetails = await Promise.all(
+      plan.addForeignKeys.map(async (fk) => {
+        const referenced = await getSqliteTableColumns(db, fk.referencedTable);
+        const referencedColumnMap = new Map(
+          referenced.map((column) => [column.name, column.affinity])
+        );
+
+        return describeSqliteForeignKey(
+          tableName,
+          fk,
+          localColumnMap,
+          plannedColumnMap,
+          referencedColumnMap
+        );
+      })
+    );
+
+    details.push(...foreignKeyDetails);
+  }
+
+  if (plan.dropForeignKeys.length > 0) {
+    details.push(`Drop foreign keys: ${plan.dropForeignKeys.join(', ')}`);
+  }
+
+  return [
+    `SQLite/D1 schema.table('${tableName}') cannot drop columns or alter foreign keys without a table rebuild.`,
+    ...details,
+  ].join(' ');
 }
 
 function buildParameterized(
@@ -89,6 +268,17 @@ async function schemaTable(
     addForeignKeys: def.foreignKeys,
     dropForeignKeys: blueprint.getDropForeignKeys(),
   };
+
+  if (
+    isSqliteFamily(db.getType()) &&
+    (plan.dropColumns.length > 0 ||
+      plan.addForeignKeys.length > 0 ||
+      plan.dropForeignKeys.length > 0)
+  ) {
+    throw ErrorFactory.createValidationError(
+      await buildSqliteAlterTableDiagnostic(db, tableName, plan)
+    );
+  }
 
   const statements = MigrationSchemaCompiler.compileAlterTable(db.getType(), tableName, plan);
   await runStatements(db, statements);

@@ -101,6 +101,13 @@ describe('Bootstrap', () => {
   type ListenFn = () => Promise<void>;
   type CloseFn = () => Promise<void>;
   type ShutdownFn = () => Promise<void>;
+  type BootstrapImportCase =
+    | 'success'
+    | 'internal-error'
+    | 'top-level-catch'
+    | 'details-error'
+    | 'schedule-shutdown-hook'
+    | 'schedule-start-failure';
 
   let mockServer: {
     listen: ReturnType<typeof vi.fn<ListenFn>>;
@@ -108,6 +115,23 @@ describe('Bootstrap', () => {
   };
   let mockApp: { getRouter: Mock; boot: Mock; shutdown: ReturnType<typeof vi.fn<ShutdownFn>> };
   let signalHandlers: Partial<Record<SignalName, SignalHandler>>;
+
+  const bootstrapImports: Record<
+    BootstrapImportCase,
+    () => Promise<typeof import('../../src/boot/bootstrap')>
+  > = {
+    success: () => import('../../src/boot/bootstrap?v=success'),
+    'internal-error': () => import('../../src/boot/bootstrap?v=internal-error'),
+    'top-level-catch': () => import('../../src/boot/bootstrap?v=top-level-catch'),
+    'details-error': () => import('../../src/boot/bootstrap?v=details-error'),
+    'schedule-shutdown-hook': () => import('../../src/boot/bootstrap?v=schedule-shutdown-hook'),
+    'schedule-start-failure': () => import('../../src/boot/bootstrap?v=schedule-start-failure'),
+  };
+
+  const importBootstrap = async (label: BootstrapImportCase): Promise<void> => {
+    const bootstrapModule = await bootstrapImports[label]();
+    await bootstrapModule.bootstrapReady;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -151,7 +175,7 @@ describe('Bootstrap', () => {
   });
 
   it('should bootstrap application successfully and register shutdown handlers', async () => {
-    await import('../../src/boot/bootstrap' + '?v=success');
+    await importBootstrap('success');
 
     expect(Application.create).toHaveBeenCalled();
     expect(Server.create).toHaveBeenCalledWith(mockApp, 7777, 'localhost');
@@ -173,7 +197,7 @@ describe('Bootstrap', () => {
       throw error;
     });
 
-    await import('../../src/boot/bootstrap' + '?v=internal-error');
+    await importBootstrap('internal-error');
 
     expect(Logger.error).toHaveBeenCalledWith('Failed to bootstrap application:', error);
     expect(process.exit).toHaveBeenCalledWith(1);
@@ -190,7 +214,7 @@ describe('Bootstrap', () => {
       // Just log, don't throw
     });
 
-    await import('../../src/boot/bootstrap' + '?v=top-level-catch');
+    await importBootstrap('top-level-catch');
 
     expect(Logger.error).toHaveBeenCalledWith('Failed to bootstrap application:', internalError);
     expect(process.exit).toHaveBeenCalledWith(1);
@@ -208,7 +232,7 @@ describe('Bootstrap', () => {
       throw error;
     });
 
-    await import('../../src/boot/bootstrap' + '?v=details-error');
+    await importBootstrap('details-error');
 
     expect(Logger.error).toHaveBeenCalledWith('Failed to bootstrap application:', error);
     expect(Logger.error).toHaveBeenCalledWith(
@@ -254,7 +278,7 @@ describe('Bootstrap', () => {
       return defaultValue;
     });
 
-    await import('../../src/boot/bootstrap' + '?v=schedule-shutdown-hook');
+    await importBootstrap('schedule-shutdown-hook');
 
     expect(shutdownManager.add).toHaveBeenCalledTimes(1);
     expect(typeof shutdownHook).toBe('function');
@@ -275,7 +299,7 @@ describe('Bootstrap', () => {
       throw boom;
     });
 
-    await import('../../src/boot/bootstrap' + '?v=schedule-start-failure');
+    await importBootstrap('schedule-start-failure');
 
     expect(Logger.warn).toHaveBeenCalledWith('Failed to start schedules:', boom);
   });

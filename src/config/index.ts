@@ -24,6 +24,7 @@ export { notificationConfig, type NotificationConfig } from '@config/notificatio
 export { queueConfig, type QueueConfig } from '@config/queue';
 export { securityConfig } from '@config/security';
 export { storageConfig, type StorageConfig } from '@config/storage';
+export type { MiddlewareConfigType } from '@config/type';
 export { createRedisConnection } from '@config/workers';
 
 /**
@@ -31,9 +32,6 @@ export { createRedisConnection } from '@config/workers';
  * Sealed namespace for immutability
  */
 export const config = Object.freeze({
-  get middleware() {
-    return middlewareConfig;
-  },
   get app() {
     return appConfig;
   },
@@ -54,6 +52,9 @@ export const config = Object.freeze({
   },
   get microservices() {
     return microservicesConfig;
+  },
+  get middleware() {
+    return middlewareConfig;
   },
   get cache() {
     return cacheConfig;

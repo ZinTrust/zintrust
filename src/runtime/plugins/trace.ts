@@ -9,8 +9,12 @@ const tryImport = async (specifier: string): Promise<boolean> => {
   }
 };
 
-const importedPackagePlugin = await tryImport('@zintrust/trace/plugin');
+const loadTracePlugin = async (): Promise<void> => {
+  const importedPackagePlugin = await tryImport('@zintrust/trace/plugin');
 
-if (!importedPackagePlugin) {
-  await import('../../../packages/trace/src/plugin').catch(() => undefined);
-}
+  if (!importedPackagePlugin) {
+    await import('../../../packages/trace/src/plugin').catch(() => undefined);
+  }
+};
+
+export const ready = loadTracePlugin();

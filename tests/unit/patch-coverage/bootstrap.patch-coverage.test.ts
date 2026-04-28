@@ -70,7 +70,8 @@ beforeEach(() => {
 describe('patch coverage: bootstrap', () => {
   it('imports bootstrap and runs start without exiting', async () => {
     // Dynamic import executes top-level await/startup; mocks above are hoisted
-    await import('@boot/bootstrap');
+    const bootstrapModule = await import('@boot/bootstrap');
+    await bootstrapModule.bootstrapReady;
 
     const appMod = await import('@boot/Application');
     const srvMod = await import('@boot/Server');

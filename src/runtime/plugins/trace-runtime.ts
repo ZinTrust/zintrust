@@ -122,5 +122,6 @@ export const captureTraceException = (
 export const ensureSystemTraceRegistered = async (): Promise<void> => {
   const module = await loadSystemTraceModule();
   if (module === undefined) return;
-  await import('@zintrust/trace/register').catch(() => undefined);
+  const registerModule = await import('@zintrust/trace/register').catch(() => undefined);
+  await registerModule?.registerTraceReady?.catch(() => undefined);
 };

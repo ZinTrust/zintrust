@@ -305,6 +305,53 @@ describe('SpawnUtil', () => {
     expect(onSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
   });
 
+  it('uses delayed fallback forwarding in TTY mode when requested', async () => {
+    vi.useFakeTimers();
+    const onSpy = vi.spyOn(process, 'on');
+    const originalIsTTY = process.stdin.isTTY;
+    let closeHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: true,
+      configurable: true,
+    });
+
+    mockChild.once.mockImplementation((event, cb) => {
+      if (event === 'close') closeHandler = cb as typeof closeHandler;
+    });
+
+    const promise = SpawnUtil.spawnAndWait({
+      command: 'ls',
+      args: [],
+      forwardSignals: false,
+      ttySignalForwardDelayMs: 1500,
+    });
+
+    const sigintHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGINT')?.[1] as
+      | (() => void)
+      | undefined;
+
+    expect(sigintHandler).toBeDefined();
+
+    sigintHandler?.();
+    expect(mockChild.kill).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1499);
+    expect(mockChild.kill).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mockChild.kill).toHaveBeenCalledWith('SIGINT');
+
+    closeHandler?.(0, null);
+    await promise;
+
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: originalIsTTY,
+      configurable: true,
+    });
+    vi.useRealTimers();
+  });
+
   it('returns command as is if it contains path separators', async () => {
     mockChild.once.mockImplementation((event, cb) => {
       if (event === 'close') cb(0, null);

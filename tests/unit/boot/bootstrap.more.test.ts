@@ -17,6 +17,46 @@ vi.mock('@zintrust/workers', () => ({
   },
 }));
 
+type BootstrapImportCase =
+  | 'official-imports-outside-docker-worker'
+  | 'official-imports-docker-worker'
+  | 'project-plugin-import-fail'
+  | 'skip-project-plugin-worker'
+  | 'official-imports-normal-node'
+  | 'shutdown-timeout-zero'
+  | 'force-exit-timer'
+  | 'sigusr2-shutdown'
+  | 'start-schedules-node'
+  | 'start-schedules-no-add'
+  | 'start-throws';
+
+const bootstrapImports: Record<
+  BootstrapImportCase,
+  () => Promise<typeof import('../../../src/boot/bootstrap')>
+> = {
+  'official-imports-outside-docker-worker': () =>
+    import('../../../src/boot/bootstrap?case=official-imports-outside-docker-worker'),
+  'official-imports-docker-worker': () =>
+    import('../../../src/boot/bootstrap?case=official-imports-docker-worker'),
+  'project-plugin-import-fail': () =>
+    import('../../../src/boot/bootstrap?case=project-plugin-import-fail'),
+  'skip-project-plugin-worker': () =>
+    import('../../../src/boot/bootstrap?case=skip-project-plugin-worker'),
+  'official-imports-normal-node': () =>
+    import('../../../src/boot/bootstrap?case=official-imports-normal-node'),
+  'shutdown-timeout-zero': () => import('../../../src/boot/bootstrap?case=shutdown-timeout-zero'),
+  'force-exit-timer': () => import('../../../src/boot/bootstrap?case=force-exit-timer'),
+  'sigusr2-shutdown': () => import('../../../src/boot/bootstrap?case=sigusr2-shutdown'),
+  'start-schedules-node': () => import('../../../src/boot/bootstrap?case=start-schedules-node'),
+  'start-schedules-no-add': () => import('../../../src/boot/bootstrap?case=start-schedules-no-add'),
+  'start-throws': () => import('../../../src/boot/bootstrap?case=start-throws'),
+};
+
+const importBootstrap = async (label: BootstrapImportCase): Promise<void> => {
+  const bootstrapModule = await bootstrapImports[label]();
+  await bootstrapModule.bootstrapReady;
+};
+
 beforeEach(() => {
   vi.resetModules();
   // prevent real process.exit
@@ -81,7 +121,7 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('official-imports-outside-docker-worker');
 
     expect(officialImportsSpy).toHaveBeenCalledWith('base');
     expect(warnSpy).not.toHaveBeenCalledWith(
@@ -128,7 +168,7 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('official-imports-docker-worker');
 
     expect(officialImportsSpy).toHaveBeenCalledWith('base');
     expect(warnSpy).toHaveBeenCalledWith('Official plugin auto-import advisory', {
@@ -177,7 +217,7 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('project-plugin-import-fail');
 
     expect(projectImportsSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith('Project plugin auto-import advisory', {
@@ -224,7 +264,7 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('skip-project-plugin-worker');
 
     expect(projectImportsSpy).not.toHaveBeenCalled();
   });
@@ -268,7 +308,7 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('official-imports-normal-node');
 
     expect(officialImportsSpy).toHaveBeenCalledWith('base');
     expect(projectImportsSpy).toHaveBeenCalledTimes(1);
@@ -315,7 +355,7 @@ describe('Bootstrap additional branches', () => {
     }));
 
     // Import bootstrap (it runs start on import)
-    await import('@boot/bootstrap');
+    await importBootstrap('shutdown-timeout-zero');
 
     // Trigger shutdown signal
     process.emit('SIGINT');
@@ -360,7 +400,7 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('force-exit-timer');
 
     // Trigger shutdown; handler is async but process.emit does not await it
     process.emit('SIGTERM');
@@ -426,7 +466,7 @@ describe('Bootstrap additional branches', () => {
       })),
     }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('sigusr2-shutdown');
 
     process.emit('SIGUSR2');
     await Promise.resolve();
@@ -501,7 +541,7 @@ describe('Bootstrap additional branches', () => {
     }));
 
     // Import bootstrap which triggers start
-    await import('@boot/bootstrap');
+    await importBootstrap('start-schedules-node');
 
     // allow microtasks to settle
     await Promise.resolve();
@@ -566,7 +606,7 @@ describe('Bootstrap additional branches', () => {
       },
     }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('start-schedules-no-add');
 
     await Promise.resolve();
 
@@ -600,7 +640,7 @@ describe('Bootstrap additional branches', () => {
     // prevent server from being used
     vi.doMock('@boot/Server', () => ({ Server: { create: () => ({ listen: async () => {} }) } }));
 
-    await import('@boot/bootstrap');
+    await importBootstrap('start-throws');
 
     await Promise.resolve();
 

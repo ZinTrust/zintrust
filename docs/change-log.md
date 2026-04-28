@@ -1,3 +1,15 @@
+# 2026-04-28
+
+- Refined the plain `zin s` shutdown fix for Node watch mode so `tsx watch` no longer logs `Previous process hasn't exited yet. Force killing...` during normal Ctrl+C shutdown. The watch path now keeps direct TTY signal delivery as the primary path and uses a short delayed fallback signal only if the watcher is still alive after the app shutdown grace period, which preserves single-Ctrl+C exits without reintroducing the earlier hanging behavior or touching the already-good `zin s --wg` path.
+
+- Ported the Worker parse-safety fixes from the April 28 debugging note into source-owned ZinTrust modules instead of relying on local `node_modules` edits. `src/runtime/WorkerAdapterImports.ts`, `src/boot/bootstrap.ts`, `src/runtime/plugins/trace.ts`, `src/http/RequestContext.ts`, and `src/runtime/PluginManager.ts` no longer rely on parse-time top-level `await` or eager CLI-only imports, while preserving explicit readiness promises for bootstrap and worker/plugin initialization and on-demand loading for plugin installs. This keeps `zin s --wg` parseable under Wrangler/Miniflare and still lets the normal startup path reach `Ready on http://localhost:7777`.
+
+# 2026-04-27
+
+- Fixed sqlite-family migration diagnostics for `schema.table(...)` foreign-key alterations. When a migration tries to add or drop foreign keys, or drop columns, on SQLite/D1-backed tables, ZinTrust now fails with a targeted validation message that names the affected table, foreign key, local column, referenced table and column, and any detected SQLite affinity mismatch such as `TEXT` versus `INTEGER`, instead of only throwing the previous generic table-rebuild error.
+
+- Fact-checked and corrected four historical core-gap notes under `newstart/`. The current workspace already has the described fixes for single-row hydration and mutator-safe raw hydration, accessor-backed direct model property reads, `belongsTo` / `belongsToMany` eager-loading parity, and queue-monitor stale-history retry state handling, so those notes now explicitly describe their verified fixed status instead of presenting them as current gaps.
+
 # 2026-04-24
 
 - Added a package-local `lint` script to `@zintrust/storage-gcs` so workspace-level checks like `npm run lint -- --max-warnings=0` work when run from `packages/storage-gcs` instead of failing with a missing-script error.

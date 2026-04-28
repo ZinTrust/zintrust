@@ -104,6 +104,34 @@ describe('migrations/schema/Schema (coverage)', () => {
     ).rejects.toThrow();
   });
 
+  it('reports sqlite foreign-key alter diagnostics with detected type mismatches', async () => {
+    const db = makeDb('sqlite', (sql) => {
+      if (sql === 'PRAGMA table_info("memberships")') {
+        return [{ name: 'id', type: 'INTEGER' }];
+      }
+
+      if (sql === 'PRAGMA table_info("users")') {
+        return [{ name: 'id', type: 'INTEGER' }];
+      }
+
+      return [];
+    });
+
+    const { Schema } = await import('../../../../src/migrations/schema/Schema');
+
+    await expect(
+      Schema.create(db).table('memberships', async (t) => {
+        t.string('requested_by_user_id', 191).nullable();
+        t.foreign('requested_by_user_id', 'fk_memberships_requested_by_user')
+          .references('id')
+          .on('users')
+          .onDelete('SET NULL');
+      })
+    ).rejects.toThrow(
+      /Add foreign key "fk_memberships_requested_by_user": memberships\.requested_by_user_id \[TEXT\] -> users\.id \[INTEGER\] \(detected SQLite affinity mismatch between local and referenced columns\)/
+    );
+  });
+
   it('supports postgres/mysql/sqlserver hasTable/hasColumn branches and rejects unknown driver', async () => {
     const pg = makeDb('postgresql', (sql) => (sql.includes('information_schema') ? [{}] : []));
     const mysql = makeDb('mysql', (sql) => (sql.includes('information_schema') ? [{}] : []));

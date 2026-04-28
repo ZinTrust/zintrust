@@ -26,7 +26,7 @@ const tryImportOptional = async (): Promise<void> => {
   await import('@runtime/WorkerProjectPlugins');
 };
 
-const ready = await tryImportOptional();
+const ready = tryImportOptional();
 
 export const WorkerAdapterImports = Object.freeze({
   loaded: true,

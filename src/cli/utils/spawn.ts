@@ -11,6 +11,7 @@ export interface SpawnAndWaitInput {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   forwardSignals?: boolean;
+  ttySignalForwardDelayMs?: number;
   shell?: boolean;
 }
 
@@ -61,6 +62,83 @@ const buildCommandNotFoundMessage = (command: string): string => {
   return `Error: '${command}' not found on PATH.`;
 };
 
+const waitForChildExit = async (
+  child: ReturnType<typeof spawn>,
+  onExit: () => void
+): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }> => {
+  return new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
+    (resolve, reject) => {
+      let settled = false;
+
+      const finish = (result: { exitCode: number | null; signal: NodeJS.Signals | null }): void => {
+        if (settled) return;
+        settled = true;
+        child.off?.('exit', onExitEvent);
+        child.off?.('close', onCloseEvent);
+        onExit();
+        resolve(result);
+      };
+
+      const onExitEvent = (code: number | null, signal: NodeJS.Signals | null): void => {
+        finish({ exitCode: code, signal });
+      };
+
+      const onCloseEvent = (code: number | null, signal: NodeJS.Signals | null): void => {
+        finish({ exitCode: code, signal });
+      };
+
+      child.once('error', (error: unknown) => {
+        reject(error);
+      });
+
+      child.once('exit', onExitEvent);
+      child.once('close', onCloseEvent);
+    }
+  );
+};
+
+const createDelayedSignalForwarder = (input: {
+  ttySignalForwardDelayMs: number;
+  isChildClosed: () => boolean;
+  forwardSignal: (signal: NodeJS.Signals) => void;
+}): {
+  clear: () => void;
+  schedule: (signal: NodeJS.Signals) => void;
+} => {
+  let delayedSignalTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const clear = (): void => {
+    if (delayedSignalTimer === undefined) return;
+    clearTimeout(delayedSignalTimer);
+    delayedSignalTimer = undefined;
+  };
+
+  const schedule = (signal: NodeJS.Signals): void => {
+    if (
+      input.ttySignalForwardDelayMs <= 0 ||
+      delayedSignalTimer !== undefined ||
+      input.isChildClosed()
+    ) {
+      return;
+    }
+
+    delayedSignalTimer = globalThis.setTimeout(() => {
+      delayedSignalTimer = undefined;
+      if (input.isChildClosed()) return;
+
+      try {
+        input.forwardSignal(signal);
+      } catch {
+        // best-effort fallback for interactive watch processes
+      }
+    }, input.ttySignalForwardDelayMs);
+
+    (delayedSignalTimer as unknown as { unref?: () => void }).unref?.();
+  };
+
+  return { clear, schedule };
+};
+
 export const SpawnUtil = Object.freeze({
   async spawnAndWait(input: SpawnAndWaitInput): Promise<number> {
     const cwd = input.cwd ?? process.cwd();
@@ -79,6 +157,11 @@ export const SpawnUtil = Object.freeze({
     // especially sensitive here and can print "Previous process hasn't exited yet. Force killing...".
     const forwardSignals =
       typeof input.forwardSignals === 'boolean' ? input.forwardSignals : !process.stdin.isTTY;
+    const ttySignalForwardDelayMs =
+      process.stdin.isTTY === true && forwardSignals === false
+        ? Math.max(0, input.ttySignalForwardDelayMs ?? 0)
+        : 0;
+    let childClosed = false;
 
     const forwardSignal = (signal: NodeJS.Signals): void => {
       try {
@@ -99,36 +182,40 @@ export const SpawnUtil = Object.freeze({
         throw wrapped;
       }
     };
+    const delayedSignalForwarder = createDelayedSignalForwarder({
+      ttySignalForwardDelayMs,
+      isChildClosed: () => childClosed,
+      forwardSignal,
+    });
 
     const onSigint = (): void => {
       if (forwardSignals) {
         forwardSignal('SIGINT');
+        return;
       }
-      // If not forwarding, handle to prevent the parent from exiting before the child
-      // finishes its graceful shutdown (child receives SIGINT directly in TTY).
+
+      // In interactive TTY mode, let the child receive the terminal SIGINT directly first.
+      // If it is still alive after a short grace period, send one fallback signal so the
+      // watcher exits without requiring a second Ctrl+C from the user.
+      delayedSignalForwarder.schedule('SIGINT');
     };
     const onSigterm = (): void => {
       if (forwardSignals) {
         forwardSignal('SIGTERM');
+        return;
       }
-      // Same rationale as SIGINT: keep parent alive while waiting for child to exit.
+
+      delayedSignalForwarder.schedule('SIGTERM');
     };
 
     process.on('SIGINT', onSigint);
     process.on('SIGTERM', onSigterm);
 
     try {
-      const result = await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
-        (resolve, reject) => {
-          child.once('error', (error: unknown) => {
-            reject(error);
-          });
-
-          child.once('close', (code: number | null, signal: NodeJS.Signals | null) => {
-            resolve({ exitCode: code, signal });
-          });
-        }
-      );
+      const result = await waitForChildExit(child, () => {
+        childClosed = true;
+        delayedSignalForwarder.clear();
+      });
 
       return getExitCode(result.exitCode, result.signal);
     } catch (error) {
@@ -139,6 +226,7 @@ export const SpawnUtil = Object.freeze({
 
       throw ErrorFactory.createTryCatchError('Failed to spawn child process', error);
     } finally {
+      delayedSignalForwarder.clear();
       process.off('SIGINT', onSigint);
       process.off('SIGTERM', onSigterm);
     }

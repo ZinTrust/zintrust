@@ -347,16 +347,20 @@ const BootstrapFunctions = Object.freeze({
   },
 });
 
-// Run bootstrap
-await BootstrapFunctions.start().catch((error) => {
+const startBootstrap = async (): Promise<void> => {
   try {
-    Logger.error('Failed to bootstrap application:', error as Error);
-  } catch {
-    // best-effort logging
+    await BootstrapFunctions.start();
+    BootstrapFunctions.setupShutdownHandler();
+  } catch (error) {
+    try {
+      Logger.error('Failed to bootstrap application:', error as Error);
+    } catch {
+      // best-effort logging
+    }
+
+    process.exit(1);
   }
+};
 
-  process.exit(1);
-});
-
-// Handle graceful shutdown
-BootstrapFunctions.setupShutdownHandler();
+// Run bootstrap without parse-time top-level await so Worker bundles can load this module.
+export const bootstrapReady = startBootstrap();
