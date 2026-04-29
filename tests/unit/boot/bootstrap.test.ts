@@ -2,13 +2,55 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/zintrust.plugins', () => ({}));
 
-const bootstrapImports = {
-  'start-fails': () => import('@boot/bootstrap?case=start-fails'),
-  'logger-fails': () => import('@boot/bootstrap?case=logger-fails'),
-} as const;
+const mockRuntimeDependencies = (): void => {
+  vi.doMock('@config/env', () => ({
+    Env: {
+      getInt: () => 0,
+      get: () => 'localhost',
+      getBool: (_key: string, defaultVal?: boolean) => defaultVal ?? false,
+      getFloat: (_key: string, defaultVal?: number) => defaultVal ?? 0,
+    },
+  }));
+  vi.doMock('@config/app', () => ({
+    appConfig: {
+      worker: false,
+      dockerWorker: false,
+      cloudflareWorker: false,
+      detectRuntime: () => 'nodejs',
+    },
+  }));
+  vi.doMock('@config/cloudflare', () => ({
+    Cloudflare: { getWorkersEnv: () => null },
+  }));
+  vi.doMock('@config/workers', () => ({
+    shutdownRedisConnections: vi.fn(async () => undefined),
+  }));
+  vi.doMock('@runtime/ProjectRuntime', () => ({
+    ProjectRuntime: { tryLoadHooks: vi.fn(async () => undefined) },
+  }));
+  vi.doMock('@runtime/StartupErrorLogging', () => ({
+    StartupErrorLogging: { logDetails: vi.fn() },
+  }));
+  vi.doMock('@runtime/WorkerProjectAutoImports', () => ({
+    WorkerProjectAutoImports: {
+      load: vi.fn(async () => undefined),
+    },
+  }));
+  vi.doMock('@runtime/WorkersModule', () => ({
+    loadWorkersModule: vi.fn(async () => ({
+      WorkerInit: {
+        initialize: vi.fn(async () => undefined),
+        autoStartPersistedWorkers: vi.fn(async () => undefined),
+      },
+      WorkerShutdown: {
+        shutdown: vi.fn(async () => undefined),
+      },
+    })),
+  }));
+};
 
-const importBootstrap = async (suffix: keyof typeof bootstrapImports) => {
-  const bootstrapModule = await bootstrapImports[suffix]();
+const importBootstrap = async () => {
+  const bootstrapModule = await import('@boot/bootstrap');
   await bootstrapModule.bootstrapReady;
   return bootstrapModule;
 };
@@ -120,6 +162,8 @@ describe('Bootstrap start flow', () => {
       getContainer: vi.fn().mockReturnValue({ get: () => ({}) }),
     } as any;
 
+    mockRuntimeDependencies();
+
     // Use global hook for hoisted mock factory
     vi.doMock('@boot/Application', () => ({
       Application: { create: () => (globalThis as any).__mockApp },
@@ -133,7 +177,7 @@ describe('Bootstrap start flow', () => {
     }));
 
     // Importing bootstrap will run start and then cause process.exit(1)
-    await importBootstrap('start-fails');
+    await importBootstrap();
 
     expect(loggerError).toHaveBeenCalledWith('Failed to bootstrap application:', expect.any(Error));
     expect(process.exit).toHaveBeenCalledWith(1);
@@ -145,6 +189,8 @@ describe('Bootstrap start flow', () => {
       shutdown: vi.fn().mockResolvedValue(undefined),
       getContainer: vi.fn().mockReturnValue({ get: () => ({}) }),
     } as any;
+
+    mockRuntimeDependencies();
 
     vi.doMock('@boot/Application', () => ({
       Application: { create: () => (globalThis as any).__mockApp },
@@ -160,7 +206,7 @@ describe('Bootstrap start flow', () => {
       Logger: { info: vi.fn(), warn: vi.fn(), error: loggerError, debug: vi.fn() },
     }));
 
-    await importBootstrap('logger-fails');
+    await importBootstrap();
 
     expect(loggerError).toHaveBeenCalledWith('Failed to bootstrap application:', expect.any(Error));
     expect(process.exit).toHaveBeenCalledWith(1);
