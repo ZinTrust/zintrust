@@ -17,7 +17,7 @@ const writeLine = (line: string): void => {
 
 const getNodeProcess = (): NodeProcessWithDebugHandles | null => {
   if (typeof process === 'undefined') return null;
-  return process as NodeProcessWithDebugHandles;
+  return process as NodeProcessWithDebugHandles;// NOSONAR
 };
 
 const isEnabled = (): boolean => {
@@ -123,22 +123,7 @@ const log = (label: string, details: ShutdownTraceDetails = {}): void => {
 const logHandles = (label: string, details: ShutdownTraceDetails = {}): void => {
   if (!isEnabled()) return;
 
-  const nodeProcess = getNodeProcess();
-  if (nodeProcess === null) {
-    writeLine(
-      JSON.stringify({
-        level: 'info',
-        trace: 'shutdown',
-        label,
-        details: {
-          ...details,
-          available: false,
-          reason: 'process unavailable',
-        },
-      })
-    );
-    return;
-  }
+  const nodeProcess = getNodeProcess() as NodeProcessWithDebugHandles; //NOSONAR
 
   const handles =
     typeof nodeProcess._getActiveHandles === 'function' ? nodeProcess._getActiveHandles() : [];

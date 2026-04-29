@@ -209,4 +209,90 @@ describe('Bootstrap start flow', () => {
     expect(loggerError).toHaveBeenCalledWith('Failed to bootstrap application:', expect.any(Error));
     expect(process.exit).toHaveBeenCalledWith(1);
   });
+
+  it('continues graceful shutdown when worker and redis cleanup fail', async () => {
+    const loggerWarn = vi.fn();
+    const mockApp = {
+      boot: vi.fn().mockResolvedValue(undefined),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+      getContainer: vi.fn().mockReturnValue({ get: () => ({}) }),
+    } as any;
+
+    const mockServer = {
+      listen: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        getInt: (_key: string, defaultVal?: number) => defaultVal ?? 0,
+        get: () => 'localhost',
+        getBool: (_key: string, defaultVal?: boolean) => defaultVal ?? false,
+        getFloat: (_key: string, defaultVal?: number) => defaultVal ?? 0,
+      },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: {
+        worker: true,
+        dockerWorker: false,
+        cloudflareWorker: false,
+        detectRuntime: () => 'nodejs',
+      },
+    }));
+    vi.doMock('@config/cloudflare', () => ({
+      Cloudflare: { getWorkersEnv: () => null },
+    }));
+    vi.doMock('@config/workers', () => ({
+      shutdownRedisConnections: vi.fn(async () =>
+        Promise.reject(new Error('redis cleanup failed'))
+      ),
+    }));
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: { tryLoadHooks: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@runtime/StartupErrorLogging', () => ({
+      StartupErrorLogging: { logDetails: vi.fn() },
+    }));
+    vi.doMock('@runtime/WorkerProjectAutoImports', () => ({
+      WorkerProjectAutoImports: { load: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerInit: {
+          initialize: vi.fn(async () => undefined),
+          autoStartPersistedWorkers: vi.fn(async () => undefined),
+        },
+        WorkerShutdown: {
+          shutdown: vi.fn(async () => Promise.reject(new Error('worker cleanup failed'))),
+        },
+      })),
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: { create: () => (globalThis as any).__mockApp },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => (globalThis as any).__mockServer },
+    }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: loggerWarn, error: vi.fn(), debug: vi.fn() },
+    }));
+
+    (globalThis as any).__mockApp = mockApp;
+    (globalThis as any).__mockServer = mockServer;
+
+    await importBootstrap();
+
+    process.emit('SIGTERM');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'Worker shutdown failed (continuing with app shutdown)',
+      expect.any(Error)
+    );
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'Redis connection shutdown failed (continuing with app shutdown)',
+      expect.any(Error)
+    );
+    expect(process.exit).toHaveBeenCalledWith(0);
+  });
 });
