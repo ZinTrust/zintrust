@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/storage-s3",
-  "version": "1.5.2",
+  "version": "1.5.5",
   "description": "Amazon S3 storage driver for ZinTrust.",
   "private": false,
   "type": "module",
