@@ -62,7 +62,7 @@ const loadQueueRedisModule = async (): Promise<QueueRedisModule | undefined> => 
   if (queueRedisModule) return queueRedisModule;
 
   try {
-    queueRedisModule = (await import('@zintrust/queue-redis')) as QueueRedisModule;
+    queueRedisModule = await import('@zintrust/queue-redis');
     return queueRedisModule;
   } catch (error) {
     if (!hasWarnedMissingQueueRedis) {
@@ -86,7 +86,7 @@ const getQueue = async (queueName: string): Promise<Queue> => {
       'Optional package "@zintrust/queue-redis" is required for PriorityQueue. Install it to use queue features.'
     );
   }
-  return queueRedis.BullMQRedisQueue.getQueue(queueName) as Queue;
+  return queueRedis.BullMQRedisQueue.getQueue(queueName) as unknown as Queue;
 };
 
 /**
