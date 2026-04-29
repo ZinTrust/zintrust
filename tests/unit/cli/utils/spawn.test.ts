@@ -25,6 +25,12 @@ describe('SpawnUtil', () => {
     once: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
+    stdout: {
+      on: vi.fn(),
+    },
+    stderr: {
+      on: vi.fn(),
+    },
   };
 
   beforeEach(() => {
@@ -50,7 +56,7 @@ describe('SpawnUtil', () => {
       'ls',
       ['-la'],
       expect.objectContaining({
-        stdio: 'inherit',
+        stdio: ['inherit', 'pipe', 'pipe'],
         env: { SAFE: 'env' },
         shell: false,
       })
@@ -365,6 +371,52 @@ describe('SpawnUtil', () => {
 
     closeHandler?.(0, null);
     await promise;
+
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: originalIsTTY,
+      configurable: true,
+    });
+    vi.useRealTimers();
+  });
+
+  it('escalates the delayed TTY fallback when the child still has not exited', async () => {
+    vi.useFakeTimers();
+    const onSpy = vi.spyOn(process, 'on');
+    const originalIsTTY = process.stdin.isTTY;
+    let closeHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+
+    mockChild.kill.mockImplementation(() => undefined);
+
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: true,
+      configurable: true,
+    });
+
+    mockChild.once.mockImplementation((event, cb) => {
+      if (event === 'close') closeHandler = cb as typeof closeHandler;
+    });
+
+    const promise = SpawnUtil.spawnAndWait({
+      command: 'ls',
+      args: [],
+      forwardSignals: false,
+      ttySignalForwardDelayMs: 1500,
+    });
+
+    const sigintHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGINT')?.[1] as
+      | (() => void)
+      | undefined;
+
+    sigintHandler?.();
+
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(mockChild.kill).toHaveBeenNthCalledWith(1, 'SIGINT');
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(mockChild.kill).toHaveBeenNthCalledWith(2, 'SIGTERM');
+
+    closeHandler?.(0, null);
+    await expect(promise).resolves.toBe(0);
 
     Object.defineProperty(process.stdin, 'isTTY', {
       value: originalIsTTY,

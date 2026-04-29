@@ -85,6 +85,24 @@ const getAuditPrefix = (): string => {
 let redisClient: RedisConnection | null = null;
 let retentionPolicy: RetentionPolicy | null = null;
 let cleanupInterval: NodeJS.Timeout | null = null;
+const REDIS_SHUTDOWN_TIMEOUT_MS = 100;
+
+const closeRedisClient = async (client: RedisConnection): Promise<void> => {
+  try {
+    await Promise.race([
+      client.quit(),
+      new Promise<never>((_, reject) => {
+        const timeoutId = globalThis.setTimeout(() => {
+          reject(new Error('DeadLetterQueue Redis shutdown timed out'));
+        }, REDIS_SHUTDOWN_TIMEOUT_MS);
+        (timeoutId as { unref?: () => void }).unref?.();
+      }),
+    ]);
+  } catch (error) {
+    Logger.warn('DeadLetterQueue graceful Redis shutdown failed, forcing disconnect', error);
+    client.disconnect();
+  }
+};
 
 /**
  * Helper: Get DLQ key
@@ -729,7 +747,7 @@ export const DeadLetterQueue = Object.freeze({
     }
 
     if (redisClient) {
-      await redisClient.quit();
+      await closeRedisClient(redisClient);
       redisClient = null;
     }
 

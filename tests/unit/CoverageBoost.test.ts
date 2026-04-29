@@ -26,6 +26,22 @@ let consoleDebugSpy: ReturnType<typeof vi.spyOn> | undefined;
 let consoleWarnSpy: ReturnType<typeof vi.spyOn> | undefined;
 let consoleErrorSpy: ReturnType<typeof vi.spyOn> | undefined;
 
+const createRedisClientStub = () => ({
+  on: vi.fn(),
+  once: vi.fn(),
+  off: vi.fn(),
+  quit: vi.fn(async () => 'OK'),
+  disconnect: vi.fn(),
+  connect: vi.fn(async () => undefined),
+  duplicate: vi.fn(() => createRedisClientStub()),
+  get: vi.fn(async () => null),
+  set: vi.fn(async () => 'OK'),
+  del: vi.fn(async () => 1),
+  incr: vi.fn(async () => 1),
+  expire: vi.fn(async () => 1),
+  status: 'ready',
+});
+
 // Mock node:fs for Application/Server/Logger
 vi.mock('@node-singletons/fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@node-singletons/fs')>();
@@ -101,6 +117,24 @@ vi.mock('@config/logger', () => ({
       error: vi.fn(),
       fatal: vi.fn(),
     }),
+  },
+}));
+
+vi.mock('@config/workers', () => ({
+  createRedisConnection: vi.fn(() => createRedisClientStub()),
+  shutdownRedisConnections: vi.fn(async () => undefined),
+  workersConfig: {
+    enabled: false,
+    redis: {
+      host: '127.0.0.1',
+      port: 6379,
+      password: '',
+      db: 0,
+    },
+    defaultWorker: {},
+    observability: {
+      prometheus: { enabled: false, port: 9090 },
+    },
   },
 }));
 

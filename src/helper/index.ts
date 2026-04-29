@@ -26,6 +26,8 @@ export const isFunction = (value: unknown): value is (...args: unknown[]) => unk
 export const isDate = (value: unknown): value is Date =>
   value instanceof Date && !Number.isNaN(value.getTime());
 
+export { ShutdownTrace } from '@helper/ShutdownTrace';
+
 /* -------------------------------------------------------------------------- */
 /*                            Empty / Null Checks                             */
 /* -------------------------------------------------------------------------- */

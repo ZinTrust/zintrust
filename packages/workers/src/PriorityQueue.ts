@@ -378,8 +378,17 @@ export const PriorityQueue = Object.freeze({
    */
   async shutdown(): Promise<void> {
     Logger.info('PriorityQueue shutting down via BullMQRedisQueue...');
+    if (!queueRedisModule) {
+      Logger.info('PriorityQueue shutdown complete');
+      return;
+    }
+
     const queueRedis = await loadQueueRedisModule();
-    if (!queueRedis) return;
+    if (!queueRedis) {
+      Logger.info('PriorityQueue shutdown complete');
+      return;
+    }
+
     await queueRedis.BullMQRedisQueue.shutdown();
     Logger.info('PriorityQueue shutdown complete');
   },

@@ -198,7 +198,7 @@ describe('runtime/registerRoute patch coverage', () => {
     await expect(monitorConfig.knownQueues?.()).resolves.toEqual(['emails', 'notifications']);
   });
 
-  it('createLifecycle still registers worker dashboards and queue monitor when worker execution is disabled', async () => {
+  it('createLifecycle only registers queue monitor routes when worker execution is disabled', async () => {
     const registerWorkerRoutes = vi.fn();
     const registerQueueMonitorRoutes = vi.fn();
     const registerQueueGatewayRoutes = vi.fn();
@@ -306,7 +306,7 @@ describe('runtime/registerRoute patch coverage', () => {
 
     await lifecycle.boot();
 
-    expect(registerWorkerRoutes).toHaveBeenCalled();
+    expect(registerWorkerRoutes).not.toHaveBeenCalled();
     expect(registerQueueMonitorRoutes).toHaveBeenCalled();
     expect(registerQueueGatewayRoutes).not.toHaveBeenCalled();
   });
@@ -697,7 +697,7 @@ describe('runtime/registerRoute patch coverage', () => {
     }));
 
     vi.doMock('@/config', () => ({
-      appConfig: { port: 7777, dockerWorker: false },
+      appConfig: { port: 7777, dockerWorker: false, worker: false },
       cacheConfig: {},
       databaseConfig: { default: 'sqlite', connections: {} },
       queueConfig: { drivers: { redis: {} } },
@@ -752,8 +752,11 @@ describe('runtime/registerRoute patch coverage', () => {
 
     await lifecycle.boot();
 
-    expect(loadWorkersModuleSpy).toHaveBeenCalled();
+    expect(loadWorkersModuleSpy).not.toHaveBeenCalled();
     expect(loadQueueMonitorModuleSpy).toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledWith(
+      'Skipping worker route registration (WORKER_ENABLED=false).'
+    );
     expect(infoSpy).toHaveBeenCalledWith(
       'Skipping worker execution/gateway initialization (WORKER_ENABLED=false).'
     );

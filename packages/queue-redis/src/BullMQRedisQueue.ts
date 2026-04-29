@@ -35,10 +35,7 @@ interface IBullMQRedisQueue extends IQueueDriver {
   getQueueNames(): string[];
 }
 
-type DeduplicationReleaseAfter = Exclude<
-  BullMQPayload['deduplication'],
-  undefined
->['releaseAfter'];
+type DeduplicationReleaseAfter = Exclude<BullMQPayload['deduplication'], undefined>['releaseAfter'];
 
 export const shouldUseHttpProxyDriver = (): boolean => {
   if (directModeDepth > 0) return false;
@@ -69,6 +66,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   let sharedConnection: RedisConnection | null = null;
   let lockProviderCache: ReturnType<typeof createLockProvider> | null = null;
   const PULL_WORKER_TOKEN = 'pull-worker';
+  const SHARED_CONNECTION_SHUTDOWN_TIMEOUT_MS = 100;
 
   const isRedisProxyEnabled = (): boolean => {
     return Env.USE_REDIS_PROXY === true || Env.get('REDIS_PROXY_URL', '').trim() !== '';
@@ -224,6 +222,43 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     });
   };
 
+  const closeSharedConnection = async (client: RedisConnection): Promise<void> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      await Promise.race([
+        client.quit(),
+        new Promise<never>((_, reject) => {
+          timeoutId = globalThis.setTimeout(() => {
+            reject(
+              ErrorFactory.createGeneralError('BullMQ shared Redis shutdown timed out', {
+                timeoutMs: SHARED_CONNECTION_SHUTDOWN_TIMEOUT_MS,
+              })
+            );
+          }, SHARED_CONNECTION_SHUTDOWN_TIMEOUT_MS);
+          (timeoutId as { unref?: () => void }).unref?.();
+        }),
+      ]);
+
+      Logger.info('Closed shared Redis connection');
+    } catch (err) {
+      Logger.warn('BullMQ shared Redis graceful shutdown failed, forcing disconnect', err as Error);
+
+      try {
+        const disconnect = (client as { disconnect?: () => void }).disconnect;
+        if (typeof disconnect === 'function') disconnect.call(client);
+      } catch (disconnectError) {
+        Logger.error('Failed to force disconnect BullMQ shared Redis connection', disconnectError);
+      }
+    } finally {
+      if (timeoutId !== undefined) {
+        globalThis.clearTimeout(timeoutId);
+      }
+
+      sharedConnection = null;
+    }
+  };
+
   const shutdown = async (): Promise<void> => {
     Logger.info('BullMQRedisQueue shutting down...');
 
@@ -242,13 +277,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
     // Close shared connection
     if (sharedConnection) {
-      try {
-        await sharedConnection.quit();
-        sharedConnection = null;
-        Logger.info('Closed shared Redis connection');
-      } catch (err) {
-        Logger.error('Failed to close shared Redis connection', err);
-      }
+      await closeSharedConnection(sharedConnection);
     }
   };
 

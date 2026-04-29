@@ -1,5 +1,48 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const workerShutdown = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('@/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/config')>();
+
+  return {
+    ...actual,
+    appConfig: {
+      ...actual.appConfig,
+      environment: 'testing',
+      worker: true,
+      isDevelopment: () => false,
+      isProduction: () => false,
+      isTesting: () => true,
+    },
+  };
+});
+
+vi.mock('@/config/app', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/config/app')>();
+
+  return {
+    ...actual,
+    appConfig: {
+      ...actual.appConfig,
+      worker: true,
+      dockerWorker: false,
+    },
+  };
+});
+
+vi.mock('@config/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@config/env')>();
+
+  return {
+    ...actual,
+    Env: {
+      ...actual.Env,
+      getBool: vi.fn(() => true),
+    },
+  };
+});
+
 vi.mock('@orm/ConnectionManager', () => ({
   ConnectionManager: { shutdownIfInitialized: vi.fn().mockResolvedValue(undefined) },
 }));
@@ -13,13 +56,13 @@ vi.mock('@notification/NotificationChannelRegistry', () => ({
 }));
 vi.mock('@mail/MailDriverRegistry', () => ({ MailDriverRegistry: { reset: vi.fn() } }));
 vi.mock('@tools/queue/Queue', () => ({ Queue: { reset: vi.fn() } }));
-vi.mock('@zintrust/workers', () => ({
-  createQueueWorker: () => ({
-    processOne: async () => true,
-    processAll: async () => true,
-    startWorker: async () => true,
-  }),
-  WorkerShutdown: { shutdown: vi.fn().mockResolvedValue(undefined) },
+vi.mock('@runtime/WorkersModule', () => ({
+  loadWorkersModule: vi.fn(async () => ({
+    WorkerShutdown: {
+      shutdown: workerShutdown,
+      getShutdownState: () => ({ isShuttingDown: false, completedAt: null }),
+    },
+  })),
 }));
 
 describe('Application shutdown hooks', () => {
@@ -45,8 +88,6 @@ describe('Application shutdown hooks', () => {
       await import('@notification/NotificationChannelRegistry');
     const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
     const { Queue } = await import('@tools/queue/Queue');
-    const { WorkerShutdown } = await import('@zintrust/workers');
-
     expect(ConnectionManager.shutdownIfInitialized).toHaveBeenCalled();
     expect(resetDatabase).toHaveBeenCalled();
     expect(Cache.reset).toHaveBeenCalled();
@@ -56,6 +97,6 @@ describe('Application shutdown hooks', () => {
     expect(NotificationChannelRegistry.reset).toHaveBeenCalled();
     expect(MailDriverRegistry.reset).toHaveBeenCalled();
     expect(Queue.reset).toHaveBeenCalled();
-    expect(WorkerShutdown.shutdown).toHaveBeenCalled();
+    expect(workerShutdown).toHaveBeenCalled();
   });
 });

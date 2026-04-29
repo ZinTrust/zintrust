@@ -5,6 +5,7 @@ import {
   queueConfig,
   resolveLockPrefix,
   Router,
+  ShutdownTrace,
   type IRequest,
   type IResponse,
   type IRouter,
@@ -607,13 +608,24 @@ export const QueueMonitor = Object.freeze({
     const driver = createBullMQDriver(redisConfig);
     const metrics = createMetrics(redisConfig);
     const startedAt = new Date().toISOString();
+    ShutdownTrace.logHandles('queue-monitor.create', {
+      basePath: settings.basePath,
+      autoRefresh: settings.autoRefresh,
+      refreshIntervalMs: settings.refreshIntervalMs,
+    });
 
     const getSnapshot = createGetSnapshot(driver, startedAt, config.knownQueues);
     const getLocks = createGetLocks(redisConfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 
     const close = async (): Promise<void> => {
+      ShutdownTrace.logHandles('queue-monitor.close.start', {
+        basePath: settings.basePath,
+      });
       await Promise.all([driver.close(), metrics.close()]);
+      ShutdownTrace.logHandles('queue-monitor.close.complete', {
+        basePath: settings.basePath,
+      });
     };
 
     return Object.freeze({

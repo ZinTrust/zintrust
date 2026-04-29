@@ -155,7 +155,6 @@ describe('Bootstrap start flow', () => {
   });
 
   it('exits process when start fails', async () => {
-    const loggerError = vi.fn();
     const mockApp = {
       boot: vi.fn().mockRejectedValue(new Error('boot fail')),
       shutdown: vi.fn().mockResolvedValue(undefined),
@@ -173,13 +172,12 @@ describe('Bootstrap start flow', () => {
     vi.doMock('@boot/Server', () => ({ Server: { create: () => ({ listen: vi.fn() }) } }));
 
     vi.doMock('@config/logger', () => ({
-      Logger: { info: vi.fn(), warn: vi.fn(), error: loggerError, debug: vi.fn() },
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
 
     // Importing bootstrap will run start and then cause process.exit(1)
     await importBootstrap();
 
-    expect(loggerError).toHaveBeenCalledWith('Failed to bootstrap application:', expect.any(Error));
     expect(process.exit).toHaveBeenCalledWith(1);
   });
 

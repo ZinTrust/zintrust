@@ -7,6 +7,11 @@ const bullMqState = {
   close: vi.fn(async () => undefined),
 };
 
+const redisState = {
+  quit: vi.fn(async () => undefined),
+  disconnect: vi.fn(() => undefined),
+};
+
 vi.mock('bullmq', () => {
   class Queue {
     add(...args: unknown[]) {
@@ -47,7 +52,8 @@ vi.mock('@zintrust/core', async () => {
         status: 'ready',
         once: vi.fn(),
         off: vi.fn(),
-        quit: vi.fn(async () => undefined),
+        quit: redisState.quit,
+        disconnect: redisState.disconnect,
       };
     }),
   };
@@ -62,6 +68,8 @@ describe('BullMQ Redis queue (Workers)', () => {
     bullMqState.getJobs.mockClear();
     bullMqState.getJob.mockClear();
     bullMqState.close.mockClear();
+    redisState.quit.mockClear().mockResolvedValue(undefined);
+    redisState.disconnect.mockClear();
     Env.setSource({
       QUEUE_HTTP_PROXY_ENABLED: 'false',
       USE_REDIS_PROXY: 'false',
@@ -232,5 +240,23 @@ describe('BullMQ Redis queue (Workers)', () => {
     expect(first).toBe('job-id-123');
     expect(second).toBe('job-id-123');
     expect(bullMqState.add).toHaveBeenCalledTimes(2);
+  });
+
+  it('forces disconnect when shared Redis quit hangs during shutdown', async () => {
+    vi.useFakeTimers();
+
+    redisState.quit.mockReturnValueOnce(new Promise<void>(() => undefined));
+
+    await BullMQRedisQueue.enqueue('jobs', {
+      payload: { ok: true },
+    } as any);
+
+    const shutdownPromise = BullMQRedisQueue.shutdown();
+    await vi.advanceTimersByTimeAsync(1000);
+    await shutdownPromise;
+
+    expect(redisState.disconnect).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
   });
 });

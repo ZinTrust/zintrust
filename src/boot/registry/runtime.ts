@@ -11,7 +11,7 @@ import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { isNonEmptyString } from '@helper/index';
+import { isNonEmptyString, ShutdownTrace } from '@helper/index';
 import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
@@ -24,12 +24,16 @@ import { SocketFeature } from '@sockets/SocketRuntime';
 import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 import { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notification/NotificationRuntimeRegistration';
+import { QueueReliabilityOrchestrator } from '@tools/queue/QueueReliabilityOrchestrator';
 import { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegistration';
 import { registerDisksFromRuntimeConfig } from '@tools/storage/StorageRuntimeRegistration';
 import type { IRouter } from '@zintrust/core';
 
 interface IQueueMonitor {
-  create: (config: object) => { registerRoutes: (router: IRouter) => void };
+  create: (config: object) => {
+    registerRoutes: (router: IRouter) => void;
+    close?: () => Promise<void>;
+  };
 }
 
 interface IQueueMonitorModule {
@@ -447,6 +451,10 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
     knownQueues: resolveKnownQueues,
     redis: redisConfig,
   });
+  runtimeQueueMonitor = monitor;
+  ShutdownTrace.logHandles('runtime.queue-monitor.created', {
+    basePath: monitorConfig.basePath ?? '',
+  });
 
   try {
     monitor.registerRoutes(router);
@@ -460,6 +468,8 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
   );
   Logger.info(`Queue Monitor enqueue endpoint at http://127.0.0.1:${appConfig.port}/test/enqueue`);
 };
+
+let runtimeQueueMonitor: ReturnType<IQueueMonitor['create']> | null = null;
 
 const initializeWorkers = async (router: IRouter): Promise<void> => {
   const workers = await loadWorkersModule({ allowWhenDisabled: true });
@@ -638,15 +648,47 @@ const initializeSockets = (router: IRouter): void => {
   Logger.info(`Path: ${diagnostics.path}`);
 };
 
-export const createLifecycle = (params: {
+type LifecycleParams = {
   environment: string;
   resolvedBasePath: string;
   router: IRouter;
   shutdownManager: IShutdownManager;
   getBooted: () => boolean;
   setBooted: (value: boolean) => void;
-}): { boot: () => Promise<void>; shutdown: () => Promise<void> } => {
-  const boot = async (): Promise<void> => {
+};
+
+const initializeRuntimeRoutes = async (params: LifecycleParams): Promise<void> => {
+  await initializeArtifactDirectories(params.resolvedBasePath);
+  await registerMasterRoutes(params.resolvedBasePath, params.router);
+  initializeSockets(params.router);
+  await initializeSystemTrace(params.router);
+
+  if (Cloudflare.getWorkersEnv() === null && appConfig.dockerWorker === false) {
+    if (appConfig.worker === true) {
+      await initializeWorkers(params.router);
+    } else {
+      Logger.info('Skipping worker route registration (WORKER_ENABLED=false).');
+    }
+
+    await initializeQueueMonitor(params.router);
+
+    if (appConfig.worker === true) {
+      await initializeQueueHttpGateway(params.router);
+      await initializeScheduleHttpGateway(params.router);
+    } else {
+      Logger.info('Skipping worker execution/gateway initialization (WORKER_ENABLED=false).');
+    }
+
+    return;
+  }
+
+  if (!appConfig.dockerWorker) {
+    Logger.info('Skipping local worker dashboards in Cloudflare Workers runtime.');
+  }
+};
+
+const createBootLifecycle = (params: LifecycleParams): (() => Promise<void>) => {
+  return async (): Promise<void> => {
     if (params.getBooted()) return;
 
     Logger.info(`🚀 Booting ZinTrust Application in ${params.environment} mode...`);
@@ -669,7 +711,6 @@ export const createLifecycle = (params: {
       });
     }
 
-    // Preload project-owned config overrides that must be available synchronously.
     await StartupConfigFileRegistry.preload([
       StartupConfigFile.Middleware,
       StartupConfigFile.Cache,
@@ -683,44 +724,47 @@ export const createLifecycle = (params: {
 
     FeatureFlags.initialize();
     await StartupHealthChecks.assertHealthy();
-
     await registerFromRuntimeConfig();
+    await initializeRuntimeRoutes(params);
 
-    await initializeArtifactDirectories(params.resolvedBasePath);
-    await registerMasterRoutes(params.resolvedBasePath, params.router);
-    initializeSockets(params.router);
-    await initializeSystemTrace(params.router);
-
-    if (Cloudflare.getWorkersEnv() === null && appConfig.dockerWorker === false) {
-      await initializeWorkers(params.router);
-      await initializeQueueMonitor(params.router);
-
-      if (appConfig.worker === true) {
-        await initializeQueueHttpGateway(params.router);
-        await initializeScheduleHttpGateway(params.router);
-      } else {
-        Logger.info('Skipping worker execution/gateway initialization (WORKER_ENABLED=false).');
-      }
-    } else if (!appConfig.dockerWorker) {
-      Logger.info('Skipping local worker dashboards in Cloudflare Workers runtime.');
-    }
-    // Register service providers
-    // Bootstrap services
     Logger.info('✅ Application booted successfully');
-
     params.setBooted(true);
   };
+};
 
-  const shutdown = async (): Promise<void> => {
+const createShutdownLifecycle = (params: LifecycleParams): (() => Promise<void>) => {
+  return async (): Promise<void> => {
     Logger.info('🛑 Shutting down application...');
+    ShutdownTrace.logHandles('runtime.lifecycle.shutdown.start');
+
+    QueueReliabilityOrchestrator.stop();
+    ShutdownTrace.logHandles('runtime.lifecycle.shutdown.after-queue-reliability-stop');
+
+    if (runtimeQueueMonitor !== null && typeof runtimeQueueMonitor.close === 'function') {
+      try {
+        ShutdownTrace.log('runtime.lifecycle.shutdown.queue-monitor-close.start');
+        await runtimeQueueMonitor.close();
+        ShutdownTrace.logHandles('runtime.lifecycle.shutdown.queue-monitor-close.complete');
+      } catch (error) {
+        Logger.warn('Queue Monitor shutdown failed', error as Error);
+        ShutdownTrace.logHandles('runtime.lifecycle.shutdown.queue-monitor-close.failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        runtimeQueueMonitor = null;
+      }
+    }
 
     try {
       await params.shutdownManager.run();
+      ShutdownTrace.logHandles('runtime.lifecycle.shutdown.after-hooks');
     } catch (error: unknown) {
       Logger.error('Shutdown hook failed:', error as Error);
+      ShutdownTrace.logHandles('runtime.lifecycle.shutdown.hooks-failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
-    // Ensure FileLogWriter.flush is attempted even if dynamic registration failed.
     try {
       const fileLogWriter = await tryImportOptional<{ FileLogWriter: { flush: () => void } }>(
         '@config/FileLogWriter'
@@ -731,7 +775,15 @@ export const createLifecycle = (params: {
     }
 
     params.setBooted(false);
+    ShutdownTrace.logHandles('runtime.lifecycle.shutdown.complete');
   };
+};
+
+export const createLifecycle = (
+  params: LifecycleParams
+): { boot: () => Promise<void>; shutdown: () => Promise<void> } => {
+  const boot = createBootLifecycle(params);
+  const shutdown = createShutdownLifecycle(params);
 
   return { boot, shutdown };
 };
