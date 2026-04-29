@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/storage-gcs",
-  "version": "1.5.2",
+  "version": "1.5.5",
   "description": "Google Cloud Storage driver for ZinTrust.",
   "private": false,
   "type": "module",
