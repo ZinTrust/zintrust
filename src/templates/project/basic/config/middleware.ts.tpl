@@ -32,17 +32,17 @@ export default {
     .filter((m: string) => m.length > 0) as ReadonlyArray<string>,
   fillRateLimit: {
     windowMs: 60_000,
-    max: 5,
+    maxRequests: 5,
     message: 'Too many fill requests, please try again later.',
   },
   authRateLimit: {
     windowMs: 60_000,
-    max: 4,
+    maxRequests: 4,
     message: 'Too many authentication attempts, please try again later.',
   },
   userMutationRateLimit: {
     windowMs: 60_000,
-    max: 20,
+    maxRequests: 20,
     message: 'Too many user mutation requests, please try again later.',
   },
   responders: {

@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/zintrust.plugins', () => ({}));
 
+const importBootstrap = async (): Promise<void> => {
+  const bootstrapModule = await import('@boot/bootstrap');
+  await bootstrapModule.bootstrapReady;
+};
+
 beforeEach(() => {
   vi.resetModules();
   // ensure a clean env
@@ -65,7 +70,7 @@ describe('Bootstrap edge branches', () => {
     }));
 
     // Import bootstrap (which runs start at module top-level)
-    await import('@boot/bootstrap');
+    await importBootstrap();
 
     // Ensure process exit or an error log occurred
     const exited = exitSpy.mock.calls.length > 0;
@@ -82,7 +87,7 @@ describe('Bootstrap edge branches', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     // Mock Application.create to return a minimal app (use global hook for hoisting safety)
-    vi.mock('@boot/Application', () => ({
+    vi.doMock('@boot/Application', () => ({
       Application: { create: () => (globalThis as any).__mockApp },
     }));
     (globalThis as any).__mockApp = {
@@ -91,12 +96,12 @@ describe('Bootstrap edge branches', () => {
     };
 
     // Mock Server to be a minimal server that listens
-    vi.mock('@boot/Server', () => ({
+    vi.doMock('@boot/Server', () => ({
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
     // Make runtime detection throw to hit the catch branch inside start
-    vi.mock('@config/app', () => ({
+    vi.doMock('@config/app', () => ({
       appConfig: {
         detectRuntime: () => {
           throw new Error('boom');
@@ -105,7 +110,7 @@ describe('Bootstrap edge branches', () => {
     }));
 
     // Import module (start will run and the schedules try/catch should log a warn)
-    await import('@boot/bootstrap');
+    await importBootstrap();
 
     // allow async microtasks
     await new Promise((r) => setTimeout(r, 20));
@@ -133,7 +138,7 @@ describe('Bootstrap edge branches', () => {
     });
 
     // Mock Application.create to return a minimal app with a shutdownManager (use global hook)
-    vi.mock('@boot/Application', () => ({
+    vi.doMock('@boot/Application', () => ({
       Application: { create: () => (globalThis as any).__mockApp },
     }));
     (globalThis as any).__mockApp = {
@@ -141,17 +146,17 @@ describe('Bootstrap edge branches', () => {
       getContainer: () => ({ get: () => ({ add: addSpy }) }),
     };
 
-    vi.mock('@boot/Server', () => ({
+    vi.doMock('@boot/Server', () => ({
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
     // Make runtime detect a nodejs runtime
-    vi.mock('@config/app', () => ({
+    vi.doMock('@config/app', () => ({
       appConfig: { detectRuntime: () => 'nodejs' },
     }));
 
     // Mock ScheduleRunner (use global hook for safety)
-    vi.mock('@/scheduler/ScheduleRunner', () => ({
+    vi.doMock('@/scheduler/ScheduleRunner', () => ({
       create: () => (globalThis as any).__scheduleRunner,
     }));
     (globalThis as any).__scheduleRunner = {
@@ -161,10 +166,10 @@ describe('Bootstrap edge branches', () => {
     };
 
     // Mock schedules module with two fake schedules
-    vi.mock('@/schedules', () => ({ a: { id: 'a' }, b: { id: 'b' } }));
+    vi.doMock('@/schedules', () => ({ a: { id: 'a' }, b: { id: 'b' } }));
 
     // Import bootstrap; this will run start and should register schedules
-    await import('@boot/bootstrap');
+    await importBootstrap();
 
     // Allow scheduler registration to run
     await new Promise((r) => setTimeout(r, 20));
@@ -229,7 +234,7 @@ describe('Bootstrap edge branches', () => {
     }));
 
     // Import bootstrap which runs start on import
-    await import('@boot/bootstrap');
+    await importBootstrap();
 
     // Trigger shutdown
     process.emit('SIGTERM');

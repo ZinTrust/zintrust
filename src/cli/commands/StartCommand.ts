@@ -877,6 +877,7 @@ const executeNodeStart = async (
       command: dev.command,
       args: dev.args,
       forwardSignals: false,
+      ttySignalForwardDelayMs: 1500,
       env: {
         ...buildStartEnv(context.projectRoot),
         ZINTRUST_BOOTSTRAP_PREFERENCE: 'source',

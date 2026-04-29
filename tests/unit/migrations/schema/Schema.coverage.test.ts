@@ -1,3 +1,5 @@
+/* eslint-disable max-nested-callbacks -- mock-heavy coverage tests intentionally nest builder callbacks */
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IDatabase } from '@orm/Database';
@@ -102,6 +104,111 @@ describe('migrations/schema/Schema (coverage)', () => {
         t.dropColumn('email');
       })
     ).rejects.toThrow();
+  });
+
+  it('reports sqlite foreign-key alter diagnostics with detected type mismatches', async () => {
+    const db = makeDb('sqlite', (sql) => {
+      if (sql === 'PRAGMA table_info("memberships")') {
+        return [{ name: 'id', type: 'INTEGER' }];
+      }
+
+      if (sql === 'PRAGMA table_info("users")') {
+        return [{ name: 'id', type: 'INTEGER' }];
+      }
+
+      return [];
+    });
+
+    const { Schema } = await import('../../../../src/migrations/schema/Schema');
+
+    await expect(
+      Schema.create(db).table('memberships', async (t) => {
+        t.string('requested_by_user_id', 191).nullable();
+        t.foreign('requested_by_user_id', 'fk_memberships_requested_by_user')
+          .references('id')
+          .on('users')
+          .onDelete('SET NULL');
+      })
+    ).rejects.toThrow(
+      /Add foreign key "fk_memberships_requested_by_user": memberships\.requested_by_user_id \[TEXT\] -> users\.id \[INTEGER\] \(detected SQLite affinity mismatch between local and referenced columns\)/
+    );
+  });
+
+  it('covers sqlite affinity normalization families and planned affinity mapping in alter diagnostics', async () => {
+    const db = makeDb('sqlite', (sql) => {
+      if (sql === 'PRAGMA table_info("documents")') {
+        return [
+          { name: 'existing_json', type: 'JSON' },
+          { name: 'existing_blob', type: 'BLOB' },
+          { name: 'existing_real', type: 'DOUBLE PRECISION' },
+          { name: 'existing_numeric', type: 'DECIMAL(10,2)' },
+        ];
+      }
+
+      if (sql === 'PRAGMA table_info("archive")') {
+        return [
+          { name: 'blob_ref', type: 'BLOB' },
+          { name: 'real_ref', type: 'DOUBLE' },
+          { name: 'numeric_ref', type: 'DECIMAL' },
+          { name: 'json_ref', type: 'JSON' },
+        ];
+      }
+
+      return [];
+    });
+
+    const { Schema } = await import('../../../../src/migrations/schema/Schema');
+
+    await expect(
+      Schema.create(db).table('documents', async (t) => {
+        t.integer('added_integer');
+        t.bigInteger('added_bigint');
+        t.real('added_real');
+        t.blob('added_blob');
+        t.boolean('added_boolean');
+        t.foreign('added_blob', 'fk_documents_blob').references('blob_ref').on('archive');
+        t.dropColumn('legacy_payload');
+        t.dropForeign('fk_documents_legacy');
+      })
+    ).rejects.toThrow(
+      /Drop columns: legacy_payload.*Add foreign key "fk_documents_blob": documents\.added_blob \[BLOB\] -> archive\.blob_ref \[BLOB\].*Drop foreign keys: fk_documents_legacy/
+    );
+  });
+
+  it('covers default planned affinity fallback and drop-foreign-only sqlite alter guard', async () => {
+    const db = makeDb('sqlite', (sql) => {
+      if (sql === 'PRAGMA table_info("documents")') {
+        return [{ name: 'id', type: 'INTEGER' }];
+      }
+
+      if (sql === 'PRAGMA table_info("archive")') {
+        return [{ name: 'id', type: 'INTEGER' }];
+      }
+
+      return [];
+    });
+
+    const { Schema } = await import('../../../../src/migrations/schema/Schema');
+
+    await expect(
+      Schema.create(db).table('documents', async (t) => {
+        t.string('mystery_column');
+        t.foreign('mystery_column', 'fk_documents_mystery').references('id').on('archive');
+
+        const originalGetDefinition = t.getDefinition.bind(t);
+        (t as typeof t & { getDefinition: typeof t.getDefinition }).getDefinition = () => {
+          const definition = originalGetDefinition();
+          return {
+            ...definition,
+            columns: definition.columns.map((column) =>
+              column.name === 'mystery_column' ? { ...column, type: 'DECIMAL' as never } : column
+            ),
+          };
+        };
+      })
+    ).rejects.toThrow(
+      /Add foreign key "fk_documents_mystery": documents\.mystery_column \[NUMERIC\] -> archive\.id \[INTEGER\] \(detected SQLite affinity mismatch between local and referenced columns\)/
+    );
   });
 
   it('supports postgres/mysql/sqlserver hasTable/hasColumn branches and rejects unknown driver', async () => {

@@ -4,7 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { ErrorFactory, Logger, ShutdownTrace } from '@zintrust/core';
 import { Worker, type Job, type WorkerOptions } from 'bullmq';
 import { PriorityQueue } from './PriorityQueue';
 
@@ -78,6 +78,14 @@ const createQueueWorker = async (
     },
     workerOptions
   );
+
+  ShutdownTrace.logBullMQWorker('multi-queue-worker.create', worker, {
+    workerName,
+    queueName: queueConfig.name,
+    configuredConcurrency: queueConfig.concurrency,
+    configuredPriority: queueConfig.priority,
+    enabled: queueConfig.enabled,
+  });
 
   // Set up event listeners
   worker.on('completed', (job: Job) => {
@@ -407,7 +415,17 @@ export const MultiQueueWorker = Object.freeze({
     }
 
     // Close all workers
-    const closePromises = Array.from(mqw.workers.values()).map(async (worker) => worker.close());
+    const closePromises = Array.from(mqw.workers.entries()).map(async ([queueName, worker]) => {
+      ShutdownTrace.logBullMQWorker('multi-queue-worker.remove.close.start', worker, {
+        workerName,
+        queueName,
+      });
+      await worker.close(true);
+      ShutdownTrace.logBullMQWorker('multi-queue-worker.remove.close.complete', worker, {
+        workerName,
+        queueName,
+      });
+    });
 
     await Promise.all(closePromises);
 
@@ -421,9 +439,22 @@ export const MultiQueueWorker = Object.freeze({
    */
   async shutdown(): Promise<void> {
     Logger.info('MultiQueueWorker shutting down...');
+    ShutdownTrace.logHandles('multi-queue-worker.shutdown.start', {
+      workerGroupCount: multiQueueWorkers.size,
+    });
 
     const shutdownPromises = Array.from(multiQueueWorkers.values()).map(async (mqw) => {
-      const closePromises = Array.from(mqw.workers.values()).map(async (worker) => worker.close());
+      const closePromises = Array.from(mqw.workers.entries()).map(async ([queueName, worker]) => {
+        ShutdownTrace.logBullMQWorker('multi-queue-worker.shutdown.close.start', worker, {
+          workerName: mqw.config.workerName,
+          queueName,
+        });
+        await worker.close(true);
+        ShutdownTrace.logBullMQWorker('multi-queue-worker.shutdown.close.complete', worker, {
+          workerName: mqw.config.workerName,
+          queueName,
+        });
+      });
       await Promise.all(closePromises);
     });
 
@@ -432,6 +463,7 @@ export const MultiQueueWorker = Object.freeze({
     multiQueueWorkers.clear();
 
     Logger.info('MultiQueueWorker shutdown complete');
+    ShutdownTrace.logHandles('multi-queue-worker.shutdown.complete');
   },
 });
 

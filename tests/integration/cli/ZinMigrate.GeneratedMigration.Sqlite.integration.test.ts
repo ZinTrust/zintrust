@@ -48,6 +48,7 @@ function runZin(args: string[], cwd: string, env: NodeJS.ProcessEnv): void {
     Logger.error(
       `zin ${args.join(' ')} failed (code=${res.status})\nstdout:\n${out}\nstderr:\n${err}`
     );
+    throw new Error(`zin ${args.join(' ')} failed with exit code ${String(res.status)}`);
   }
 }
 
@@ -60,7 +61,7 @@ function ensureLocalCorePackageShim(projectRoot: string, repoRoot: string): void
   const ormEntryAbs = path.join(repoRootReal, 'src', 'orm', 'Database.ts');
   const workersConfigAbs = path.join(repoRootReal, 'src', 'config', 'workers.ts');
   const envConfigAbs = path.join(repoRootReal, 'src', 'config', 'env.ts');
-  const routerEntryAbs = path.join(repoRootReal, 'src', 'routing', 'Router.ts');
+  const routerEntryAbs = path.join(repoRootReal, 'src', 'routes', 'Router.ts');
   const errorFactoryAbs = path.join(repoRootReal, 'src', 'exceptions', 'ZintrustError.ts');
   const loggerAbs = path.join(repoRootReal, 'src', 'config', 'logger.ts');
   const schemaEntryUrl = pathToFileURL(schemaEntryAbs).href;
@@ -102,26 +103,34 @@ function ensureLocalCliTsconfig(projectRoot: string, repoRoot: string): string {
       baseUrl: '.',
       paths: {
         '@/*': [`${repo}/src/*`],
+        '@registry/*': [`${repo}/src/boot/registry/*`],
         '@boot/*': [`${repo}/src/boot/*`],
+        '@bootstrap/*': [`${repo}/src/bootstrap/*`],
         '@app/*': [`${repo}/app/*`],
         '@routes/*': [`${repo}/routes/*`],
+        '@core-routes/*': [`${repo}/src/routes/*`],
         '@cli/*': [`${repo}/src/cli/*`],
         '@config/*': [`${repo}/src/config/*`],
+        '@runtime-config/*': [`${repo}/config/*`],
         '@common/*': [`${repo}/src/common/*`],
+        '@collections/*': [`${repo}/src/collections/*`],
         '@helper/*': [`${repo}/src/helper/*`],
         '@exceptions/*': [`${repo}/src/exceptions/*`],
         '@utils/*': [`${repo}/src/utils/*`],
         '@orm/*': [`${repo}/src/orm/*`],
+        '@types/*': [`${repo}/src/types/*`],
         '@migrations/*': [`${repo}/src/migrations/*`],
         '@http/*': [`${repo}/src/http/*`],
         '@database/*': [`${repo}/src/database/*`, `${repo}/database/*`],
         '@routing/*': [`${repo}/src/routing/*`],
+        '@proxy/*': [`${repo}/src/proxy/*`],
         '@container/*': [`${repo}/src/container/*`],
         '@middleware/*': [`${repo}/src/middleware/*`],
         '@runtime/*': [`${repo}/src/runtime/*`],
         '@scheduler/*': [`${repo}/src/scheduler/*`],
         '@schedules/*': [`${repo}/src/schedules/*`],
         '@workers/*': [`${repo}/src/workers/*`],
+        '@sockets/*': [`${repo}/src/sockets/*`],
         '@functions/*': [`${repo}/src/functions/*`],
         '@tools/*': [`${repo}/src/tools/*`],
         '@services/*': [`${repo}/src/services/*`],
@@ -129,7 +138,8 @@ function ensureLocalCliTsconfig(projectRoot: string, repoRoot: string): string {
         '@time/*': [`${repo}/src/time/*`],
         '@toolkit/*': [`${repo}/src/toolkit/*`],
         '@microservices/*': [`${repo}/src/microservices/*`],
-        '@features/*': [`${repo}/src/features/*`],
+        '@auth/*': [`${repo}/src/auth/*`],
+        '@lang/*': [`${repo}/src/lang/*`],
         '@templates': [`${repo}/src/tools/templates/index.ts`],
         '@templates/*': [`${repo}/src/tools/templates/*`],
         '@mail/*': [`${repo}/src/tools/mail/*`],
@@ -147,12 +157,17 @@ function ensureLocalCliTsconfig(projectRoot: string, repoRoot: string): string {
         '@drivers/*': [`${repo}/src/tools/storage/drivers/*`],
         '@broadcast/*': [`${repo}/src/tools/broadcast/*`],
         '@notification/*': [`${repo}/src/tools/notification/*`],
+        '@processors/*': [`${repo}/processors/*`],
         '@node-singletons/*': [`${repo}/src/node-singletons/*`],
         '@node-singletons': [`${repo}/src/node-singletons/index.ts`],
         'config/*': [`${repo}/config/*`],
         'packages/*': [`${repo}/packages/*`],
         '@scripts/*': [`${repo}/scripts/*`],
         '@zintrust/core': ['./node_modules/@zintrust/core/index.mjs'],
+        '@zintrust/core/proxy': [`${repo}/src/proxy.ts`],
+        '@zintrust/core/proxy/*': [`${repo}/src/proxy/*`],
+        '@zintrust/core/start': [`${repo}/src/start.ts`],
+        '@zintrust/core/cli': [`${repo}/src/cli.ts`],
         '@zintrust/workers': ['./node_modules/@zintrust/workers/index.mjs'],
       },
     },
@@ -235,5 +250,5 @@ function ensureLocalCliTsconfig(projectRoot: string, repoRoot: string): string {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  }, 30000);
+  }, 120000);
 });

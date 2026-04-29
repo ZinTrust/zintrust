@@ -1,3 +1,43 @@
+# 2026-04-28
+
+- Tightened CLI launcher and watch-process exit tracking around `zin s`. The top-level bin launchers and `SpawnUtil` now preserve the `exit` result but wait for `close`, and they relay child `stdout`/`stderr` through owned pipes instead of handing the terminal through directly. That keeps more of the watch-mode shutdown tail attached to the parent CLI lifecycle while preserving the existing signal-forwarding behavior and focused SpawnUtil regression coverage.
+
+- Fixed plain `zin s` shutdown when worker services are disabled. The runtime no longer registers worker management routes or the worker shutdown hook when `WORKER_ENABLED=false`, which stops the non-worker watch path from importing the workers package during app shutdown and removes the `tsx` force-kill that still appeared after a single Ctrl+C.
+
+- Added env-gated shutdown tracing for the worker-enabled watch path. `SHUTDOWN_TRACE=true` now emits active-handle snapshots and step-level teardown markers across bootstrap shutdown, `WorkerFactory`, `MultiQueueWorker`, queue reliability startup/stop, and queue monitor create/close. The traced live run showed that the worker shutdown path now completes, queue monitor cleanup removes two Redis sockets, and the remaining surviving handle after full app shutdown is a single Redis socket that still persists even after `shutdownRedisConnections()` reports completion.
+
+- Fixed the BullMQ shared Redis shutdown hang that was still stalling worker-enabled `zin s` exits inside `PriorityQueue.shutdown()`. [packages/queue-redis/src/BullMQRedisQueue.ts](packages/queue-redis/src/BullMQRedisQueue.ts) now bounds `sharedConnection.quit()` and falls back to `disconnect()` with a warning when Redis does not complete a graceful quit in time, matching the existing tracked-Redis shutdown strategy used elsewhere in core.
+
+- Tightened the remaining worker shutdown fallback budgets for `tsx watch`. WorkerFactory async teardown steps now stop waiting sooner, and the BullMQ shared Redis quit fallback now cuts over to `disconnect()` on a much shorter bound so watch-mode Ctrl+C exits do not spend most of `tsx`'s child-exit window inside queue transport teardown.
+
+- Fixed `PriorityQueue.shutdown()` so worker-enabled `zin s` does not dynamically import `@zintrust/queue-redis` during Ctrl+C if the process never used priority queues in the first place. That shutdown path is now a cached-module no-op, which removes an unnecessary optional-package load from the exact zero-worker startup/shutdown case that was still reaching `tsx` force-kill.
+
+- Fixed the next worker tail hang in `DeadLetterQueue.shutdown()`. Its Redis client now uses the same short bounded graceful-quit path with forced `disconnect()` fallback, so worker-enabled `zin s` no longer spends the remaining watch-exit window waiting on an unbounded DLQ Redis quit.
+
+- Tightened the remaining dev watch fallback budgets again after parallelizing worker teardown. The worker tail now cuts over from graceful quit to warning-and-continue on much shorter bounds for shared BullMQ Redis, DLQ Redis, and worker-store cleanup so `tsx watch` exits can complete before its own child kill window.
+
+- Fixed the outer `zin`/`z`/`zt`/`zintrust` launcher wrappers so Ctrl+C no longer drops the shell prompt while the child CLI is still printing shutdown logs. The bin wrappers now trap `SIGINT`/`SIGTERM`, stay alive until the spawned `zintrust-main` child actually closes, and only fall back to explicit forwarding when needed.
+
+- Fixed the bootstrap graceful-shutdown default budget mismatch for live runtimes. [src/boot/bootstrap.ts](src/boot/bootstrap.ts) had still been defaulting `SHUTDOWN_TIMEOUT` to `1500ms` even though the env contract, scaffolding, and config surface already use `10000ms`. Worker-enabled `zin s` shutdowns now get the intended default budget before the watch wrapper falls back to force-killing a slow child.
+
+- Hardened worker-management shutdown so `zin s` watch mode no longer depends on every worker subsystem quitting cleanly before the child process can exit. `WorkerFactory.shutdown()` now awaits the async tail teardown steps it previously fire-and-forgot, and each async worker subsystem shutdown is bounded so a stuck Redis/plugin/DLQ quit path logs a warning and lets shutdown continue instead of leaving `tsx watch` to kill the process.
+
+- Tightened the plain `zin s` watch-mode shutdown fallback so the CLI no longer waits indefinitely for a lingering `tsx watch` parent after the app itself has already logged a clean shutdown. The TTY signal helper now follows its delayed fallback `SIGINT` with one automatic `SIGTERM` escalation if the watch parent still has not exited, which removes the recurring need for a second manual Ctrl+C while preserving the earlier single-signal fast path.
+
+- Fixed the new coverage-test pre-commit regression by removing dead unreachable code from the SQLite schema coverage test and scoping `max-nested-callbacks` suppression to the handful of mock-heavy coverage files that intentionally build nested `vi.doMock(...)` factories. This restores `.husky/pre-commit` without weakening repository-wide lint rules or changing runtime behavior.
+
+- Stabilized the SQLite CLI migration integration coverage path so it now validates real CLI success in temp-project runs instead of silently passing through hidden subprocess failures. The test helper now mirrors the repo's source path aliases more completely, points the local `@zintrust/core` shim at the actual router source file, throws immediately on non-zero `zin` subprocess exits, and allows enough timeout headroom for the full `coverage:patch` run when the TSX-backed CLI is booted multiple times under suite-wide load.
+
+- Refined the plain `zin s` shutdown fix for Node watch mode so `tsx watch` no longer logs `Previous process hasn't exited yet. Force killing...` during normal Ctrl+C shutdown. The watch path now keeps direct TTY signal delivery as the primary path and uses a short delayed fallback signal only if the watcher is still alive after the app shutdown grace period, which preserves single-Ctrl+C exits without reintroducing the earlier hanging behavior or touching the already-good `zin s --wg` path.
+
+- Ported the Worker parse-safety fixes from the April 28 debugging note into source-owned ZinTrust modules instead of relying on local `node_modules` edits. `src/runtime/WorkerAdapterImports.ts`, `src/boot/bootstrap.ts`, `src/runtime/plugins/trace.ts`, `src/http/RequestContext.ts`, and `src/runtime/PluginManager.ts` no longer rely on parse-time top-level `await` or eager CLI-only imports, while preserving explicit readiness promises for bootstrap and worker/plugin initialization and on-demand loading for plugin installs. This keeps `zin s --wg` parseable under Wrangler/Miniflare and still lets the normal startup path reach `Ready on http://localhost:7777`.
+
+# 2026-04-27
+
+- Fixed sqlite-family migration diagnostics for `schema.table(...)` foreign-key alterations. When a migration tries to add or drop foreign keys, or drop columns, on SQLite/D1-backed tables, ZinTrust now fails with a targeted validation message that names the affected table, foreign key, local column, referenced table and column, and any detected SQLite affinity mismatch such as `TEXT` versus `INTEGER`, instead of only throwing the previous generic table-rebuild error.
+
+- Fact-checked and corrected four historical core-gap notes under `newstart/`. The current workspace already has the described fixes for single-row hydration and mutator-safe raw hydration, accessor-backed direct model property reads, `belongsTo` / `belongsToMany` eager-loading parity, and queue-monitor stale-history retry state handling, so those notes now explicitly describe their verified fixed status instead of presenting them as current gaps.
+
 # 2026-04-24
 
 - Added a package-local `lint` script to `@zintrust/storage-gcs` so workspace-level checks like `npm run lint -- --max-warnings=0` work when run from `packages/storage-gcs` instead of failing with a missing-script error.

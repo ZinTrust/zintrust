@@ -151,7 +151,8 @@ const clearRegisterGlobals = (): void => {
 const importRegister = async (): Promise<void> => {
   clearRegisterGlobals();
   vi.resetModules();
-  await import('../../src/register');
+  const registerModule = await import('../../src/register');
+  await registerModule.registerTraceReady;
 };
 
 const createDb = (driver: (typeof supportedDrivers)[number], error?: Error) => ({

@@ -79,7 +79,8 @@ describe('bootstrap useWorkerStarter path', () => {
     }));
 
     // Import bootstrap (it runs start on import)
-    await import('@/boot/bootstrap');
+    const bootstrapModule = await import('@/boot/bootstrap');
+    await bootstrapModule.bootstrapReady;
 
     // ensure worker init initialize was called and log info emitted
     expect(fakeWorkers.WorkerInit.initialize).toHaveBeenCalled();

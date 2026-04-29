@@ -39,6 +39,11 @@ vi.mock('@zintrust/core', () => ({
   isArray: Array.isArray,
   isNonEmptyString: (value: unknown) => typeof value === 'string' && value.trim().length > 0,
   Logger: { warn: vi.fn(), debug: vi.fn(), error: vi.fn() },
+  ShutdownTrace: {
+    log: vi.fn(),
+    logHandles: vi.fn(),
+    logBullMQWorker: vi.fn(),
+  },
   queueConfig: {
     monitor: {},
     drivers: {

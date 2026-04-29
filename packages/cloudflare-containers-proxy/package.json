@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cloudflare-containers-proxy",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Cloudflare Containers gateway package for the ZinTrust proxy stack.",
   "private": false,
   "type": "module",

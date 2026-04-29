@@ -26,6 +26,7 @@ import * as NodeFs from '@node-singletons/fs';
 const makeTempProject = (): string => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zintrust-startcmd-'));
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'test-app' }), 'utf-8');
   fs.writeFileSync(path.join(dir, 'src', 'index.ts'), 'export {}\n', 'utf-8');
   fs.writeFileSync(path.join(dir, 'wrangler.toml'), 'name = "test"\n', 'utf-8');
   return dir;
@@ -109,6 +110,33 @@ describe('StartCommand patch coverage extra', () => {
       await cmd.execute({ deno: true, mode: 'development', watch: false } as any);
 
       expect(SpawnUtil.spawnAndWait).toHaveBeenCalled();
+    } finally {
+      process.chdir(originalCwd);
+      (process as any).exit = originalExit;
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('uses delayed TTY fallback signaling in node watch mode so one Ctrl+C is enough', async () => {
+    const originalCwd = process.cwd();
+    const originalExit = process.exit;
+
+    const tmp = makeTempProject();
+    process.chdir(tmp);
+    (process as any).exit = vi.fn();
+
+    try {
+      const cmd = StartCommand.create();
+      await cmd.execute({ mode: 'development' } as any);
+
+      expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: 'tsx',
+          args: expect.arrayContaining(['watch']),
+          forwardSignals: false,
+          ttySignalForwardDelayMs: 1500,
+        })
+      );
     } finally {
       process.chdir(originalCwd);
       (process as any).exit = originalExit;

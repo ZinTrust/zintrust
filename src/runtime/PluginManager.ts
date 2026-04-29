@@ -5,7 +5,6 @@
  * Handles installation and removal of framework plugins.
  */
 
-import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import { esmDirname, resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
@@ -18,6 +17,25 @@ import { PluginRegistry } from '@runtime/PluginRegistry';
 const __dirname = esmDirname(import.meta.url);
 
 const MAX_PACKAGE_ROOT_SEARCH_DEPTH = 20;
+
+type SpawnUtilApi = {
+  spawnAndWait(options: {
+    command: string;
+    args: string[];
+    cwd: string;
+    shell?: boolean;
+  }): Promise<number>;
+};
+
+let spawnUtilPromise: Promise<SpawnUtilApi> | undefined;
+
+const loadSpawnUtil = async (): Promise<SpawnUtilApi> => {
+  spawnUtilPromise ??= import('@cli/utils/spawn').then(
+    (module) => module.SpawnUtil as SpawnUtilApi
+  );
+
+  return spawnUtilPromise;
+};
 
 function findPackageRoot(startDir: string): string {
   let current = startDir;
@@ -141,8 +159,9 @@ async function npmInstall(
   }
 
   try {
+    const spawnUtil = await loadSpawnUtil();
     // Use async spawn for all package managers to avoid blocking event loop
-    const exit = await SpawnUtil.spawnAndWait({ command: cmd, args, cwd: projectRoot });
+    const exit = await spawnUtil.spawnAndWait({ command: cmd, args, cwd: projectRoot });
     if (exit !== 0) {
       throw ErrorFactory.createCliError(
         `Package manager ${pm} failed to install ${options.label}`,
@@ -264,7 +283,8 @@ async function runPostInstall(plugin: PluginDefinition): Promise<void> {
       Logger.info(`Running post-install command: ${plugin.postInstall.command}...`);
       let exit: number;
       try {
-        exit = await SpawnUtil.spawnAndWait({
+        const spawnUtil = await loadSpawnUtil();
+        exit = await spawnUtil.spawnAndWait({
           command: plugin.postInstall.command,
           args: [],
           cwd: projectRoot,

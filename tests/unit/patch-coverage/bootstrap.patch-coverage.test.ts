@@ -1,3 +1,5 @@
+/* eslint-disable max-nested-callbacks -- mock-heavy coverage tests intentionally nest factory callbacks */
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock heavy dependencies before importing bootstrap to avoid real side-effects
@@ -70,7 +72,8 @@ beforeEach(() => {
 describe('patch coverage: bootstrap', () => {
   it('imports bootstrap and runs start without exiting', async () => {
     // Dynamic import executes top-level await/startup; mocks above are hoisted
-    await import('@boot/bootstrap');
+    const bootstrapModule = await import('@boot/bootstrap');
+    await bootstrapModule.bootstrapReady;
 
     const appMod = await import('@boot/Application');
     const srvMod = await import('@boot/Server');
@@ -88,5 +91,42 @@ describe('patch coverage: bootstrap', () => {
     // The bootstrap module should have set up shutdown handlers
     // This is tested by the fact that the module loads without throwing
     expect(true).toBe(true);
+  });
+
+  it('exits even when bootstrap logging itself throws', async () => {
+    vi.resetModules();
+
+    const bootError = new Error('boot fail');
+    const loggerError = vi.fn(() => {
+      throw new Error('logger failed');
+    });
+
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: vi.fn(() => ({
+          boot: vi.fn(async () => Promise.reject(bootError)),
+          shutdown: vi.fn(async () => {}),
+          getContainer: vi.fn(() => ({ get: () => ({ add: vi.fn() }) })),
+        })),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: {
+        create: vi.fn(() => ({
+          listen: async () => {},
+          close: async () => {},
+          getHttpServer: () => ({}),
+        })),
+      },
+    }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), error: loggerError, warn: vi.fn(), debug: vi.fn() },
+    }));
+
+    const bootstrapModule = await import('@boot/bootstrap?logger-throws');
+    await bootstrapModule.bootstrapReady;
+
+    expect(loggerError).toHaveBeenCalledWith('Failed to bootstrap application:', bootError);
+    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 });

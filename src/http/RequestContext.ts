@@ -108,10 +108,13 @@ const setContextField = (
   }
 };
 
-const resolvedStorage = await resolveStorage();
-syncStorage = resolvedStorage;
+const initializeStorage = async (): Promise<StoreApi> => {
+  const storage = await resolveStorage();
+  syncStorage = storage;
+  return storage;
+};
 
-const STORAGE_PROMISE: Promise<StoreApi> = Promise.resolve(resolvedStorage);
+const STORAGE_PROMISE: Promise<StoreApi> = initializeStorage();
 
 export const RequestContext = Object.freeze({
   async run<T>(context: IRequestContext, callback: () => T): Promise<T> {

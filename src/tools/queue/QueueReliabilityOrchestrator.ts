@@ -1,5 +1,6 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { ShutdownTrace } from '@helper/index';
 import { JobReconciliationRunner } from '@queue/JobReconciliationRunner';
 import { JobRecoveryDaemon } from '@queue/JobRecoveryDaemon';
 import { StalledJobMonitor } from '@queue/StalledJobMonitor';
@@ -80,9 +81,17 @@ export const QueueReliabilityOrchestrator = Object.freeze({
       recoveryMs,
       stalledMs,
     });
+    ShutdownTrace.logHandles('queue-reliability.start', {
+      reconciliationMs,
+      recoveryMs,
+      stalledMs,
+    });
   },
 
   stop(): void {
+    ShutdownTrace.log('queue-reliability.stop.start', {
+      started: state.started,
+    });
     clearTimer(state.reconciliationTimer);
     clearTimer(state.recoveryTimer);
     clearTimer(state.stalledTimer);
@@ -91,6 +100,8 @@ export const QueueReliabilityOrchestrator = Object.freeze({
     state.recoveryTimer = undefined;
     state.stalledTimer = undefined;
     state.started = false;
+    Logger.info('Queue reliability orchestrator stopped');
+    ShutdownTrace.logHandles('queue-reliability.stop.complete');
   },
 });
 

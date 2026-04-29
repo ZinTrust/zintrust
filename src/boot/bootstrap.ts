@@ -13,6 +13,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { shutdownRedisConnections } from '@config/workers';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ShutdownTrace } from '@helper/ShutdownTrace';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
 import { StartupErrorLogging } from '@runtime/StartupErrorLogging';
 import { WorkerProjectAutoImports } from '@runtime/WorkerProjectAutoImports';
@@ -114,16 +115,135 @@ const withTimeout = async <T>(
   }
 };
 
+const shutdownWorkersIfNeeded = async (
+  signal: string,
+  remainingMs: () => number
+): Promise<void> => {
+  if (
+    appConfig.worker !== true ||
+    (appConfig.detectRuntime() !== 'nodejs' && appConfig.detectRuntime() !== 'lambda') ||
+    appConfig.dockerWorker === true
+  ) {
+    return;
+  }
+
+  try {
+    ShutdownTrace.log('bootstrap.graceful-shutdown.worker-shutdown.start', {
+      signal,
+      remainingMs: remainingMs(),
+    });
+    const workers = await loadWorkersModule();
+    const workerBudgetMs = Math.min(15000, remainingMs());
+    await withTimeout(
+      workers.WorkerShutdown.shutdown({
+        signal,
+        timeout: workerBudgetMs,
+        forceExit: false,
+      }),
+      workerBudgetMs,
+      'Worker shutdown timed out'
+    );
+    ShutdownTrace.logHandles('bootstrap.graceful-shutdown.worker-shutdown.complete', {
+      workerBudgetMs,
+      remainingMs: remainingMs(),
+    });
+  } catch (error) {
+    Logger.warn('Worker shutdown failed (continuing with app shutdown)', error as Error);
+    ShutdownTrace.logHandles('bootstrap.graceful-shutdown.worker-shutdown.failed', {
+      remainingMs: remainingMs(),
+    });
+  }
+};
+
+const shutdownServerIfNeeded = async (remainingMs: () => number): Promise<void> => {
+  if (serverInstance === undefined) return;
+
+  ShutdownTrace.log('bootstrap.graceful-shutdown.server-close.start', {
+    remainingMs: remainingMs(),
+  });
+  await serverInstance.close();
+  ShutdownTrace.logHandles('bootstrap.graceful-shutdown.server-close.complete', {
+    remainingMs: remainingMs(),
+  });
+};
+
+const shutdownAppIfNeeded = async (remainingMs: () => number): Promise<void> => {
+  if (appInstance === undefined) return;
+
+  try {
+    const appBudgetMs = Math.min(5000, remainingMs());
+    ShutdownTrace.log('bootstrap.graceful-shutdown.app-shutdown.start', {
+      appBudgetMs,
+      remainingMs: remainingMs(),
+    });
+    await withTimeout(appInstance.shutdown(), appBudgetMs, 'App shutdown timed out');
+    ShutdownTrace.logHandles('bootstrap.graceful-shutdown.app-shutdown.complete', {
+      appBudgetMs,
+      remainingMs: remainingMs(),
+    });
+  } catch (error) {
+    Logger.warn('App shutdown failed or timed out, forcing exit', error as Error);
+    ShutdownTrace.logHandles('bootstrap.graceful-shutdown.app-shutdown.failed', {
+      remainingMs: remainingMs(),
+    });
+  }
+};
+
+const shutdownTrackedRedis = async (remainingMs: () => number): Promise<void> => {
+  try {
+    const redisBudgetMs = Math.max(250, Math.min(3000, remainingMs()));
+    ShutdownTrace.log('bootstrap.graceful-shutdown.redis-shutdown.start', {
+      redisBudgetMs,
+      remainingMs: remainingMs(),
+    });
+    await withTimeout(
+      shutdownRedisConnections(),
+      redisBudgetMs,
+      'Redis connection shutdown timed out'
+    );
+    ShutdownTrace.logHandles('bootstrap.graceful-shutdown.redis-shutdown.complete', {
+      redisBudgetMs,
+      remainingMs: remainingMs(),
+    });
+  } catch (error) {
+    Logger.warn('Redis connection shutdown failed (continuing with app shutdown)', error as Error);
+    ShutdownTrace.logHandles('bootstrap.graceful-shutdown.redis-shutdown.failed', {
+      remainingMs: remainingMs(),
+    });
+  }
+};
+
+const runGracefulShutdownPhases = async (
+  signal: string,
+  remainingMs: () => number
+): Promise<void> => {
+  await shutdownWorkersIfNeeded(signal, remainingMs);
+  await shutdownServerIfNeeded(remainingMs);
+  await shutdownAppIfNeeded(remainingMs);
+  await shutdownTrackedRedis(remainingMs);
+
+  Logger.info('✅ Application shut down successfully');
+  ShutdownTrace.logHandles('bootstrap.graceful-shutdown.complete', {
+    remainingMs: remainingMs(),
+  });
+};
+
 const gracefulShutdown = async (signal: string): Promise<void> => {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  const shutdownBudgetMs = Env.getInt('SHUTDOWN_TIMEOUT', 1500);
+  const shutdownBudgetMs = Env.getInt('SHUTDOWN_TIMEOUT', 10000);
   const minForceExitMs = shutdownBudgetMs + 250;
   const forceExitMs = Math.max(Env.getInt('SHUTDOWN_FORCE_EXIT_MS', 10000), minForceExitMs);
   const deadlineMs = Date.now() + shutdownBudgetMs;
   const remainingMs = (): number => Math.max(0, deadlineMs - Date.now());
   Logger.info(`${signal} received, shutting down gracefully...`);
+  ShutdownTrace.logHandles('bootstrap.graceful-shutdown.received', {
+    signal,
+    shutdownBudgetMs,
+    forceExitMs,
+    workerEnabled: appConfig.worker,
+  });
 
   try {
     const forceExitTimer = globalThis.setTimeout(() => {
@@ -134,59 +254,7 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
     (forceExitTimer as unknown as { unref?: () => void }).unref?.();
 
     await withTimeout(
-      (async () => {
-        // Shutdown worker management system FIRST (before database closes)
-        if (
-          appConfig.worker === true &&
-          (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') &&
-          appConfig.dockerWorker === false
-        ) {
-          try {
-            const workers = await loadWorkersModule();
-            const workerBudgetMs = Math.min(15000, remainingMs());
-            await withTimeout(
-              workers.WorkerShutdown.shutdown({
-                signal,
-                timeout: workerBudgetMs,
-                forceExit: false,
-              }),
-              workerBudgetMs,
-              'Worker shutdown timed out'
-            );
-          } catch (error) {
-            Logger.warn('Worker shutdown failed (continuing with app shutdown)', error as Error);
-          }
-        }
-
-        if (serverInstance !== undefined) {
-          await serverInstance.close();
-        }
-
-        if (appInstance !== undefined) {
-          try {
-            const appBudgetMs = Math.min(5000, remainingMs());
-            await withTimeout(appInstance.shutdown(), appBudgetMs, 'App shutdown timed out');
-          } catch (error) {
-            Logger.warn('App shutdown failed or timed out, forcing exit', error as Error);
-          }
-        }
-
-        try {
-          const redisBudgetMs = Math.max(250, Math.min(3000, remainingMs()));
-          await withTimeout(
-            shutdownRedisConnections(),
-            redisBudgetMs,
-            'Redis connection shutdown timed out'
-          );
-        } catch (error) {
-          Logger.warn(
-            'Redis connection shutdown failed (continuing with app shutdown)',
-            error as Error
-          );
-        }
-
-        Logger.info('✅ Application shut down successfully');
-      })(),
+      runGracefulShutdownPhases(signal, remainingMs),
       shutdownBudgetMs,
       'Graceful shutdown timed out'
     );
@@ -196,6 +264,9 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
     process.exit(0);
   } catch (error: unknown) {
     Logger.error('Graceful shutdown failed:', error as Error);
+    ShutdownTrace.logHandles('bootstrap.graceful-shutdown.error', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     process.exit(1);
   }
 };
@@ -347,16 +418,20 @@ const BootstrapFunctions = Object.freeze({
   },
 });
 
-// Run bootstrap
-await BootstrapFunctions.start().catch((error) => {
+const startBootstrap = async (): Promise<void> => {
   try {
-    Logger.error('Failed to bootstrap application:', error as Error);
-  } catch {
-    // best-effort logging
+    await BootstrapFunctions.start();
+    BootstrapFunctions.setupShutdownHandler();
+  } catch (error) {
+    try {
+      Logger.error('Failed to bootstrap application:', error as Error);
+    } catch {
+      // best-effort logging
+    }
+
+    process.exit(1);
   }
+};
 
-  process.exit(1);
-});
-
-// Handle graceful shutdown
-BootstrapFunctions.setupShutdownHandler();
+// Run bootstrap without parse-time top-level await so Worker bundles can load this module.
+export const bootstrapReady = startBootstrap();

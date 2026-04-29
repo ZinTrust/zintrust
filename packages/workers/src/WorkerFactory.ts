@@ -58,6 +58,27 @@ import {
 
 const path = NodeSingletons.path;
 
+type ShutdownTraceApi = {
+  log: (label: string, details?: Record<string, unknown>) => void;
+  logHandles: (label: string, details?: Record<string, unknown>) => void;
+};
+
+const createNoopShutdownTrace = (): ShutdownTraceApi => ({
+  log: (): void => undefined,
+  logHandles: (): void => undefined,
+});
+
+const resolveShutdownTrace = (): ShutdownTraceApi => {
+  try {
+    const candidate = (ZintrustCoreModule as { ShutdownTrace?: ShutdownTraceApi }).ShutdownTrace;
+    return candidate ?? createNoopShutdownTrace();
+  } catch {
+    return createNoopShutdownTrace();
+  }
+};
+
+const ShutdownTrace = resolveShutdownTrace();
+
 type ProcessorPackageBridgeGlobal = typeof globalThis & {
   __zintrustProcessorPackageBridges__?: Map<string, Record<string, unknown>>;
 };
@@ -450,6 +471,82 @@ const workers = new Map<string, WorkerInstance>();
 let workerStore: WorkerStore = InMemoryWorkerStore.create();
 let workerStoreConfigured = false;
 let workerStoreConfig: WorkerPersistenceConfig | null = null;
+
+const collectWorkerStoresForCleanup = (stores: Iterable<WorkerStore> = []): Set<WorkerStore> => {
+  const storesToClose = new Set<WorkerStore>(stores);
+
+  if (workerStoreConfigured) {
+    storesToClose.add(workerStore);
+  }
+
+  for (const store of storeInstanceCache.values()) {
+    storesToClose.add(store);
+  }
+
+  return storesToClose;
+};
+
+const closeWorkerStores = async (stores: Iterable<WorkerStore> = []): Promise<void> => {
+  const storesToClose = collectWorkerStoresForCleanup(stores);
+
+  ShutdownTrace.logHandles('worker-factory.store-cleanup.start', {
+    storeCount: storesToClose.size,
+    storeTypes: Array.from(storesToClose).map((store) => store.constructor.name),
+  });
+
+  await Promise.all(
+    Array.from(storesToClose).map(async (store) => {
+      if (typeof store.close !== 'function') return;
+
+      await shutdownWithTimeout(
+        'WorkerStore',
+        async () => {
+          await store.close?.();
+        },
+        100
+      );
+    })
+  );
+
+  workerStoreConfigured = false;
+  workerStoreConfig = null;
+  workerStore = InMemoryWorkerStore.create();
+  storeInstanceCache.clear();
+  ShutdownTrace.logHandles('worker-factory.store-cleanup.complete');
+};
+
+const shutdownWithTimeout = async (
+  label: string,
+  action: () => Promise<void>,
+  timeoutMs = 150
+): Promise<void> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    ShutdownTrace.log('worker-factory.step.start', { label, timeoutMs });
+    await Promise.race([
+      action(),
+      new Promise<never>((_, reject) => {
+        timeoutId = globalThis.setTimeout(() => {
+          reject(ErrorFactory.createGeneralError(`${label} shutdown timed out`, { timeoutMs }));
+        }, timeoutMs);
+        (timeoutId as { unref?: () => void }).unref?.();
+      }),
+    ]);
+    ShutdownTrace.logHandles('worker-factory.step.complete', { label, timeoutMs });
+  } catch (error) {
+    Logger.warn(`${label} shutdown failed or timed out`, error as Error);
+    ShutdownTrace.logHandles('worker-factory.step.failed', {
+      label,
+      timeoutMs,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    if (timeoutId !== undefined) {
+      globalThis.clearTimeout(timeoutId);
+    }
+  }
+};
 
 export type ProcessorResolver = (
   name: string
@@ -3583,6 +3680,9 @@ export const WorkerFactory = Object.freeze({
    */
   async shutdown(): Promise<void> {
     Logger.info('WorkerFactory shutting down...');
+    ShutdownTrace.logHandles('worker-factory.shutdown.start', {
+      workerCount: workers.size,
+    });
 
     const workerEntries = Array.from(workers.entries());
     const workerNames = workerEntries.map(([name]) => name);
@@ -3628,24 +3728,47 @@ export const WorkerFactory = Object.freeze({
 
     // Shutdown all modules
     ResourceMonitor.stop();
-    await WorkerMetrics.shutdown();
-    await MultiQueueWorker.shutdown();
-    await ComplianceManager.shutdown();
-    await PriorityQueue.shutdown();
     HealthMonitor.shutdown();
     AutoScaler.stop();
-    ClusterLock.shutdown();
     WorkerVersioning.shutdown();
     CanaryController.shutdown();
     DatacenterOrchestrator.shutdown();
-    PluginManager.shutdown();
     Observability.shutdown();
-    await DeadLetterQueue.shutdown();
     CircuitBreaker.shutdown();
+
+    await Promise.all([
+      shutdownWithTimeout('WorkerMetrics', async () => {
+        await WorkerMetrics.shutdown();
+      }),
+      shutdownWithTimeout('MultiQueueWorker', async () => {
+        await MultiQueueWorker.shutdown();
+      }),
+      shutdownWithTimeout('ComplianceManager', async () => {
+        await ComplianceManager.shutdown();
+      }),
+      shutdownWithTimeout('PriorityQueue', async () => {
+        await PriorityQueue.shutdown();
+      }),
+      shutdownWithTimeout('ClusterLock', async () => {
+        await ClusterLock.shutdown();
+      }),
+      shutdownWithTimeout('PluginManager', async () => {
+        await PluginManager.shutdown();
+      }),
+      shutdownWithTimeout('DeadLetterQueue', async () => {
+        await DeadLetterQueue.shutdown();
+      }),
+      closeWorkerStores(storeGroups.keys()),
+    ]);
+
+    ShutdownTrace.logHandles('worker-factory.shutdown.after-parallel-teardown', {
+      workerCount: workers.size,
+    });
 
     workers.clear();
 
     Logger.info('WorkerFactory shutdown complete');
+    ShutdownTrace.logHandles('worker-factory.shutdown.complete');
   },
 
   /**
@@ -3653,9 +3776,7 @@ export const WorkerFactory = Object.freeze({
    * Useful when connections become stale in long-running processes or serverless environments.
    */
   async resetPersistence(): Promise<void> {
-    workerStoreConfigured = false;
-    workerStore = InMemoryWorkerStore.create();
-    storeInstanceCache.clear();
+    await closeWorkerStores();
     Logger.info('Worker persistence configuration reset');
   },
 });

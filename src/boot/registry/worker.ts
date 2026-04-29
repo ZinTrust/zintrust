@@ -10,6 +10,7 @@ export const registerWorkerShutdownHook = async (
   shutdownManager: IShutdownManager
 ): Promise<void> => {
   if (
+    appConfig.worker !== true ||
     Env.getBool('WORKER_SHUTDOWN_ON_APP_EXIT', true) === false ||
     appConfig.dockerWorker === true
   ) {
@@ -35,7 +36,7 @@ export const registerWorkerShutdownHook = async (
       const isShuttingDown =
         typeof mod.WorkerShutdown.isShuttingDown === 'function'
           ? mod.WorkerShutdown.isShuttingDown()
-          : mod.WorkerShutdown.getShutdownState?.().isShuttingDown ?? false;
+          : (mod.WorkerShutdown.getShutdownState?.().isShuttingDown ?? false);
       const completedAt = mod.WorkerShutdown.getShutdownState?.().completedAt ?? null;
 
       if (isShuttingDown || completedAt !== null) return;

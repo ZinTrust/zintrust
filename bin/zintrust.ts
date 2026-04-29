@@ -5,10 +5,9 @@
  *
  * This bin script is a thin wrapper around the hashbang-free implementation in
  * bin/zintrust-main.ts. Keeping the implementation hashbang-free allows other
- * shortcuts (zin/z/zt) to import it without parse issues.
+ * shortcuts (zin/z/zt) to reuse the same launcher behavior.
  */
 
-import { run } from './zintrust-main.js';
+import { runCliWrapper } from './launcher';
 
-await run();
-export {};
+await runCliWrapper();

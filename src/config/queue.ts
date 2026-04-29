@@ -7,12 +7,50 @@
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { isKnownMiddlewareName, middlewareConfig } from '@config/middleware';
+import type { MiddlewaresType } from '@config/middleware';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
 
 import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
+
+const StaticMiddlewareKeys = Object.freeze({
+  log: true,
+  error: true,
+  security: true,
+  rateLimit: true,
+  sanitizeBody: true,
+  fillRateLimit: true,
+  authRateLimit: true,
+  userMutationRateLimit: true,
+  csrf: true,
+  auth: true,
+  jwt: true,
+  bulletproof: true,
+  validateLogin: true,
+  validateRegister: true,
+  validateUserStore: true,
+  validateUserUpdate: true,
+  validateUserFill: true,
+} as const);
+
+const isKnownQueueMonitorMiddlewareName = (value: string): boolean => {
+  return (
+    Object.hasOwn(StaticMiddlewareKeys, value) || /^rateLimit:\d+:\d+(?:\.\d+)?$/.test(value.trim())
+  );
+};
+
+const getConfiguredQueueMonitorRouteKeys = (): ReadonlySet<string> => {
+  const middlewareOverrides =
+    StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
+  const routeConfig = middlewareOverrides.route;
+
+  if (typeof routeConfig !== 'object' || routeConfig === null || Array.isArray(routeConfig)) {
+    return new Set<string>();
+  }
+
+  return new Set(Object.keys(routeConfig));
+};
 
 export type QueueConfigOverrides = Partial<{
   default: QueueDriverName;
@@ -188,9 +226,9 @@ const createBaseMonitor = (): {
     .filter((m: string) => m.length > 0) as ReadonlyArray<string>;
 
   if (enabled && middleware.length > 0) {
-    const knownKeys = new Set(Object.keys(middlewareConfig.route ?? {}));
+    const knownKeys = getConfiguredQueueMonitorRouteKeys();
     const unknownKeys = middleware.filter((name) => {
-      return !knownKeys.has(name) && !isKnownMiddlewareName(name);
+      return !knownKeys.has(name) && !isKnownQueueMonitorMiddlewareName(name);
     });
 
     if (unknownKeys.length > 0) {

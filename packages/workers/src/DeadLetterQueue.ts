@@ -85,6 +85,24 @@ const getAuditPrefix = (): string => {
 let redisClient: RedisConnection | null = null;
 let retentionPolicy: RetentionPolicy | null = null;
 let cleanupInterval: NodeJS.Timeout | null = null;
+const REDIS_SHUTDOWN_TIMEOUT_MS = 100;
+
+const closeRedisClient = async (client: RedisConnection): Promise<void> => {
+  try {
+    await Promise.race([
+      client.quit(),
+      new Promise<never>((_, reject) => {
+        const timeoutId = globalThis.setTimeout(() => {
+          reject(new Error('DeadLetterQueue Redis shutdown timed out'));
+        }, REDIS_SHUTDOWN_TIMEOUT_MS);
+        (timeoutId as { unref?: () => void }).unref?.();
+      }),
+    ]);
+  } catch (error) {
+    Logger.warn('DeadLetterQueue graceful Redis shutdown failed, forcing disconnect', error);
+    client.disconnect();
+  }
+};
 
 /**
  * Helper: Get DLQ key
@@ -195,11 +213,11 @@ const cleanupOldEntries = async (): Promise<number> => {
     const keys = await client.keys(pattern);
 
     const cleanedCounts = await Promise.all(
-      (keys as string[]).map(async (key: string) => {
+      keys.map(async (key: string) => {
         const oldEntries = await client.zrangebyscore(key, '-inf', cutoffTimestamp);
 
         await Promise.all(
-          (oldEntries as string[]).map(async (entryJson: string) => {
+          oldEntries.map(async (entryJson: string) => {
             const entry = JSON.parse(entryJson) as FailedJobEntry;
 
             if (policy.anonymizeInsteadOfDelete) {
@@ -345,7 +363,7 @@ export const DeadLetterQueue = Object.freeze({
       const key = getDLQKey(queueName);
       const entries = await redisClient.zrange(key, 0, -1);
 
-      const entry = (entries as string[])
+      const entry = entries
         .map((e: string) => JSON.parse(e) as FailedJobEntry)
         .find((e: FailedJobEntry) => e.id === jobId);
 
@@ -392,7 +410,7 @@ export const DeadLetterQueue = Object.freeze({
       // Get most recent failures first (highest scores)
       const entries = await redisClient.zrevrange(key, 0, limit - 1);
 
-      return (entries as string[]).map((e: string) => JSON.parse(e) as FailedJobEntry);
+      return entries.map((e: string) => JSON.parse(e) as FailedJobEntry);
     } catch (error) {
       Logger.error(`Failed to get DLQ entries for queue: ${queueName}`, error);
       return [];
@@ -579,7 +597,7 @@ export const DeadLetterQueue = Object.freeze({
       const auditKey = getAuditKey(failedJobId);
       const entries = await redisClient.zrevrange(auditKey, 0, limit - 1);
 
-      return (entries as string[]).map((e: string) => JSON.parse(e) as ComplianceAuditEntry);
+      return entries.map((e: string) => JSON.parse(e) as ComplianceAuditEntry);
     } catch (error) {
       Logger.error(`Failed to get audit log for: ${failedJobId}`, error);
       return [];
@@ -600,13 +618,13 @@ export const DeadLetterQueue = Object.freeze({
       const keys = await client.keys(pattern);
 
       const entriesByQueue = await Promise.all(
-        (keys as string[]).map(async (key: string) => {
+        keys.map(async (key: string) => {
           const queueName = key.replace(getDLQPrefix(), '');
           const entries = await client.zrange(key, 0, -1);
           return {
             queueName,
             count: entries.length,
-            entries: (entries as string[]).map((e: string) => JSON.parse(e) as FailedJobEntry),
+            entries: entries.map((e: string) => JSON.parse(e) as FailedJobEntry),
           };
         })
       );
@@ -729,7 +747,7 @@ export const DeadLetterQueue = Object.freeze({
     }
 
     if (redisClient) {
-      await redisClient.quit();
+      await closeRedisClient(redisClient);
       redisClient = null;
     }
 

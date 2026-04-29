@@ -62,7 +62,7 @@ const loadQueueRedisModule = async (): Promise<QueueRedisModule | undefined> => 
   if (queueRedisModule) return queueRedisModule;
 
   try {
-    queueRedisModule = (await import('@zintrust/queue-redis')) as QueueRedisModule;
+    queueRedisModule = await import('@zintrust/queue-redis');
     return queueRedisModule;
   } catch (error) {
     if (!hasWarnedMissingQueueRedis) {
@@ -86,7 +86,7 @@ const getQueue = async (queueName: string): Promise<Queue> => {
       'Optional package "@zintrust/queue-redis" is required for PriorityQueue. Install it to use queue features.'
     );
   }
-  return queueRedis.BullMQRedisQueue.getQueue(queueName) as Queue;
+  return queueRedis.BullMQRedisQueue.getQueue(queueName) as unknown as Queue;
 };
 
 /**
@@ -378,8 +378,17 @@ export const PriorityQueue = Object.freeze({
    */
   async shutdown(): Promise<void> {
     Logger.info('PriorityQueue shutting down via BullMQRedisQueue...');
+    if (!queueRedisModule) {
+      Logger.info('PriorityQueue shutdown complete');
+      return;
+    }
+
     const queueRedis = await loadQueueRedisModule();
-    if (!queueRedis) return;
+    if (!queueRedis) {
+      Logger.info('PriorityQueue shutdown complete');
+      return;
+    }
+
     await queueRedis.BullMQRedisQueue.shutdown();
     Logger.info('PriorityQueue shutdown complete');
   },

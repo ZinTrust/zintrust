@@ -17,7 +17,8 @@ describe('runtime trace plugin shims', () => {
       return {};
     });
 
-    await import('@runtime/plugins/trace');
+    const traceModule = await import('@runtime/plugins/trace');
+    await traceModule.ready;
 
     expect(fallbackPluginSpy).toHaveBeenCalledTimes(1);
   });

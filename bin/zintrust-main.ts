@@ -105,6 +105,36 @@ const getHandoffExitCode = (exitCode: number | null, signal: NodeJS.Signals | nu
   return 1;
 };
 
+const waitForChildTermination = async (
+  child: ReturnType<typeof spawn>
+): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }> => {
+  return await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
+    (resolve, reject) => {
+      let settled = false;
+
+      const finish = (exitCode: number | null, signal: NodeJS.Signals | null): void => {
+        if (settled) return;
+        settled = true;
+        child.off?.('exit', onExit);
+        child.off?.('close', onClose);
+        resolve({ exitCode, signal });
+      };
+
+      const onExit = (exitCode: number | null, signal: NodeJS.Signals | null): void => {
+        finish(exitCode, signal);
+      };
+
+      const onClose = (exitCode: number | null, signal: NodeJS.Signals | null): void => {
+        finish(exitCode, signal);
+      };
+
+      child.once('error', reject);
+      child.once('exit', onExit);
+      child.once('close', onClose);
+    }
+  );
+};
+
 const handoffToProjectLocalCli = async (
   target: ProjectLocalCliTarget,
   rawArgs: string[]
@@ -135,14 +165,7 @@ const handoffToProjectLocalCli = async (
   process.on('SIGTERM', onSigterm);
 
   try {
-    const result = await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
-      (resolve, reject) => {
-        child.once('error', reject);
-        child.once('close', (exitCode: number | null, signal: NodeJS.Signals | null) => {
-          resolve({ exitCode, signal });
-        });
-      }
-    );
+    const result = await waitForChildTermination(child);
 
     process.exit(getHandoffExitCode(result.exitCode, result.signal));
   } finally {
@@ -394,5 +417,16 @@ export const CliLauncherInternal = Object.freeze({
   maybeHandoffToProjectLocalCli,
   resolveProjectLocalCliHandoff,
 });
+
+const shouldRunAsMain = (): boolean => {
+  const entryArg = process.argv[1];
+  if (typeof entryArg !== 'string' || entryArg.trim() === '') return false;
+
+  return getRealPath(entryArg) === getRealPath(fileURLToPath(import.meta.url));
+};
+
+if (shouldRunAsMain()) {
+  await run();
+}
 
 export {};

@@ -7,9 +7,10 @@ const createEnvEnabledModule = (
 });
 
 const createAppConfigModule = (
-  dockerWorker: boolean
-): { appConfig: { dockerWorker: boolean } } => ({
-  appConfig: { dockerWorker },
+  dockerWorker: boolean,
+  worker = true
+): { appConfig: { dockerWorker: boolean; worker: boolean } } => ({
+  appConfig: { dockerWorker, worker },
 });
 
 const createNoWorkersModule = (): { loadWorkersModule: ReturnType<typeof vi.fn> } => ({
@@ -47,7 +48,7 @@ describe('worker shutdown hook patch coverage', () => {
 
   it('returns early when shutdown-on-exit is disabled', async () => {
     vi.doMock('@config/env', () => createEnvEnabledModule(false));
-    vi.doMock('@/config/app', () => createAppConfigModule(false));
+    vi.doMock('@/config/app', () => createAppConfigModule(false, true));
     vi.doMock('@runtime/WorkersModule', createNoWorkersModule);
 
     const add = vi.fn();
@@ -60,7 +61,7 @@ describe('worker shutdown hook patch coverage', () => {
     const shutdown = vi.fn(async () => undefined);
 
     vi.doMock('@config/env', () => createEnvEnabledModule(true));
-    vi.doMock('@/config/app', () => createAppConfigModule(false));
+    vi.doMock('@/config/app', () => createAppConfigModule(false, true));
     vi.doMock('@runtime/WorkersModule', () =>
       createWorkerModuleWithState({ isShuttingDown: false, shutdown })
     );
@@ -86,7 +87,7 @@ describe('worker shutdown hook patch coverage', () => {
     const shutdown = vi.fn(async () => undefined);
 
     vi.doMock('@config/env', () => createEnvEnabledModule(true));
-    vi.doMock('@/config/app', () => createAppConfigModule(false));
+    vi.doMock('@/config/app', () => createAppConfigModule(false, true));
     vi.doMock('@runtime/WorkersModule', () =>
       createWorkerModuleWithState({ isShuttingDown: true, shutdown })
     );
