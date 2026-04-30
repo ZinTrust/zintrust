@@ -78,7 +78,7 @@ describe('TraceEntryFiltering', () => {
     expect(storage.writeEntry).not.toHaveBeenCalled();
   });
 
-  it('drops later entries in a batch after an ignored request entry marked the batch', async () => {
+  it('keeps non-request entries in a batch even when the related request uri is ignored', async () => {
     const storage = createStorage();
     const wrapped = TraceEntryFiltering.wrapStorage(storage, baseConfig);
 
@@ -109,10 +109,16 @@ describe('TraceEntryFiltering', () => {
       createdAt: 2,
     });
 
-    expect(storage.writeEntry).not.toHaveBeenCalled();
+    expect(storage.writeEntry).toHaveBeenCalledTimes(1);
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uuid: 'entry-log',
+        type: EntryType.LOG,
+      })
+    );
   });
 
-  it('drops entries when the live request context path is ignored', async () => {
+  it('keeps non-request entries when the live request context path is ignored', async () => {
     const storage = createStorage();
     const wrapped = TraceEntryFiltering.wrapStorage(storage, baseConfig);
 
@@ -134,7 +140,13 @@ describe('TraceEntryFiltering', () => {
       createdAt: 3,
     });
 
-    expect(storage.writeEntry).not.toHaveBeenCalled();
+    expect(storage.writeEntry).toHaveBeenCalledTimes(1);
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uuid: 'entry-3',
+        type: EntryType.LOG,
+      })
+    );
 
     TraceContext.setRequestContextImpl({
       current: () => ({}),

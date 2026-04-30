@@ -1,3 +1,6 @@
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockRuntimeDatabaseModule = (): void => {
@@ -896,6 +899,147 @@ describe('runtime/registerRoute patch coverage', () => {
     expect(useDatabaseSpy).not.toHaveBeenCalled();
     expect(ensureSystemTraceRegisteredSpy).toHaveBeenCalledTimes(1);
     expect(routerWithPlugin.routes).toHaveLength(0);
+  });
+
+  it('createLifecycle resolves the local trace runtime bridge from ZINTRUST_PROJECT_ROOT when cwd differs', async () => {
+    const tempProjectRoot = mkdtempSync(join(tmpdir(), 'zintrust-trace-root-'));
+    const alternateCwd = mkdtempSync(join(tmpdir(), 'zintrust-trace-cwd-'));
+    const bridgeDir = join(tempProjectRoot, 'src', 'runtime', 'plugins');
+    const bridgeFile = join(bridgeDir, 'trace-runtime.js');
+    const originalCwd = process.cwd();
+
+    mkdirSync(bridgeDir, { recursive: true });
+    writeFileSync(
+      bridgeFile,
+      [
+        'globalThis.__trace_bridge_loaded_from_project_root__ = (globalThis.__trace_bridge_loaded_from_project_root__ || 0) + 1;',
+        'export const isAvailable = () => true;',
+        'export const ensureSystemTraceRegistered = async () => {',
+        '  globalThis.__trace_bridge_registered_from_project_root__ = true;',
+        '};',
+      ].join('\n'),
+      'utf8'
+    );
+
+    process.chdir(alternateCwd);
+
+    vi.doMock('@cache/CacheRuntimeRegistration', () => ({
+      registerCachesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@orm/DatabaseRuntimeRegistration', () => ({
+      registerDatabasesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/queue/QueueRuntimeRegistration', () => ({
+      registerQueuesFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/broadcast/BroadcastRuntimeRegistration', () => ({
+      registerBroadcastersFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/storage/StorageRuntimeRegistration', () => ({
+      registerDisksFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@tools/notification/NotificationRuntimeRegistration', () => ({
+      registerNotificationChannelsFromRuntimeConfig: vi.fn(),
+    }));
+    vi.doMock('@registry/registerRoute', () => ({
+      registerMasterRoutes: vi.fn(async () => undefined),
+      tryImportOptional: vi.fn(async () => undefined),
+    }));
+    vi.doMock('@registry/worker', () => ({ registerWorkerShutdownHook: vi.fn() }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({ WorkerInit: {}, registerWorkerRoutes: vi.fn() })),
+      loadQueueMonitorModule: vi.fn(async () => null),
+    }));
+    vi.doMock('@runtime-config/queue', () => ({ default: { monitor: { enabled: false } } }));
+    vi.doMock('@/config', () => ({
+      appConfig: { port: 7777, dockerWorker: false, worker: false },
+      cacheConfig: {},
+      databaseConfig: { default: 'sqlite', connections: {} },
+      queueConfig: { drivers: { redis: {} } },
+      storageConfig: {},
+    }));
+    vi.doMock('@config/database', () => ({
+      databaseConfig: { default: 'sqlite', connections: {} },
+    }));
+    vi.doMock('@common/ExternalServiceUtils', () => ({
+      readEnvString: vi.fn((key: string) => {
+        const values: Record<string, string> = {
+          TRACE_ENABLED: 'true',
+          TRACE_AUTO_MOUNT: 'false',
+          TRACE_BASE_PATH: '/trace',
+          TRACE_MIDDLEWARE: '',
+          ZINTRUST_PROJECT_ROOT: tempProjectRoot,
+        };
+
+        return values[key] ?? '';
+      }),
+    }));
+    vi.doMock('@config/cloudflare', () => ({ Cloudflare: { getWorkersEnv: () => null } }));
+    vi.doMock('@config/features', () => ({ FeatureFlags: { initialize: vi.fn() } }));
+    vi.doMock('@/health/StartupHealthChecks', () => ({
+      StartupHealthChecks: { assertHealthy: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@config/StartupConfigValidator', () => ({
+      StartupConfigValidator: {
+        validate: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+      },
+    }));
+    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
+      StartupConfigFileRegistry: { clear: vi.fn(), preload: vi.fn(async () => undefined) },
+      StartupConfigFile: {
+        Middleware: 'config/middleware.ts',
+        Cache: 'config/cache.ts',
+        Database: 'config/database.ts',
+        Queue: 'config/queue.ts',
+        Storage: 'config/storage.ts',
+        Mail: 'config/mail.ts',
+        Broadcast: 'config/broadcast.ts',
+        Notification: 'config/notification.ts',
+      },
+    }));
+    vi.doMock('@config/broadcast', () => ({ default: { default: 'default', drivers: {} } }));
+    vi.doMock('@config/notification', () => ({ default: { default: 'default', drivers: {} } }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    mockRuntimeDatabaseModule();
+
+    (
+      globalThis as { __zintrust_system_trace_plugin_requested__?: boolean }
+    ).__zintrust_system_trace_plugin_requested__ = true;
+
+    const { createLifecycle } = await import('@/boot/registry/runtime');
+
+    const lifecycle = createLifecycle({
+      environment: 'development',
+      resolvedBasePath: tempProjectRoot,
+      router: { routes: [], getRoutes: vi.fn(), getNamedRoutes: vi.fn() } as any,
+      shutdownManager: { add: vi.fn(), run: vi.fn(async () => undefined) } as any,
+      getBooted: () => false,
+      setBooted: vi.fn(),
+    });
+
+    await lifecycle.boot();
+
+    expect(
+      (globalThis as { __trace_bridge_loaded_from_project_root__?: number })
+        .__trace_bridge_loaded_from_project_root__
+    ).toBe(1);
+    expect(
+      (globalThis as { __trace_bridge_registered_from_project_root__?: boolean })
+        .__trace_bridge_registered_from_project_root__
+    ).toBe(true);
+
+    delete (globalThis as { __zintrust_system_trace_plugin_requested__?: boolean })
+      .__zintrust_system_trace_plugin_requested__;
+    delete (globalThis as { __trace_bridge_loaded_from_project_root__?: number })
+      .__trace_bridge_loaded_from_project_root__;
+    delete (globalThis as { __trace_bridge_registered_from_project_root__?: boolean })
+      .__trace_bridge_registered_from_project_root__;
+    process.chdir(originalCwd);
+    rmSync(tempProjectRoot, { recursive: true, force: true });
+    rmSync(alternateCwd, { recursive: true, force: true });
   });
 
   it('createLifecycle auto-mounts the trace dashboard when TRACE_AUTO_MOUNT is enabled', async () => {

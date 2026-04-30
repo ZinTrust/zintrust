@@ -90,4 +90,52 @@ describe('QueryWatcher', () => {
       })
     );
   });
+
+  it('records queries even when the current request path is ignored', async () => {
+    vi.resetModules();
+
+    let afterQueryHandler:
+      | ((query: string, params: unknown[], duration: number) => void)
+      | undefined;
+    const db = {
+      onAfterQuery: vi.fn(
+        (handler: (query: string, params: unknown[], duration: number) => void) => {
+          afterQueryHandler = handler;
+        }
+      ),
+      offAfterQuery: vi.fn(),
+    };
+
+    const { TraceContext } = await import('../../src/context');
+    TraceContext.setRequestContextImpl({
+      peek: () => ({ path: '/health' }),
+    });
+
+    const { QueryWatcher } = await import('../../src/watchers/QueryWatcher');
+    const storage = createStorage();
+    const config = {
+      watchers: { query: true },
+      ignoreRoutes: ['/trace', '/health', '/ping'],
+      ignorePaths: [],
+      captureQueryBindings: true,
+      slowQueryThreshold: 100,
+    } as any;
+
+    QueryWatcher.register({ storage, config, db } as any);
+
+    afterQueryHandler?.('select 1 as ok', [], 2);
+    await flushAsync();
+
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'query',
+        content: expect.objectContaining({
+          sql: 'select 1 as ok',
+          statement: 'select 1 as ok',
+        }),
+      })
+    );
+
+    TraceContext.setRequestContextImpl({ peek: () => undefined });
+  });
 });

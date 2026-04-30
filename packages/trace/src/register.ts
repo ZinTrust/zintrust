@@ -541,12 +541,6 @@ const createTraceWatcherArgs = async (
   globalTraceRegisterState.__zintrust_system_trace_observe_connection_name__ =
     resolvedObservedConnectionName;
 
-  const observedDb = core.useDatabase?.(undefined, resolvedObservedConnectionName);
-  assertTraceConnectionResolved(core, observedDb, {
-    connectionName: resolvedObservedConnectionName,
-    envKey: 'TRACE_QUERY_CONNECTION',
-  });
-
   let resolvedStorage;
 
   if (config.proxy.enabled) {
@@ -568,6 +562,13 @@ const createTraceWatcherArgs = async (
 
     resolvedStorage = TraceStorage.resolveStorage(storageDb);
   }
+
+  const observedDb = core.useDatabase?.(undefined, resolvedObservedConnectionName);
+
+  assertTraceConnectionResolved(core, observedDb, {
+    connectionName: resolvedObservedConnectionName,
+    envKey: 'TRACE_QUERY_CONNECTION',
+  });
 
   const storage = TraceWriteDiagnostics.wrapStorage(
     TraceContentBudget.wrapStorage(

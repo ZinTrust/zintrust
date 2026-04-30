@@ -168,8 +168,8 @@ describe('trace register connection wiring', () => {
     const registerModule = await import('../../src/register');
     await registerModule.registerTraceReady;
 
-    expect(useDatabase).toHaveBeenNthCalledWith(1, undefined, 'primary');
-    expect(useDatabase).toHaveBeenNthCalledWith(2, undefined, 'trace');
+    expect(useDatabase).toHaveBeenNthCalledWith(1, undefined, 'trace');
+    expect(useDatabase).toHaveBeenNthCalledWith(2, undefined, 'primary');
     expect(resolveStorage).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'trace',

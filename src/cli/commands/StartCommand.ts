@@ -413,11 +413,13 @@ const readPackageJsonFromDir = (dir: string): PackageJson => {
 };
 
 const resolveStartContext = (cwd: string): StartContext => {
-  const projectRoot = findNearestPackageJsonDir(cwd) ?? cwd;
-  const packageDir = findNearestPackageJsonDir(cwd);
+  const configuredProjectRoot = (process.env['ZINTRUST_PROJECT_ROOT'] ?? '').trim();
+  const effectiveCwd = configuredProjectRoot === '' ? cwd : configuredProjectRoot;
+  const projectRoot = findNearestPackageJsonDir(effectiveCwd) ?? effectiveCwd;
+  const packageDir = findNearestPackageJsonDir(effectiveCwd);
 
   return {
-    cwd,
+    cwd: effectiveCwd,
     projectRoot,
     ...(packageDir === undefined ? {} : { packageJson: readPackageJsonFromDir(packageDir) }),
   };

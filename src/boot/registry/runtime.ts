@@ -94,14 +94,22 @@ const loadBundledSystemTraceModule = async (): Promise<ILocalSystemTraceModule |
   }
 };
 
+const resolveLocalSystemTraceProjectRoot = (): string => {
+  const configuredProjectRoot = readEnvString('ZINTRUST_PROJECT_ROOT').trim();
+  if (configuredProjectRoot !== '') {
+    return configuredProjectRoot;
+  }
+
+  return typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+};
+
 const loadLocalSystemTraceModule = async (): Promise<ILocalSystemTraceModule | undefined> => {
   const globalTracePluginState = globalThis as unknown as GlobalTracePluginState;
   if (globalTracePluginState.__zintrust_system_trace_runtime__ !== undefined) {
     return globalTracePluginState.__zintrust_system_trace_runtime__;
   }
 
-  const projectRoot =
-    typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+  const projectRoot = resolveLocalSystemTraceProjectRoot();
 
   if (projectRoot !== '') {
     const moduleCandidates = [
