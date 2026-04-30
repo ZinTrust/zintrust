@@ -1,0 +1,10 @@
+{
+    "name": "vizo-trace-runtime",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "@zintrust/core": "^1.5.2",
+        "@zintrust/db-sqlite": "^1.5.2",
+        "@zintrust/trace": "^1.5.2"
+    }
+}

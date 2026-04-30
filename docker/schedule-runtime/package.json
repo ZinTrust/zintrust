@@ -1,0 +1,22 @@
+{
+  "name": "vizo-schedule-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@zintrust/cache-redis": "^0.9.3",
+    "@zintrust/core": "^0.9.3",
+    "@zintrust/db-d1": "^0.9.3",
+    "@zintrust/mail-smtp": "^0.9.3",
+    "@zintrust/queue-redis": "^0.9.3",
+    "bcryptjs": "^3.0.3",
+    "crypto-js": "^4.2.0",
+    "hashids": "^2.3.0",
+    "jsencrypt": "^3.5.4",
+    "md5": "^2.3.0",
+    "otplib": "^13.4.0",
+    "php-unserialize": "^0.0.1",
+    "ripple-address-codec": "^5.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
