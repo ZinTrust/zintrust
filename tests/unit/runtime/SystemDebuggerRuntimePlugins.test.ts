@@ -6,21 +6,13 @@ describe('runtime trace plugin shims', () => {
     vi.restoreAllMocks();
   });
 
-  it('falls back to the local trace plugin when the package import fails', async () => {
-    const fallbackPluginSpy = vi.fn();
-
+  it('swallows optional trace plugin load failures', async () => {
     vi.doMock('@zintrust/trace/plugin', () => {
       throw new Error('missing plugin package');
     });
-    vi.doMock('../../../packages/trace/src/plugin', () => {
-      fallbackPluginSpy();
-      return {};
-    });
 
     const traceModule = await import('@runtime/plugins/trace');
-    await traceModule.ready;
-
-    expect(fallbackPluginSpy).toHaveBeenCalledTimes(1);
+    await expect(traceModule.ready).resolves.toBeUndefined();
   });
 
   it('exposes safe fallbacks when the trace runtime module is unavailable', async () => {
@@ -88,12 +80,15 @@ describe('runtime trace plugin shims', () => {
     });
   });
 
-  it('falls back to the monorepo register module when installed register entries are unavailable', async () => {
-    const registerReadySpy = vi.fn().mockResolvedValue(undefined);
+  it('runs registerTraceReady from the installed trace register module', async () => {
     const mergeSpy = vi.fn();
     const resolveStorageSpy = vi.fn();
     const registerDashboardSpy = vi.fn();
     const registerRoutesSpy = vi.fn();
+    let registerReadySettled = false;
+    const registerReady = Promise.resolve().then(() => {
+      registerReadySettled = true;
+    });
 
     vi.doMock('@zintrust/trace', () => ({
       TraceConfig: { merge: mergeSpy },
@@ -101,20 +96,14 @@ describe('runtime trace plugin shims', () => {
       registerTraceDashboard: registerDashboardSpy,
       registerTraceRoutes: registerRoutesSpy,
     }));
-    vi.doMock('@zintrust/trace/register', () => {
-      throw new Error('missing installed register');
-    });
-    vi.doMock('@zintrust/trace/dist/register.js', () => {
-      throw new Error('missing dist register');
-    });
-    vi.doMock('../../../packages/trace/src/register.js', () => ({
-      registerTraceReady: registerReadySpy,
-      default: { registerTraceReady: registerReadySpy },
+    vi.doMock('@zintrust/trace/register', () => ({
+      registerTraceReady,
+      default: { registerTraceReady },
     }));
 
     const runtimeModule = await import('@runtime/plugins/trace-runtime');
 
     await expect(runtimeModule.ensureSystemTraceRegistered()).resolves.toBeUndefined();
-    expect(registerReadySpy).toHaveBeenCalledTimes(1);
+    expect(registerReadySettled).toBe(true);
   });
 });

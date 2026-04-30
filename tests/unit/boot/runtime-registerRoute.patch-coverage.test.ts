@@ -190,7 +190,7 @@ describe('runtime/registerRoute patch coverage', () => {
 
     await lifecycle.boot();
 
-    expect(mkdirSync).toHaveBeenCalled();
+    expect(mkdirSyncX).toHaveBeenCalled();
     expect(registerWorkerRoutes).toHaveBeenCalled();
     expect(registerQueueMonitorRoutes).toHaveBeenCalled();
     expect(registerQueueGatewayRoutes).toHaveBeenCalled();

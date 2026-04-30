@@ -8,9 +8,9 @@ type TraceStorageApi = {
 };
 
 type TraceRegisterModule = Partial<{
-  registerTraceReady: () => Promise<void> | void;
+  registerTraceReady: Promise<void> | (() => Promise<void> | void);
   default: Partial<{
-    registerTraceReady: () => Promise<void> | void;
+    registerTraceReady: Promise<void> | (() => Promise<void> | void);
   }>;
 }>;
 
@@ -140,9 +140,7 @@ export const ensureSystemTraceRegistered = async (): Promise<void> => {
   const module = await loadSystemTraceModule();
   if (module === undefined) return;
 
-  let registerModule = (await tryImport('@zintrust/trace/register')) as unknown as
-    | TraceRegisterModule
-    | undefined;
+  let registerModule = await tryImport('@zintrust/trace/register');
 
   if (isNullish(registerModule)) {
     registerModule = (await import('@zintrust/' + 'trace/register').catch(() => undefined)) as
@@ -153,7 +151,10 @@ export const ensureSystemTraceRegistered = async (): Promise<void> => {
   const registerReady =
     registerModule?.registerTraceReady ?? registerModule?.default?.registerTraceReady;
 
-  if (typeof registerReady !== 'function') return;
+  if (typeof registerReady === 'function') {
+    await Promise.resolve(registerReady()).catch(() => undefined);
+    return;
+  }
 
-  await Promise.resolve(registerReady()).catch(() => undefined);
+  await Promise.resolve(registerReady).catch(() => undefined);
 };
