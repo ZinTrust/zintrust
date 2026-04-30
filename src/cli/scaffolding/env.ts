@@ -26,6 +26,8 @@ const HeaderAndApp = (name: string, port: number, baseUrl: string, appKey: strin
   '',
   '# Cloudflare Workers (TCP sockets) — set true if using TCP adapters on Workers.',
   'ENABLE_CLOUDFLARE_SOCKETS=false',
+  '# When true, Wrangler reads .env directly and ZinTrust will not materialize .dev.vars files.',
+  'USE_ENV=false',
   '',
   '# CLI / tooling',
   'ZINTRUST_RUN_FROM_SOURCE=0',

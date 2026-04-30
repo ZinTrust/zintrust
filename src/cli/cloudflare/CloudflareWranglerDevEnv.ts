@@ -110,6 +110,28 @@ const resolveRuntimeEnvMap = (runtimeEnv: NodeJS.ProcessEnv): Record<string, str
   );
 };
 
+const isTruthyEnvValue = (value: string | undefined): boolean => {
+  if (!isNonEmptyString(value)) return false;
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+};
+
+const shouldUseEnvFileDirectly = async (args: WranglerDevEnvArgs): Promise<boolean> => {
+  const runtimeEnv = resolveRuntimeEnvMap(args.runtimeEnv ?? process.env);
+  if (isTruthyEnvValue(runtimeEnv['USE_ENV'])) {
+    return true;
+  }
+
+  const envPath = isNonEmptyString(args.envPath) ? args.envPath.trim() : '.env';
+  const envFileValues = await EnvFile.read({
+    cwd: args.projectRoot,
+    path: envPath,
+  });
+
+  return isTruthyEnvValue(envFileValues['USE_ENV']);
+};
+
 const resolveSelectedKeys = (args: WranglerDevEnvArgs): string[] => {
   const zintrustConfigPath = path.join(args.projectRoot, '.zintrust.json');
   if (!existsSync(zintrustConfigPath)) {
@@ -204,6 +226,10 @@ export const withWranglerDevVarsSnapshot = async <T>(
   args: WranglerDevEnvArgs,
   fn: () => Promise<T>
 ): Promise<T> => {
+  if (await shouldUseEnvFileDirectly(args)) {
+    return fn();
+  }
+
   const targetPath = path.join(args.cwd, getWranglerDevVarsFileName(args.envName));
   const backupPath = getWranglerDevVarsBackupPath(targetPath);
 

@@ -1,3 +1,7 @@
+# 2026-04-30
+
+- Improved fresh-project database DX across Node and Workers. Newly scaffolded apps now keep the existing `sqlite` default for plain `zin s`, but generated `config/database.ts` files no longer fall back to `mysql` when `DB_CONNECTION` is unset under `zin s --wg`; they now default to `d1` when `CLOUDFLARE_WORKER=true` and `sqlite` otherwise. Scaffolded `.env` files also now include `USE_ENV=false`, and when developers set `USE_ENV=true` ZinTrust skips `.dev.vars` materialization for Wrangler dev so `zin s --wg` can read `.env` directly without requiring `.zintrust.json` env-key maintenance.
+
 # 2026-04-28
 
 - Tightened CLI launcher and watch-process exit tracking around `zin s`. The top-level bin launchers and `SpawnUtil` now preserve the `exit` result but wait for `close`, and they relay child `stdout`/`stderr` through owned pipes instead of handing the terminal through directly. That keeps more of the watch-mode shutdown tail attached to the parent CLI lifecycle while preserving the existing signal-forwarding behavior and focused SpawnUtil regression coverage.

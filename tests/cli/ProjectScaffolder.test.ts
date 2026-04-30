@@ -522,6 +522,34 @@ describe('ProjectScaffolder Database Configuration', () => {
     expect(env).toContain('DB_CONNECTION=sqlite');
     expect(env).toContain('DB_PATH=.zintrust/dbs/my-app.sqlite');
   });
+
+  it('should include USE_ENV toggle in scaffolded env', () => {
+    const scaffolder = ProjectScaffolder.create(testDir);
+    const projectPath = path.join(testDir, 'my-app');
+    scaffolder.prepareContext({ name: 'my-app', database: 'sqlite' });
+    FileGenerator.createDirectory(projectPath);
+
+    scaffolder.createEnvFile();
+    const env = FileGenerator.readFile(path.join(projectPath, '.env'));
+
+    expect(env).toContain('USE_ENV=false');
+  });
+
+  it('should scaffold runtime-aware database fallback in config', async () => {
+    const scaffolder = ProjectScaffolder.create(testDir);
+
+    const result = await scaffolder.scaffold({
+      name: 'my-app',
+      database: 'sqlite',
+    });
+
+    expect(result.success).toBe(true);
+
+    const config = FileGenerator.readFile(path.join(testDir, 'my-app', 'config', 'database.ts'));
+    expect(config).toContain(
+      "default: Env.get('DB_CONNECTION', Env.getBool('CLOUDFLARE_WORKER', false) ? 'd1' : 'sqlite')"
+    );
+  });
 });
 
 describe('ProjectScaffolder Full Scaffolding', () => {

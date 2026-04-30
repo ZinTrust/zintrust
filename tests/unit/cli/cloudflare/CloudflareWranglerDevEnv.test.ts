@@ -90,6 +90,26 @@ describe('CloudflareWranglerDevEnv', () => {
     );
   });
 
+  it('skips Wrangler dev vars materialization when USE_ENV=true', async () => {
+    vi.mocked(EnvFile.read).mockResolvedValueOnce({ USE_ENV: 'true' });
+    const run = vi.fn(async () => 'ok');
+
+    const result = await withWranglerDevVarsSnapshot(
+      {
+        cwd: '/workspace',
+        projectRoot: '/workspace',
+        requireSelection: true,
+      },
+      run
+    );
+
+    expect(result).toBe('ok');
+    expect(run).toHaveBeenCalledOnce();
+    expect(renameSync).not.toHaveBeenCalled();
+    expect(unlinkSync).not.toHaveBeenCalled();
+    expect(EnvFile.write).not.toHaveBeenCalled();
+  });
+
   it('skips mixed-case runtime keys that Wrangler rejects in fallback mode', async () => {
     vi.mocked(resolveCloudflareEnvKeys).mockReturnValueOnce([]);
     vi.mocked(EnvFile.read).mockResolvedValueOnce({ APP_KEY: 'app-key' });
