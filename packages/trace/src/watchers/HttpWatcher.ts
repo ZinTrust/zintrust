@@ -3,6 +3,7 @@
  * Registers as a global middleware via Kernel.registerGlobalMiddleware().
  */
 import type { IRequest, IResponse } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
 import { TraceContext } from '../context';
 import type { ITraceConfig, ITraceWatcher, ITraceWatcherConfig, RequestContent } from '../types';
 import { EntryType } from '../types';
@@ -54,11 +55,23 @@ type ResponseCapture = {
 type RawResponseWithLifecycle = ReturnType<IResponse['getRaw']> & {
   once?: (event: 'finish' | 'close', listener: () => void) => unknown;
   off?: (event: 'finish' | 'close', listener: () => void) => unknown;
+  writableEnded?: boolean;
+  finished?: boolean;
 };
 
-const registerCompletionHandler = (response: IResponse, onComplete: () => void): (() => void) => {
+type CompletionHandlerRegistration = {
+  attached: boolean;
+  cleanup(): void;
+};
+
+const registerCompletionHandler = (
+  response: IResponse,
+  onComplete: () => void
+): CompletionHandlerRegistration => {
   const raw: RawResponseWithLifecycle = response.getRaw();
-  if (typeof raw.once !== 'function') return () => undefined;
+  if (typeof raw.once !== 'function') {
+    return { attached: false, cleanup: () => undefined };
+  }
 
   let completed = false;
 
@@ -79,7 +92,12 @@ const registerCompletionHandler = (response: IResponse, onComplete: () => void):
   raw.once('finish', markCompleted);
   raw.once('close', markCompleted);
 
-  return cleanup;
+  return { attached: true, cleanup };
+};
+
+const isResponseComplete = (response: IResponse): boolean => {
+  const raw: RawResponseWithLifecycle = response.getRaw();
+  return raw.writableEnded === true || raw.finished === true;
 };
 
 const captureResponse = (response: IResponse, config: ITraceConfig): ResponseCapture => {
@@ -197,21 +215,32 @@ export const HttpWatcher: ITraceWatcher = Object.freeze({
 
         responseCapture.restore();
 
-        storage
-          .writeEntry({
-            uuid: crypto.randomUUID(),
-            batchId,
-            type: EntryType.REQUEST,
-            content,
-            tags,
-            isLatest: true,
-            createdAt: TraceContext.now(),
-          })
-          .catch(() => undefined); // fire-and-forget
+        const entry = {
+          uuid: crypto.randomUUID(),
+          batchId,
+          type: EntryType.REQUEST,
+          content,
+          tags,
+          isLatest: true,
+          createdAt: TraceContext.now(),
+        };
+
+        storage.writeEntry(entry).catch((error: unknown) => {
+          Logger.warn('[trace] HttpWatcher writeEntry failed', {
+            method: content.method,
+            uri: content.uri,
+            entryUuid: entry.uuid,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }); // fire-and-forget
       };
 
-      registerCompletionHandler(response, persistEntry);
+      const completionHandler = registerCompletionHandler(response, persistEntry);
       await next();
+
+      if (!completionHandler.attached || isResponseComplete(response)) {
+        persistEntry();
+      }
     };
 
     registerMiddleware(middleware);

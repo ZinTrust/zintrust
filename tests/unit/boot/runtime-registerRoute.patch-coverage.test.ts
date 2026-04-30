@@ -67,14 +67,14 @@ describe('runtime/registerRoute patch coverage', () => {
   });
 
   it('createLifecycle boots runtime modules and initializes artifact directories', async () => {
-    const mkdirSync = vi.fn();
+    const mkdirSyncX = vi.fn();
     const existsSync = vi.fn(() => false);
     const registerWorkerRoutes = vi.fn();
     const registerQueueMonitorRoutes = vi.fn();
     const registerQueueGatewayRoutes = vi.fn();
     const createQueueMonitor = vi.fn(() => ({ registerRoutes: registerQueueMonitorRoutes }));
 
-    vi.doMock('@node-singletons/fs', () => ({ existsSync, mkdirSync }));
+    vi.doMock('@node-singletons/fs', () => ({ existsSync, mkdirSync: mkdirSyncX }));
     vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
     vi.doMock('@cache/CacheRuntimeRegistration', () => ({
       registerCachesFromRuntimeConfig: vi.fn(),

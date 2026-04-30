@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "1.6.1",
+  "version": "1.6.4",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -287,7 +287,7 @@
     "husky": "^9.1.7",
     "jscpd": "^4.0.9",
     "lint-staged": "^16.4.0",
-    "miniflare": "^4.20260426.0",
+    "miniflare": "^4.20260430.0",
     "mongodb": "^7.2.0",
     "mssql": "^12.5.0",
     "prom-client": "^15.1.3",

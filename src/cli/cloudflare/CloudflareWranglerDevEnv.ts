@@ -110,6 +110,29 @@ const resolveRuntimeEnvMap = (runtimeEnv: NodeJS.ProcessEnv): Record<string, str
   );
 };
 
+const readExistingWranglerDevVars = async (
+  args: WranglerDevEnvArgs
+): Promise<Record<string, string>> => {
+  const fileName = getWranglerDevVarsFileName(args.envName);
+  const targetPath = path.join(args.cwd, fileName);
+  const backupPath = getWranglerDevVarsBackupPath(targetPath);
+
+  let sourcePath: string | undefined;
+
+  if (existsSync(targetPath)) {
+    sourcePath = fileName;
+  } else if (existsSync(backupPath)) {
+    sourcePath = path.basename(backupPath);
+  }
+
+  if (sourcePath === undefined) return {};
+
+  return EnvFile.read({
+    cwd: args.cwd,
+    path: sourcePath,
+  });
+};
+
 const isTruthyEnvValue = (value: string | undefined): boolean => {
   if (!isNonEmptyString(value)) return false;
 
@@ -167,6 +190,7 @@ const collectWranglerDevVarValues = async (
   selectedKeys: string[]
 ): Promise<{ values: Record<string, string>; missingKeys: string[] }> => {
   const runtimeEnv = resolveRuntimeEnvMap(args.runtimeEnv ?? process.env);
+  const existingDevVarValues = await readExistingWranglerDevVars(args);
   const envPath = isNonEmptyString(args.envPath) ? args.envPath.trim() : '.env';
   const envFileValues = await EnvFile.read({
     cwd: args.projectRoot,
@@ -176,18 +200,26 @@ const collectWranglerDevVarValues = async (
   const allowedKeys =
     selectedKeys.length === 0
       ? undefined
-      : new Set<string>([...WRANGLER_RUNTIME_ENV_KEYS, ...selectedKeys]);
+      : new Set<string>([
+          ...WRANGLER_RUNTIME_ENV_KEYS,
+          ...selectedKeys,
+          ...Object.keys(existingDevVarValues),
+        ]);
 
   const candidateKeys =
     allowedKeys === undefined
-      ? uniq([...Object.keys(runtimeEnv), ...Object.keys(envFileValues)]).filter(isWranglerVarName)
+      ? uniq([
+          ...Object.keys(runtimeEnv),
+          ...Object.keys(envFileValues),
+          ...Object.keys(existingDevVarValues),
+        ]).filter(isWranglerVarName)
       : [...allowedKeys].filter(isWranglerVarName);
 
   const values: Record<string, string> = {};
   const missingKeys: string[] = [];
 
   for (const key of candidateKeys) {
-    const value = envFileValues[key] ?? runtimeEnv[key];
+    const value = existingDevVarValues[key] ?? envFileValues[key] ?? runtimeEnv[key];
     if (typeof value !== 'string') {
       if (selectedKeys.includes(key)) missingKeys.push(key);
       continue;

@@ -90,6 +90,48 @@ describe('CloudflareWranglerDevEnv', () => {
     );
   });
 
+  it('preserves existing Wrangler dev var overrides during snapshot materialization', async () => {
+    vi.mocked(existsSync).mockImplementation((filePath: string) => {
+      return filePath.endsWith('.zintrust.json') || filePath.endsWith('.dev.vars.disabled-by-zin');
+    });
+
+    vi.mocked(EnvFile.read).mockImplementation(async ({ path }) => {
+      if (path === '.dev.vars.disabled-by-zin') {
+        return {
+          APP_KEY: 'worker-app-key',
+          DB_CONNECTION: 'd1',
+        };
+      }
+
+      return {
+        APP_KEY: 'env-app-key',
+        DB_CONNECTION: 'sqlite',
+        JWT_SECRET: 'jwt-secret',
+      };
+    });
+
+    await withWranglerDevVarsSnapshot(
+      {
+        cwd: '/workspace',
+        projectRoot: '/workspace',
+        requireSelection: true,
+      },
+      async () => undefined
+    );
+
+    expect(EnvFile.write).toHaveBeenCalledWith({
+      cwd: '/workspace',
+      path: '.dev.vars',
+      values: {
+        APP_KEY: 'worker-app-key',
+        JWT_SECRET: 'jwt-secret',
+        DB_CONNECTION: 'd1',
+        NODE_ENV: 'test',
+      },
+      mode: 'overwrite',
+    });
+  });
+
   it('skips Wrangler dev vars materialization when USE_ENV=true', async () => {
     vi.mocked(EnvFile.read).mockResolvedValueOnce({ USE_ENV: 'true' });
     const run = vi.fn(async () => 'ok');
@@ -112,6 +154,9 @@ describe('CloudflareWranglerDevEnv', () => {
 
   it('skips mixed-case runtime keys that Wrangler rejects in fallback mode', async () => {
     vi.mocked(resolveCloudflareEnvKeys).mockReturnValueOnce([]);
+    vi.mocked(existsSync).mockImplementation((filePath: string) => {
+      return filePath.endsWith('.zintrust.json');
+    });
     vi.mocked(EnvFile.read).mockResolvedValueOnce({ APP_KEY: 'app-key' });
 
     await materializeWranglerDevVars({

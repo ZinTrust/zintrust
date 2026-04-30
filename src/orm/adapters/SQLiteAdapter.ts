@@ -5,6 +5,7 @@
  */
 
 import { databaseConfig } from '@config/database';
+import { Env } from '@config/env';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -84,7 +85,15 @@ async function importSqliteDatabaseConstructor(): Promise<
 
 function normalizeFilename(database: string | null | undefined): string {
   const value = (database ?? '').trim();
-  return value.length > 0 ? value : ':memory:';
+  if (value.length === 0) return ':memory:';
+  if (value === ':memory:' || value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value)) {
+    return value;
+  }
+
+  const configuredProjectRoot = Env.ZINTRUST_PROJECT_ROOT.trim();
+  if (configuredProjectRoot !== '') return path.join(configuredProjectRoot, value);
+
+  return value;
 }
 
 function isSelectQuery(sql: string): boolean {

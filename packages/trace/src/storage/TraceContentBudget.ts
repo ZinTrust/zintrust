@@ -262,6 +262,8 @@ const hasQueueDispatch = (config: ITraceConfig): boolean => {
   return typeof driver === 'string' && driver !== '';
 };
 
+const WORKERS_PACKAGE_SPECIFIER = '@zintrust/workers';
+
 const getCoreRuntime = async (): Promise<{
   Queue: QueueApi | null;
   TimeoutManager: TimeoutManagerApi | null;
@@ -286,7 +288,7 @@ const getCoreRuntime = async (): Promise<{
 const getQueueWorkerApi = async (): Promise<QueueWorkerApi | null> => {
   try {
     // @ts-ignore
-    const mod = (await import('@zintrust/workers')) as unknown as QueueWorkerApi;
+    const mod = (await import(WORKERS_PACKAGE_SPECIFIER)) as unknown as QueueWorkerApi;
     return typeof mod.createQueueWorker === 'function' ? mod : null;
   } catch {
     return null;

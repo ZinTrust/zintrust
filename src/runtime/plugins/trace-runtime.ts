@@ -1,3 +1,4 @@
+import { isNullish } from '@helper/index';
 type TraceConfigApi = {
   merge(overrides?: unknown): { enabled?: boolean; connection?: string };
 };
@@ -5,6 +6,13 @@ type TraceConfigApi = {
 type TraceStorageApi = {
   resolveStorage(db: unknown): unknown;
 };
+
+type TraceRegisterModule = Partial<{
+  registerTraceReady: () => Promise<void> | void;
+  default: Partial<{
+    registerTraceReady: () => Promise<void> | void;
+  }>;
+}>;
 
 type SystemTraceModule = {
   TraceConfig: TraceConfigApi;
@@ -119,9 +127,33 @@ export const captureTraceException = (
   });
 };
 
+const tryImport = async (specifier: string): Promise<TraceRegisterModule | undefined> => {
+  try {
+    const load = (await import(specifier)) as TraceRegisterModule;
+    return load;
+  } catch {
+    return undefined;
+  }
+};
+
 export const ensureSystemTraceRegistered = async (): Promise<void> => {
   const module = await loadSystemTraceModule();
   if (module === undefined) return;
-  const registerModule = await import('@zintrust/trace/register').catch(() => undefined);
-  await registerModule?.registerTraceReady?.catch(() => undefined);
+
+  let registerModule = (await tryImport('@zintrust/trace/register')) as unknown as
+    | TraceRegisterModule
+    | undefined;
+
+  if (isNullish(registerModule)) {
+    registerModule = (await import('@zintrust/' + 'trace/register').catch(() => undefined)) as
+      | TraceRegisterModule
+      | undefined;
+  }
+
+  const registerReady =
+    registerModule?.registerTraceReady ?? registerModule?.default?.registerTraceReady;
+
+  if (typeof registerReady !== 'function') return;
+
+  await Promise.resolve(registerReady()).catch(() => undefined);
 };
