@@ -94,14 +94,22 @@ const loadBundledSystemTraceModule = async (): Promise<ILocalSystemTraceModule |
   }
 };
 
+const resolveLocalSystemTraceProjectRoot = (): string => {
+  const configuredProjectRoot = readEnvString('ZINTRUST_PROJECT_ROOT').trim();
+  if (configuredProjectRoot !== '') {
+    return configuredProjectRoot;
+  }
+
+  return typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+};
+
 const loadLocalSystemTraceModule = async (): Promise<ILocalSystemTraceModule | undefined> => {
   const globalTracePluginState = globalThis as unknown as GlobalTracePluginState;
   if (globalTracePluginState.__zintrust_system_trace_runtime__ !== undefined) {
     return globalTracePluginState.__zintrust_system_trace_runtime__;
   }
 
-  const projectRoot =
-    typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+  const projectRoot = resolveLocalSystemTraceProjectRoot();
 
   if (projectRoot !== '') {
     const moduleCandidates = [
@@ -541,6 +549,13 @@ const isTraceDashboardAutoMountEnabled = (): boolean => {
   return raw === '1' || raw === 'true';
 };
 
+const isTraceProxySenderEnabled = (): boolean => {
+  const proxyEnabled = readEnvString('TRACE_PROXY').trim().toLowerCase();
+  if (proxyEnabled !== '1' && proxyEnabled !== 'true') return false;
+
+  return readEnvString('TRACE_PROXY_URL').trim() !== '';
+};
+
 const resolveTraceDashboardBasePath = (): string => {
   const raw = readEnvString('TRACE_BASE_PATH').trim();
   if (raw === '') return '/trace';
@@ -585,6 +600,10 @@ const initializeSystemTrace = async (router: IRouter): Promise<void> => {
     }
 
     if (!isTraceDashboardAutoMountEnabled()) {
+      if (isTraceProxySenderEnabled()) {
+        return;
+      }
+
       Logger.info(
         'System Trace runtime activated. Set TRACE_AUTO_MOUNT=true or register dashboard routes manually if needed.'
       );

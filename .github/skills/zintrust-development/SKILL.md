@@ -18,7 +18,8 @@ This skill provides AI agents with comprehensive knowledge of ZinTrust's convent
 5. **No `console.*`**: Use `Logger.*` from `@config/logger` in app/framework code. CLI commands and scripts may use `console.*` where appropriate.
 6. **No raw Node built-ins**: Import through `@node-singletons/*` wrappers (e.g. `import { join } from '@node-singletons/path'`) in runtime-agnostic app/framework code. CLI commands (`src/cli/`) and scripts may import `node:*` directly.
 7. **Use shared helpers**: Use utilities from `@helper/index` instead of re-implementing them.
-8. **Consistency over cleverness**: When in doubt, copy structure from an existing similar module.
+8. **Approved optional lazy-load pattern only**: For optional `@zintrust/*` startup/runtime imports that must work in both Node and Workers, use the two-step pattern only: first probe with `await import('@zintrust/pkg/...')` via a `tryImport(...)` helper, then retry with `await import('@zintrust/' + 'pkg/...').catch(() => undefined)` if needed. Do not use `??=` fallback chains or alternate lazy-load approaches unless explicitly directed.
+9. **Consistency over cleverness**: When in doubt, copy structure from an existing similar module.
 
 ---
 

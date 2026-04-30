@@ -1,6 +1,20 @@
 import { ErrorFactory } from '@zintrust/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const { warnSpy } = vi.hoisted(() => ({ warnSpy: vi.fn() }));
+
+vi.mock('@zintrust/core', async () => {
+  const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
+
+  return {
+    ...actual,
+    Logger: {
+      ...actual.Logger,
+      warn: warnSpy,
+    },
+  };
+});
+
 const flushAsync = async (): Promise<void> => {
   await Promise.resolve();
   await Promise.resolve();
@@ -92,6 +106,7 @@ const createRequest = (
 describe('HttpWatcher', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    warnSpy.mockReset();
   });
 
   it('records request entries for successful responses on response finish', async () => {
@@ -271,6 +286,96 @@ describe('HttpWatcher', () => {
         content: expect.objectContaining({
           middleware: ['auth', 'throttle'],
         }),
+      })
+    );
+  });
+
+  it('persists entries even when the raw response has no lifecycle hooks', async () => {
+    vi.resetModules();
+
+    const { HttpWatcher } = await import('../../src/watchers/HttpWatcher');
+    const storage = createStorage();
+    const config = {
+      watchers: { request: true },
+      ignoreRoutes: ['/trace'],
+      redaction: { keys: [], headers: [], body: [], query: [] },
+    } as any;
+
+    let registeredMiddleware:
+      | ((req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>)
+      | undefined;
+    HttpWatcher.register({
+      storage,
+      config,
+      registerMiddleware(
+        middleware: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
+      ) {
+        registeredMiddleware = middleware;
+      },
+    } as any);
+
+    const response = {
+      ...createResponse().response,
+      getRaw: vi.fn(() => ({ writableEnded: true })),
+    };
+    const request = createRequest('/workers');
+
+    await registeredMiddleware?.(request, response as any, async () => {
+      response.setStatus(202);
+      response.json({ ok: true });
+    });
+    await flushAsync();
+
+    expect(storage.writeEntry).toHaveBeenCalledTimes(1);
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          uri: '/workers',
+          responseStatus: 202,
+        }),
+      })
+    );
+  });
+
+  it('logs request write failures instead of swallowing them silently', async () => {
+    vi.resetModules();
+
+    const { HttpWatcher } = await import('../../src/watchers/HttpWatcher');
+    const storage = createStorage();
+    storage.writeEntry.mockRejectedValueOnce(new Error('proxy write failed'));
+    const config = {
+      watchers: { request: true },
+      ignoreRoutes: ['/trace'],
+      redaction: { keys: [], headers: [], body: [], query: [] },
+    } as any;
+
+    let registeredMiddleware:
+      | ((req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>)
+      | undefined;
+    HttpWatcher.register({
+      storage,
+      config,
+      registerMiddleware(
+        middleware: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
+      ) {
+        registeredMiddleware = middleware;
+      },
+    } as any);
+
+    const { response } = createResponse();
+    const request = createRequest('/proxy-check');
+
+    await registeredMiddleware?.(request, response, async () => {
+      response.json({ ok: true });
+    });
+    await flushAsync();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[trace] HttpWatcher writeEntry failed',
+      expect.objectContaining({
+        method: 'GET',
+        uri: '/proxy-check',
+        error: 'proxy write failed',
       })
     );
   });

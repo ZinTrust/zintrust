@@ -17,7 +17,7 @@ const parseReadHosts = (raw: string): string[] | undefined => {
 };
 
 export default {
-  default: Env.get('DB_CONNECTION', 'mysql'),
+  default: Env.get('DB_CONNECTION', Env.getBool('CLOUDFLARE_WORKER', false) ? 'd1' : 'sqlite'),
   connections: {
     sqlite: {
       driver: 'sqlite' as const,

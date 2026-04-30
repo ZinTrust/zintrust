@@ -6,21 +6,13 @@ describe('runtime trace plugin shims', () => {
     vi.restoreAllMocks();
   });
 
-  it('falls back to the local trace plugin when the package import fails', async () => {
-    const fallbackPluginSpy = vi.fn();
-
+  it('swallows optional trace plugin load failures', async () => {
     vi.doMock('@zintrust/trace/plugin', () => {
       throw new Error('missing plugin package');
     });
-    vi.doMock('../../../packages/trace/src/plugin', () => {
-      fallbackPluginSpy();
-      return {};
-    });
 
     const traceModule = await import('@runtime/plugins/trace');
-    await traceModule.ready;
-
-    expect(fallbackPluginSpy).toHaveBeenCalledTimes(1);
+    await expect(traceModule.ready).resolves.toBeUndefined();
   });
 
   it('exposes safe fallbacks when the trace runtime module is unavailable', async () => {
@@ -86,5 +78,32 @@ describe('runtime trace plugin shims', () => {
     expect(registerRoutesSpy).toHaveBeenCalledWith('router', 'storage', {
       basePath: '/trace',
     });
+  });
+
+  it('runs registerTraceReady from the installed trace register module', async () => {
+    const mergeSpy = vi.fn();
+    const resolveStorageSpy = vi.fn();
+    const registerDashboardSpy = vi.fn();
+    const registerRoutesSpy = vi.fn();
+    let registerReadySettled = false;
+    const registerReady = Promise.resolve().then(() => {
+      registerReadySettled = true;
+    });
+
+    vi.doMock('@zintrust/trace', () => ({
+      TraceConfig: { merge: mergeSpy },
+      TraceStorage: { resolveStorage: resolveStorageSpy },
+      registerTraceDashboard: registerDashboardSpy,
+      registerTraceRoutes: registerRoutesSpy,
+    }));
+    vi.doMock('@zintrust/trace/register', () => ({
+      registerTraceReady: registerReady,
+      default: { registerTraceReady: registerReady },
+    }));
+
+    const runtimeModule = await import('@runtime/plugins/trace-runtime');
+
+    await expect(runtimeModule.ensureSystemTraceRegistered()).resolves.toBeUndefined();
+    expect(registerReadySettled).toBe(true);
   });
 });

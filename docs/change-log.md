@@ -1,3 +1,9 @@
+# 2026-04-30
+
+- Fixed System Trace runtime bridge resolution for project roots that differ from the shell cwd. [src/boot/registry/runtime.ts](/opt/homebrew/var/www/Sites/zintrust/src/boot/registry/runtime.ts) now honors `ZINTRUST_PROJECT_ROOT` before falling back to `process.cwd()` when resolving a local `src/runtime/plugins/trace-runtime.*` bridge, and the runtime coverage suite now pins that behavior with a mismatched-cwd regression test. This unblocks trace startup for Docker/new-start layouts that export `ZINTRUST_PROJECT_ROOT` before boot.
+
+- Improved fresh-project database DX across Node and Workers. Newly scaffolded apps now keep the existing `sqlite` default for plain `zin s`, but generated `config/database.ts` files no longer fall back to `mysql` when `DB_CONNECTION` is unset under `zin s --wg`; they now default to `d1` when `CLOUDFLARE_WORKER=true` and `sqlite` otherwise. Scaffolded `.env` files also now include `USE_ENV=false`, and when developers set `USE_ENV=true` ZinTrust skips `.dev.vars` materialization for Wrangler dev so `zin s --wg` can read `.env` directly without requiring `.zintrust.json` env-key maintenance.
+
 # 2026-04-28
 
 - Tightened CLI launcher and watch-process exit tracking around `zin s`. The top-level bin launchers and `SpawnUtil` now preserve the `exit` result but wait for `close`, and they relay child `stdout`/`stderr` through owned pipes instead of handing the terminal through directly. That keeps more of the watch-mode shutdown tail attached to the parent CLI lifecycle while preserving the existing signal-forwarding behavior and focused SpawnUtil regression coverage.
@@ -73,6 +79,8 @@
 - Fixed the `kv-remote` proxy credential gate so it now falls back to the normalized signing identity from `APP_NAME` and `APP_KEY` the same way `d1-remote` already does. When explicit `KV_REMOTE_KEY_ID` / `KV_REMOTE_SECRET` values are absent, the driver keeps the signed proxy path available instead of prematurely forcing the Cloudflare KV API path.
 
 - Fixed `npm run release:sync-versions` so it now detects changed core source and changed package directories, looks up the currently published npm version for each affected manifest, and bumps only to the next release patch instead of leaving publishable packages stuck at an already-published version. The release sync path now uses ZinTrust's bounded carry rule for patch increments, so it advances sequentially and rolls `x.9.99 -> (x+1).0.0` without skipping intermediate publish versions.
+- Updated the npm publish preflight and release publish scripts so they now run `npx npm-check-updates -u` before install or package publish instead of relying on the older manual dependency-range sync path. The root `check-up` script now performs the updating variant by default, with `check-up:check` kept as the read-only listing command.
+- Fixed trace proxy sender startup so `@zintrust/trace/register` no longer resolves the sender-local trace storage DB before switching to `ProxyTraceStorage`. This removes the unused local SQLite readiness failure from proxy-mode worker boot, suppresses the local dashboard hint when `TRACE_PROXY=true` with a real `TRACE_PROXY_URL`, and stops `packages/trace` from publishing its raw `src/` tree to npm.
 
 # 2026-04-21
 

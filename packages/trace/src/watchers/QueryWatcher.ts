@@ -6,7 +6,6 @@ import { TraceStorage } from '../storage';
 import type { ITraceWatcher, ITraceWatcherConfig, QueryContent } from '../types';
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
-import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _config: ITraceWatcherConfig['config'] | null = null;
@@ -33,7 +32,6 @@ const isTraceStorageQuery = (sql: string): boolean => {
 
 const emit = (query: string, params: unknown[], duration: number, connection = 'default'): void => {
   if (_storage === null || _config === null) return;
-  if (RequestFilter.shouldIgnoreCurrentRequest(_config.ignoreRoutes, _config.ignorePaths)) return;
   if (isTraceStorageQuery(query)) return;
 
   const batchId = TraceContext.getBatchId();

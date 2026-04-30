@@ -17,10 +17,10 @@ function runCommand(command, args) {
 
 for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
   process.stdout.write(
-    `\n[publish-preflight] Attempt ${attempt}/${maxAttempts}: syncing published ZinTrust versions\n`
+    `\n[publish-preflight] Attempt ${attempt}/${maxAttempts}: updating dependency ranges with npm-check-updates\n`
   );
 
-  const syncStatus = runCommand('node', ['scripts/release/sync-package-versions.mjs']);
+  const syncStatus = runCommand('npx', ['npm-check-updates', '-u']);
   if (syncStatus !== 0) {
     process.exit(syncStatus);
   }
@@ -39,7 +39,7 @@ for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
 
   if (attempt < maxAttempts) {
     process.stderr.write(
-      `[publish-preflight] npm install failed on attempt ${attempt}/${maxAttempts}; retrying after another version sync\n`
+      `[publish-preflight] npm install failed on attempt ${attempt}/${maxAttempts}; retrying after another npm-check-updates refresh\n`
     );
   }
 }

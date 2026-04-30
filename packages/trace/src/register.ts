@@ -254,8 +254,14 @@ const readTraceEnvValues = (Env: TraceEnvApi): TraceEnvValues => {
     contentDispatchEnqueueTimeoutRaw: Env.get('TRACE_CONTENT_QUEUE_ENQUEUE_TIMEOUT_MS', '').trim(),
     contentDispatchWorkerEnabledRaw: Env.get('TRACE_CONTENT_QUEUE_WORKER_ENABLED', '').trim(),
     contentDispatchWorkerIntervalRaw: Env.get('TRACE_CONTENT_QUEUE_WORKER_INTERVAL_MS', '').trim(),
-    contentDispatchWorkerDurationRaw: Env.get('TRACE_CONTENT_QUEUE_WORKER_MAX_DURATION_MS', '').trim(),
-    contentDispatchWorkerConcurrencyRaw: Env.get('TRACE_CONTENT_QUEUE_WORKER_CONCURRENCY', '').trim(),
+    contentDispatchWorkerDurationRaw: Env.get(
+      'TRACE_CONTENT_QUEUE_WORKER_MAX_DURATION_MS',
+      ''
+    ).trim(),
+    contentDispatchWorkerConcurrencyRaw: Env.get(
+      'TRACE_CONTENT_QUEUE_WORKER_CONCURRENCY',
+      ''
+    ).trim(),
     redactionKeys: parseEnvList(Env.get('TRACE_REDACT_KEYS', '')),
     redactionHeaders: parseEnvList(Env.get('TRACE_REDACT_HEADERS', '')),
     redactionBody: parseEnvList(Env.get('TRACE_REDACT_BODY', '')),
@@ -263,11 +269,17 @@ const readTraceEnvValues = (Env: TraceEnvApi): TraceEnvValues => {
   };
 };
 
-const resolveStringOverride = (rawValue: string, fallback: string | undefined): string | undefined => {
+const resolveStringOverride = (
+  rawValue: string,
+  fallback: string | undefined
+): string | undefined => {
   return rawValue === '' ? fallback : rawValue;
 };
 
-const resolveNumberOverride = (rawValue: string, fallback: number | undefined): number | undefined => {
+const resolveNumberOverride = (
+  rawValue: string,
+  fallback: number | undefined
+): number | undefined => {
   return rawValue === '' ? fallback : Number.parseInt(rawValue, 10);
 };
 
@@ -282,14 +294,20 @@ const resolveTraceProxyKeyId = (
   startupOverrides: TraceConfigOverrides | undefined,
   values: TraceEnvValues
 ): string | undefined => {
-  return resolveStringOverride(values.traceProxyKeyIdRaw, startupOverrides?.proxy?.keyId ?? values.appNameRaw);
+  return resolveStringOverride(
+    values.traceProxyKeyIdRaw,
+    startupOverrides?.proxy?.keyId ?? values.appNameRaw
+  );
 };
 
 const resolveTraceProxySecret = (
   startupOverrides: TraceConfigOverrides | undefined,
   values: TraceEnvValues
 ): string | undefined => {
-  return resolveStringOverride(values.traceProxySecretRaw, startupOverrides?.proxy?.secret ?? values.appKeyRaw);
+  return resolveStringOverride(
+    values.traceProxySecretRaw,
+    startupOverrides?.proxy?.secret ?? values.appKeyRaw
+  );
 };
 
 const withStringProperty = (key: string, value: string | undefined): Record<string, string> => {
@@ -300,10 +318,7 @@ const withNumberProperty = (key: string, value: number | undefined): Record<stri
   return typeof value === 'number' && Number.isFinite(value) ? { [key]: value } : {};
 };
 
-const withBooleanProperty = (
-  key: string,
-  value: boolean | undefined
-): Record<string, boolean> => {
+const withBooleanProperty = (key: string, value: boolean | undefined): Record<string, boolean> => {
   return typeof value === 'boolean' ? { [key]: value } : {};
 };
 
@@ -361,9 +376,18 @@ const buildTraceContentDispatchWorkerConfig = (
 ): NonNullable<NonNullable<TraceConfigOverrides['contentDispatch']>['worker']> => {
   const defaultWorker = TraceConfig.defaults().contentDispatch.worker;
   const startupWorker = startupOverrides?.contentDispatch?.worker;
-  const contentDispatchWorkerEnabled = resolveContentDispatchWorkerEnabled(startupOverrides, values);
-  const contentDispatchWorkerInterval = resolveContentDispatchWorkerInterval(startupOverrides, values);
-  const contentDispatchWorkerDuration = resolveContentDispatchWorkerDuration(startupOverrides, values);
+  const contentDispatchWorkerEnabled = resolveContentDispatchWorkerEnabled(
+    startupOverrides,
+    values
+  );
+  const contentDispatchWorkerInterval = resolveContentDispatchWorkerInterval(
+    startupOverrides,
+    values
+  );
+  const contentDispatchWorkerDuration = resolveContentDispatchWorkerDuration(
+    startupOverrides,
+    values
+  );
   const contentDispatchWorkerConcurrency = resolveContentDispatchWorkerConcurrency(
     startupOverrides,
     values
@@ -373,7 +397,8 @@ const buildTraceContentDispatchWorkerConfig = (
     ...defaultWorker,
     ...startupWorker,
     enabled: contentDispatchWorkerEnabled ?? startupWorker?.enabled ?? defaultWorker.enabled,
-    intervalMs: contentDispatchWorkerInterval ?? startupWorker?.intervalMs ?? defaultWorker.intervalMs,
+    intervalMs:
+      contentDispatchWorkerInterval ?? startupWorker?.intervalMs ?? defaultWorker.intervalMs,
     maxDurationMs:
       contentDispatchWorkerDuration ?? startupWorker?.maxDurationMs ?? defaultWorker.maxDurationMs,
     concurrency:
@@ -385,9 +410,18 @@ const buildTraceProxyConfig = (
   startupOverrides: TraceConfigOverrides | undefined,
   values: TraceEnvValues
 ): TraceConfigOverrides['proxy'] => {
-  const traceProxyEnabled = resolveBooleanOverride(values.traceProxyRaw, startupOverrides?.proxy?.enabled);
-  const traceProxyUrl = resolveStringOverride(values.traceProxyUrlRaw, startupOverrides?.proxy?.url);
-  const traceProxyPath = resolveStringOverride(values.traceProxyPathRaw, startupOverrides?.proxy?.path);
+  const traceProxyEnabled = resolveBooleanOverride(
+    values.traceProxyRaw,
+    startupOverrides?.proxy?.enabled
+  );
+  const traceProxyUrl = resolveStringOverride(
+    values.traceProxyUrlRaw,
+    startupOverrides?.proxy?.url
+  );
+  const traceProxyPath = resolveStringOverride(
+    values.traceProxyPathRaw,
+    startupOverrides?.proxy?.path
+  );
   const traceProxyKeyId = resolveTraceProxyKeyId(startupOverrides, values);
   const traceProxySecret = resolveTraceProxySecret(startupOverrides, values);
   const traceProxyTimeout = resolveNumberOverride(
@@ -507,33 +541,42 @@ const createTraceWatcherArgs = async (
   globalTraceRegisterState.__zintrust_system_trace_observe_connection_name__ =
     resolvedObservedConnectionName;
 
-  const storageDb = core.useDatabase?.(undefined, resolvedConnectionName);
+  let resolvedStorage;
+
+  if (config.proxy.enabled) {
+    resolvedStorage = ProxyTraceStorage.create({
+      baseUrl: config.proxy.url ?? '',
+      path: config.proxy.path,
+      keyId: config.proxy.keyId ?? '',
+      secret: config.proxy.secret ?? '',
+      timeoutMs: config.proxy.timeoutMs,
+    });
+  } else {
+    const storageDb = core.useDatabase?.(undefined, resolvedConnectionName);
+
+    assertTraceConnectionResolved(core, storageDb, {
+      connectionName: resolvedConnectionName,
+      envKey: 'TRACE_DB_CONNECTION',
+    });
+    await assertTraceStorageReady(core, storageDb, resolvedConnectionName);
+
+    resolvedStorage = TraceStorage.resolveStorage(storageDb);
+  }
+
   const observedDb = core.useDatabase?.(undefined, resolvedObservedConnectionName);
 
-  assertTraceConnectionResolved(core, storageDb, {
-    connectionName: resolvedConnectionName,
-    envKey: 'TRACE_DB_CONNECTION',
-  });
   assertTraceConnectionResolved(core, observedDb, {
     connectionName: resolvedObservedConnectionName,
     envKey: 'TRACE_QUERY_CONNECTION',
   });
-  await assertTraceStorageReady(core, storageDb, resolvedConnectionName);
-
-  const resolvedStorage = config.proxy.enabled
-    ? ProxyTraceStorage.create({
-        baseUrl: config.proxy.url ?? '',
-        path: config.proxy.path,
-        keyId: config.proxy.keyId ?? '',
-        secret: config.proxy.secret ?? '',
-        timeoutMs: config.proxy.timeoutMs,
-      })
-    : TraceStorage.resolveStorage(storageDb);
 
   const storage = TraceWriteDiagnostics.wrapStorage(
     TraceContentBudget.wrapStorage(
       TraceContentRedaction.wrapStorage(
-        TraceEntryFiltering.wrapStorage(TraceServiceTag.wrapStorage(resolvedStorage, config), config),
+        TraceEntryFiltering.wrapStorage(
+          TraceServiceTag.wrapStorage(resolvedStorage, config),
+          config
+        ),
         config.redaction
       ),
       config

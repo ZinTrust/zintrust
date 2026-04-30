@@ -147,9 +147,14 @@ describe('StartCommand patch coverage extra', () => {
   it('passes explicit --wrangler-config through to wrangler args (covers trim + --config push)', async () => {
     const originalCwd = process.cwd();
     const originalExit = process.exit;
+    const originalProjectRoot = process.env['ZINTRUST_PROJECT_ROOT'];
 
     const tmp = makeTempProject();
+    const existsSpy = vi
+      .spyOn(NodeFs, 'existsSync')
+      .mockImplementation((target) => fs.existsSync(target as fs.PathLike));
     process.chdir(tmp);
+    delete process.env['ZINTRUST_PROJECT_ROOT'];
     (process as any).exit = vi.fn();
 
     try {
@@ -168,6 +173,12 @@ describe('StartCommand patch coverage extra', () => {
         })
       );
     } finally {
+      existsSpy.mockRestore();
+      if (originalProjectRoot === undefined) {
+        delete process.env['ZINTRUST_PROJECT_ROOT'];
+      } else {
+        process.env['ZINTRUST_PROJECT_ROOT'] = originalProjectRoot;
+      }
       process.chdir(originalCwd);
       (process as any).exit = originalExit;
       fs.rmSync(tmp, { recursive: true, force: true });

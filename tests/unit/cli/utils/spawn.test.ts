@@ -470,13 +470,13 @@ describe('SpawnUtil', () => {
   });
 
   it('relays traced child stdout and stderr stream events', async () => {
-    const originalTraceValue = process.env.CLI_SPAWN_TRACE;
+    const originalTraceValue = process.env['CLI_SPAWN_TRACE'];
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockReturnValue(true as never);
     const stderrWrite = vi.spyOn(process.stderr, 'write').mockReturnValue(true as never);
     const stdoutHandlers = new Map<string, (chunk?: string | Buffer) => void>();
     const stderrHandlers = new Map<string, (chunk?: string | Buffer) => void>();
 
-    process.env.CLI_SPAWN_TRACE = 'true';
+    process.env['CLI_SPAWN_TRACE'] = 'true';
     mockChild.stdout.on.mockImplementation(
       (event: string, handler: (chunk?: string | Buffer) => void) => {
         stdoutHandlers.set(event, handler);
@@ -509,8 +509,8 @@ describe('SpawnUtil', () => {
     expect(stdoutWrite).toHaveBeenCalledWith('hello');
     expect(stderrWrite).toHaveBeenCalledWith(Buffer.from('oops'));
 
-    if (originalTraceValue === undefined) delete process.env.CLI_SPAWN_TRACE;
-    else process.env.CLI_SPAWN_TRACE = originalTraceValue;
+    if (originalTraceValue === undefined) delete process.env['CLI_SPAWN_TRACE'];
+    else process.env['CLI_SPAWN_TRACE'] = originalTraceValue;
   });
 
   it('clears pending delayed SIGTERM forwarding when the child exits first', async () => {

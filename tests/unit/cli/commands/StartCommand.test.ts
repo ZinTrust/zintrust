@@ -127,6 +127,47 @@ describe('StartCommand', () => {
     );
   });
 
+  it('should prefer ZINTRUST_PROJECT_ROOT over shell cwd when resolving the app root', async () => {
+    const command = StartCommand.create();
+    const originalCwd = process.cwd();
+    const targetProjectRoot = '/tmp/trace-proxy-repro-sender';
+
+    process.env['ZINTRUST_PROJECT_ROOT'] = targetProjectRoot;
+
+    vi.spyOn(process, 'cwd').mockReturnValue('/opt/homebrew/var/www/Sites/zintrust');
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${targetProjectRoot}/package.json`) return true;
+      if (value === `${targetProjectRoot}/src/index.ts`) return true;
+      if (value.endsWith('bootstrap.ts')) return false;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
+      if (String(p) === `${targetProjectRoot}/package.json`) {
+        return JSON.stringify({ name: 'trace-proxy-repro-sender', scripts: { dev: 'zin s' } });
+      }
+
+      return JSON.stringify({ name: '@zintrust/core' });
+    });
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({})).rejects.toThrow(/process.exit/);
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'tsx',
+        args: ['watch', expect.stringContaining(`${targetProjectRoot}/tmp/zin-start-node.ts`)],
+        env: expect.objectContaining({
+          ZINTRUST_PROJECT_ROOT: targetProjectRoot,
+          ZINTRUST_BOOTSTRAP_PREFERENCE: 'source',
+        }),
+      })
+    );
+
+    vi.mocked(process.cwd).mockRestore?.();
+    process.chdir(originalCwd);
+  });
+
   it('should start in production mode when --mode production is provided', async () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
