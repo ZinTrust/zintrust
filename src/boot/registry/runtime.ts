@@ -541,6 +541,13 @@ const isTraceDashboardAutoMountEnabled = (): boolean => {
   return raw === '1' || raw === 'true';
 };
 
+const isTraceProxySenderEnabled = (): boolean => {
+  const proxyEnabled = readEnvString('TRACE_PROXY').trim().toLowerCase();
+  if (proxyEnabled !== '1' && proxyEnabled !== 'true') return false;
+
+  return readEnvString('TRACE_PROXY_URL').trim() !== '';
+};
+
 const resolveTraceDashboardBasePath = (): string => {
   const raw = readEnvString('TRACE_BASE_PATH').trim();
   if (raw === '') return '/trace';
@@ -585,6 +592,10 @@ const initializeSystemTrace = async (router: IRouter): Promise<void> => {
     }
 
     if (!isTraceDashboardAutoMountEnabled()) {
+      if (isTraceProxySenderEnabled()) {
+        return;
+      }
+
       Logger.info(
         'System Trace runtime activated. Set TRACE_AUTO_MOUNT=true or register dashboard routes manually if needed.'
       );

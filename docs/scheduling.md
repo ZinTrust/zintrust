@@ -249,3 +249,17 @@ If you run multiple instances of your application, you can ensure only one insta
 ```env
 SCHEDULE_LEADER_ENABLED=true
 ```
+
+---
+
+## Running the schedule daemon in Docker
+
+ZinTrust provides a ready-made isolated runtime under `docker/schedule-runtime/` that acts as the build context for a dedicated schedule container — separate from the main app image and with its own lean `package.json`.
+
+See [docker-schedule-trace-runtimes.md](./docker-schedule-trace-runtimes.md) for:
+
+- Why a separate container is recommended
+- The full folder tree and a snapshot of every file
+- The `Dockerfile` to create
+- The docker-compose service snippet to add
+- The new-developer setup checklist

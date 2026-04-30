@@ -77,6 +77,8 @@
 - Fixed the `kv-remote` proxy credential gate so it now falls back to the normalized signing identity from `APP_NAME` and `APP_KEY` the same way `d1-remote` already does. When explicit `KV_REMOTE_KEY_ID` / `KV_REMOTE_SECRET` values are absent, the driver keeps the signed proxy path available instead of prematurely forcing the Cloudflare KV API path.
 
 - Fixed `npm run release:sync-versions` so it now detects changed core source and changed package directories, looks up the currently published npm version for each affected manifest, and bumps only to the next release patch instead of leaving publishable packages stuck at an already-published version. The release sync path now uses ZinTrust's bounded carry rule for patch increments, so it advances sequentially and rolls `x.9.99 -> (x+1).0.0` without skipping intermediate publish versions.
+- Updated the npm publish preflight and release publish scripts so they now run `npx npm-check-updates -u` before install or package publish instead of relying on the older manual dependency-range sync path. The root `check-up` script now performs the updating variant by default, with `check-up:check` kept as the read-only listing command.
+- Fixed trace proxy sender startup so `@zintrust/trace/register` no longer resolves the sender-local trace storage DB before switching to `ProxyTraceStorage`. This removes the unused local SQLite readiness failure from proxy-mode worker boot, suppresses the local dashboard hint when `TRACE_PROXY=true` with a real `TRACE_PROXY_URL`, and stops `packages/trace` from publishing its raw `src/` tree to npm.
 
 # 2026-04-21
 

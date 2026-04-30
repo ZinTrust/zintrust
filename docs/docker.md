@@ -277,3 +277,18 @@ Compose uses named volumes for infrastructure:
 - `redis_data` for Redis
 
 Application storage/logs are repo-mounted in dev mode; for production you typically mount only what you need (logs, uploads, backups) and keep your container filesystem immutable.
+
+---
+
+## Isolated schedule and trace runtime containers
+
+Two standalone runtime directories exist under `docker/` for projects that want the schedule daemon and the trace dashboard in their own containers, each with a lean isolated `package.json`:
+
+| Directory                  | Purpose                                                                |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `docker/schedule-runtime/` | Runs `zin schedule:start` in its own container                         |
+| `docker/trace-runtime/`    | Serves the trace dashboard and accepts signed ingest from the main app |
+
+These directories are tracked in git but need `npm install` run inside them, and each needs a `Dockerfile` created by the developer, before Docker can build them.
+
+Full setup guide, file snapshots, sample Dockerfiles, and docker-compose snippets: [docker-schedule-trace-runtimes.md](./docker-schedule-trace-runtimes.md)

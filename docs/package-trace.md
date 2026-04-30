@@ -364,3 +364,18 @@ Use `@zintrust/trace` when you want:
 - Optional UI exposure so each application decides whether the dashboard is mounted
 
 For package-level implementation details and the full API surface, also see the package README in `@zintrust/trace/README.md`.
+
+---
+
+## Running the trace dashboard in Docker
+
+ZinTrust provides a ready-made isolated runtime under `docker/trace-runtime/` that acts as the build context for a dedicated trace container. It uses its own SQLite database, exposes the `/trace` dashboard, and accepts signed ingest posts from the main app via `TRACE_PROXY=true`.
+
+See [docker-schedule-trace-runtimes.md](./docker-schedule-trace-runtimes.md) for:
+
+- Why a separate trace container is recommended
+- The full folder tree and a snapshot of every file
+- The `Dockerfile` to create
+- The docker-compose service snippet to add
+- How to configure the main app to proxy trace writes to this container
+- The new-developer setup checklist
