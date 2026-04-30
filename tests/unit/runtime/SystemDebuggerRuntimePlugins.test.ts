@@ -97,8 +97,8 @@ describe('runtime trace plugin shims', () => {
       registerTraceRoutes: registerRoutesSpy,
     }));
     vi.doMock('@zintrust/trace/register', () => ({
-      registerTraceReady,
-      default: { registerTraceReady },
+      registerTraceReady: registerReady,
+      default: { registerTraceReady: registerReady },
     }));
 
     const runtimeModule = await import('@runtime/plugins/trace-runtime');
