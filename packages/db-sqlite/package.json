@@ -36,7 +36,7 @@
     "typescript"
   ],
   "dependencies": {
-    "better-sqlite3": "^12.8.0"
+    "better-sqlite3": "^12.9.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -263,6 +263,10 @@ async function assertCoreShimHasRequiredExports() {
       'export type WorkerVersioningConfig = any;',
       'export type WorkersConfigOverrides = any;',
       'export type WorkersGlobalConfig = any;',
+      'export declare const ShutdownTrace: {',
+      'log: (...args: any[]) => void;',
+      'logHandles: (...args: any[]) => void;',
+      'logBullMQWorker: (...args: any[]) => void;',
     ],
     'cli.d.ts': [
       'export declare const BaseCommand: any;',
@@ -275,6 +279,9 @@ async function assertCoreShimHasRequiredExports() {
       'export declare const ErrorHandler: any;',
       'export declare const RequestValidator: any;',
       'export declare const SigningService: any;',
+      'export declare const WorkerSigning: {',
+      'verifyNonceKv: (...args: any[]) => Promise<boolean>;',
+      'verifySignedRequest: (...args: any[]) => Promise<any>;',
     ],
   };
 
@@ -705,6 +712,11 @@ export declare const Cloudflare: any;
 export declare const Router: any;
 export declare const Broadcast: any;
 export declare const Notification: any;
+export declare const ShutdownTrace: {
+  log: (...args: any[]) => void;
+  logHandles: (...args: any[]) => void;
+  logBullMQWorker: (...args: any[]) => void;
+};
 export type RemoteSignedJsonSettings = any;
 export declare const RemoteSignedJson: {
   request<T>(
@@ -891,6 +903,10 @@ export type CliCommandProvider = any;
 export declare const ErrorHandler: any;
 export declare const RequestValidator: any;
 export declare const SigningService: any;
+export declare const WorkerSigning: {
+  verifyNonceKv: (...args: any[]) => Promise<boolean>;
+  verifySignedRequest: (...args: any[]) => Promise<any>;
+};
 `;
   await fs.writeFile(path.join(shimDir, 'proxy.d.ts'), proxyDts);
 
@@ -927,6 +943,11 @@ export const Cloudflare = {};
 export const Router = {};
 export const Broadcast = {};
 export const Notification = {};
+export const ShutdownTrace = {
+  log() {},
+  logHandles() {},
+  logBullMQWorker() {},
+};
 export const RemoteSignedJson = {
   async request() {
     return {};
@@ -1290,6 +1311,15 @@ export const RequestValidator = {
 
 export const SigningService = {
   async verifyWithKeyProvider() {
+    return { ok: true };
+  },
+};
+
+export const WorkerSigning = {
+  async verifyNonceKv() {
+    return true;
+  },
+  async verifySignedRequest() {
     return { ok: true };
   },
 };
