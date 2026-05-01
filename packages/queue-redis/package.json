@@ -41,6 +41,6 @@
   },
   "dependencies": {
     "ioredis": "^5.10.1",
-    "redis": "^5.11.0"
+    "redis": "^5.12.1"
   }
 }
