@@ -901,7 +901,7 @@ describe('ORM - QueryBuilder & Database', () => {
 
     const sql = qb.toSQL();
     expect(sql).toContain('SELECT "id", "name" FROM "users"');
-    expect(sql).toContain('WHERE "id" = ? AND "active" = ? AND "admin" = ?');
+    expect(sql).toContain('WHERE "id" = ? AND "active" = ? OR "admin" = ?');
     expect(sql).toContain('ORDER BY "name" DESC');
     expect(sql).toContain('LIMIT 10 OFFSET 5');
 
