@@ -196,6 +196,7 @@
   },
   "lint-staged": {
     "src/**/*.ts": [
+      "node scripts/ci/ensure-eslint-ajv8.mjs",
       "eslint --fix"
     ]
   },
