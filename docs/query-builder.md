@@ -45,6 +45,49 @@ const users = await db
   .get();
 ```
 
+`where()` and `orWhere()` each accept an optional operator (`=`, `>`, `<`, `>=`, `<=`, `!=`). Successive `where()` calls are joined with `AND`; `orWhere()` calls are joined with `OR` at the top level.
+
+## Grouped Predicates
+
+Use `whereGroup()` or `orWhereGroup()` when you need a parenthesised boolean group mixed into a larger condition — for example, `WHERE event_id = ? AND (token = ? OR invite_code = ? OR id = ?)`:
+
+```typescript
+const invitation = await GuestInvitation.query()
+  .where('event_id', '=', eventId)
+  .whereGroup((group) =>
+    group
+      .where('token', '=', candidate)
+      .orWhere('invite_code', '=', candidate)
+      .orWhere('id', '=', candidateId)
+  )
+  .orderBy('id', 'DESC')
+  .first();
+```
+
+The callback receives a fresh `IQueryBuilder` instance scoped to the group. Use `orWhereGroup()` to join the entire group with `OR` instead of `AND`.
+
+## Normalized Text Comparison
+
+`whereNormalized(column, value)` applies trim- and case-insensitive equality without raw SQL. By default it compiles the column side to `LOWER(TRIM(column))`, then normalizes the bound value in application code before binding. Use it for lookups on user-supplied text fields such as email addresses:
+
+```typescript
+const user = await User.query()
+  .where('tenant_id', '=', tenantId)
+  .whereNormalized('email', email)
+  .first();
+```
+
+Use `orWhereNormalized(column, value)` to join the normalized predicate with `OR`:
+
+```typescript
+const match = await Contact.query()
+  .whereNormalized('email', email)
+  .orWhereNormalized('alias', email)
+  .first();
+```
+
+Both helpers accept an optional `NormalizedTextOptions` argument so you can disable trimming or lowercasing when a lookup needs different normalization behavior. They work with SQLite, D1, MySQL, and PostgreSQL adapters.
+
 ## Joins
 
 ```typescript

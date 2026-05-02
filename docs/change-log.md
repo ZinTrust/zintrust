@@ -1,3 +1,7 @@
+# 2026-05-02
+
+- Added first-class grouped and normalized lookup support to the ORM query builder. `QueryBuilder` and model wrappers now expose `whereGroup(...)` / `orWhereGroup(...)` for nested boolean scopes and `whereNormalized(...)` / `orWhereNormalized(...)` for portable `LOWER(TRIM(column)) = ?` text equality, fixing the long-standing `orWhere(...)` behavior bug that previously compiled as `AND` and removing the need for raw SQL in guest-style identifier and normalized-email lookups across SQLite and D1.
+
 # 2026-04-30
 
 - Fixed the release publish shim used by `scripts/release/publish-packages.mjs` so package builds can type-check against the current `@zintrust/core` proxy and shutdown-trace API surface during npm release. The temporary shim now exposes `ShutdownTrace` and `WorkerSigning`, which unblocks `@zintrust/workers`, `@zintrust/cloudflare-d1-proxy`, `@zintrust/cloudflare-kv-proxy`, and `@zintrust/queue-monitor` package builds during publish.

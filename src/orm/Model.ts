@@ -14,6 +14,7 @@ import type {
   EagerLoadConstraints,
   IQueryBuilder,
   InsertResult,
+  NormalizedTextOptions,
   PaginationOptions,
   QueryBuilderOptions,
 } from '@orm/QueryBuilder';
@@ -967,6 +968,18 @@ export type DefinedModel<T extends BoundModelMethods> = {
   ) => IQueryBuilder;
   andWhere: (column: string, operator: string, value?: unknown) => IQueryBuilder;
   orWhere: (column: string, operator: string, value?: unknown) => IQueryBuilder;
+  whereGroup: (callback: (builder: IQueryBuilder) => unknown) => IQueryBuilder;
+  orWhereGroup: (callback: (builder: IQueryBuilder) => unknown) => IQueryBuilder;
+  whereNormalized: (
+    column: string,
+    value: unknown,
+    options?: NormalizedTextOptions
+  ) => IQueryBuilder;
+  orWhereNormalized: (
+    column: string,
+    value: unknown,
+    options?: NormalizedTextOptions
+  ) => IQueryBuilder;
   whereIn: (column: string, values: unknown[]) => IQueryBuilder;
   whereNotIn: (column: string, values: unknown[]) => IQueryBuilder;
   select: (...columns: string[]) => IQueryBuilder;
@@ -1346,6 +1359,14 @@ const createQueryBuilderMethods = (
       wrappedBuilder().andWhere(column, operator, value),
     orWhere: (column: string, operator: string, value?: unknown) =>
       wrappedBuilder().orWhere(column, operator, value),
+    whereGroup: (callback: (builder: IQueryBuilder) => unknown) =>
+      wrappedBuilder().whereGroup(callback),
+    orWhereGroup: (callback: (builder: IQueryBuilder) => unknown) =>
+      wrappedBuilder().orWhereGroup(callback),
+    whereNormalized: (column: string, value: unknown, options?: NormalizedTextOptions) =>
+      wrappedBuilder().whereNormalized(column, value, options),
+    orWhereNormalized: (column: string, value: unknown, options?: NormalizedTextOptions) =>
+      wrappedBuilder().orWhereNormalized(column, value, options),
     whereIn: (column: string, values: unknown[]) => wrappedBuilder().whereIn(column, values),
     whereNotIn: (column: string, values: unknown[]) => wrappedBuilder().whereNotIn(column, values),
     select: (...columns: string[]) => wrappedBuilder().select(...columns),

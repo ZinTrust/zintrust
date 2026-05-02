@@ -44,11 +44,36 @@ describe('QueryBuilder', () => {
     const builder = QueryBuilder.create('users');
     builder.where('active', '=', true).orWhere('role', '=', 'admin');
 
-    // Note: Current implementation of orWhere just calls where (AND), so this test reflects current behavior
-    // Ideally it should be OR, but we test what is implemented
     const sql = builder.toSQL();
-    expect(sql).toContain('WHERE "active" = ? AND "role" = ?');
+    expect(sql).toContain('WHERE "active" = ? OR "role" = ?');
     expect(builder.getParameters()).toEqual([true, 'admin']);
+  });
+
+  it('should build grouped OR predicates inside an AND scope', () => {
+    const builder = QueryBuilder.create('guest_invitations');
+
+    builder
+      .where('event_id', '=', 7)
+      .whereGroup((group) =>
+        group
+          .where('token', '=', 'abc123')
+          .orWhere('invite_code', '=', 'abc123')
+          .orWhere('id', '=', 42)
+      );
+
+    expect(builder.toSQL()).toContain(
+      'WHERE "event_id" = ? AND ("token" = ? OR "invite_code" = ? OR "id" = ?)'
+    );
+    expect(builder.getParameters()).toEqual([7, 'abc123', 'abc123', 42]);
+  });
+
+  it('should build normalized text comparison predicates', () => {
+    const builder = QueryBuilder.create('guest_invitations');
+
+    builder.where('event_id', '=', 7).whereNormalized('email', '  USER@Example.com  ');
+
+    expect(builder.toSQL()).toContain('WHERE "event_id" = ? AND LOWER(TRIM("email")) = ?');
+    expect(builder.getParameters()).toEqual([7, 'user@example.com']);
   });
 
   it('should build query with LIMIT', () => {
