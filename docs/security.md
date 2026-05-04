@@ -43,6 +43,18 @@ export interface IQueryBuilder {
   whereNull(column: string): IQueryBuilder;
   whereNotNull(column: string): IQueryBuilder;
   orWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
+  whereGroup(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
+  orWhereGroup(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
+  whereNormalized(
+    column: string,
+    value: unknown,
+    options?: NormalizedTextOptions
+  ): IQueryBuilder;
+  orWhereNormalized(
+    column: string,
+    value: unknown,
+    options?: NormalizedTextOptions
+  ): IQueryBuilder;
   select(...columns: string[]): IQueryBuilder;
   get(): Promise\<Record\<string, unknown>[]>;
   first(): Promise\<Record\<string, unknown> | null>;

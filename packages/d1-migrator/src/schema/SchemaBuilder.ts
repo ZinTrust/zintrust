@@ -3,7 +3,7 @@
  * Builds D1/SQLite compatible schemas from source schemas
  */
 
-import { Logger } from '@zintrust/core';
+import { ErrorFactory, Logger } from '@zintrust/core';
 import type { ColumnSchema, TableSchema } from '../types';
 import { DataValidator } from '../utils/DataValidator';
 import { TypeConverter } from './TypeConverter';
@@ -11,6 +11,24 @@ import { TypeConverter } from './TypeConverter';
 const normalizeNullLikeDefaultValue = (value: unknown): unknown => {
   if (typeof value !== 'string') return value;
   return value.trim().toLowerCase() === 'null' ? null : value;
+};
+
+const getPrimaryKeyColumns = (table: TableSchema): string[] => {
+  if (table.primaryKeys.length > 0) {
+    return table.primaryKeys;
+  }
+
+  return table.primaryKey ? [table.primaryKey] : [];
+};
+
+const getAutoIncrementPrimaryKeyColumn = (table: TableSchema): ColumnSchema | undefined => {
+  const primaryKeyColumns = getPrimaryKeyColumns(table);
+  if (primaryKeyColumns.length !== 1) {
+    return undefined;
+  }
+
+  const primaryKeyName = primaryKeyColumns[0];
+  return table.columns.find((column) => column.name === primaryKeyName && column.autoIncrement);
 };
 
 /**
@@ -32,12 +50,25 @@ export const SchemaBuilder = Object.freeze({
    */
   buildD1Table(sourceTable: TableSchema, sourceDriver: string): TableSchema {
     const sanitizedTableName = DataValidator.sanitizeTableName(sourceTable.name);
+    const autoIncrementPrimaryKeyName = getAutoIncrementPrimaryKeyColumn(sourceTable)?.name;
 
     const d1Table: TableSchema = <TableSchema>{
       name: sanitizedTableName,
-      columns: sourceTable.columns.map((column) =>
-        SchemaBuilder.buildD1Column(column, sourceDriver)
-      ),
+      columns: sourceTable.columns.map((column) => {
+        const d1Column = SchemaBuilder.buildD1Column(column, sourceDriver);
+
+        if (column.name !== autoIncrementPrimaryKeyName) {
+          return d1Column;
+        }
+
+        return {
+          ...d1Column,
+          type: 'INTEGER',
+          nullable: false,
+          defaultValue: undefined,
+          autoIncrement: true,
+        };
+      }),
       primaryKey: sourceTable.primaryKeys?.[0] || '',
       indexes: sourceTable.indexes || [],
       primaryKeys: sourceTable.primaryKeys || [],
@@ -65,6 +96,7 @@ export const SchemaBuilder = Object.freeze({
       type: d1Type,
       nullable: sourceColumn.nullable,
       defaultValue: sourceColumn.defaultValue,
+      autoIncrement: sourceColumn.autoIncrement,
     };
 
     return d1Column;
@@ -76,13 +108,18 @@ export const SchemaBuilder = Object.freeze({
   generateCreateTableSQL(table: TableSchema): string {
     let sql = `CREATE TABLE \`${table.name}\` (\n`;
 
+    const autoIncrementPrimaryKeyColumn = getAutoIncrementPrimaryKeyColumn(table);
+
     const columnDefinitions = table.columns.map((column) =>
-      SchemaBuilder.generateColumnDefinition(column)
+      SchemaBuilder.generateColumnDefinition(
+        column,
+        autoIncrementPrimaryKeyColumn?.name === column.name
+      )
     );
 
     sql += columnDefinitions.join(',\n');
 
-    if (table.primaryKey) {
+    if (table.primaryKey && autoIncrementPrimaryKeyColumn === undefined) {
       const keyList = table.primaryKey;
       sql += `,\n  PRIMARY KEY (${keyList})`;
     }
@@ -95,7 +132,11 @@ export const SchemaBuilder = Object.freeze({
   /**
    * Generate column definition
    */
-  generateColumnDefinition(column: ColumnSchema): string {
+  generateColumnDefinition(column: ColumnSchema, inlinePrimaryKey: boolean = false): string {
+    if (inlinePrimaryKey) {
+      return `  \`${column.name}\` INTEGER PRIMARY KEY AUTOINCREMENT`;
+    }
+
     let definition = `  \`${column.name}\` ${column.type}`;
 
     if (!column.nullable) {
@@ -212,11 +253,33 @@ export const SchemaBuilder = Object.freeze({
           errors.push(`Primary key column '${table.primaryKey}' not found in table: ${table.name}`);
         }
       }
+
+      const autoIncrementPrimaryKeyColumn = getAutoIncrementPrimaryKeyColumn(table);
+      if (autoIncrementPrimaryKeyColumn) {
+        const createSql = SchemaBuilder.generateCreateTableSQL(table);
+        const expectedPrimaryKeyFragment = `\`${autoIncrementPrimaryKeyColumn.name}\` INTEGER PRIMARY KEY AUTOINCREMENT`;
+        if (!createSql.includes(expectedPrimaryKeyFragment)) {
+          errors.push(
+            `Auto-increment primary key '${table.name}.${autoIncrementPrimaryKeyColumn.name}' must be emitted as INTEGER PRIMARY KEY AUTOINCREMENT for D1`
+          );
+        }
+      }
     });
 
     return {
       valid: errors.length === 0,
       errors,
     };
+  },
+
+  assertValidSchema(tables: TableSchema[]): void {
+    const validation = SchemaBuilder.validateSchema(tables);
+    if (validation.valid) {
+      return;
+    }
+
+    throw ErrorFactory.createValidationError(
+      `Generated D1 schema is invalid: ${validation.errors.join('; ')}`
+    );
   },
 });

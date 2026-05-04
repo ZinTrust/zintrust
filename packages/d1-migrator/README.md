@@ -470,14 +470,17 @@ The interactive mode will:
 
 The migrator automatically converts data types for D1 compatibility:
 
-| Source Type         | SQLite Type     | Notes                            |
-| ------------------- | --------------- | -------------------------------- |
-| DATETIME, TIMESTAMP | TEXT (ISO 8601) | Converted to ISO 8601 strings    |
-| BIGINT              | TEXT            | Large integers stored as strings |
-| DECIMAL, NUMERIC    | TEXT            | Precision preserved as strings   |
-| JSON                | TEXT            | JSON objects stored as strings   |
-| BLOB                | BLOB            | Binary data preserved            |
-| NULL                | NULL            | Null values preserved            |
+| Source Type         | SQLite Type                       | Notes                                       |
+| ------------------- | --------------------------------- | ------------------------------------------- |
+| AUTO_INCREMENT PK   | INTEGER PRIMARY KEY AUTOINCREMENT | Preserves SQLite rowid-backed id allocation |
+| DATETIME, TIMESTAMP | TEXT (ISO 8601)                   | Converted to ISO 8601 strings               |
+| BIGINT              | TEXT                              | Large integers stored as strings            |
+| DECIMAL, NUMERIC    | TEXT                              | Precision preserved as strings              |
+| JSON                | TEXT                              | JSON objects stored as strings              |
+| BLOB                | BLOB                              | Binary data preserved                       |
+| NULL                | NULL                              | Null values preserved                       |
+
+When the source schema marks a single-column primary key as auto-increment, the migrator preserves that contract on D1 by emitting `INTEGER PRIMARY KEY AUTOINCREMENT`. That keeps explicit imported ids valid during data copy and still allows later inserts that omit the id column to receive a database-generated numeric identifier.
 
 ### Manual Value Transformation
 

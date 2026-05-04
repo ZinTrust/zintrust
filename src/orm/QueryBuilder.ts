@@ -14,7 +14,23 @@ export interface WhereClause {
   column: string;
   operator: string;
   value: unknown;
+  boolean?: 'AND' | 'OR';
+  expression?: 'normalized-text';
+  normalization?: NormalizedTextOptions;
 }
+
+export interface NormalizedTextOptions {
+  trim?: boolean;
+  lowercase?: boolean;
+}
+
+interface WhereGroupClause {
+  kind: 'group';
+  boolean: 'AND' | 'OR';
+  conditions: WherePredicate[];
+}
+
+type WherePredicate = WhereClause | WhereGroupClause;
 
 /**
  * Result returned from INSERT operations
@@ -48,6 +64,10 @@ export interface IQueryBuilder {
   where(column: string, operator: string | number | boolean | null, value?: unknown): IQueryBuilder;
   andWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
   orWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
+  whereGroup(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
+  orWhereGroup(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
+  whereNormalized(column: string, value: unknown, options?: NormalizedTextOptions): IQueryBuilder;
+  orWhereNormalized(column: string, value: unknown, options?: NormalizedTextOptions): IQueryBuilder;
   whereNull(column: string): IQueryBuilder;
   whereIn(column: string, values: unknown[]): IQueryBuilder;
   whereNotIn(column: string, values: unknown[]): IQueryBuilder;
@@ -87,7 +107,7 @@ export interface IQueryBuilder {
 
 interface QueryState {
   tableName: string;
-  whereConditions: WhereClause[];
+  whereConditions: WherePredicate[];
   selectColumns: string[];
   limitValue?: number;
   offsetValue?: number;
@@ -193,6 +213,55 @@ const normalizeOrderDirection = (direction?: string): 'ASC' | 'DESC' => {
   if (normalized === 'ASC' || normalized === 'DESC') return normalized;
   throw ErrorFactory.createDatabaseError('Unsafe ORDER BY direction');
 };
+
+const normalizeClauseBoolean = (value?: 'AND' | 'OR'): 'AND' | 'OR' =>
+  value === 'OR' ? 'OR' : 'AND';
+
+const normalizeTextOptions = (
+  options?: NormalizedTextOptions
+): Required<NormalizedTextOptions> => ({
+  trim: options?.trim !== false,
+  lowercase: options?.lowercase !== false,
+});
+
+const normalizeTextComparisonValue = (value: unknown, options?: NormalizedTextOptions): unknown => {
+  if (value === null || value === undefined) return value;
+
+  const normalizedOptions = normalizeTextOptions(options);
+  let normalized = String(value);
+
+  if (normalizedOptions.trim) {
+    normalized = normalized.trim();
+  }
+
+  if (normalizedOptions.lowercase) {
+    normalized = normalized.toLowerCase();
+  }
+
+  return normalized;
+};
+
+const buildNormalizedColumnSql = (
+  column: string,
+  dialect?: string,
+  options?: NormalizedTextOptions
+): string => {
+  const normalizedOptions = normalizeTextOptions(options);
+  let sql = escapeIdentifier(column, dialect);
+
+  if (normalizedOptions.trim) {
+    sql = `TRIM(${sql})`;
+  }
+
+  if (normalizedOptions.lowercase) {
+    sql = `LOWER(${sql})`;
+  }
+
+  return sql;
+};
+
+const isWhereGroupClause = (value: WherePredicate): value is WhereGroupClause =>
+  'kind' in value && value.kind === 'group';
 
 const normalizeOperator = (operator: string): string => operator.trim().toUpperCase();
 
@@ -346,8 +415,59 @@ const buildSelectClause = (columns: string[], dialect?: string): string => {
   return out.join(', ');
 };
 
-const compileWhere = (
-  conditions: WhereClause[],
+const compileSingleWhereClause = (
+  clause: WhereClause,
+  dialect?: string
+): {
+  sql: string;
+  parameters: unknown[];
+} => {
+  assertSafeIdentifierPath(clause.column, 'where column');
+  const operator = assertSafeOperator(clause.operator);
+  const columnSql =
+    clause.expression === 'normalized-text'
+      ? buildNormalizedColumnSql(clause.column, dialect, clause.normalization)
+      : escapeIdentifier(clause.column, dialect);
+
+  if (operator === 'IN' || operator === 'NOT IN') {
+    if (!Array.isArray(clause.value) || clause.value.length === 0) {
+      throw ErrorFactory.createDatabaseError('IN operator requires a non-empty array');
+    }
+    const values = clause.value as unknown[];
+    return {
+      sql: `${columnSql} ${operator} (${values.map(() => '?').join(', ')})`,
+      parameters: values,
+    };
+  }
+
+  if (operator === 'BETWEEN' || operator === 'NOT BETWEEN') {
+    if (!Array.isArray(clause.value) || clause.value.length !== 2) {
+      throw ErrorFactory.createDatabaseError('BETWEEN operator requires a 2-item array');
+    }
+    const range = clause.value as unknown[];
+    return {
+      sql: `${columnSql} ${operator} ? AND ?`,
+      parameters: range,
+    };
+  }
+
+  if (operator === 'IS' || operator === 'IS NOT') {
+    if (clause.value === null || clause.value === undefined) {
+      return { sql: `${columnSql} ${operator} NULL`, parameters: [] };
+    }
+    return { sql: `${columnSql} ${operator} ?`, parameters: [clause.value] };
+  }
+
+  const value =
+    clause.expression === 'normalized-text'
+      ? normalizeTextComparisonValue(clause.value, clause.normalization)
+      : clause.value;
+
+  return { sql: `${columnSql} ${operator} ?`, parameters: [value] };
+};
+
+const compileWhereFragments = (
+  conditions: WherePredicate[],
   dialect?: string
 ): {
   sql: string;
@@ -356,43 +476,36 @@ const compileWhere = (
   if (conditions.length === 0) return { sql: '', parameters: [] };
 
   const parameters: unknown[] = [];
-  const clauses = conditions.map((clause) => {
-    assertSafeIdentifierPath(clause.column, 'where column');
-    const operator = assertSafeOperator(clause.operator);
-    const columnSql = escapeIdentifier(clause.column, dialect);
+  const fragments: string[] = [];
 
-    if (operator === 'IN' || operator === 'NOT IN') {
-      if (!Array.isArray(clause.value) || clause.value.length === 0) {
-        throw ErrorFactory.createDatabaseError('IN operator requires a non-empty array');
-      }
-      const values = clause.value as unknown[];
-      const placeholders = values.map(() => '?').join(', ');
-      for (const v of values) parameters.push(v);
-      return `${columnSql} ${operator} (${placeholders})`;
-    }
+  for (const condition of conditions) {
+    const compiled = isWhereGroupClause(condition)
+      ? compileWhereFragments(condition.conditions, dialect)
+      : compileSingleWhereClause(condition, dialect);
 
-    if (operator === 'BETWEEN' || operator === 'NOT BETWEEN') {
-      if (!Array.isArray(clause.value) || clause.value.length !== 2) {
-        throw ErrorFactory.createDatabaseError('BETWEEN operator requires a 2-item array');
-      }
-      const range = clause.value as unknown[];
-      parameters.push(range[0], range[1]);
-      return `${columnSql} ${operator} ? AND ?`;
-    }
+    if (compiled.sql.length === 0) continue;
 
-    if (operator === 'IS' || operator === 'IS NOT') {
-      if (clause.value === null || clause.value === undefined) {
-        return `${columnSql} ${operator} NULL`;
-      }
-      parameters.push(clause.value);
-      return `${columnSql} ${operator} ?`;
-    }
+    parameters.push(...compiled.parameters);
 
-    parameters.push(clause.value);
-    return `${columnSql} ${operator} ?`;
-  });
+    const fragment = isWhereGroupClause(condition) ? `(${compiled.sql})` : compiled.sql;
+    const boolean = normalizeClauseBoolean(condition.boolean);
+    fragments.push(fragments.length === 0 ? fragment : `${boolean} ${fragment}`);
+  }
 
-  return { sql: ` WHERE ${clauses.join(' AND ')}`, parameters };
+  return { sql: fragments.join(' '), parameters };
+};
+
+const compileWhere = (
+  conditions: WherePredicate[],
+  dialect?: string
+): {
+  sql: string;
+  parameters: unknown[];
+} => {
+  const compiled = compileWhereFragments(conditions, dialect);
+  return compiled.sql.length === 0
+    ? { sql: '', parameters: [] }
+    : { sql: ` WHERE ${compiled.sql}`, parameters: compiled.parameters };
 };
 
 const buildSoftDeleteWhereClause = (column: string, mode: SoftDeleteMode): WhereClause | null => {
@@ -405,7 +518,7 @@ const buildSoftDeleteWhereClause = (column: string, mode: SoftDeleteMode): Where
   return { column: col, operator: 'IS', value: null };
 };
 
-const getEffectiveWhereConditions = (state: QueryState): WhereClause[] => {
+const getEffectiveWhereConditions = (state: QueryState): WherePredicate[] => {
   if (state.softDelete === undefined) return state.whereConditions;
 
   const clause = buildSoftDeleteWhereClause(state.softDelete.column, state.softDelete.mode);
@@ -487,7 +600,9 @@ const applyWhereCondition = (
   state: QueryState,
   column: string,
   operator: string | number | boolean | null,
-  value?: unknown
+  value?: unknown,
+  boolean: 'AND' | 'OR' = 'AND',
+  extra: Partial<Pick<WhereClause, 'expression' | 'normalization'>> = {}
 ): void => {
   const col = String(column).trim();
   assertSafeIdentifierPath(col, 'where column');
@@ -507,7 +622,59 @@ const applyWhereCondition = (
     val = value;
   }
 
-  state.whereConditions.push({ column: col, operator: op, value: val });
+  state.whereConditions.push({
+    column: col,
+    operator: op,
+    value: val,
+    boolean,
+    ...extra,
+  });
+};
+
+const createPredicateState = (dialect?: string): QueryState => ({
+  tableName: '',
+  whereConditions: [],
+  selectColumns: ['*'],
+  orderByClauses: [],
+  joins: [],
+  eagerLoads: [],
+  eagerLoadConstraints: {},
+  eagerLoadCounts: [],
+  dialect,
+});
+
+const applyWhereGroup = (
+  state: QueryState,
+  callback: (builder: IQueryBuilder) => unknown,
+  boolean: 'AND' | 'OR'
+): void => {
+  const groupState = createPredicateState(state.dialect);
+  const groupBuilder = createBuilder(groupState);
+  callback(groupBuilder);
+
+  if (groupState.whereConditions.length === 0) {
+    return;
+  }
+
+  state.whereConditions.push({
+    kind: 'group',
+    boolean,
+    conditions: groupState.whereConditions,
+  });
+};
+
+const flattenWherePredicates = (conditions: WherePredicate[]): WhereClause[] => {
+  const flattened: WhereClause[] = [];
+
+  for (const condition of conditions) {
+    if (isWhereGroupClause(condition)) {
+      flattened.push(...flattenWherePredicates(condition.conditions));
+      continue;
+    }
+    flattened.push(condition);
+  }
+
+  return flattened;
 };
 
 const applyOrderByClause = (state: QueryState, column: string, direction?: string): void => {
@@ -597,7 +764,7 @@ const compileInsert = (
 const compileUpdate = (
   tableName: string,
   values: Record<string, unknown>,
-  conditions: WhereClause[],
+  conditions: WherePredicate[],
   dialect?: string
 ): { sql: string; parameters: unknown[] } => {
   const keys = Object.keys(values);
@@ -631,7 +798,7 @@ const compileUpdate = (
 
 const compileDelete = (
   tableName: string,
-  conditions: WhereClause[],
+  conditions: WherePredicate[],
   dialect?: string
 ): { sql: string; parameters: unknown[] } => {
   if (conditions.length === 0) {
@@ -741,11 +908,36 @@ function attachSelectMethods(builder: IQueryBuilder, state: QueryState): void {
 
 function attachWhereMethods(builder: IQueryBuilder, state: QueryState): void {
   builder.where = (column, operator, value) => {
-    applyWhereCondition(state, column, operator, value);
+    applyWhereCondition(state, column, operator, value, 'AND');
     return builder;
   };
   builder.andWhere = (column, operator, value) => builder.where(column, operator, value);
-  builder.orWhere = (column, operator, value) => builder.where(column, operator, value);
+  builder.orWhere = (column, operator, value) => {
+    applyWhereCondition(state, column, operator, value, 'OR');
+    return builder;
+  };
+  builder.whereGroup = (callback) => {
+    applyWhereGroup(state, callback, 'AND');
+    return builder;
+  };
+  builder.orWhereGroup = (callback) => {
+    applyWhereGroup(state, callback, 'OR');
+    return builder;
+  };
+  builder.whereNormalized = (column, value, options) => {
+    applyWhereCondition(state, column, '=', value, 'AND', {
+      expression: 'normalized-text',
+      normalization: options,
+    });
+    return builder;
+  };
+  builder.orWhereNormalized = (column, value, options) => {
+    applyWhereCondition(state, column, '=', value, 'OR', {
+      expression: 'normalized-text',
+      normalization: options,
+    });
+    return builder;
+  };
   builder.whereNull = (column) => builder.where(column, 'IS', null);
   builder.whereIn = (column, values) => {
     builder.where(column, 'IN', values);
@@ -805,7 +997,7 @@ function attachJoinOrderPagingMethods(builder: IQueryBuilder, state: QueryState)
 }
 
 function attachIntrospectionMethods(builder: IQueryBuilder, state: QueryState): void {
-  builder.getWhereClauses = () => state.whereConditions;
+  builder.getWhereClauses = () => flattenWherePredicates(state.whereConditions);
   builder.getSelectColumns = () => state.selectColumns;
   builder.getTable = () => state.tableName;
   builder.getLimit = () => state.limitValue;

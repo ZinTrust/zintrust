@@ -1,3 +1,13 @@
+# 2026-05-04
+
+- Fixed `@zintrust/d1-migrator` so imported auto-increment primary keys now stay rowid-backed on D1/SQLite targets. Source tables with a single auto-increment primary key now build as `INTEGER PRIMARY KEY AUTOINCREMENT`, schema validation fails fast if that contract is lost, imported numeric ids remain insertable during copy, and later inserts that omit the primary key once again receive a database-generated numeric id.
+
+- Added a `primaryKey` model-config shortcut for UUID-backed ORM models. `Model.define(...)` now accepts `primaryKey: { strategy: 'uuid', key?: '...' }` and automatically prepends the same framework-owned observer previously wired manually with `Model.primaryKey.uuid(...)`, while preserving any explicit model observers that follow.
+
+# 2026-05-02
+
+- Added first-class grouped and normalized lookup support to the ORM query builder. `QueryBuilder` and model wrappers now expose `whereGroup(...)` / `orWhereGroup(...)` for nested boolean scopes and `whereNormalized(...)` / `orWhereNormalized(...)` for portable `LOWER(TRIM(column)) = ?` text equality, fixing the long-standing `orWhere(...)` behavior bug that previously compiled as `AND` and removing the need for raw SQL in guest-style identifier and normalized-email lookups across SQLite and D1.
+
 # 2026-04-30
 
 - Fixed the release publish shim used by `scripts/release/publish-packages.mjs` so package builds can type-check against the current `@zintrust/core` proxy and shutdown-trace API surface during npm release. The temporary shim now exposes `ShutdownTrace` and `WorkerSigning`, which unblocks `@zintrust/workers`, `@zintrust/cloudflare-d1-proxy`, `@zintrust/cloudflare-kv-proxy`, and `@zintrust/queue-monitor` package builds during publish.

@@ -14,6 +14,7 @@ import type {
   EagerLoadConstraints,
   IQueryBuilder,
   InsertResult,
+  NormalizedTextOptions,
   PaginationOptions,
   QueryBuilderOptions,
 } from '@orm/QueryBuilder';
@@ -65,6 +66,10 @@ export interface ModelConfig {
     deleted?: (model: IModel) => void | Promise<void>;
   }>;
   connection?: string;
+  primaryKey?: {
+    key?: string;
+    strategy?: 'uuid';
+  };
 }
 
 type ModelObserver = NonNullable<ModelConfig['observers']>[number];
@@ -539,6 +544,26 @@ const ModelPrimaryKey = Object.freeze({
     createPrimaryKeyObserver({ key, whenMissing: true, generate: generateUuid }),
 });
 
+const buildPrimaryKeyObservers = (config: ModelConfig): ModelObserver[] => {
+  if (config.primaryKey?.strategy !== 'uuid') {
+    return [];
+  }
+
+  return [ModelPrimaryKey.uuid(config.primaryKey.key ?? 'id')];
+};
+
+const normalizeModelConfig = (config: ModelConfig): ModelConfig => {
+  const generatedObservers = buildPrimaryKeyObservers(config);
+  if (generatedObservers.length === 0) {
+    return config;
+  }
+
+  return {
+    ...config,
+    observers: [...generatedObservers, ...(config.observers ?? [])],
+  };
+};
+
 const persistNewModel = async (
   config: ModelConfig,
   db: IDatabase,
@@ -967,6 +992,18 @@ export type DefinedModel<T extends BoundModelMethods> = {
   ) => IQueryBuilder;
   andWhere: (column: string, operator: string, value?: unknown) => IQueryBuilder;
   orWhere: (column: string, operator: string, value?: unknown) => IQueryBuilder;
+  whereGroup: (callback: (builder: IQueryBuilder) => unknown) => IQueryBuilder;
+  orWhereGroup: (callback: (builder: IQueryBuilder) => unknown) => IQueryBuilder;
+  whereNormalized: (
+    column: string,
+    value: unknown,
+    options?: NormalizedTextOptions
+  ) => IQueryBuilder;
+  orWhereNormalized: (
+    column: string,
+    value: unknown,
+    options?: NormalizedTextOptions
+  ) => IQueryBuilder;
   whereIn: (column: string, values: unknown[]) => IQueryBuilder;
   whereNotIn: (column: string, values: unknown[]) => IQueryBuilder;
   select: (...columns: string[]) => IQueryBuilder;
@@ -1346,6 +1383,14 @@ const createQueryBuilderMethods = (
       wrappedBuilder().andWhere(column, operator, value),
     orWhere: (column: string, operator: string, value?: unknown) =>
       wrappedBuilder().orWhere(column, operator, value),
+    whereGroup: (callback: (builder: IQueryBuilder) => unknown) =>
+      wrappedBuilder().whereGroup(callback),
+    orWhereGroup: (callback: (builder: IQueryBuilder) => unknown) =>
+      wrappedBuilder().orWhereGroup(callback),
+    whereNormalized: (column: string, value: unknown, options?: NormalizedTextOptions) =>
+      wrappedBuilder().whereNormalized(column, value, options),
+    orWhereNormalized: (column: string, value: unknown, options?: NormalizedTextOptions) =>
+      wrappedBuilder().orWhereNormalized(column, value, options),
     whereIn: (column: string, values: unknown[]) => wrappedBuilder().whereIn(column, values),
     whereNotIn: (column: string, values: unknown[]) => wrappedBuilder().whereNotIn(column, values),
     select: (...columns: string[]) => wrappedBuilder().select(...columns),
@@ -1468,6 +1513,7 @@ export function define<const T extends UnboundModelMethods | BoundModelMethods =
   config: ModelConfig,
   methodsOrPlan?: T | ((model: IModel) => T)
 ): DefinedModel<T extends UnboundModelMethods ? BoundFromUnbound<T> : T> {
+  const normalizedConfig = normalizeModelConfig(config);
   const plan = typeof methodsOrPlan === 'function' ? methodsOrPlan : undefined;
   const unboundMethods = typeof methodsOrPlan === 'function' ? undefined : methodsOrPlan;
 
@@ -1481,7 +1527,7 @@ export function define<const T extends UnboundModelMethods | BoundModelMethods =
   };
 
   return createDefinedModelInternal(
-    config,
+    normalizedConfig,
     methodsOrPlan as MethodsOrPlan,
     attach,
     resolveMethods

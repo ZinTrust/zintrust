@@ -234,6 +234,39 @@ describe('Model', () => {
     expect(inserted?.['id']).toBe('already-present');
   });
 
+  it('supports primaryKey.strategy uuid config shortcuts without replacing explicit observers', async (): Promise<void> => {
+    const creatingObserver = vi.fn((model: IModel) => {
+      model.setAttribute('name', `${String(model.getAttribute('name') ?? '')}-observed`);
+    });
+
+    const TestModel = Model.define({
+      ...baseConfig,
+      fillable: [...baseConfig.fillable, 'id'],
+      casts: {},
+      timestamps: false,
+      primaryKey: {
+        strategy: 'uuid',
+      },
+      observers: [{ creating: creatingObserver }],
+    });
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+
+    const model = TestModel.make({ id: '   ', name: 'Generated' });
+    await expect(model.save()).resolves.toBe(true);
+
+    const inserted = qb.__getLastBuilder()?.insert.mock.calls.at(-1)?.[0] as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(typeof inserted?.['id']).toBe('string');
+    expect(String(inserted?.['id']).trim().length).toBeGreaterThan(0);
+    expect(inserted?.['name']).toBe('Generated-observed');
+    expect(creatingObserver).toHaveBeenCalledTimes(1);
+  });
+
   it('top-level create persists and defined new returns an unsaved model', async (): Promise<void> => {
     const config = { ...baseConfig, casts: {}, timestamps: false };
     const qb = (await import('@orm/QueryBuilder')) as unknown as {
