@@ -123,7 +123,33 @@ export const User = Model.define(
 
 ### Primary Key Generation For Model-Owned IDs
 
-If your model owns its identifier and you want ZinTrust to generate it before insert, use the built-in `Model.primaryKey` helper instead of hand-writing a `creating` observer guard.
+If your model owns its identifier and you want ZinTrust to generate it before insert, prefer the built-in `primaryKey` config shortcut. ZinTrust will synthesize the matching observer during `Model.define(...)`.
+
+```typescript
+import { Model } from '@zintrust/core';
+
+export const ApiKey = Model.define({
+  table: 'api_keys',
+  fillable: ['name', 'id'],
+  hidden: [],
+  timestamps: true,
+  casts: {},
+  primaryKey: {
+    strategy: 'uuid',
+  },
+});
+```
+
+If you need to target a different attribute name, set `primaryKey.key`.
+
+```typescript
+primaryKey: {
+  key: 'api_key_id',
+  strategy: 'uuid',
+}
+```
+
+If you want the same behavior without the config shortcut, or you need a fully custom generator, use the built-in `Model.primaryKey` helper instead of hand-writing a `creating` observer guard.
 
 ```typescript
 import { Model } from '@zintrust/core';
@@ -137,6 +163,8 @@ export const ApiKey = Model.define({
   observers: [Model.primaryKey.uuid('id')],
 });
 ```
+
+The generated primary-key observer is prepended ahead of any explicit `observers`, so your own lifecycle hooks still run normally.
 
 The built-in helper treats these values as missing before insert:
 

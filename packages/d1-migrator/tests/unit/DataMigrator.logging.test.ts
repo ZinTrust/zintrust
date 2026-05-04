@@ -95,6 +95,7 @@ vi.mock('../../src/cli/SchemaAnalyzer', () => ({
 vi.mock('../../src/schema/SchemaBuilder', () => ({
   SchemaBuilder: {
     buildD1Schema: (...args: unknown[]) => buildD1SchemaMock(...args),
+    assertValidSchema: vi.fn(),
     generateCreateTableSQL: vi.fn(),
     generateIndexSQL: vi.fn(() => []),
   },

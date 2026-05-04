@@ -66,6 +66,10 @@ export interface ModelConfig {
     deleted?: (model: IModel) => void | Promise<void>;
   }>;
   connection?: string;
+  primaryKey?: {
+    key?: string;
+    strategy?: 'uuid';
+  };
 }
 
 type ModelObserver = NonNullable<ModelConfig['observers']>[number];
@@ -539,6 +543,26 @@ const ModelPrimaryKey = Object.freeze({
   uuid: (key: string = 'id'): ModelObserver =>
     createPrimaryKeyObserver({ key, whenMissing: true, generate: generateUuid }),
 });
+
+const buildPrimaryKeyObservers = (config: ModelConfig): ModelObserver[] => {
+  if (config.primaryKey?.strategy !== 'uuid') {
+    return [];
+  }
+
+  return [ModelPrimaryKey.uuid(config.primaryKey.key ?? 'id')];
+};
+
+const normalizeModelConfig = (config: ModelConfig): ModelConfig => {
+  const generatedObservers = buildPrimaryKeyObservers(config);
+  if (generatedObservers.length === 0) {
+    return config;
+  }
+
+  return {
+    ...config,
+    observers: [...generatedObservers, ...(config.observers ?? [])],
+  };
+};
 
 const persistNewModel = async (
   config: ModelConfig,
@@ -1489,6 +1513,7 @@ export function define<const T extends UnboundModelMethods | BoundModelMethods =
   config: ModelConfig,
   methodsOrPlan?: T | ((model: IModel) => T)
 ): DefinedModel<T extends UnboundModelMethods ? BoundFromUnbound<T> : T> {
+  const normalizedConfig = normalizeModelConfig(config);
   const plan = typeof methodsOrPlan === 'function' ? methodsOrPlan : undefined;
   const unboundMethods = typeof methodsOrPlan === 'function' ? undefined : methodsOrPlan;
 
@@ -1502,7 +1527,7 @@ export function define<const T extends UnboundModelMethods | BoundModelMethods =
   };
 
   return createDefinedModelInternal(
-    config,
+    normalizedConfig,
     methodsOrPlan as MethodsOrPlan,
     attach,
     resolveMethods

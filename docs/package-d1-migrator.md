@@ -9,6 +9,8 @@ The `@zintrust/d1-migrator` package provides a dedicated CLI workflow for migrat
 
 It supports resumable migrations, schema analysis, data validation, and batch-based transfer for MySQL, PostgreSQL, SQLite, and SQL Server sources.
 
+For single-column auto-increment primary keys, the migrator preserves the database-owned id allocation contract on D1 by emitting `INTEGER PRIMARY KEY AUTOINCREMENT` instead of degrading the column into a non-rowid primary key shape.
+
 ## Installation
 
 ```bash
@@ -27,6 +29,7 @@ zin migrate-to-d1 --help
 - Target support for local D1 and remote D1 workflows
 - Checkpoint-based resume support for interrupted migrations
 - Schema compatibility checks before migration
+- Rowid-backed preservation for imported auto-increment primary keys
 - Dry-run mode for validation before execution
 - Batch and checkpoint tuning for large datasets
 

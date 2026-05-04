@@ -350,6 +350,7 @@ export const DataMigrator = Object.freeze({
     });
 
     const d1Schema = SchemaBuilder.buildD1Schema(sourceSchema.tables, config.sourceDriver);
+    SchemaBuilder.assertValidSchema(d1Schema);
 
     for (const table of d1Schema) {
       const createSQL = SchemaBuilder.generateCreateTableSQL(table).replace(
