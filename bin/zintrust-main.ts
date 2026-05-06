@@ -7,6 +7,7 @@
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,6 +23,7 @@ type LoggerLike = {
 };
 
 const CLI_HANDOFF_ENV_KEY = 'ZINTRUST_CLI_HANDOFF';
+const require = createRequire(import.meta.url);
 
 const loadLogger = async (): Promise<LoggerLike | undefined> => {
   try {
@@ -139,7 +141,11 @@ const handoffToProjectLocalCli = async (
   target: ProjectLocalCliTarget,
   rawArgs: string[]
 ): Promise<never> => {
-  const child = spawn(process.execPath, [target.binPath, ...rawArgs], {
+  const childArgs = target.binPath.endsWith('.ts')
+    ? ['--import', require.resolve('tsx'), target.binPath, ...rawArgs]
+    : [target.binPath, ...rawArgs];
+
+  const child = spawn(process.execPath, childArgs, {
     stdio: 'inherit',
     env: {
       ...process.env,

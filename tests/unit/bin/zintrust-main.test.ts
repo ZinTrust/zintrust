@@ -337,4 +337,51 @@ describe('zintrust-main local CLI handoff helpers', () => {
     cwdSpy.mockRestore();
     exitSpy.mockRestore();
   });
+
+  it('runs project-local TypeScript CLI handoff targets through tsx', async () => {
+    vi.resetModules();
+
+    const fixture = createLocalCliFixture();
+    const tsBinPath = join(fixture.packageRoot, 'bin', 'zin.ts');
+    writeFileSync(tsBinPath, 'console.log("fixture ts");\n');
+    rmSync(join(fixture.packageRoot, 'bin', 'zin.js'));
+
+    const child = new EventEmitter() as EventEmitter & {
+      kill: ReturnType<typeof vi.fn>;
+      once: EventEmitter['once'];
+    };
+    child.kill = vi.fn(() => true);
+
+    const spawnMock = vi.fn(() => child);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((
+      code?: string | number | null
+    ) => {
+      throw new Error(`EXIT:${String(code)}`);
+    }) as never);
+
+    vi.doMock('node:child_process', () => ({
+      spawn: spawnMock,
+    }));
+
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fixture.workDir);
+    const { CliLauncherInternal } = await import('../../../bin/zintrust-main');
+    const pending = CliLauncherInternal.maybeHandoffToProjectLocalCli(['s']);
+    await Promise.resolve();
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      process.execPath,
+      ['--import', require.resolve('tsx'), tsBinPath, 's'],
+      expect.objectContaining({
+        stdio: 'inherit',
+        env: expect.objectContaining({ ZINTRUST_CLI_HANDOFF: '1' }),
+      })
+    );
+
+    child.emit('close', 0, null);
+
+    await expect(pending).rejects.toThrow('EXIT:0');
+
+    cwdSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
 });
