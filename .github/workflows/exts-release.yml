@@ -1,0 +1,43 @@
+name: VS Code Extensions Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - exts-v*
+
+permissions:
+  contents: read
+
+concurrency:
+  group: exts-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package_extensions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: exts/package-lock.json
+
+      - name: Install extension workspace dependencies
+        run: npm --prefix exts ci --ignore-scripts
+
+      - name: Package VSIX artifacts
+        run: npm --prefix exts run release:artifacts
+
+      - name: Upload VSIX artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zintrust-vsix-${{ github.run_number }}
+          path: exts/.artifacts/vsix/*.vsix
+          if-no-files-found: error

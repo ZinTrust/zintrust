@@ -1,0 +1,47 @@
+{
+  "name": "zintrust-upgrade-assistant",
+  "displayName": "ZinTrust Upgrade Assistant",
+  "description": "Upgrade planning, config drift detection, and migration guidance for ZinTrust projects.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-upgrade-assistant"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "zintrustUpgrade.checkProject",
+        "title": "ZinTrust Upgrade: Check Project"
+      },
+      {
+        "command": "zintrustUpgrade.previewUpgrade",
+        "title": "ZinTrust Upgrade: Preview Upgrade"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-upgrade-assistant",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  }
+}

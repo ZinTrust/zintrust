@@ -1,0 +1,78 @@
+{
+  "name": "zintrust-core",
+  "displayName": "ZinTrust Core",
+  "description": "Core VS Code commands, project detection, scaffolding entrypoints, and QA shortcuts for ZinTrust projects.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-core"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "zintrustExplorer",
+          "name": "ZinTrust"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "zintrustCore.openDashboard",
+          "when": "view == zintrustExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "zintrustCore.runQa",
+          "when": "view == zintrustExplorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "zintrustCore.createResource",
+          "when": "view == zintrustExplorer",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "zintrustCore.openDashboard",
+        "title": "ZinTrust: Open Project Dashboard"
+      },
+      {
+        "command": "zintrustCore.runQa",
+        "title": "ZinTrust: Run QA"
+      },
+      {
+        "command": "zintrustCore.createResource",
+        "title": "ZinTrust: Create Resource"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-core",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "zintrust-trace-runtime-debugger",
+  "displayName": "ZinTrust Trace + Runtime Debugger",
+  "description": "Trace, plugin, and runtime diagnostic tooling for ZinTrust projects.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-trace-runtime-debugger"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Debuggers",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "zintrustTrace.openViewer",
+        "title": "ZinTrust Trace: Open Viewer"
+      },
+      {
+        "command": "zintrustTrace.checkRuntime",
+        "title": "ZinTrust Trace: Check Runtime"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-trace-runtime-debugger",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  }
+}

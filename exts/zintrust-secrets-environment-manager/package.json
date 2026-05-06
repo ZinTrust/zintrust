@@ -1,0 +1,47 @@
+{
+  "name": "zintrust-secrets-environment-manager",
+  "displayName": "ZinTrust Secrets + Environment Manager",
+  "description": "Environment, secret, and key management helpers for ZinTrust projects.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-secrets-environment-manager"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "zintrustSecrets.checkEnv",
+        "title": "ZinTrust Secrets: Check Environment"
+      },
+      {
+        "command": "zintrustSecrets.generateKey",
+        "title": "ZinTrust Secrets: Generate Key"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-secrets-environment-manager",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  }
+}

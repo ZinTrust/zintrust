@@ -1,0 +1,47 @@
+{
+  "name": "zintrust-routes-explorer",
+  "displayName": "ZinTrust Routes Explorer",
+  "description": "Route tree, route metadata, and source navigation tools for ZinTrust projects.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-routes-explorer"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "zintrustRoutes.refresh",
+        "title": "ZinTrust Routes: Refresh"
+      },
+      {
+        "command": "zintrustRoutes.exportSummary",
+        "title": "ZinTrust Routes: Export Summary"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-routes-explorer",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  }
+}

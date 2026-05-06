@@ -1,0 +1,47 @@
+{
+  "name": "zintrust-docs-recipes",
+  "displayName": "ZinTrust Docs + Recipes",
+  "description": "In-editor ZinTrust documentation, recipes, and context-aware snippets.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-docs-recipes"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "zintrustDocs.search",
+        "title": "ZinTrust Docs: Search"
+      },
+      {
+        "command": "zintrustDocs.openRecipes",
+        "title": "ZinTrust Docs: Open Recipes"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-docs-recipes",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  }
+}

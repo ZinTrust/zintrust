@@ -1,0 +1,45 @@
+{
+  "name": "zintrust-developer-pack",
+  "displayName": "ZinTrust Developer Pack",
+  "description": "Extension pack for the complete ZinTrust VS Code developer tooling suite.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-developer-pack"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Extension Packs"
+  ],
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "scripts": {
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-developer-pack",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  },
+  "extensionPack": [
+    "zintrust.zintrust-core",
+    "zintrust.zintrust-routes-explorer",
+    "zintrust.zintrust-orm-migrations-studio",
+    "zintrust.zintrust-workers-queue-console",
+    "zintrust.zintrust-trace-runtime-debugger",
+    "zintrust.zintrust-cloudflare-toolkit",
+    "zintrust.zintrust-secrets-environment-manager",
+    "zintrust.zintrust-notifications-templates-studio",
+    "zintrust.zintrust-adapter-installer",
+    "zintrust.zintrust-project-doctor",
+    "zintrust.zintrust-upgrade-assistant",
+    "zintrust.zintrust-docs-recipes"
+  ]
+}
