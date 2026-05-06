@@ -5,7 +5,7 @@
  * Mirrors bin/zintrust.ts for convenience
  */
 
-const importCliWrapper = async (): Promise<any> => {
+const importCliWrapperZin = async (): Promise<any> => {
   try {
     return await import(new URL('./launcher.ts', import.meta.url).href);
   } catch (error) {
@@ -20,6 +20,6 @@ const importCliWrapper = async (): Promise<any> => {
   }
 };
 
-const { runCliWrapper } = await importCliWrapper();
+const { runCliWrapper } = await importCliWrapperZin();
 
-await runCliWrapper({ traceName: 'cli-wrapper' });
+await runCliWrapper();

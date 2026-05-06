@@ -8,7 +8,7 @@
  * shortcuts (zin/z/zt) to reuse the same launcher behavior.
  */
 
-const importCliWrapper = async (): Promise<any> => {
+const importCliWrapperZintrust = async (): Promise<any> => {
   try {
     return await import(new URL('./launcher.ts', import.meta.url).href);
   } catch (error) {
@@ -23,6 +23,6 @@ const importCliWrapper = async (): Promise<any> => {
   }
 };
 
-const { runCliWrapper } = await importCliWrapper();
+const { runCliWrapper } = await importCliWrapperZintrust();
 
 await runCliWrapper();
