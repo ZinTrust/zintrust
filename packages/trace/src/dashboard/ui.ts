@@ -227,6 +227,11 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       .replace(/'/g, '&#39;');
 
     const looksLikeHtml = (value) => new RegExp('</?(?:html|body|div|table)\\b|<!doctype\\b', 'i').test(String(value || ''));
+      const looksLikeFlattenedHtml = (value) => {
+        const source = String(value || '');
+        if (source.trim() === '' || looksLikeHtml(source)) return false;
+        return /(\n|^)\s*(?:body|table|td|div)\s*\{|(\n|^)\s*\.[a-z][\w-]*\s*\{|(\n|^)\s*@media\b/i.test(source);
+      };
 
     const api = async (path, opts) => {
       const response = await fetch(API + path, opts);
@@ -509,7 +514,9 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       if (typeof value === 'string') {
         return looksLikeHtml(value)
           ? renderHtmlPreview(label, value, { collapseSource: true })
-          : renderTextCard(label, value);
+          : ((/html/i.test(label) && looksLikeFlattenedHtml(value))
+            ? '<p class="trace-note">HTML preview unavailable. The captured payload is plain text, so markup was stripped before trace capture.</p>'
+            : '') + renderTextCard(label, value);
       }
       return detailJson(value, label);
     };

@@ -1,3 +1,9 @@
+# 2026-05-06
+
+- Isolated the CLI npm-registry version check from the live service process. `VersionChecker.runVersionCheck()` now only launches a detached child process, and [bin/zintrust-main.ts](/opt/homebrew/var/www/Sites/zintrust/bin/zintrust-main.ts) short-circuits that child into a version-check-only path, so `zin s` and other traffic-serving commands no longer share request-handling runtime state with the update lookup.
+
+- Fixed the source CLI wrapper entrypoints so `zin`, `z`, `zt`, and `zintrust` can resolve the shared launcher again under Node 22 without enabling TypeScript extension imports. The bin shims now dynamically import [bin/launcher.ts](/opt/homebrew/var/www/Sites/zintrust/bin/launcher.ts), and [bin/zintrust-main.ts](/opt/homebrew/var/www/Sites/zintrust/bin/zintrust-main.ts) was split slightly to stay within the repository complexity limit while preserving both `zin s` and `zin s --wg` startup behavior.
+
 # 2026-05-04
 
 - Fixed `@zintrust/d1-migrator` so imported auto-increment primary keys now stay rowid-backed on D1/SQLite targets. Source tables with a single auto-increment primary key now build as `INTEGER PRIMARY KEY AUTOINCREMENT`, schema validation fails fast if that contract is lost, imported numeric ids remain insertable during copy, and later inserts that omit the primary key once again receive a database-generated numeric id.

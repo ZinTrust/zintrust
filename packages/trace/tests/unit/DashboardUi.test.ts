@@ -10,6 +10,9 @@ describe('buildDashboardHtml', () => {
       '.code-block.wrap{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}'
     );
     expect(html).toContain('View raw HTML source');
+    expect(html).toContain(
+      'HTML preview unavailable. The captured payload is plain text, so markup was stripped before trace capture.'
+    );
     expect(html.indexOf('html-preview-wrap')).toBeLessThan(html.indexOf('View raw HTML source'));
   });
 
