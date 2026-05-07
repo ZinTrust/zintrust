@@ -3,6 +3,12 @@ import * as vscode from 'vscode';
 const EXTENSION_NAME = 'ZinTrust Core';
 const TERMINAL_NAME = 'ZinTrust';
 const TREE_VIEW_ID = 'zintrustExplorer';
+const HELPER_IMPORT_SOURCE = '@helper/index';
+
+type HelperCompletion = {
+  readonly label: string;
+  readonly detail: string;
+};
 
 type ResourceType = {
   label: string;
@@ -36,6 +42,28 @@ type ExplorerNode =
     };
 
 let dashboardPanel: vscode.WebviewPanel | undefined;
+
+const helperCompletions = Object.freeze<readonly HelperCompletion[]>([
+  { label: 'isArray', detail: 'Check whether a value is an array.' },
+  { label: 'isBoolean', detail: 'Check whether a value is a boolean or boolean-like string.' },
+  { label: 'isDate', detail: 'Check whether a value is a valid Date object.' },
+  { label: 'isDefined', detail: 'Check whether a value is neither null nor undefined.' },
+  { label: 'isEmpty', detail: 'Legacy empty-value helper.' },
+  { label: 'isFloat', detail: 'Check whether a value is a float or float-like string.' },
+  { label: 'isFunction', detail: 'Check whether a value is a function.' },
+  { label: 'isInt', detail: 'Check whether a value is an integer or integer-like string.' },
+  { label: 'isMissingLike', detail: 'Broad compatibility helper for missing-like values.' },
+  { label: 'isNonEmptyString', detail: 'Check whether a value is a non-empty string.' },
+  {
+    label: 'isNull',
+    detail: 'Legacy null-like check including the string "null" and empty string.',
+  },
+  { label: 'isNullish', detail: 'Strict null-or-undefined check with TS narrowing.' },
+  { label: 'isObject', detail: 'Check whether a value is a plain object.' },
+  { label: 'isString', detail: 'Check whether a value is a string primitive.' },
+  { label: 'isUndefinedOrNull', detail: 'Legacy null-like compatibility helper.' },
+  { label: 'isUUID', detail: 'Check whether a value is a UUID string.' },
+]);
 
 const projectActions = Object.freeze<readonly DashboardAction[]>([
   {
@@ -168,10 +196,20 @@ export function activate(context: vscode.ExtensionContext): void {
         await openFirstExistingFile(workspaceFolder, action.relativePaths);
       })
     );
+  const completionProvider = vscode.languages.registerCompletionItemProvider(
+    [
+      { language: 'typescript', scheme: 'file' },
+      { language: 'typescriptreact', scheme: 'file' },
+      { language: 'javascript', scheme: 'file' },
+      { language: 'javascriptreact', scheme: 'file' },
+    ],
+    createHelperCompletionProvider()
+  );
 
   context.subscriptions.push(
     treeView,
     statusBarItem,
+    completionProvider,
     ...fileActions,
     vscode.commands.registerCommand('zintrustCore.openDashboard', async () => {
       const workspaceFolder = getWorkspaceFolder();
@@ -221,7 +259,6 @@ async function runQa(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
       { label: 'Lint', command: 'npm run lint' },
       { label: 'Type Check', command: 'npm run type-check' },
       { label: 'Test', command: 'npm test' },
-      { label: 'Coverage Patch', command: 'npm run coverage:patch' },
     ],
     {
       placeHolder: 'Select the QA command to run',
@@ -323,6 +360,108 @@ function createExplorerTreeProvider(): vscode.TreeDataProvider<ExplorerNode> {
       return node.group.items.map((action) => ({ kind: 'action', action }));
     },
   };
+}
+
+function createHelperCompletionProvider(): vscode.CompletionItemProvider {
+  return {
+    provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
+      const linePrefix = document.lineAt(position).text.slice(0, position.character);
+      const candidate = readCompletionCandidate(linePrefix);
+      if (!candidate) {
+        return undefined;
+      }
+
+      return helperCompletions
+        .filter((entry) => entry.label.startsWith(candidate))
+        .map((entry) => createHelperCompletionItem(document, position, candidate, entry));
+    },
+  };
+}
+
+function createHelperCompletionItem(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  candidate: string,
+  entry: HelperCompletion
+): vscode.CompletionItem {
+  const item = new vscode.CompletionItem(entry.label, vscode.CompletionItemKind.Function);
+  const replacementStart = position.translate(0, -candidate.length);
+  item.range = new vscode.Range(replacementStart, position);
+  item.insertText = `${entry.label}()`;
+  item.detail = `${entry.label} from ${HELPER_IMPORT_SOURCE}`;
+  item.documentation = new vscode.MarkdownString(entry.detail);
+  item.sortText = `0-${entry.label}`;
+  item.additionalTextEdits = buildHelperImportEdit(document, entry.label);
+  item.command = {
+    command: 'editor.action.triggerParameterHints',
+    title: 'Trigger parameter hints',
+  };
+  return item;
+}
+
+function buildHelperImportEdit(
+  document: vscode.TextDocument,
+  helperName: string
+): vscode.TextEdit[] {
+  const sourceText = document.getText();
+  const existingImportPattern = /import\s*\{([^}]+)\}\s*from\s*['"]@helper\/index['"];?/;
+  const existingImport = existingImportPattern.exec(sourceText);
+
+  if (existingImport) {
+    const importedNames = existingImport[1]
+      .split(',')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    if (importedNames.includes(helperName)) {
+      return [];
+    }
+
+    const mergedNames = [...importedNames, helperName].sort((left, right) =>
+      left.localeCompare(right)
+    );
+    const importStart = document.positionAt(existingImport.index ?? 0);
+    const importEnd = document.positionAt((existingImport.index ?? 0) + existingImport[0].length);
+    return [
+      vscode.TextEdit.replace(
+        new vscode.Range(importStart, importEnd),
+        `import { ${mergedNames.join(', ')} } from '${HELPER_IMPORT_SOURCE}';`
+      ),
+    ];
+  }
+
+  const insertLine = findImportInsertLine(document);
+  const insertPosition = new vscode.Position(insertLine, 0);
+  return [
+    vscode.TextEdit.insert(
+      insertPosition,
+      `import { ${helperName} } from '${HELPER_IMPORT_SOURCE}';\n`
+    ),
+  ];
+}
+
+function findImportInsertLine(document: vscode.TextDocument): number {
+  for (let index = 0; index < document.lineCount; index += 1) {
+    const text = document.lineAt(index).text.trim();
+    if (!text) {
+      continue;
+    }
+
+    if (!text.startsWith('import ')) {
+      return index;
+    }
+  }
+
+  return 0;
+}
+
+function readCompletionCandidate(linePrefix: string): string | undefined {
+  const candidatePattern = /(?:^|[^\w])(is\w*)$/;
+  const candidate = candidatePattern.exec(linePrefix)?.[1];
+  if (!candidate || candidate.length < 2) {
+    return undefined;
+  }
+
+  return candidate;
 }
 
 function openDashboardPanel(workspaceFolder: vscode.WorkspaceFolder): void {

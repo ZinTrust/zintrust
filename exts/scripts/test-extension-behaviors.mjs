@@ -19,6 +19,7 @@ const behaviorChecks = {
   },
   'zintrust-core': async () => {
     harness.loadExtension('zintrust-core');
+    const provider = harness.sideEffects.completionProviders[0]?.provider;
     assert.ok(
       harness.sideEffects.treeViews.some((view) => view.viewId === 'zintrustExplorer'),
       'zintrust-core should create the explorer view.'
@@ -29,6 +30,12 @@ const behaviorChecks = {
       ),
       'zintrust-core should show a dashboard status bar item.'
     );
+    assert.equal(
+      harness.sideEffects.completionProviders.length,
+      1,
+      'zintrust-core should register one helper completion provider.'
+    );
+    assert.ok(provider, 'zintrust-core should expose the registered completion provider.');
 
     harness.resetSideEffects();
     await harness.registeredCommands.get('zintrustCore.openDashboard')();
@@ -36,6 +43,22 @@ const behaviorChecks = {
     assert.match(harness.sideEffects.webviewPanels[0].html, /ZinTrust Project Dashboard/);
     assert.match(harness.sideEffects.webviewPanels[0].html, /command:zintrustCore.runQa/);
     assert.match(harness.sideEffects.webviewPanels[0].html, /command:zintrustCore.createResource/);
+
+    const completions = provider.provideCompletionItems(
+      createDocument('const value = isNu', 'const value = isNu'.length),
+      createPosition(0, 'const value = isNu'.length)
+    );
+    assert.ok(Array.isArray(completions), 'Completion provider should return an array.');
+    const isNullCompletion = completions.find((item) => item.label === 'isNull');
+    assert.ok(isNullCompletion, 'Completion provider should suggest isNull.');
+    assert.match(isNullCompletion.detail, /@helper\/index/);
+    assert.ok(Array.isArray(isNullCompletion.additionalTextEdits));
+    assert.ok(
+      isNullCompletion.additionalTextEdits.some((edit) =>
+        edit.newText.includes("import { isNull } from '@helper/index';")
+      ),
+      'Completion should add the helper import when missing.'
+    );
   },
   'zintrust-developer-pack': async () => {
     const manifest = harness.readManifest('zintrust-developer-pack');
@@ -138,4 +161,29 @@ function assertWrittenFile(fileName) {
     harness.sideEffects.writtenFiles.includes(expectedPath),
     `Expected ${fileName} to be written to the workspace report folder.`
   );
+}
+
+function createDocument(lineText, position) {
+  return {
+    getText() {
+      return lineText;
+    },
+    lineAt() {
+      return { text: lineText };
+    },
+    positionAt(offset) {
+      return { line: 0, character: offset };
+    },
+    lineCount: 1,
+  };
+}
+
+function createPosition(line, character) {
+  return {
+    line,
+    character,
+    translate(lineDelta, characterDelta) {
+      return createPosition(line + lineDelta, character + characterDelta);
+    },
+  };
 }

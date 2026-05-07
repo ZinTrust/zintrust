@@ -51,6 +51,13 @@
         }
       ]
     },
+    "configurationDefaults": {
+      "editor.quickSuggestions": {
+        "other": true,
+        "comments": false,
+        "strings": false
+      }
+    },
     "commands": [
       {
         "command": "zintrustCore.openDashboard",

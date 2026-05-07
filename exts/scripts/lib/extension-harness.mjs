@@ -75,8 +75,16 @@ export function createHarness() {
 function createMockVscode({ registeredCommands, sideEffects, workspaceFolder }) {
   return {
     EventEmitter,
+    CompletionItem,
+    CompletionItemKind: {
+      Function: 3,
+    },
+    MarkdownString,
+    Position,
     RelativePattern,
+    Range,
     ThemeIcon,
+    TextEdit,
     TreeItem,
     TreeItemCollapsibleState: {
       None: 0,
@@ -93,6 +101,12 @@ function createMockVscode({ registeredCommands, sideEffects, workspaceFolder }) 
     Uri: {
       joinPath(baseUri, ...segments) {
         return createUri(path.join(baseUri.fsPath, ...segments));
+      },
+    },
+    languages: {
+      registerCompletionItemProvider(selector, provider) {
+        sideEffects.completionProviders.push({ selector, provider });
+        return { dispose() {} };
       },
     },
     commands: {
@@ -300,6 +314,7 @@ function createUri(fsPath) {
 
 function createSideEffects() {
   return {
+    completionProviders: [],
     executedCommands: [],
     messages: [],
     openedDocuments: [],
@@ -313,6 +328,7 @@ function createSideEffects() {
 }
 
 function resetSideEffects(sideEffects) {
+  sideEffects.completionProviders.length = 0;
   sideEffects.executedCommands.length = 0;
   sideEffects.messages.length = 0;
   sideEffects.openedDocuments.length = 0;
@@ -323,6 +339,38 @@ function resetSideEffects(sideEffects) {
   sideEffects.webviewPanels.length = 0;
   sideEffects.writtenFiles.length = 0;
 }
+
+function CompletionItem(label, kind) {
+  this.label = label;
+  this.kind = kind;
+}
+
+function MarkdownString(value) {
+  this.value = value;
+}
+
+function Position(line, character) {
+  this.line = line;
+  this.character = character;
+}
+
+Position.prototype.translate = function translate(lineDelta, characterDelta) {
+  return new Position(this.line + lineDelta, this.character + characterDelta);
+};
+
+function Range(start, end) {
+  this.start = start;
+  this.end = end;
+}
+
+const TextEdit = {
+  insert(position, newText) {
+    return { range: new Range(position, position), newText };
+  },
+  replace(range, newText) {
+    return { range, newText };
+  },
+};
 
 function readManifest(extensionDir) {
   const manifestPath = path.join(workspaceRoot, extensionDir, 'package.json');

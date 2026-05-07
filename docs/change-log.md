@@ -1,5 +1,9 @@
 # 2026-05-06
 
+- Refined the ZinTrust core VS Code extension so its QA picker no longer advertises the repo-specific `coverage:patch` npm script as a generic developer action, and added helper-aware autocomplete for common `@helper/index` imports such as `isNull`, `isObject`, `isMissingLike`, and related core helper utilities.
+
+- Excluded the VS Code extension workspace under [exts](/opt/homebrew/var/www/Sites/zintrust/exts) from the repository root TypeScript, ESLint, and Sonar analysis surfaces so root framework quality gates stay focused on the main runtime codebase while the extension workspace continues to use its own local validation flow.
+
 - Turned [exts/zintrust-core](/opt/homebrew/var/www/Sites/zintrust/exts/zintrust-core) into the discoverability hub for the VS Code suite. It now contributes a dedicated ZinTrust Explorer view in the built-in Explorer sidebar, shows a status bar launcher, and opens a real dashboard webview that links directly to common project files and the core QA and scaffolding commands.
 
 - Added focused per-extension behavior coverage and release-readiness validation to the extension workspace. [exts/scripts/test-extension-behaviors.mjs](/opt/homebrew/var/www/Sites/zintrust/exts/scripts/test-extension-behaviors.mjs) now checks extension-specific outcomes such as webview rendering, sidebar/status bar setup, report generation, markdown preview triggers, and terminal command wiring, while [exts/scripts/validate-release-metadata.mjs](/opt/homebrew/var/www/Sites/zintrust/exts/scripts/validate-release-metadata.mjs) verifies marketplace metadata and workflow wiring.

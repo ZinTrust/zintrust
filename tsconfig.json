@@ -139,6 +139,8 @@
     "dist",
     "build",
     "coverage",
+    "exts",
+    "exts/**",
     "tests/cli/test-factories-*",
     ".next",
     ".git",
@@ -150,6 +152,7 @@
     "wrangler.jsonc",
     "dev",
     "simulate",
+    "exts/.artifacts",
     "test-project",
     "processors"
   ]

@@ -46,6 +46,7 @@ export default defineConfig(
       '**/dist/**',
       'build/**',
       'coverage/**',
+      'exts/**',
       '.next/**',
       '.git/**',
       '.vscode/**',
