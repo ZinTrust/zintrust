@@ -57,7 +57,7 @@ export function incrementReleaseMinor(version) {
 
 export function incrementReleasePatch(version) {
   const nextPatch = version.patch + 1;
-  if (nextPatch > 99) {
+  if (nextPatch > 9) {
     return incrementReleaseMinor(version);
   }
 

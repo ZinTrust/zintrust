@@ -6,7 +6,7 @@
 // - feat -> minor
 // - breaking -> major
 // - custom carry rules apply to release numbers:
-//   - patch releases roll over at x.y.99 -> x.(y+1).0
+//   - patch releases roll over at x.y.9 -> x.(y+1).0
 //   - minor releases roll over at x.9.z -> (x+1).0.0
 //
 // Designed for release -> master flow:
@@ -21,6 +21,7 @@
 
 import { execSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
+import { detectBump, parseCommitMessagesFromGitLogOutput } from './bump-version-utils.mjs';
 
 const APPLY = process.argv.includes('--apply');
 
@@ -60,66 +61,9 @@ function run(cmd) {
 }
 
 function getCommitMessages(range) {
-  // %B = raw body (subject + body)
-  const out = run(`git log --no-merges --format=%B ${range}`);
-  if (!out) return [];
-  return out
-    .split('\n\n')
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function isReleaseCommit(message) {
-  return message.startsWith('chore(release):');
-}
-
-function detectCommitBump(message) {
-  const lower = message.toLowerCase();
-
-  // BREAKING CHANGE footer/body
-  if (lower.includes('breaking change') || lower.includes('breaking-change')) {
-    return 'major';
-  }
-
-  const firstLine = message.split('\n')[0] ?? '';
-  // Conventional commit header: type(scope)!: subject
-  if (/^[a-z]+(\([^)]+\))?!:/.test(firstLine)) {
-    return 'major';
-  }
-
-  if (/^feat(\([^)]+\))?:/.test(firstLine)) {
-    return 'minor';
-  }
-
-  if (/^fix(\([^)]+\))?:/.test(firstLine)) {
-    return 'patch';
-  }
-
-  return 'none';
-}
-
-function detectBump(messages, strategy) {
-  let bump = 'none';
-
-  const mark = (next) => {
-    if (next === 'major') bump = 'major';
-    else if (next === 'minor' && bump !== 'major') bump = 'minor';
-    else if (next === 'patch' && bump === 'none') bump = 'patch';
-  };
-
-  for (const msg of messages) {
-    if (isReleaseCommit(msg)) continue;
-    const next = detectCommitBump(msg);
-    if (next === 'none') continue;
-
-    if (strategy === 'patch-only') {
-      return 'patch';
-    }
-
-    mark(next);
-  }
-
-  return bump;
+  // %H%x1f%B%x1e = commit hash + raw body per commit with explicit separators.
+  const out = run(`git log --no-merges --format=%H%x1f%B%x1e ${range}`);
+  return parseCommitMessagesFromGitLogOutput(out);
 }
 
 function parseSemver(version) {
@@ -160,7 +104,7 @@ function incrementMinor(parsedVersion) {
 
 function incrementPatch(parsedVersion) {
   const nextPatch = parsedVersion.patch + 1;
-  if (nextPatch > 99) {
+  if (nextPatch > 9) {
     return incrementMinor(parsedVersion);
   }
 

@@ -194,7 +194,10 @@ const appConfig = readRuntimeConfig('appConfig', {
 // exported solely for tests to exercise the default detectRuntime handler
 
 const cacheConfig = readRuntimeConfig('cacheConfig', RuntimeConfig.cacheConfig);
-const storageConfig = readRuntimeConfig('storageConfig', RuntimeConfig.storageConfig);
+
+const getStorageConfig = (): typeof RuntimeConfig.storageConfig => {
+  return readRuntimeConfig('storageConfig', RuntimeConfig.storageConfig);
+};
 
 const getDatabaseConfig = (): typeof liveDatabaseConfig => {
   return readRuntimeConfig('databaseConfig', liveDatabaseConfig);
@@ -223,7 +226,7 @@ const registerFromRuntimeConfig = async (): Promise<void> => {
     drivers: broadcastConfig.drivers,
   });
 
-  registerDisksFromRuntimeConfig(storageConfig);
+  registerDisksFromRuntimeConfig(getStorageConfig());
   registerNotificationChannelsFromRuntimeConfig({
     default: notificationConfig.default,
     drivers: notificationConfig.drivers,

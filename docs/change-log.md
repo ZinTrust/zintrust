@@ -1,3 +1,11 @@
+# 2026-05-08
+
+- Fixed Workers-backed R2 storage registration and standard object operations in core. Runtime boot now reads `storageConfig` lazily before disk registration, the R2 disk normalizer preserves the configured Workers `binding`, and [src/tools/storage/drivers/R2.ts](/opt/homebrew/var/www/Sites/zintrust/src/tools/storage/drivers/R2.ts) now uses Workers bucket bindings directly for `put/get/exists/delete` while keeping multipart support checks scoped to multipart-only methods.
+
+- Fixed the automated release bump parser so it no longer treats blank-line-separated paragraphs inside one commit body as separate pseudo-commits. [scripts/ci/bump-version.js](/opt/homebrew/var/www/Sites/zintrust/scripts/ci/bump-version.js) now reads `git log` entries with explicit record separators, which stops `feat(...)` text embedded inside a `chore:` commit body from falsely triggering repeated minor version bumps such as `1.8.2 -> 1.9.0 -> 2.0.0 -> 2.1.0` across multiple workflow runs.
+
+- Tightened the custom release carry rule from two-digit patch segments to single-digit patch segments. ZinTrust release helpers now roll `x.y.9 -> x.(y+1).0`, so examples like `1.8.9 -> 1.9.0` and `1.9.9 -> 2.0.0` now match the intended versioning scheme instead of waiting for `x.y.99`.
+
 # 2026-05-06
 
 - Refined the ZinTrust core VS Code extension so its QA picker no longer advertises the repo-specific `coverage:patch` npm script as a generic developer action, and added helper-aware autocomplete for common `@helper/index` imports such as `isNull`, `isObject`, `isMissingLike`, and related core helper utilities.
