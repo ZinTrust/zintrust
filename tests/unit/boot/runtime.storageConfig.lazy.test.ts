@@ -4,6 +4,24 @@ const mockRuntimeDatabaseModule = (): void => {
   vi.doMock('@orm/Database', () => ({ useDatabase: vi.fn(() => ({})) }));
 };
 
+const createMockLogger = () => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+});
+
+const createMockRuntimeFiles = () => ({
+  Middleware: 'config/middleware.ts',
+  Cache: 'config/cache.ts',
+  Database: 'config/database.ts',
+  Queue: 'config/queue.ts',
+  Storage: 'config/storage.ts',
+  Mail: 'config/mail.ts',
+  Broadcast: 'config/broadcast.ts',
+  Notification: 'config/notification.ts',
+});
+
 describe('runtime storage config loading', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -19,9 +37,14 @@ describe('runtime storage config loading', () => {
     };
 
     const registerDisksFromRuntimeConfig = vi.fn();
+    const startupConfigFiles = createMockRuntimeFiles();
+    const logger = createMockLogger();
+    const existsSync = vi.fn().mockReturnValue(true);
+    const mkdirSync = vi.fn();
+    const join = (...parts: string[]) => parts.join('/');
 
-    vi.doMock('@node-singletons/fs', () => ({ existsSync: vi.fn(() => true), mkdirSync: vi.fn() }));
-    vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+    vi.doMock('@node-singletons/fs', () => ({ existsSync, mkdirSync }));
+    vi.doMock('@node-singletons/path', () => ({ join }));
     vi.doMock('@cache/CacheRuntimeRegistration', () => ({
       registerCachesFromRuntimeConfig: vi.fn(),
     }));
@@ -83,22 +106,13 @@ describe('runtime storage config loading', () => {
         clear: vi.fn(),
         preload: vi.fn(async () => undefined),
       },
-      StartupConfigFile: {
-        Middleware: 'config/middleware.ts',
-        Cache: 'config/cache.ts',
-        Database: 'config/database.ts',
-        Queue: 'config/queue.ts',
-        Storage: 'config/storage.ts',
-        Mail: 'config/mail.ts',
-        Broadcast: 'config/broadcast.ts',
-        Notification: 'config/notification.ts',
-      },
+      StartupConfigFile: startupConfigFiles,
     }));
     vi.doMock('@config/broadcast', () => ({ default: { default: 'default', drivers: {} } }));
     vi.doMock('@config/notification', () => ({ default: { default: 'default', drivers: {} } }));
     vi.doMock('@config/logger', () => ({
-      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-      default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      Logger: logger,
+      default: logger,
     }));
     mockRuntimeDatabaseModule();
 
