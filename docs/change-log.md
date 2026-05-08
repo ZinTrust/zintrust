@@ -1,5 +1,7 @@
 # 2026-05-08
 
+- Added focused Workers R2 regression coverage for the new core storage path so the real patch gate now exercises the changed `R2Driver` branches for invalid bindings, object-body decoding, not-found reads, and direct Workers `head`/`delete` behavior. This closes the pre-push `coverage:patch` failure that had been stuck on [src/tools/storage/drivers/R2.ts](/opt/homebrew/var/www/Sites/zintrust/src/tools/storage/drivers/R2.ts).
+
 - Fixed Workers-backed R2 storage registration and standard object operations in core. Runtime boot now reads `storageConfig` lazily before disk registration, the R2 disk normalizer preserves the configured Workers `binding`, and [src/tools/storage/drivers/R2.ts](/opt/homebrew/var/www/Sites/zintrust/src/tools/storage/drivers/R2.ts) now uses Workers bucket bindings directly for `put/get/exists/delete` while keeping multipart support checks scoped to multipart-only methods.
 
 - Fixed the automated release bump parser so it no longer treats blank-line-separated paragraphs inside one commit body as separate pseudo-commits. [scripts/ci/bump-version.js](/opt/homebrew/var/www/Sites/zintrust/scripts/ci/bump-version.js) now reads `git log` entries with explicit record separators, which stops `feat(...)` text embedded inside a `chore:` commit body from falsely triggering repeated minor version bumps such as `1.8.2 -> 1.9.0 -> 2.0.0 -> 2.1.0` across multiple workflow runs.
