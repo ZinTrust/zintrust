@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-rds-data": "3.1040.0",
-    "@aws-sdk/client-secrets-manager": "3.1040.0"
+    "@aws-sdk/client-secrets-manager": "3.1045.0"
   },
   "peerDependencies": {
     "@zintrust/core": "*"
