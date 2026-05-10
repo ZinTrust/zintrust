@@ -4,6 +4,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { mockSpawn } = vi.hoisted(() => ({
+  mockSpawn: vi.fn(),
+}));
+
+vi.mock('@node-singletons/child-process', () => ({
+  spawn: mockSpawn,
+}));
+
 // Mock HttpClient with factory function to avoid hoisting issues
 vi.mock('@httpClient/Http', () => {
   const mockHttpClient = {
@@ -360,8 +368,38 @@ describe('VersionChecker', () => {
   });
 
   describe('runVersionCheck', () => {
-    it('should run version check without throwing errors', async () => {
-      // Should not throw even if network fails
+    it('should spawn a detached child process instead of fetching in-process', async () => {
+      const originalArgv = process.argv;
+      const child = {
+        once: vi.fn(),
+        unref: vi.fn(),
+      };
+
+      process.argv = ['node', '/workspace/bin/zin.ts', 'start'];
+      mockSpawn.mockReturnValue(child);
+
+      await expect(VersionChecker.runVersionCheck()).resolves.toBeUndefined();
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        process.execPath,
+        [...process.execArgv, '/workspace/bin/zin.ts', 'start'],
+        expect.objectContaining({
+          detached: true,
+          stdio: 'ignore',
+          env: expect.objectContaining({
+            ZINTRUST_VERSION_CHECK_CHILD: 'true',
+          }),
+        })
+      );
+      expect(child.once).toHaveBeenCalledWith('error', expect.any(Function));
+      expect(child.unref).toHaveBeenCalled();
+
+      process.argv = originalArgv;
+    });
+
+    it('should run inline inside the detached child process', async () => {
+      process.env['ZINTRUST_VERSION_CHECK_CHILD'] = 'true';
+
       mockedHttpClient.get.mockReturnValue({
         withHeader: vi.fn().mockReturnThis(),
         withHeaders: vi.fn().mockReturnThis(),
@@ -374,6 +412,23 @@ describe('VersionChecker', () => {
       });
 
       await expect(VersionChecker.runVersionCheck()).resolves.toBeUndefined();
+      expect(mockSpawn).not.toHaveBeenCalled();
+    });
+
+    it('should run inline without throwing errors', async () => {
+      // Should not throw even if network fails
+      mockedHttpClient.get.mockReturnValue({
+        withHeader: vi.fn().mockReturnThis(),
+        withHeaders: vi.fn().mockReturnThis(),
+        withAuth: vi.fn().mockReturnThis(),
+        withBasicAuth: vi.fn().mockReturnThis(),
+        withTimeout: vi.fn().mockReturnThis(),
+        asJson: vi.fn().mockReturnThis(),
+        asForm: vi.fn().mockReturnThis(),
+        send: vi.fn().mockRejectedValue(new Error('Network error')),
+      });
+
+      await expect(VersionChecker.runVersionCheckInline()).resolves.toBeUndefined();
     });
   });
 

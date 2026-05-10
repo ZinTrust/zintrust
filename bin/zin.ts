@@ -7,4 +7,4 @@
 
 import { runCliWrapper } from './launcher';
 
-await runCliWrapper({ traceName: 'cli-wrapper' });
+await runCliWrapper();

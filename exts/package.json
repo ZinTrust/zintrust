@@ -1,0 +1,23 @@
+{
+  "name": "zintrust-vscode-extensions",
+  "private": true,
+  "version": "0.0.1",
+  "description": "VS Code extension workspace for ZinTrust developer tooling.",
+  "workspaces": [
+    "zintrust-*"
+  ],
+  "scripts": {
+    "compile": "npm run compile --workspaces --if-present",
+    "watch": "npm run watch --workspaces --if-present",
+    "package": "npm run package --workspaces --if-present",
+    "test": "npm run compile && node ./scripts/test-extensions.mjs && node ./scripts/test-extension-behaviors.mjs",
+    "validate": "node ./scripts/validate-workspaces.mjs && node ./scripts/validate-release-metadata.mjs",
+    "release:artifacts": "npm run validate && node ./scripts/collect-vsix-artifacts.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^3.6.3",
+    "typescript": "^5.9.3"
+  }
+}

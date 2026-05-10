@@ -309,7 +309,9 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
     // Run version check in background (non-blocking)
     VersionChecker.runVersionCheck().catch((error: unknown) => {
       // Version check should never crash the CLI
-      Logger.debug('Version check encountered an error', error);
+      if (typeof Logger.debug === 'function') {
+        Logger.debug('Version check encountered an error', error);
+      }
     });
 
     // Show help if no arguments provided

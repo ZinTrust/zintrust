@@ -1,3 +1,39 @@
+# 2026-05-08
+
+- Added focused Workers R2 regression coverage for the new core storage path so the real patch gate now exercises the changed `R2Driver` branches for invalid bindings, object-body decoding, not-found reads, and direct Workers `head`/`delete` behavior. This closes the pre-push `coverage:patch` failure that had been stuck on [src/tools/storage/drivers/R2.ts](/opt/homebrew/var/www/Sites/zintrust/src/tools/storage/drivers/R2.ts).
+
+- Fixed Workers-backed R2 storage registration and standard object operations in core. Runtime boot now reads `storageConfig` lazily before disk registration, the R2 disk normalizer preserves the configured Workers `binding`, and [src/tools/storage/drivers/R2.ts](/opt/homebrew/var/www/Sites/zintrust/src/tools/storage/drivers/R2.ts) now uses Workers bucket bindings directly for `put/get/exists/delete` while keeping multipart support checks scoped to multipart-only methods.
+
+- Fixed the automated release bump parser so it no longer treats blank-line-separated paragraphs inside one commit body as separate pseudo-commits. [scripts/ci/bump-version.js](/opt/homebrew/var/www/Sites/zintrust/scripts/ci/bump-version.js) now reads `git log` entries with explicit record separators, which stops `feat(...)` text embedded inside a `chore:` commit body from falsely triggering repeated minor version bumps such as `1.8.2 -> 1.9.0 -> 2.0.0 -> 2.1.0` across multiple workflow runs.
+
+- Tightened the custom release carry rule from two-digit patch segments to single-digit patch segments. ZinTrust release helpers now roll `x.y.9 -> x.(y+1).0`, so examples like `1.8.9 -> 1.9.0` and `1.9.9 -> 2.0.0` now match the intended versioning scheme instead of waiting for `x.y.99`.
+
+# 2026-05-06
+
+- Refined the ZinTrust core VS Code extension so its QA picker no longer advertises the repo-specific `coverage:patch` npm script as a generic developer action, and added helper-aware autocomplete for common `@helper/index` imports such as `isNull`, `isObject`, `isMissingLike`, and related core helper utilities.
+
+- Excluded the VS Code extension workspace under [exts](/opt/homebrew/var/www/Sites/zintrust/exts) from the repository root TypeScript, ESLint, and Sonar analysis surfaces so root framework quality gates stay focused on the main runtime codebase while the extension workspace continues to use its own local validation flow.
+
+- Turned [exts/zintrust-core](/opt/homebrew/var/www/Sites/zintrust/exts/zintrust-core) into the discoverability hub for the VS Code suite. It now contributes a dedicated ZinTrust Explorer view in the built-in Explorer sidebar, shows a status bar launcher, and opens a real dashboard webview that links directly to common project files and the core QA and scaffolding commands.
+
+- Added focused per-extension behavior coverage and release-readiness validation to the extension workspace. [exts/scripts/test-extension-behaviors.mjs](/opt/homebrew/var/www/Sites/zintrust/exts/scripts/test-extension-behaviors.mjs) now checks extension-specific outcomes such as webview rendering, sidebar/status bar setup, report generation, markdown preview triggers, and terminal command wiring, while [exts/scripts/validate-release-metadata.mjs](/opt/homebrew/var/www/Sites/zintrust/exts/scripts/validate-release-metadata.mjs) verifies marketplace metadata and workflow wiring.
+
+- Added a release-artifact path for the VS Code extensions. The extension workspace now exposes `npm run release:artifacts`, [exts/scripts/collect-vsix-artifacts.mjs](/opt/homebrew/var/www/Sites/zintrust/exts/scripts/collect-vsix-artifacts.mjs) gathers packaged `.vsix` files into `exts/.artifacts/vsix/`, [exts/RELEASING.md](/opt/homebrew/var/www/Sites/zintrust/exts/RELEASING.md) documents the flow, and [.github/workflows/exts-release.yml](/opt/homebrew/var/www/Sites/zintrust/.github/workflows/exts-release.yml) packages and uploads the VSIX set on manual dispatch or `exts-v*` tags.
+
+- Replaced the placeholder VS Code extension commands in [exts](/opt/homebrew/var/www/Sites/zintrust/exts) with real ZinTrust developer actions. The command handlers now open relevant framework files and docs, generate workspace reports, inspect route/schema/env state, preview markdown templates, summarize installed `@zintrust/*` adapters, and launch the supported `zin` / `npm` workflows for QA, migrations, schedules, worker status, trace status, key generation, Cloudflare worker mode, and adapter installation.
+
+- Tightened VSIX packaging for the ZinTrust extension workspace. Each extension manifest now declares an explicit `files` whitelist so packaged `.vsix` archives only ship `out/`, `package.json`, `README.md`, and `LICENSE.md`, removing the earlier `vsce` warning about unbounded package contents.
+
+- Added repeatable extension validation to [exts/package.json](/opt/homebrew/var/www/Sites/zintrust/exts/package.json) with `npm run test` and `npm run validate`. The new [exts/scripts/test-extensions.mjs](/opt/homebrew/var/www/Sites/zintrust/exts/scripts/test-extensions.mjs) compiles every extension, mocks the VS Code API, verifies command registration, and exercises each command for a meaningful side effect, while [exts/scripts/validate-workspaces.mjs](/opt/homebrew/var/www/Sites/zintrust/exts/scripts/validate-workspaces.mjs) runs the one-by-one compile/package sweep for every extension workspace.
+
+- Scaffolded the root [exts](/opt/homebrew/var/www/Sites/zintrust/exts) workspace with starter VS Code extension packages for the full ZinTrust developer tooling lineup, including core, routes, data/migrations, workers/queues, trace/runtime, Cloudflare, secrets/env, templates, adapter install, project doctor, upgrade, docs/recipes, and the developer extension pack.
+
+- Added [exts/zintrust-vscode-extensions.md](/opt/homebrew/var/www/Sites/zintrust/exts/zintrust-vscode-extensions.md), a root-level product brief listing the recommended ZinTrust VS Code extensions, shipping order, packaging strategy, and single-extension MVP scope for faster developer workflows.
+
+- Isolated the CLI npm-registry version check from the live service process. `VersionChecker.runVersionCheck()` now only launches a detached child process, and [bin/zintrust-main.ts](/opt/homebrew/var/www/Sites/zintrust/bin/zintrust-main.ts) short-circuits that child into a version-check-only path, so `zin s` and other traffic-serving commands no longer share request-handling runtime state with the update lookup.
+
+- Fixed the source CLI wrapper entrypoints so `zin`, `z`, `zt`, and `zintrust` can resolve the shared launcher again under Node 22 without enabling TypeScript extension imports. The bin shims now dynamically import [bin/launcher.ts](/opt/homebrew/var/www/Sites/zintrust/bin/launcher.ts), and [bin/zintrust-main.ts](/opt/homebrew/var/www/Sites/zintrust/bin/zintrust-main.ts) was split slightly to stay within the repository complexity limit while preserving both `zin s` and `zin s --wg` startup behavior.
+
 # 2026-05-04
 
 - Fixed `@zintrust/d1-migrator` so imported auto-increment primary keys now stay rowid-backed on D1/SQLite targets. Source tables with a single auto-increment primary key now build as `INTEGER PRIMARY KEY AUTOINCREMENT`, schema validation fails fast if that contract is lost, imported numeric ids remain insertable during copy, and later inserts that omit the primary key once again receive a database-generated numeric id.

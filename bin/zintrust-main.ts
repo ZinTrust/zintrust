@@ -7,6 +7,7 @@
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,6 +23,7 @@ type LoggerLike = {
 };
 
 const CLI_HANDOFF_ENV_KEY = 'ZINTRUST_CLI_HANDOFF';
+const require = createRequire(import.meta.url);
 
 const loadLogger = async (): Promise<LoggerLike | undefined> => {
   try {
@@ -139,7 +141,11 @@ const handoffToProjectLocalCli = async (
   target: ProjectLocalCliTarget,
   rawArgs: string[]
 ): Promise<never> => {
-  const child = spawn(process.execPath, [target.binPath, ...rawArgs], {
+  const childArgs = target.binPath.endsWith('.ts')
+    ? ['--import', require.resolve('tsx'), target.binPath, ...rawArgs]
+    : [target.binPath, ...rawArgs];
+
+  const child = spawn(process.execPath, childArgs, {
     stdio: 'inherit',
     env: {
       ...process.env,
@@ -319,7 +325,51 @@ const handleCliFatal = async (error: unknown, context: string): Promise<never> =
   process.exit(1);
 };
 
+const maybeRunVersionCheckChild = async (): Promise<boolean> => {
+  if (process.env['ZINTRUST_VERSION_CHECK_CHILD'] !== 'true') {
+    return false;
+  }
+
+  const { VersionChecker } = await import('@cli/services/VersionChecker');
+  await VersionChecker.runVersionCheckInline();
+  return true;
+};
+
+const loadOptionalCliExtensionsForArgs = async (
+  args: string[]
+): Promise<{
+  optionalCliExtensions:
+    | typeof import('@cli/OptionalCliExtensions').OptionalCliExtensions
+    | undefined;
+  optionalCliStatuses: ReadonlyArray<
+    import('@cli/OptionalCliExtensions').OptionalCliExtensionStatus
+  >;
+}> => {
+  let optionalCliExtensions:
+    | typeof import('@cli/OptionalCliExtensions').OptionalCliExtensions
+    | undefined;
+  let optionalCliStatuses: ReadonlyArray<
+    import('@cli/OptionalCliExtensions').OptionalCliExtensionStatus
+  > = [];
+
+  try {
+    ({ OptionalCliExtensions: optionalCliExtensions } = await import('@cli/OptionalCliExtensions'));
+    optionalCliStatuses = await optionalCliExtensions.loadForArgs(args);
+  } catch {
+    // best-effort; missing optional extensions must not block the CLI
+  }
+
+  return {
+    optionalCliExtensions,
+    optionalCliStatuses,
+  };
+};
+
 const runCliInternal = async (): Promise<void> => {
+  if (await maybeRunVersionCheckChild()) {
+    return;
+  }
+
   const { rawArgs: rawArgs0, args: args0 } = getArgsFromProcess();
   if (await maybeHandoffToProjectLocalCli(rawArgs0)) {
     return;
@@ -335,18 +385,8 @@ const runCliInternal = async (): Promise<void> => {
   EnvFileLoader.ensureLoaded();
 
   // Auto-load install-only CLI extension packages that self-register commands.
-  let optionalCliExtensions:
-    | typeof import('@cli/OptionalCliExtensions').OptionalCliExtensions
-    | undefined;
-  let optionalCliStatuses: ReadonlyArray<
-    import('@cli/OptionalCliExtensions').OptionalCliExtensionStatus
-  > = [];
-  try {
-    ({ OptionalCliExtensions: optionalCliExtensions } = await import('@cli/OptionalCliExtensions'));
-    optionalCliStatuses = await optionalCliExtensions.loadForArgs(args0);
-  } catch {
-    // best-effort; missing optional extensions must not block the CLI
-  }
+  const { optionalCliExtensions, optionalCliStatuses } =
+    await loadOptionalCliExtensionsForArgs(args0);
 
   const missingOptionalExtension = optionalCliExtensions?.findMissingExtensionForArgs(
     args0,

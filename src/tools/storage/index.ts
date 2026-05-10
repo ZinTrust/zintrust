@@ -33,6 +33,7 @@ const normalizers: Record<string, (raw: Record<string, unknown>) => Record<strin
     secretAccessKey: String(raw['secretAccessKey'] ?? raw['secret'] ?? ''),
     endpoint: typeof raw['endpoint'] === 'string' ? raw['endpoint'] : undefined,
     url: typeof raw['url'] === 'string' ? raw['url'] : undefined,
+    binding: typeof raw['binding'] === 'string' ? raw['binding'] : undefined,
   }),
   gcs: (raw) => ({
     bucket: String(raw['bucket'] ?? ''),

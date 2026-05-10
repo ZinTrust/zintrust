@@ -5,7 +5,9 @@
  * when a newer version is available from npm registry.
  */
 
+import { Logger } from '@config/logger';
 import { HttpClient, type IHttpResponse } from '@httpClient/Http';
+import { spawn } from '@node-singletons/child-process';
 import { existsSync, readFileSync } from '@node-singletons/fs';
 import { dirname, join } from '@node-singletons/path';
 import { fileURLToPath } from '@node-singletons/url';
@@ -23,7 +25,38 @@ interface VersionCheckConfig {
   skipVersionCheck: boolean;
 }
 
+const VERSION_CHECK_CHILD_ENV = 'ZINTRUST_VERSION_CHECK_CHILD';
+
 export const VersionChecker = Object.freeze({
+  isDetachedChildProcess(): boolean {
+    return process.env[VERSION_CHECK_CHILD_ENV] === 'true';
+  },
+
+  shouldSkipVersionCheckForArgs(args: Set<string>): boolean {
+    return (
+      args.has('-v') ||
+      args.has('--version') ||
+      args.has('help') ||
+      args.has('new') ||
+      args.has('migrate') ||
+      args.has('schedule:run') ||
+      args.has('schedule:list')
+    );
+  },
+
+  hasFreshVersionCheck(checkInterval: number): boolean {
+    const lastCheck = globalThis.localStorage?.getItem?.('zintrust_last_version_check');
+
+    if (lastCheck === null || lastCheck === undefined) {
+      return false;
+    }
+
+    const lastCheckTime = Number.parseInt(lastCheck, 10);
+    const hoursSinceLastCheck = (Date.now() - lastCheckTime) / (1000 * 60 * 60);
+
+    return hoursSinceLastCheck < checkInterval;
+  },
+
   /**
    * Resolve the nearest package.json from a starting directory.
    */
@@ -77,6 +110,10 @@ export const VersionChecker = Object.freeze({
    * Check if version check should be performed
    */
   shouldCheckVersion(): boolean {
+    if (this.isDetachedChildProcess()) {
+      return true;
+    }
+
     const config = this.getConfig();
 
     // Skip if disabled
@@ -86,32 +123,13 @@ export const VersionChecker = Object.freeze({
 
     // Skip for version commands
     const args = new Set(process.argv.slice(2));
-    if (
-      args.has('-v') ||
-      args.has('--version') ||
-      args.has('help') ||
-      args.has('new') ||
-      args.has('migrate') ||
-      // One-shot schedule commands should exit cleanly and not keep the event loop alive
-      // due to background network requests/keep-alive sockets.
-      args.has('schedule:run') ||
-      args.has('schedule:list')
-    ) {
+    if (this.shouldSkipVersionCheckForArgs(args)) {
       return false;
     }
 
     // Check last check time
-    const lastCheckKey = 'zintrust_last_version_check';
-    const lastCheck = globalThis.localStorage?.getItem?.(lastCheckKey);
-
-    if (lastCheck !== null && lastCheck !== undefined) {
-      const lastCheckTime = Number.parseInt(lastCheck, 10);
-      const now = Date.now();
-      const hoursSinceLastCheck = (now - lastCheckTime) / (1000 * 60 * 60);
-
-      if (hoursSinceLastCheck < config.checkInterval) {
-        return false;
-      }
+    if (this.hasFreshVersionCheck(config.checkInterval)) {
+      return false;
     }
 
     return true;
@@ -356,10 +374,41 @@ export const VersionChecker = Object.freeze({
     process.stdout.write(output);
   },
 
-  /**
-   * Run version check and display notification if needed
-   */
-  async runVersionCheck(): Promise<void> {
+  spawnDetachedVersionCheck(): void {
+    if (!this.shouldCheckVersion()) {
+      return;
+    }
+
+    const entrypoint = process.argv[1];
+    if (typeof entrypoint !== 'string' || entrypoint.trim() === '') {
+      return;
+    }
+
+    try {
+      const child = spawn(
+        process.execPath,
+        [...process.execArgv, entrypoint, ...process.argv.slice(2)],
+        {
+          detached: true,
+          env: {
+            ...process.env,
+            [VERSION_CHECK_CHILD_ENV]: 'true',
+          },
+          stdio: 'ignore',
+        }
+      );
+
+      child.once('error', (error) => {
+        Logger.debug('Detached version check failed to start', error);
+      });
+
+      child.unref();
+    } catch (error) {
+      Logger.debug('Detached version check spawn failed', error);
+    }
+  },
+
+  async runVersionCheckInline(): Promise<void> {
     try {
       const result = await this.checkVersion();
       if (result) {
@@ -368,5 +417,17 @@ export const VersionChecker = Object.freeze({
     } catch {
       // Version check should never crash the CLI
     }
+  },
+
+  /**
+   * Run version check and display notification if needed
+   */
+  async runVersionCheck(): Promise<void> {
+    if (this.isDetachedChildProcess()) {
+      await this.runVersionCheckInline();
+      return;
+    }
+
+    this.spawnDetachedVersionCheck();
   },
 });

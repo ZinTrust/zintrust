@@ -1,5 +1,5 @@
-import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Cloudflare } from '@config/cloudflare';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { S3Driver, type S3Config } from '@storage/drivers/S3';
 
 export type R2Config = {
@@ -30,18 +30,70 @@ type R2MultipartUploadBinding = {
 };
 
 type R2BucketBinding = {
+  put: (key: string, value: unknown, options?: unknown) => Promise<unknown>;
+  get: (key: string, options?: unknown) => Promise<unknown>;
+  head: (key: string) => Promise<unknown>;
+  delete: (key: string) => Promise<void>;
   createMultipartUpload: (key: string, options?: unknown) => Promise<R2MultipartUploadBinding>;
   resumeMultipartUpload: (key: string, uploadId: string) => R2MultipartUploadBinding;
 };
 
+type WorkersObjectWithArrayBuffer = {
+  arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+type WorkersObjectWithBody = {
+  body: Uint8Array;
+};
+
 const resolveWorkersBucket = (config: R2Config): R2BucketBinding => {
   const binding = Cloudflare.getR2Binding(config.binding) as R2BucketBinding | null;
-  if (binding === null || typeof binding.createMultipartUpload !== 'function') {
+  if (binding === null || typeof binding !== 'object') {
     throw ErrorFactory.createConfigError(
-      'R2 multipart requires a Workers R2 binding (set config.binding or R2_BUCKET/R2/BUCKET).'
+      'R2 requires a Workers R2 binding (set config.binding or R2_BUCKET/R2/BUCKET).'
     );
   }
   return binding;
+};
+
+const resolveWorkersMultipartBucket = (config: R2Config): R2BucketBinding => {
+  const binding = resolveWorkersBucket(config);
+  if (typeof binding.createMultipartUpload !== 'function') {
+    throw ErrorFactory.createConfigError(
+      'R2 multipart requires a Workers R2 binding with multipart support (set config.binding or R2_BUCKET/R2/BUCKET).'
+    );
+  }
+  return binding;
+};
+
+const resolveWorkersObjectBody = async (object: unknown): Promise<Buffer> => {
+  if (object === null || object === undefined) {
+    throw ErrorFactory.createNotFoundError('R2 get failed', { status: 404 });
+  }
+
+  if (
+    typeof object === 'object' &&
+    object !== null &&
+    'arrayBuffer' in object &&
+    typeof object.arrayBuffer === 'function'
+  ) {
+    return Buffer.from(await (object as WorkersObjectWithArrayBuffer).arrayBuffer());
+  }
+
+  if (
+    typeof object === 'object' &&
+    object !== null &&
+    'body' in object &&
+    object.body instanceof Uint8Array
+  ) {
+    return Buffer.from((object as WorkersObjectWithBody).body);
+  }
+
+  throw ErrorFactory.createConfigError('R2 get failed: unsupported Workers object body');
+};
+
+const hasWorkersBucketBinding = (config: R2Config): boolean => {
+  return Cloudflare.getR2Binding(config.binding) !== null;
 };
 
 export const R2Driver = Object.freeze({
@@ -50,7 +102,7 @@ export const R2Driver = Object.freeze({
     key: string,
     options?: unknown
   ): Promise<R2MultipartUploadInfo> {
-    const bucket = resolveWorkersBucket(config);
+    const bucket = resolveWorkersMultipartBucket(config);
     const upload = await bucket.createMultipartUpload(key, options);
     return { key: upload.key ?? key, uploadId: upload.uploadId };
   },
@@ -63,7 +115,7 @@ export const R2Driver = Object.freeze({
     value: unknown,
     options?: unknown
   ): Promise<R2UploadedPart> {
-    const bucket = resolveWorkersBucket(config);
+    const bucket = resolveWorkersMultipartBucket(config);
     const upload = bucket.resumeMultipartUpload(key, uploadId);
     return upload.uploadPart(partNumber, value, options);
   },
@@ -74,19 +126,26 @@ export const R2Driver = Object.freeze({
     uploadId: string,
     uploadedParts: R2UploadedPart[]
   ): Promise<string> {
-    const bucket = resolveWorkersBucket(config);
+    const bucket = resolveWorkersMultipartBucket(config);
     const upload = bucket.resumeMultipartUpload(key, uploadId);
     await upload.complete(uploadedParts);
     return R2Driver.url(config, key);
   },
 
   async abortMultipartUpload(config: R2Config, key: string, uploadId: string): Promise<void> {
-    const bucket = resolveWorkersBucket(config);
+    const bucket = resolveWorkersMultipartBucket(config);
     const upload = bucket.resumeMultipartUpload(key, uploadId);
     await upload.abort();
   },
 
   async put(config: R2Config, key: string, content: string | Buffer): Promise<string> {
+    if (hasWorkersBucketBinding(config)) {
+      const bucket = resolveWorkersBucket(config);
+      const body = typeof content === 'string' ? content : Buffer.from(content);
+      await bucket.put(key, body);
+      return R2Driver.url(config, key);
+    }
+
     if (typeof config.endpoint !== 'string' || config.endpoint.trim() === '') {
       throw ErrorFactory.createConfigError('R2: missing endpoint');
     }
@@ -105,6 +164,12 @@ export const R2Driver = Object.freeze({
   },
 
   async get(config: R2Config, key: string): Promise<Buffer> {
+    if (hasWorkersBucketBinding(config)) {
+      const bucket = resolveWorkersBucket(config);
+      const object = await bucket.get(key);
+      return resolveWorkersObjectBody(object);
+    }
+
     const s3Config: S3Config & { usePathStyle?: boolean } = {
       bucket: config.bucket,
       region: config.region ?? 'auto',
@@ -118,6 +183,12 @@ export const R2Driver = Object.freeze({
   },
 
   async exists(config: R2Config, key: string): Promise<boolean> {
+    if (hasWorkersBucketBinding(config)) {
+      const bucket = resolveWorkersBucket(config);
+      const object = await bucket.head(key);
+      return object !== null;
+    }
+
     const s3Config: S3Config & { usePathStyle?: boolean } = {
       bucket: config.bucket,
       region: config.region ?? 'auto',
@@ -131,6 +202,12 @@ export const R2Driver = Object.freeze({
   },
 
   async delete(config: R2Config, key: string): Promise<void> {
+    if (hasWorkersBucketBinding(config)) {
+      const bucket = resolveWorkersBucket(config);
+      await bucket.delete(key);
+      return;
+    }
+
     const s3Config: S3Config & { usePathStyle?: boolean } = {
       bucket: config.bucket,
       region: config.region ?? 'auto',

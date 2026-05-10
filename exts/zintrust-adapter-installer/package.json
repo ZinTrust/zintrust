@@ -1,0 +1,47 @@
+{
+  "name": "zintrust-adapter-installer",
+  "displayName": "ZinTrust Adapter Installer",
+  "description": "Guided adapter package installation and configuration for ZinTrust projects.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-adapter-installer"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "zintrustAdapters.installAdapter",
+        "title": "ZinTrust Adapters: Install Adapter"
+      },
+      {
+        "command": "zintrustAdapters.showInstalled",
+        "title": "ZinTrust Adapters: Show Installed"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-adapter-installer",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  }
+}

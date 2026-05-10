@@ -1,0 +1,47 @@
+{
+  "name": "zintrust-cloudflare-toolkit",
+  "displayName": "ZinTrust Cloudflare Toolkit",
+  "description": "Cloudflare Worker, Wrangler, D1, KV, and container workflow tools for ZinTrust projects.",
+  "version": "0.0.1",
+  "publisher": "zintrust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/zintrust.git",
+    "directory": "exts/zintrust-cloudflare-toolkit"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "package.json",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "zintrustCloudflare.checkWorkerMode",
+        "title": "ZinTrust Cloudflare: Check Worker Mode"
+      },
+      {
+        "command": "zintrustCloudflare.startWorker",
+        "title": "ZinTrust Cloudflare: Start Worker"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "homepage": "https://github.com/ZinTrust/zintrust/tree/master/exts/zintrust-cloudflare-toolkit",
+  "bugs": {
+    "url": "https://github.com/ZinTrust/zintrust/issues"
+  }
+}
