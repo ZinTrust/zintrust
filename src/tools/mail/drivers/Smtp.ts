@@ -1,4 +1,3 @@
-import { generateUuid } from '@/common/utility';
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
@@ -7,6 +6,12 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as net from '@node-singletons/net';
 import * as tls from '@node-singletons/tls';
 import { normalizeSigningCredentials } from '@proxy/SigningService';
+import {
+  buildRfc2822Message,
+  type MailAddress,
+  type MailAttachment,
+  type MailMessage,
+} from '@tools/mail/MailMessage';
 
 export type SmtpConfig = {
   host: string;
@@ -16,21 +21,7 @@ export type SmtpConfig = {
   secure?: boolean | 'starttls';
 };
 
-export type MailAddress = {
-  email: string;
-  name?: string;
-};
-
-export type MailAttachment = { filename: string; content: Buffer };
-
-export type MailMessage = {
-  to: string | string[];
-  from: MailAddress;
-  subject: string;
-  text: string;
-  html?: string;
-  attachments?: MailAttachment[];
-};
+export type { MailAddress, MailAttachment, MailMessage };
 
 export type SendResult = {
   ok: boolean;
@@ -352,7 +343,7 @@ const upgradeToStartTls = async (socket: SmtpSocket, host: string): Promise<Smtp
     const tlsSocket = tls.connect({ socket: socket as net.Socket, servername: host });
 
     tlsSocket.once('secureConnect', () => {
-      resolve(tlsSocket as unknown as net.Socket);
+      resolve(tlsSocket);
     });
 
     tlsSocket.once('error', (err) => {
@@ -616,96 +607,6 @@ const doQuit = async (
   await writeLine(socket, 'QUIT');
   const quit = await reader.readResponse();
   assertCode(quit, [221, 250], 'QUIT');
-};
-
-const buildRfc2822Message = (msg: MailMessage): string => {
-  const toList = normalizeRecipients(msg.to);
-
-  const fromNameRaw = msg.from.name;
-  const fromName = typeof fromNameRaw === 'string' ? fromNameRaw.trim() : '';
-  const fromHeader = fromName === '' ? msg.from.email : `${fromName} <${msg.from.email}>`;
-
-  const toHeader = toList.join(', ');
-  const subject = msg.subject;
-
-  const headers: string[] = [
-    `From: ${fromHeader}`,
-    `To: ${toHeader}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-  ];
-
-  const attachParts = (attachments: MailAttachment[], innerBody: string): string => {
-    const mixedBoundary = `mixed_${generateUuid().replaceAll('-', '')}`;
-    const lines: string[] = [];
-
-    lines.push(
-      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
-      '',
-      `--${mixedBoundary}`,
-      innerBody
-    );
-
-    // attachments
-    for (const a of attachments) {
-      const b64 = a.content.toString('base64');
-      lines.push(
-        `--${mixedBoundary}`,
-        `Content-Type: application/octet-stream; name="${a.filename}"`,
-        'Content-Transfer-Encoding: base64',
-        `Content-Disposition: attachment; filename="${a.filename}"`,
-        ''
-      );
-      // break base64 into 76 char lines per RFC
-      for (let i = 0; i < b64.length; i += 76) {
-        lines.push(b64.slice(i, i + 76));
-      }
-    }
-
-    lines.push(`--${mixedBoundary}--`, '');
-
-    return lines.join('\r\n');
-  };
-
-  if (typeof msg.html === 'string' && msg.html !== '') {
-    const boundary = `zintrust_${generateUuid().replaceAll('-', '')}`;
-    headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
-
-    const parts = [
-      `--${boundary}`,
-      'Content-Type: text/plain; charset=utf-8',
-      'Content-Transfer-Encoding: 7bit',
-      '',
-      msg.text,
-      `--${boundary}`,
-      'Content-Type: text/html; charset=utf-8',
-      'Content-Transfer-Encoding: 7bit',
-      '',
-      msg.html,
-      `--${boundary}--`,
-      '',
-    ];
-
-    const inner = `${parts.join('\r\n')}`;
-
-    if (msg.attachments && msg.attachments.length > 0) {
-      // wrap in multipart/mixed
-      const mixed = attachParts(msg.attachments, inner);
-      return `${headers.join('\r\n')}\r\n\r\n${mixed}`;
-    }
-
-    return `${headers.join('\r\n')}\r\n\r\n${inner}`;
-  }
-
-  // plain text
-  if (msg.attachments && msg.attachments.length > 0) {
-    const inner = ['Content-Type: text/plain; charset=utf-8', '', msg.text, ''].join('\r\n');
-    const mixed = attachParts(msg.attachments, inner);
-    return `${headers.join('\r\n')}\r\n\r\n${mixed}`;
-  }
-
-  headers.push('Content-Type: text/plain; charset=utf-8');
-  return `${headers.join('\r\n')}\r\n\r\n${msg.text}\r\n`;
 };
 
 const dotStuff = (data: string): string =>

@@ -52,6 +52,8 @@ vi.mock('@config/logger', () => ({
 
 describe('proxy wrangler utils patch coverage', () => {
   it('covers ProxyScaffoldUtils helpers and wrangler non-zero exit path', async () => {
+    vi.stubEnv('CLOUDFLARE_API_TOKEN', 'cf-token');
+
     const { injectEnvBlock, findQuotedValue, resolveConfigPath, trimNonEmptyOption } =
       await import('@cli/commands/ProxyScaffoldUtils');
     expect(trimNonEmptyOption('   ')).toBeUndefined();
@@ -96,6 +98,9 @@ describe('proxy wrangler utils patch coverage', () => {
     });
 
     await expect(command.execute({})).rejects.toThrow('exit:5');
+    const spawnInput = mocked.spawnAndWait.mock.calls[0]?.[0] as { env: NodeJS.ProcessEnv };
+    expect(process.env['CLOUDFLARE_API_TOKEN']).toBe('cf-token');
+    expect(spawnInput.env['CLOUDFLARE_API_TOKEN']).toBeUndefined();
     expect(mocked.ensureLoaded).toHaveBeenCalledWith({
       cwd: '/repo',
       includeCwd: true,
@@ -115,7 +120,11 @@ describe('proxy wrangler utils patch coverage', () => {
       },
       expect.any(Function)
     );
+    expect(mocked.logger.warn).toHaveBeenCalledWith(
+      'Ignoring CLOUDFLARE_API_TOKEN for local wrangler dev. Wrangler 4.92+ blocks interactive OAuth login when that variable is exported. Set ZIN_WRANGLER_DEV_KEEP_API_TOKEN=true to preserve token-based auth.'
+    );
 
+    vi.unstubAllEnvs();
     cwdSpy.mockRestore();
     exitSpy.mockRestore();
   });

@@ -1,9 +1,9 @@
 {
-  "name": "@zintrust/cloudflare-containers-proxy",
+  "name": "@zintrust/cloudflare-email-proxy",
   "version": "2.1.0",
-  "description": "Cloudflare Containers gateway package for the ZinTrust proxy stack.",
-  "private": false,
+  "description": "Cloudflare email proxy package for ZinTrust.",
   "type": "module",
+  "private": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,23 +19,20 @@
   "publishConfig": {
     "access": "public"
   },
-  "keywords": [
-    "zintrust",
-    "cloudflare",
-    "containers",
-    "proxy",
-    "workers"
-  ],
   "peerDependencies": {
     "@zintrust/core": "*"
   },
-  "dependencies": {
-    "@cloudflare/containers": "^0.3.4",
-    "@cloudflare/workers-types": "^4.20260515.1"
-  },
+  "keywords": [
+    "zintrust",
+    "cloudflare",
+    "email",
+    "mail",
+    "proxy",
+    "workers"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
-    "type-check": "tsc -p tsconfig.json --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "type-check": "tsc -p tsconfig.json --noEmit"
   }
 }

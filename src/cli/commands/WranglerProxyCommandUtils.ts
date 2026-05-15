@@ -14,6 +14,7 @@ import {
 } from '@cli/commands/ProxyScaffoldUtils';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Logger } from '@config/logger';
+import { isNonEmptyString } from '@helper/index';
 import { mkdirSync, writeFileSync } from '@node-singletons/fs';
 import { dirname, join } from '@node-singletons/path';
 import type { Command } from 'commander';
@@ -29,6 +30,7 @@ type CreateWranglerProxyCommandInput<TValues, TOptions extends WranglerProxyComm
   aliases: string[];
   description: string;
   envName: string;
+  defaultPort?: number;
   defaultConfig: string;
   compatibilityDate: string;
   entryFile: string;
@@ -50,6 +52,31 @@ const toRootedProxyConfigContent = (content: string): string => {
   return content.replaceAll('": "../../', '": "./');
 };
 
+const isTruthyFlag = (value: string | undefined): boolean => {
+  if (!isNonEmptyString(value)) return false;
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+};
+
+const createWranglerDevSpawnEnv = (runtimeEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
+  if (isTruthyFlag(runtimeEnv['ZIN_WRANGLER_DEV_KEEP_API_TOKEN'])) {
+    return runtimeEnv;
+  }
+
+  if (!isNonEmptyString(runtimeEnv['CLOUDFLARE_API_TOKEN'])) {
+    return runtimeEnv;
+  }
+
+  Logger.warn(
+    'Ignoring CLOUDFLARE_API_TOKEN for local wrangler dev. Wrangler 4.92+ blocks interactive OAuth login when that variable is exported. Set ZIN_WRANGLER_DEV_KEEP_API_TOKEN=true to preserve token-based auth.'
+  );
+
+  const env = { ...runtimeEnv };
+  delete env['CLOUDFLARE_API_TOKEN'];
+  return env;
+};
+
 export const createWranglerProxyCommand = <TValues, TOptions extends WranglerProxyCommandOptions>(
   input: CreateWranglerProxyCommandInput<TValues, TOptions>
 ): IBaseCommand => {
@@ -63,7 +90,11 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
 
       await maybeRunProxyWatchMode(typedOptions.watch);
 
-      const port = parseIntOption(typedOptions.port, 'port');
+      const port = parseIntOption(
+        typedOptions.port ??
+          (input.defaultPort === undefined ? undefined : String(input.defaultPort)),
+        'port'
+      );
       const cwd = process.cwd();
       const projectRoot = ensureProxyEnvLoadedForCwd(cwd);
 
@@ -113,6 +144,8 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
         args.push('--port', String(port));
       }
 
+      const wranglerSpawnEnv = createWranglerDevSpawnEnv(process.env);
+
       const exitCode = await withWranglerDevVarsSnapshot(
         {
           cwd: wranglerDevVarsCwd,
@@ -125,7 +158,7 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
           return SpawnUtil.spawnAndWait({
             command: 'wrangler',
             args,
-            env: process.env,
+            env: wranglerSpawnEnv,
             forwardSignals: false,
           });
         }

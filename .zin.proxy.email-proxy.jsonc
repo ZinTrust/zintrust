@@ -1,0 +1,24 @@
+{
+  "alias": {
+    "@zintrust/core": "./src/index.ts",
+    "@zintrust/workers": "./packages/workers/src/index.ts",
+    "@routes/api": "./routes/api.ts",
+  },
+  "name": "zintrust-email-proxy",
+        "main": "./src/proxy/email/ZintrustEmailProxy.ts",
+        "compatibility_flags": ["nodejs_compat"],
+        "compatibility_date": "2026-03-12",
+        "vars": {
+          "MAIL_CLOUDFLARE_BINDING": "SEND_EMAIL",
+          "ZT_PROXY_SIGNING_WINDOW_MS": "60000",
+          "ZT_MAX_BODY_BYTES": "131072",
+          "NODE_ENV": "development"
+        },
+        "send_email": [
+          {
+            "name": "SEND_EMAIL"
+          }
+        ],
+        // Add routes here when ready:
+        // "routes": [{ "pattern": "email-proxy.example.com", "custom_domain": true }]
+}

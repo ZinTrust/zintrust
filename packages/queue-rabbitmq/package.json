@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "amqplib": "^1.0.3"
+    "amqplib": "^2.0.1"
   },
   "peerDependencies": {
     "@zintrust/core": "*"

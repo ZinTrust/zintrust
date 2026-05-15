@@ -224,7 +224,14 @@ export type MiddlewareConfigType = {
   route: Record<string, MiddlewareFn>;
 };
 
-export type MailDriverName = 'disabled' | 'sendgrid' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer';
+export type MailDriverName =
+  | 'disabled'
+  | 'sendgrid'
+  | 'smtp'
+  | 'ses'
+  | 'mailgun'
+  | 'nodemailer'
+  | 'cl';
 
 export type DisabledMailDriverConfig = {
   driver: 'disabled';
@@ -261,6 +268,11 @@ export type NodemailerMailDriverConfig = {
   secure: boolean | 'starttls';
 };
 
+export type CloudflareMailDriverConfig = {
+  driver: 'cl';
+  binding: string;
+};
+
 export type SesMailDriverConfig = {
   driver: 'ses';
   region: string;
@@ -272,6 +284,7 @@ export type MailDriverConfig =
   | MailgunMailDriverConfig
   | SmtpMailDriverConfig
   | NodemailerMailDriverConfig
+  | CloudflareMailDriverConfig
   | SesMailDriverConfig;
 
 export type MailDrivers = Record<string, MailDriverConfig>;

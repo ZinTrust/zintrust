@@ -1,4 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('cloudflare:email', () => ({
+  EmailMessage: vi.fn(function (this: Record<string, unknown>, from: string, to: string, raw: string) {
+    this.from = from;
+    this.to = to;
+    this.raw = raw;
+  }),
+}));
 
 const toHex = (bytes: ArrayBuffer): string => {
   const view = new Uint8Array(bytes);
@@ -110,6 +118,43 @@ const buildSignedRequestWith = async (params: {
 describe('cloudflare proxy workers', () => {
   const APP_NAME = 'ZinTrust';
   const APP_KEY = 'H7N3dOZffvCAFvCFAvgePT2yRG3+l9i2xenc4yUMPp8=';
+
+  it('email proxy /zin/mail/cloudflare/send accepts a valid signed request', async () => {
+    const { ZintrustEmailProxy } =
+      (await import('../../../packages/cloudflare-email-proxy/src/index.js')) as {
+        ZintrustEmailProxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } = (await import('@/security/SignedRequest')) as {
+      SignedRequest: {
+        sha256Hex: (b: Uint8Array) => Promise<string>;
+        canonicalString: (p: any) => string;
+      };
+    };
+
+    const req = await buildSignedRequest({
+      url: 'https://example.test/zin/mail/cloudflare/send',
+      body: JSON.stringify({
+        message: {
+          to: 'demo@example.com',
+          from: { email: 'from@example.com' },
+          subject: 'Proxy hello',
+          text: 'Hello from package proxy',
+        },
+      }),
+      keyId: 'k1',
+      secret: 'super-secret',
+      signedRequest: SignedRequest,
+    });
+
+    const res = await ZintrustEmailProxy.fetch(req, {
+      SEND_EMAIL: { send: async (_message: unknown) => undefined },
+      MAIL_CLOUDFLARE_PROXY_SECRET: 'super-secret',
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
 
   it('d1 proxy /zin/d1/query returns rows for a valid signed request', async () => {
     const { ZintrustD1Proxy } =

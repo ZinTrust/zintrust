@@ -22,7 +22,7 @@ export type SendMailInput = {
 
 export type SendMailResult = {
   ok: boolean;
-  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer';
+  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer' | 'cl';
   messageId?: string;
 };
 ```
@@ -81,12 +81,20 @@ Notes:
 ## Drivers & behavior 🔧
 
 - disabled — no sends
+- cl / cloudflare — Cloudflare Workers Email Routing via a Wrangler `send_email` binding
 - sendgrid — HTTP API (encodes attachments base64)
 - mailgun — HTTP API (multipart form upload)
 - smtp — SMTP implementation for Node.js + Workers (STARTTLS / SMTPS, multipart/mixed attachments). In Workers, use port 587/465.
 - ses — AWS SES (SigV4 signed)
 
 Driver selection is via `MAIL_DRIVER` (see env vars below).
+
+Cloudflare Workers mail notes:
+
+- Set `MAIL_DRIVER=cl` or `MAIL_DRIVER=cloudflare` to use the built-in Worker mail driver.
+- Set `MAIL_CLOUDFLARE_BINDING` if your Wrangler binding name is not `SEND_EMAIL`.
+- Set `MAIL_CLOUDFLARE_PROXY_URL` plus signing credentials if the app runs outside Workers and should forward sends to a dedicated Cloudflare mail proxy Worker.
+- The sender address must satisfy Cloudflare Email Routing rules for your verified domain and any binding restrictions.
 
 ## Install drivers
 
@@ -151,9 +159,12 @@ For integration tests that involve attachments, combine `FakeStorage` + `MailFak
 
 ## Environment variables (important) ⚙️
 
-- MAIL_DRIVER (disabled | sendgrid | mailgun | smtp | ses) — default: `disabled`
+- MAIL_DRIVER (disabled | cl | cloudflare | sendgrid | mailgun | smtp | ses) — default: `disabled`
 - MAIL_FROM_ADDRESS — default: `` (required for sends)
 - MAIL_FROM_NAME — display name
+- MAIL_CLOUDFLARE_BINDING — optional Workers `send_email` binding name (default: `SEND_EMAIL`)
+- MAIL_CLOUDFLARE_PROXY_URL / MAIL_CLOUDFLARE_PROXY_KEY_ID / MAIL_CLOUDFLARE_PROXY_SECRET — optional signed proxy mode for the Cloudflare mail driver
+- MAIL_CLOUDFLARE_PROXY_TIMEOUT_MS — optional proxy timeout override in milliseconds
 - SENDGRID_API_KEY — required when `MAIL_DRIVER=sendgrid`
 - MAILGUN_API_KEY — required when `MAIL_DRIVER=mailgun`
 - MAILGUN_DOMAIN — required when `MAIL_DRIVER=mailgun`

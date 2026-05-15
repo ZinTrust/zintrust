@@ -16,6 +16,7 @@ const ADAPTERS = [
   '@zintrust/trace',
   '@zintrust/workers',
   '@zintrust/cloudflare-d1-proxy',
+  '@zintrust/cloudflare-email-proxy',
   '@zintrust/cloudflare-kv-proxy',
   '@zintrust/storage-s3',
   '@zintrust/storage-r2',

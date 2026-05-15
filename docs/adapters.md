@@ -53,6 +53,14 @@ zin add storage:gcs
 
 ## Mail drivers
 
+Cloudflare Workers mail (`MAIL_DRIVER=cl` / `MAIL_DRIVER=cloudflare`) is built into core and uses a Wrangler `send_email` binding, so it does not require `zin add`.
+
+If you need the Cloudflare mail driver to run outside Workers, install the optional proxy Worker package:
+
+```bash
+npm install @zintrust/cloudflare-email-proxy
+```
+
 ```bash
 zin add mail:smtp
 zin add mail:sendgrid

@@ -19,14 +19,14 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-rds-data": "3.1040.0",
-    "@aws-sdk/client-secrets-manager": "3.1040.0"
+    "@aws-sdk/client-rds-data": "3.1047.0",
+    "@aws-sdk/client-secrets-manager": "3.1047.0"
   },
   "peerDependencies": {
     "@zintrust/core": "*"
   },
   "overrides": {
-    "fast-xml-parser": "5.7.1",
+    "fast-xml-parser": "5.8.0",
     "flatted": "^3.4.2",
     "uuid": "14.0.0"
   },

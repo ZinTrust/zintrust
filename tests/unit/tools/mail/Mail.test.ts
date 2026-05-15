@@ -11,9 +11,13 @@ vi.mock('@config/mail', () => ({
 vi.mock('@mail/drivers/Ses', () => ({
   SesDriver: { send: vi.fn(async () => ({ ok: true, messageId: 'ses-1' })) },
 }));
+vi.mock('@mail/drivers/Cloudflare', () => ({
+  CloudflareDriver: { send: vi.fn(async () => ({ ok: true, messageId: 'cf-1' })) },
+}));
 vi.mock('@storage', () => ({ Storage: { getDisk: vi.fn() } }));
 
 import { mailConfig } from '@config/mail';
+import { CloudflareDriver } from '@mail/drivers/Cloudflare';
 import { SesDriver } from '@mail/drivers/Ses';
 import { Storage } from '@storage';
 import { MailDriverRegistry } from '@tools/mail/MailDriverRegistry';
@@ -51,7 +55,7 @@ describe('Mail', () => {
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'nodemailer' });
     const { Mail } = await import('@/tools/mail');
     await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(
-      /Mail driver not registered: sendgrid/i
+      /Mail driver not registered: nodemailer/i
     );
   });
 
@@ -191,6 +195,18 @@ describe('Mail', () => {
     expect(res.ok).toBe(true);
     expect(res.driver).toBe('ses');
     expect(vi.mocked(SesDriver.send)).toHaveBeenCalled();
+  });
+
+  it('sends via Cloudflare worker mail driver', async () => {
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'cl', binding: 'SEND_EMAIL' });
+
+    const { Mail } = await import('@/tools/mail');
+    const res = await Mail.send({ to: 'a@b.com', subject: 's', text: 't' });
+    expect(res.ok).toBe(true);
+    expect(res.driver).toBe('cl');
+    expect(res.messageId).toBe('cf-1');
+    expect(vi.mocked(CloudflareDriver.send)).toHaveBeenCalled();
   });
 
   it('uses provided from address and name', async () => {
