@@ -77,7 +77,7 @@ describe('PutCommand', () => {
     );
   });
 
-  it('marks D1_REMOTE_SECRET as failed when missing from env source', async () => {
+  it('warns and skips D1_REMOTE_SECRET when missing from env source', async () => {
     vi.mocked(EnvFile.read).mockResolvedValue({
       APP_KEY: 'app-secret',
     });
@@ -92,10 +92,10 @@ describe('PutCommand', () => {
     });
 
     expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
-      'Cloudflare secrets report: pushed=1, failed=1'
+      'Cloudflare secrets report: pushed=1, failed=0'
     );
     expect(vi.mocked(ErrorHandler.warn)).toHaveBeenCalledWith(
-      'D1_REMOTE_SECRET -> d1-proxy: empty value'
+      'skip D1_REMOTE_SECRET -> d1-proxy: empty value'
     );
   });
 
@@ -141,7 +141,7 @@ describe('PutCommand', () => {
     ).rejects.toBeDefined();
   });
 
-  it('defaults wrangler env to worker and falls back to process.env for missing values', async () => {
+  it('defaults wrangler env to the top-level worker and falls back to process.env for missing values', async () => {
     vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify({ group: ['APP_KEY'] }));
     vi.mocked(EnvFile.read).mockResolvedValue({});
     process.env['APP_KEY'] = 'from-process';
@@ -153,10 +153,37 @@ describe('PutCommand', () => {
       dryRun: true,
     });
 
-    expect(vi.mocked(ErrorHandler.info)).toHaveBeenCalledWith('[dry-run] put APP_KEY -> worker');
+    expect(vi.mocked(ErrorHandler.info)).toHaveBeenCalledWith(
+      '[dry-run] put APP_KEY -> top-level worker'
+    );
     expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
       'Cloudflare secrets report: pushed=1, failed=0'
     );
+  });
+
+  it('targets the top-level worker with --env= when --wg is omitted', async () => {
+    vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify({ group: ['APP_KEY'] }));
+    vi.mocked(EnvFile.read).mockResolvedValue({ APP_KEY: 'app-secret' });
+
+    const cmd = PutCommand.create();
+    await cmd.execute({
+      args: ['cloudflare'],
+      var: ['group'],
+      dryRun: false,
+    });
+
+    expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
+      expect.any(String),
+      ['exec', '--yes', '--', 'wrangler', 'secret', 'put', 'APP_KEY', '--env='],
+      expect.objectContaining({
+        input: 'app-secret',
+        encoding: 'utf8',
+      })
+    );
+    expect(vi.mocked(ErrorHandler.info)).toHaveBeenCalledWith(
+      'putting APP_KEY -> top-level worker...'
+    );
+    expect(vi.mocked(ErrorHandler.info)).toHaveBeenCalledWith('put APP_KEY -> top-level worker');
   });
 
   it('uses default timeout when ZT_PUT_TIMEOUT_MS is invalid', async () => {

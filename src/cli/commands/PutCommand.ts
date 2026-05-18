@@ -39,7 +39,7 @@ const resolveConfigGroups = (options: PutCommandOptions): string[] => {
 
 const resolveWranglerEnvs = (options: PutCommandOptions): string[] => {
   const requested = uniq(toStringArray(options.wg));
-  if (requested.length === 0) return ['worker'];
+  if (requested.length === 0) return [''];
   return requested;
 };
 

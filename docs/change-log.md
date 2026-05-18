@@ -1,5 +1,7 @@
 # 2026-05-15
 
+- Fixed Cloudflare secret sync for the top-level Wrangler Worker. `zin put cloudflare` now treats an omitted `--wg` as the main Worker instead of a fake `worker` environment, uploads to that target with Wrangler's explicit `--env=` sentinel, and warns on empty optional secret values instead of counting them as failed uploads.
+
 - Pinned the workspace Wrangler CLI to `4.90.0` for local development and deploy flows because `4.92.0` regressed local auth behavior in this repo. This removes the accidental dependency on a globally installed Wrangler version when running commands like `npm run deploy`.
 
 - Updated the local Wrangler-backed proxy launcher to ignore `CLOUDFLARE_API_TOKEN` by default when starting `wrangler dev`. This works around Wrangler `4.92.x` forcing an OAuth login path that now fails when an API token is exported in the shell, while still allowing an explicit opt-in back to token auth with `ZIN_WRANGLER_DEV_KEEP_API_TOKEN=true`.

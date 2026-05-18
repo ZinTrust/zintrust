@@ -85,6 +85,9 @@ const getPutTimeoutMs = (): number => {
   return parsed;
 };
 
+const describeWranglerEnv = (wranglerEnv: string): string =>
+  wranglerEnv.trim() === '' ? 'top-level worker' : wranglerEnv;
+
 const putSecret = (
   wranglerEnv: string,
   key: string,
@@ -98,7 +101,13 @@ const putSecret = (
     args.push('--config', configPath.trim());
   }
 
-  args.push('secret', 'put', key, '--env', wranglerEnv);
+  args.push('secret', 'put', key);
+
+  if (wranglerEnv.trim() === '') {
+    args.push('--env=');
+  } else {
+    args.push('--env', wranglerEnv);
+  }
 
   execFileSync(npmPath, args, {
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -171,20 +180,22 @@ const processSecretSync = (
   const failures: CloudflareSecretSyncFailure[] = [];
 
   for (const wranglerEnv of wranglerEnvs) {
+    const wranglerEnvLabel = describeWranglerEnv(wranglerEnv);
+
     for (const key of selectedKeys) {
       const value = resolveValue(key, envMap);
       if (value.trim() === '') {
-        failures.push({ wranglerEnv, key, reason: 'empty value' });
+        log.warn(`skip ${key} -> ${wranglerEnvLabel}: empty value`);
         continue;
       }
 
       try {
         if (!dryRun) {
-          log.info(`putting ${key} -> ${wranglerEnv}...`);
+          log.info(`putting ${key} -> ${wranglerEnvLabel}...`);
           putSecret(wranglerEnv, key, value, configPath);
         }
         pushed += 1;
-        log.info(`${dryRun ? '[dry-run] ' : ''}put ${key} -> ${wranglerEnv}`);
+        log.info(`${dryRun ? '[dry-run] ' : ''}put ${key} -> ${wranglerEnvLabel}`);
       } catch (error) {
         failures.push({ wranglerEnv, key, reason: getFailureReason(error) });
       }
@@ -209,7 +220,7 @@ export const reportCloudflareSecretSync = (
   }
 
   for (const item of result.failures) {
-    log.warn(`${item.key} -> ${item.wranglerEnv}: ${item.reason}`);
+    log.warn(`${item.key} -> ${describeWranglerEnv(item.wranglerEnv)}: ${item.reason}`);
   }
 };
 
