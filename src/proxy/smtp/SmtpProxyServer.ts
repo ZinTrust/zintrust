@@ -3,12 +3,8 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString, isObject } from '@helper/index';
-import {
-  SmtpDriver,
-  type MailAttachment,
-  type MailMessage,
-  type SmtpConfig,
-} from '@mail/drivers/Smtp';
+import { SmtpDriver, type MailMessage, type SmtpConfig } from '@mail/drivers/Smtp';
+import type { MailAttachment } from '@mail/MailMessage';
 import { type IncomingMessage } from '@node-singletons/http';
 import { ErrorHandler } from '@proxy/ErrorHandler';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';

@@ -6,7 +6,12 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as net from '@node-singletons/net';
 import * as tls from '@node-singletons/tls';
 import { normalizeSigningCredentials } from '@proxy/SigningService';
-import { buildRfc2822Message, type MailAddress, type MailMessage } from '@tools/mail/MailMessage';
+import {
+  buildRfc2822Message,
+  type MailAddress,
+  type MailAttachment,
+  type MailMessage,
+} from '@tools/mail/MailMessage';
 
 export type SmtpConfig = {
   host: string;
@@ -15,6 +20,8 @@ export type SmtpConfig = {
   password?: string;
   secure?: boolean | 'starttls';
 };
+
+export type { MailAddress, MailAttachment, MailMessage };
 
 export type SendResult = {
   ok: boolean;
