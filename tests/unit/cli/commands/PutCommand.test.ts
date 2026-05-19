@@ -20,7 +20,10 @@ vi.mock('@toolkit/Secrets/EnvFile', () => ({
 
 vi.mock('@node-singletons/fs', () => ({
   existsSync: vi.fn(),
+  mkdtempSync: vi.fn(),
   readFileSync: vi.fn(),
+  rmSync: vi.fn(),
+  writeFileSync: vi.fn(),
 }));
 
 vi.mock('@node-singletons/child-process', () => ({
@@ -29,13 +32,14 @@ vi.mock('@node-singletons/child-process', () => ({
 
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { execFileSync } from '@node-singletons/child-process';
-import { existsSync, readFileSync } from '@node-singletons/fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from '@node-singletons/fs';
 import { EnvFile } from '@toolkit/Secrets/EnvFile';
 
 describe('PutCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(mkdtempSync).mockReturnValue('/tmp/zintrust-cloudflare-secret-bulk-abc123');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({ d1_env: ['APP_KEY', 'D1_REMOTE_SECRET'], kv_env: ['APP_KEY'] })
     );
@@ -73,7 +77,7 @@ describe('PutCommand', () => {
       '[dry-run] put D1_REMOTE_SECRET -> d1-proxy'
     );
     expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
-      'Cloudflare secrets report: pushed=2, failed=0'
+      'Cloudflare secrets report: pushed=2, skipped_empty=0, failed=0'
     );
   });
 
@@ -92,10 +96,123 @@ describe('PutCommand', () => {
     });
 
     expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
-      'Cloudflare secrets report: pushed=1, failed=0'
+      'Cloudflare secrets report: pushed=1, skipped_empty=1, failed=0'
     );
     expect(vi.mocked(ErrorHandler.warn)).toHaveBeenCalledWith(
       'skip D1_REMOTE_SECRET -> d1-proxy: empty value'
+    );
+  });
+
+  it('uses wrangler secret bulk once per target when --bulk is enabled', async () => {
+    vi.mocked(EnvFile.read).mockResolvedValue({
+      APP_KEY: 'app-secret',
+      D1_REMOTE_SECRET: 'remote-secret',
+    });
+
+    const cmd = PutCommand.create();
+    await cmd.execute({
+      args: ['cloudflare'],
+      wg: ['d1-proxy', 'kv-proxy'],
+      var: ['d1_env'],
+      dryRun: false,
+      bulk: true,
+    });
+
+    expect(vi.mocked(writeFileSync)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(execFileSync)).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      [
+        'exec',
+        '--yes',
+        '--',
+        'wrangler',
+        'secret',
+        'bulk',
+        '/tmp/zintrust-cloudflare-secret-bulk-abc123/secrets.json',
+        '--env',
+        'd1-proxy',
+      ],
+      expect.objectContaining({ encoding: 'utf8' })
+    );
+    expect(vi.mocked(execFileSync)).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      [
+        'exec',
+        '--yes',
+        '--',
+        'wrangler',
+        'secret',
+        'bulk',
+        '/tmp/zintrust-cloudflare-secret-bulk-abc123/secrets.json',
+        '--env',
+        'kv-proxy',
+      ],
+      expect.objectContaining({ encoding: 'utf8' })
+    );
+    expect(vi.mocked(rmSync)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
+      'Cloudflare secrets report: pushed=4, skipped_empty=0, failed=0'
+    );
+  });
+
+  it('uploads a single direct key with inline value without group expansion', async () => {
+    vi.mocked(EnvFile.read).mockResolvedValue({});
+
+    const cmd = PutCommand.create();
+    await cmd.execute({
+      args: ['cloudflare'],
+      wg: ['staging'],
+      key: ['CRYPTO_PROXY_CF_ACCESS_CLIENT_ID'],
+      value: 'inline-secret',
+      dryRun: false,
+    });
+
+    expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
+      expect.any(String),
+      [
+        'exec',
+        '--yes',
+        '--',
+        'wrangler',
+        'secret',
+        'put',
+        'CRYPTO_PROXY_CF_ACCESS_CLIENT_ID',
+        '--env',
+        'staging',
+      ],
+      expect.objectContaining({
+        input: 'inline-secret',
+        encoding: 'utf8',
+      })
+    );
+    expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
+      'Cloudflare secrets report: pushed=1, skipped_empty=0, failed=0'
+    );
+  });
+
+  it('shows the exact bulk key set during dry-run', async () => {
+    vi.mocked(EnvFile.read).mockResolvedValue({
+      APP_KEY: 'app-secret',
+      D1_REMOTE_SECRET: 'remote-secret',
+    });
+
+    const cmd = PutCommand.create();
+    await cmd.execute({
+      args: ['cloudflare'],
+      wg: ['d1-proxy'],
+      var: ['d1_env'],
+      dryRun: true,
+      bulk: true,
+    });
+
+    expect(vi.mocked(execFileSync)).not.toHaveBeenCalled();
+    expect(vi.mocked(ErrorHandler.info)).toHaveBeenCalledWith(
+      '[dry-run] bulk keys -> d1-proxy: APP_KEY, D1_REMOTE_SECRET'
+    );
+    expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
+      'Cloudflare secrets report: pushed=2, skipped_empty=0, failed=0'
     );
   });
 
@@ -157,7 +274,7 @@ describe('PutCommand', () => {
       '[dry-run] put APP_KEY -> top-level worker'
     );
     expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
-      'Cloudflare secrets report: pushed=1, failed=0'
+      'Cloudflare secrets report: pushed=1, skipped_empty=0, failed=0'
     );
   });
 
@@ -231,7 +348,7 @@ describe('PutCommand', () => {
       '[dry-run] put D1_REMOTE_SECRET -> d1-proxy'
     );
     expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
-      'Cloudflare secrets report: pushed=2, failed=0'
+      'Cloudflare secrets report: pushed=2, skipped_empty=0, failed=0'
     );
   });
 
@@ -303,7 +420,7 @@ describe('PutCommand', () => {
 
     expect(vi.mocked(ErrorHandler.warn)).toHaveBeenCalledWith('APP_KEY -> worker: boom');
     expect(vi.mocked(ErrorHandler.success)).toHaveBeenCalledWith(
-      'Cloudflare secrets report: pushed=0, failed=1'
+      'Cloudflare secrets report: pushed=0, skipped_empty=0, failed=1'
     );
   });
 });

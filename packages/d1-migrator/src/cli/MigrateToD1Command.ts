@@ -243,6 +243,12 @@ const resolveFlag = (
   return readEnvBool(envKeys) === true;
 };
 
+const encodeConnectionSegment = (value: string): string => {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (match) => {
+    return `%${match.charCodeAt(0).toString(16).toUpperCase()}`;
+  });
+};
+
 const normalizeSourceDriver = (value: string | undefined): SourceDriver | undefined => {
   if (value === undefined) {
     return undefined;
@@ -310,9 +316,9 @@ const buildNetworkConnectionString = ({
   username,
   password,
 }: NetworkSourceDetails): string => {
-  const encodedUser = encodeURIComponent(username);
-  const encodedPassword = encodeURIComponent(password);
-  const encodedDatabase = encodeURIComponent(database);
+  const encodedUser = encodeConnectionSegment(username);
+  const encodedPassword = encodeConnectionSegment(password);
+  const encodedDatabase = encodeConnectionSegment(database);
 
   let auth = '';
 

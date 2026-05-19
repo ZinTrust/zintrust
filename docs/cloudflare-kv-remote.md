@@ -25,9 +25,13 @@ This command auto-adds `env.kv-proxy` to `wrangler.jsonc` when the environment b
 
 ```bash
 zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
+zin put cloudflare --wg kv-proxy --var kv_env --bulk --env_path .env
+zin put cloudflare --wg kv-proxy --key KV_REMOTE_SECRET --value "..."
 ```
 
 That manual command remains available, but it is no longer required as a separate pre-deploy step for the standard `zin deploy kv-proxy` flow.
+
+For one-off rotations, use `--key` or `--keys` to avoid expanding an entire group. Empty optional values are skipped and reported as `skipped_empty` rather than failing unrelated uploads.
 
 ---
 

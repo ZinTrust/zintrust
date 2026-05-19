@@ -35,7 +35,11 @@ zin proxy:d1
 
 ```bash
 zin put cloudflare --wg d1-proxy --var d1_env --env_path .env
+zin put cloudflare --wg d1-proxy --var d1_env --bulk --env_path .env
+zin put cloudflare --wg d1-proxy --key D1_REMOTE_SECRET --value "..."
 ```
+
+Use `--bulk` when you want one Wrangler `secret bulk` call per target. Use `--key` / `--keys` for one-off secret rotation without expanding the whole group.
 
 ## Configuration
 

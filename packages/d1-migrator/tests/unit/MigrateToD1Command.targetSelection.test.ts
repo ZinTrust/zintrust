@@ -154,6 +154,22 @@ describe('MigrateToD1Command target selection', () => {
     );
   });
 
+  it('encodes special characters in DB_PASSWORD when building the source connection', async () => {
+    process.env['DB_PASSWORD'] = 'test-value!bang';
+
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+
+    await MigrateToD1Command.execute({});
+
+    const [{ sourceConnection }] = migrateDataMock.mock.calls.at(-1) as [
+      { sourceConnection: string },
+    ];
+
+    expect(sourceConnection).toContain('mysql://root:');
+    expect(sourceConnection).toContain('%21');
+    expect(sourceConnection).not.toContain('test-value!bang@');
+  });
+
   it('does not fall back to DB_DATABASE when multiple Wrangler targets are configured', async () => {
     resolveD1DatabaseMock.mockReturnValueOnce({
       status: 'ambiguous',

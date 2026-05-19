@@ -361,12 +361,14 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
 
 ## Cloudflare Secret Put Command
 
-Pushes secrets to Wrangler environments using dynamic key groups from `.zintrust.json`.
+Pushes secrets to Wrangler environments using dynamic key groups from `.zintrust.json` and/or directly selected keys.
 
 Usage:
 
 ```bash
-zin put cloudflare --wg <wrangler-env...> --var <group...> [--env_path .env] [--config wrangler.jsonc] [--dry-run]
+zin put cloudflare --wg <wrangler-env...> --var <group...> [--bulk] [--env_path .env] [--config wrangler.jsonc] [--dry-run]
+zin put cloudflare --wg <wrangler-env...> --key <name> --value <value> [--config wrangler.jsonc] [--dry-run]
+zin put cloudflare --wg <wrangler-env...> --keys <name...> [--env_path .env] [--config wrangler.jsonc] [--dry-run]
 ```
 
 Examples:
@@ -375,9 +377,15 @@ Examples:
 zin put cloudflare --wg d1-proxy --var d1_env --env_path .env --dry-run
 zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
 zin put cloudflare --wg d1-proxy kv-proxy --var d1_env kv_env --env_path .env
+zin put cloudflare --wg d1-proxy kv-proxy --var d1_env kv_env --bulk --env_path .env
+zin put cloudflare --wg staging --key CRYPTO_PROXY_CF_ACCESS_CLIENT_ID --value "..." --config wrangler.containers-proxy.jsonc
+zin put cloudflare --wg staging --keys CRYPTO_PROXY_CF_ACCESS_CLIENT_ID CRYPTO_PROXY_CF_ACCESS_CLIENT_SECRET --env_path /tmp/one-off.env --config wrangler.containers-proxy.jsonc
 
 # Target a dedicated wrangler config (example: Cloudflare Containers proxy)
 zin put cloudflare --wg staging --var proxy_env --config wrangler.containers-proxy.jsonc
+
+# Target the top-level Worker when no Wrangler env is selected
+zin put cloudflare --var worker_env --env_path .env
 ```
 
 `.zintrust.json` dynamic groups example:
@@ -391,11 +399,15 @@ zin put cloudflare --wg staging --var proxy_env --config wrangler.containers-pro
 
 Notes:
 
-- `--wg` sets the Wrangler target environment(s) (for example `d1-proxy`, `kv-proxy`).
+- `--wg` sets the Wrangler target environment(s) (for example `d1-proxy`, `kv-proxy`). If omitted, ZinTrust targets the top-level Worker with Wrangler's `--env=` sentinel.
 - `--var` selects array keys from `.zintrust.json`.
+- `--key` and `--keys` upload only the explicitly selected keys without group expansion.
+- `--value` supports exactly one directly selected key and lets you push a one-off secret value inline.
+- `--bulk` builds one temporary bulk payload per target and performs one Wrangler `secret bulk` call per target.
 - `--config` targets a specific Wrangler config file (useful when your repo has multiple wrangler configs).
-- `D1_REMOTE_SECRET` / `KV_REMOTE_SECRET` are optional if you use `APP_KEY` as the shared signing secret; missing values are reported as failures for whichever keys you selected.
-- Final output includes totals for pushed and failed keys.
+- Empty values are skipped before upload. This is especially useful for optional secrets such as `D1_REMOTE_SECRET` and `KV_REMOTE_SECRET` when `APP_KEY` is your shared signing secret.
+- Dry-run output preserves the exact final key set that would be uploaded, including bulk selections per target.
+- Final output includes totals for `pushed`, `skipped_empty`, and `failed` keys.
 
 ## Queue Recovery Command
 

@@ -123,6 +123,33 @@ zin deploy worker
 zin deploy production
 ```
 
+### Cloudflare Secret Sync
+
+Use `zin put cloudflare` when you want to upload Worker secrets manually outside the normal deploy flow.
+
+```bash
+# Upload one or more configured groups
+zin put cloudflare --wg d1-proxy --var d1_env --env_path .env
+
+# Upload the resolved key set in bulk (one Wrangler `secret bulk` call per target)
+zin put cloudflare --wg d1-proxy kv-proxy --var d1_env kv_env --bulk --env_path .env
+
+# Rotate one secret directly without creating a temporary group in `.zintrust.json`
+zin put cloudflare --wg staging --key CRYPTO_PROXY_CF_ACCESS_CLIENT_ID --value "..."
+
+# Upload a selected set of keys from a one-off env source
+zin put cloudflare --wg staging --keys KEY_ONE KEY_TWO --env_path /tmp/one-off.env
+
+# Target the top-level Worker when no Wrangler env is selected
+zin put cloudflare --var worker_env --env_path .env
+```
+
+Notes:
+
+- Empty values are skipped before upload and reported as `skipped_empty` rather than failed uploads.
+- Dry-run mode shows the exact final key set, including bulk uploads per Wrangler target.
+- Use `--config <wrangler.jsonc>` when your repo contains more than one Wrangler config.
+
 ### Create New Project
 
 ```bash

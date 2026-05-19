@@ -27,9 +27,13 @@ This command auto-adds `env.d1-proxy` to `wrangler.jsonc` when the environment b
 
 ```bash
 zin put cloudflare --wg d1-proxy --var d1_env --env_path .env
+zin put cloudflare --wg d1-proxy --var d1_env --bulk --env_path .env
+zin put cloudflare --wg d1-proxy --key D1_REMOTE_SECRET --value "..."
 ```
 
 That manual command remains available, but it is no longer required as a separate pre-deploy step for the standard `zin deploy d1-proxy` flow.
+
+For one-off rotations, use `--key` or `--keys` to avoid expanding an entire group. Empty optional values are skipped and reported as `skipped_empty` rather than failing unrelated uploads.
 
 ---
 

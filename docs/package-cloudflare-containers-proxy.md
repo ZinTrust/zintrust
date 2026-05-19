@@ -40,9 +40,17 @@ npm run dev:cp
 
 ```bash
 zin put cloudflare --wg staging --var proxy_env --config wrangler.containers-proxy.jsonc
+zin put cloudflare --wg staging --var proxy_env --bulk --config wrangler.containers-proxy.jsonc
+zin put cloudflare --wg staging --key CRYPTO_PROXY_CF_ACCESS_CLIENT_ID --value "..." --config wrangler.containers-proxy.jsonc
 ```
 
 Use `zin put cloudflare` when you want a manual sync only. For normal deploys, `zin deploy:ccp` now performs the same manifest-driven secret sync automatically unless you opt out with `--no-sync-secrets`.
+
+Manual sync notes:
+
+- Use `--bulk` to upload the resolved secret set with one Wrangler `secret bulk` call per target.
+- Use `--key` / `--keys` when you need a one-off rotation without creating a dedicated `.zintrust.json` group.
+- Empty values are skipped and reported as `skipped_empty` instead of failing unrelated keys.
 
 ## Configuration
 
