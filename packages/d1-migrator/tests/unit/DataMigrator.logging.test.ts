@@ -232,8 +232,6 @@ describe('DataMigrator logging and totals', () => {
         password: 'afe&cfe269d57790fD3!dba8b',
       })
     );
-    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('final_auth('));
-    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('matches=false'));
   });
 
   it('passes ssl to the MySQL adapter when sourceSsl is enabled', async () => {
@@ -274,7 +272,11 @@ describe('DataMigrator logging and totals', () => {
   });
 
   it('uses Wrangler remote D1 execution when targetType is d1-remote', async () => {
-    const sourceRows = [{ id: 1, email: 'one@example.com' }];
+    const sourceRows = [
+      { id: 1, email: 'one@example.com' },
+      { id: 2, email: 'two@example.com' },
+      { id: 3, email: 'three@example.com' },
+    ];
     const sourceAdapter = {
       connect: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn().mockResolvedValue(undefined),
@@ -297,7 +299,7 @@ describe('DataMigrator logging and totals', () => {
           indexes: [],
           foreignKeys: [],
           primaryKeys: ['id'],
-          rowCount: 1,
+          rowCount: 3,
         },
       ],
     });
@@ -320,7 +322,7 @@ describe('DataMigrator logging and totals', () => {
         return JSON.stringify([{ results: [{ count: 0 }] }]);
       }
 
-      return JSON.stringify([{ results: [], meta: { changes: 1 } }]);
+      return JSON.stringify([{ results: [], meta: { changes: 3 } }]);
     });
 
     const { DataMigrator } = await import('../../src/cli/DataMigrator');
@@ -334,13 +336,18 @@ describe('DataMigrator logging and totals', () => {
       batchSize: 10,
     });
 
-    expect(progress.processedRows).toBe(1);
+    expect(progress.processedRows).toBe(3);
     expect(wranglerExecuteSqlMock).toHaveBeenCalledWith(
       expect.objectContaining({
         dbName: 'app-dev',
         isLocal: false,
       })
     );
+    expect(
+      wranglerExecuteSqlMock.mock.calls.filter(
+        ([arg]) => !(arg as { sql: string }).sql.includes('SELECT COUNT(*) as count FROM `users`')
+      )
+    ).toHaveLength(2);
     expect(loggerInfoMock).toHaveBeenCalledWith(
       '[DataMigrator] Using Wrangler remote D1 target: app-dev'
     );

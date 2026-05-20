@@ -39,6 +39,12 @@ export interface TableInfo {
   rowCount?: number;
 }
 
+type InsertStatement = {
+  sql: string;
+  parameters: unknown[];
+  rowCount: number;
+};
+
 type AdapterQueryResult = {
   rows: Record<string, unknown>[];
   rowCount?: number;
@@ -228,6 +234,125 @@ const bindSqlParameters = (sql: string, parameters: unknown[]): string => {
   });
 };
 
+const REMOTE_INSERT_ROWS_PER_STATEMENT = 200;
+const LOCAL_INSERT_ROWS_PER_STATEMENT = 500;
+const MAX_REMOTE_INSERT_SQL_LENGTH = 100000;
+const MAX_REMOTE_EXECUTION_SQL_LENGTH = 250000;
+
+const estimateRemoteRowSqlLength = (keys: string[], row: Record<string, unknown>): number => {
+  const delimitersLength = keys.length > 0 ? (keys.length - 1) * 2 : 0;
+  const valuesLength = keys.reduce((total, key) => {
+    return total + toSqlLiteral(row[key]).length;
+  }, 0);
+
+  return valuesLength + delimitersLength + 2;
+};
+
+const createInsertStatements = (
+  targetType: TargetConnection['type'],
+  tableName: string,
+  data: Record<string, unknown>[]
+): InsertStatement[] => {
+  if (data.length === 0) {
+    return [];
+  }
+
+  const keys = Object.keys(data[0]);
+  const columnList = keys.map((key) => `\`${key}\``).join(', ');
+  const rowPlaceholder = `(${keys.map(() => '?').join(', ')})`;
+  const prefix = `INSERT INTO \`${tableName}\` (${columnList}) VALUES `;
+  const rowLimit =
+    targetType === 'd1-remote' ? REMOTE_INSERT_ROWS_PER_STATEMENT : LOCAL_INSERT_ROWS_PER_STATEMENT;
+  const maxSqlLength =
+    targetType === 'd1-remote' ? MAX_REMOTE_INSERT_SQL_LENGTH : Number.POSITIVE_INFINITY;
+
+  const statements: InsertStatement[] = [];
+  let batchRows: Record<string, unknown>[] = [];
+  let batchParameters: unknown[] = [];
+  let batchSqlLength = prefix.length;
+
+  const flushBatch = (): void => {
+    if (batchRows.length === 0) {
+      return;
+    }
+
+    statements.push({
+      sql: `${prefix}${batchRows.map(() => rowPlaceholder).join(', ')}`,
+      parameters: batchParameters,
+      rowCount: batchRows.length,
+    });
+
+    batchRows = [];
+    batchParameters = [];
+    batchSqlLength = prefix.length;
+  };
+
+  for (const row of data) {
+    const rowParameters = keys.map((key) => row[key]);
+    const rowSqlLength =
+      targetType === 'd1-remote' ? estimateRemoteRowSqlLength(keys, row) : rowPlaceholder.length;
+    const separatorLength = batchRows.length > 0 ? 2 : 0;
+    const nextSqlLength = batchSqlLength + separatorLength + rowSqlLength;
+
+    if (batchRows.length > 0 && (batchRows.length >= rowLimit || nextSqlLength > maxSqlLength)) {
+      flushBatch();
+    }
+
+    batchRows.push(row);
+    batchParameters.push(...rowParameters);
+    batchSqlLength += (batchRows.length > 1 ? 2 : 0) + rowSqlLength;
+  }
+
+  flushBatch();
+  return statements;
+};
+
+const createRemoteExecutionBatches = (statements: InsertStatement[]): InsertStatement[] => {
+  if (statements.length <= 1) {
+    return statements;
+  }
+
+  const batches: InsertStatement[] = [];
+  let sqlParts: string[] = [];
+  let parameters: unknown[] = [];
+  let rowCount = 0;
+  let currentLength = 0;
+
+  const flushBatch = (): void => {
+    if (sqlParts.length === 0) {
+      return;
+    }
+
+    batches.push({
+      sql: sqlParts.join(';\n'),
+      parameters,
+      rowCount,
+    });
+
+    sqlParts = [];
+    parameters = [];
+    rowCount = 0;
+    currentLength = 0;
+  };
+
+  for (const statement of statements) {
+    const separatorLength = sqlParts.length > 0 ? 2 : 0;
+    const nextLength = currentLength + separatorLength + statement.sql.length;
+
+    if (sqlParts.length > 0 && nextLength > MAX_REMOTE_EXECUTION_SQL_LENGTH) {
+      flushBatch();
+    }
+
+    sqlParts.push(statement.sql);
+    parameters.push(...statement.parameters);
+    rowCount += statement.rowCount;
+    currentLength += (sqlParts.length > 1 ? 2 : 0) + statement.sql.length;
+  }
+
+  flushBatch();
+  return batches;
+};
+
 const createRemoteD1Adapter = (database: string): DatabaseAdapter => {
   return {
     async connect(): Promise<void> {
@@ -248,32 +373,13 @@ const createRemoteD1Adapter = (database: string): DatabaseAdapter => {
 
       const last = payload[payload.length - 1];
       const rows = Array.isArray(last.results) ? last.results : [];
-      const changes = last.meta?.changes;
-      const rowCount = typeof changes === 'number' ? changes : rows.length;
+      const totalChanges = payload.reduce((count, statement) => {
+        return count + (typeof statement.meta?.changes === 'number' ? statement.meta.changes : 0);
+      }, 0);
+      const rowCount = totalChanges > 0 ? totalChanges : rows.length;
       return { rows, rowCount };
     },
   };
-};
-
-const redactConnectionString = (connectionString: string): string => {
-  try {
-    const parsed = new URL(connectionString);
-    if (parsed.password.trim() !== '') {
-      parsed.password = '***';
-    }
-    return parsed.toString();
-  } catch {
-    return connectionString;
-  }
-};
-
-const getUrlPasswordForm = (connectionString: string): string | undefined => {
-  try {
-    const parsed = new URL(connectionString);
-    return parsed.password || '';
-  } catch {
-    return undefined;
-  }
 };
 
 const getErrorCause = (error: unknown): unknown => {
@@ -347,12 +453,6 @@ const logDetailedError = (label: string, error: unknown): void => {
   }
 };
 
-const describePasswordForLog = (password: string): string => {
-  const hasSpecialCharacters = /[^a-zA-Z0-9]/.test(password);
-  const containsBang = password.includes('!');
-  return `len=${password.length}, special_chars=${hasSpecialCharacters}, contains_bang=${containsBang}`;
-};
-
 const normalizeNullLikeValue = (value: unknown): unknown => {
   if (typeof value !== 'string') return value;
   return value.trim().toLowerCase() === 'null' ? null : value;
@@ -411,17 +511,6 @@ const createSourceAdapter = (config: MigrationConfig): DatabaseAdapter => {
         'mysql',
         'root'
       );
-      const urlPasswordForm = getUrlPasswordForm(config.sourceConnection);
-      Logger.info(
-        `[DataMigrator] Source password diagnostics: ${describePasswordForLog(connectionDetails.password)}`
-      );
-      if (urlPasswordForm !== undefined) {
-        Logger.info(
-          `[DataMigrator] MySQL password handoff: url_form(${describePasswordForLog(
-            urlPasswordForm
-          )}), final_auth(${describePasswordForLog(connectionDetails.password)}), matches=${urlPasswordForm === connectionDetails.password}`
-        );
-      }
       return MySQLAdapter.create({
         driver: 'mysql',
         host: connectionDetails.host,
@@ -584,9 +673,6 @@ export const DataMigrator = Object.freeze({
    */
   async connectToSource(config: MigrationConfig): Promise<SourceConnection> {
     Logger.info(`Connecting to ${config.sourceDriver} database...`);
-    Logger.info(
-      `[DataMigrator] Source connection (redacted): ${redactConnectionString(config.sourceConnection)}`
-    );
 
     const adapter = createSourceAdapter(config);
 
@@ -858,8 +944,6 @@ export const DataMigrator = Object.freeze({
     offset: number,
     batchSize: number
   ): Promise<Record<string, unknown>[]> {
-    Logger.debug(`Reading chunk from ${tableName}: offset ${offset}, size ${batchSize}`);
-
     if (!sourceConnection.adapter) return [];
 
     try {
@@ -880,10 +964,8 @@ export const DataMigrator = Object.freeze({
    */
   async transformData(
     chunk: Record<string, unknown>[],
-    tableName: string
+    _tableName: string
   ): Promise<Record<string, unknown>[]> {
-    Logger.debug(`Transforming ${chunk.length} rows for table ${tableName}`);
-
     return chunk.map((row) => {
       const transformed: Record<string, unknown> = {};
 
@@ -933,8 +1015,6 @@ export const DataMigrator = Object.freeze({
     tableName: string,
     data: Record<string, unknown>[]
   ): Promise<number> {
-    Logger.debug(`Inserting ${data.length} rows into ${tableName}`);
-
     if (data.length === 0) return 0;
 
     if (!targetConnection.adapter) {
@@ -943,21 +1023,21 @@ export const DataMigrator = Object.freeze({
       );
     }
 
-    const keys = Object.keys(data[0]);
-    const columnList = keys.map((key) => `\`${key}\``).join(', ');
-    const placeholders = keys.map(() => '?').join(', ');
-    const sql = `INSERT INTO \`${tableName}\` (${columnList}) VALUES (${placeholders})`;
+    const statements = createInsertStatements(targetConnection.type, tableName, data);
+    const executableStatements =
+      targetConnection.type === 'd1-remote' ? createRemoteExecutionBatches(statements) : statements;
 
     let insertedRows = 0;
-    for (const row of data) {
-      const values = keys.map((key) => row[key]);
+    for (const statement of executableStatements) {
       try {
-        await targetConnection.adapter.query(sql, values);
-        insertedRows += 1;
+        const result = await targetConnection.adapter.query(statement.sql, statement.parameters);
+        const affectedRows =
+          typeof result.rowCount === 'number' ? result.rowCount : statement.rowCount;
+        insertedRows += affectedRows;
       } catch (error) {
         throw ErrorFactory.createValidationError(`Insert failed for table ${tableName}`, {
-          sql,
-          row,
+          sql: statement.sql,
+          rowCount: statement.rowCount,
           cause: error,
         });
       }

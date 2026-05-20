@@ -304,9 +304,6 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
     const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
     const tlsEnabled = Boolean((config as { ssl?: boolean }).ssl);
     const nodeMysqlSslConfig = getNodeMysqlSslConfig(tlsEnabled);
-    Logger.info(
-      `[db-mysql] Effective connection params: host=${host}, port=${port}, database=${database}, user=${user}, password_len=${password.length}, ssl=${tlsEnabled}`
-    );
     const timeoutMs = getSocketTimeoutMs(config);
     if (isWorkersRuntime) {
       state.pool = await createWorkersPool({
@@ -368,7 +365,6 @@ async function rawQuery<T>(state: AdapterState, sql: string, parameters?: unknow
   const pool = ensurePool(state);
 
   try {
-    Logger.warn(`Raw SQL Query executed: ${sql}`, Logger.withTraceSkipContext({ sql, parameters }));
     const [rows] = await pool.execute(sql, parameters ?? []);
     if (Array.isArray(rows)) return rows as T[];
     return [] as T[];

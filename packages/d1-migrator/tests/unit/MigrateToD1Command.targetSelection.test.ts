@@ -271,7 +271,6 @@ describe('MigrateToD1Command target selection', () => {
 
     expect(sourceConnection).toBe(sourceConnectionInput);
     expect(sourceConnectionOrigin).toBe('option');
-    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('matches=true'));
   });
 
   it('preserves direct source-connection option values for encoded &, !, $, and # exactly as provided', async () => {
@@ -292,7 +291,6 @@ describe('MigrateToD1Command target selection', () => {
 
     expect(sourceConnection).toBe(sourceConnectionInput);
     expect(sourceConnectionOrigin).toBe('option');
-    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('matches=true'));
   });
 
   it('preserves exported source-connection values exactly as provided', async () => {
@@ -310,8 +308,6 @@ describe('MigrateToD1Command target selection', () => {
 
     expect(sourceConnection).toBe(sourceConnectionInput);
     expect(sourceConnectionOrigin).toBe('env');
-    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('origin: env'));
-    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('matches=true'));
   });
 
   it('does not fall back to DB_DATABASE when multiple Wrangler targets are configured', async () => {

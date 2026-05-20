@@ -340,41 +340,6 @@ const normalizeSourceConnectionString = (
   return buildNetworkConnectionString(details);
 };
 
-const redactConnectionString = (sourceConnection: string): string => {
-  try {
-    const parsed = new URL(sourceConnection);
-    if (parsed.password.trim() !== '') {
-      parsed.password = '***';
-    }
-    return parsed.toString();
-  } catch {
-    return sourceConnection;
-  }
-};
-
-const getPasswordForDiagnostics = (
-  sourceConnection: string,
-  sourceDriver: SourceDriver,
-  origin: SourceConnectionOrigin
-): string | undefined => {
-  if (origin === 'db-env') {
-    return parseNetworkConnectionDetails(sourceConnection, sourceDriver)?.password;
-  }
-
-  try {
-    const parsed = new URL(sourceConnection);
-    return parsed.password;
-  } catch {
-    return undefined;
-  }
-};
-
-const describePasswordForLog = (password: string): string => {
-  const hasSpecialCharacters = /[^a-zA-Z0-9]/.test(password);
-  const containsBang = password.includes('!');
-  return `len=${password.length}, special_chars=${hasSpecialCharacters}, contains_bang=${containsBang}`;
-};
-
 const getErrorCause = (error: unknown): unknown => {
   if (error === null || typeof error !== 'object') {
     return undefined;
@@ -444,35 +409,6 @@ const logDetailedError = (label: string, error: unknown): void => {
   if (cause !== undefined) {
     logDetailedError(`${label} cause`, cause);
   }
-};
-
-const logSourceConnectionDiagnostics = (
-  sourceDriver: SourceDriver,
-  sourceConnection: string,
-  origin: SourceConnectionOrigin,
-  originalValue: string
-): void => {
-  Logger.info(`[d1-migrator] Source connection origin: ${origin}`);
-  Logger.info(`[d1-migrator] Source connection driver: ${sourceDriver}`);
-  Logger.info(
-    `[d1-migrator] Source connection (redacted): ${redactConnectionString(sourceConnection)}`
-  );
-
-  const originalPassword = getPasswordForDiagnostics(originalValue, sourceDriver, origin);
-  const finalPassword = getPasswordForDiagnostics(sourceConnection, sourceDriver, origin);
-
-  if (originalPassword === undefined || finalPassword === undefined) {
-    Logger.info(
-      '[d1-migrator] Source connection diagnostics: non-network source or unable to parse URL'
-    );
-    return;
-  }
-
-  Logger.info(
-    `[d1-migrator] Source password diagnostics: provided(${describePasswordForLog(
-      originalPassword
-    )}), final(${describePasswordForLog(finalPassword)}), matches=${originalPassword === finalPassword}`
-  );
 };
 
 const normalizeSourceDriver = (value: string | undefined): SourceDriver | undefined => {
@@ -861,14 +797,7 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
     try {
       Logger.info('Starting D1 migration process...');
 
-      const { config, schemaOnly, sourceConnectionOrigin, originalSourceConnection } =
-        resolveMigrationConfig(options);
-      logSourceConnectionDiagnostics(
-        config.sourceDriver,
-        config.sourceConnection,
-        sourceConnectionOrigin,
-        originalSourceConnection
-      );
+      const { config, schemaOnly } = resolveMigrationConfig(options);
       const configValidation = validateConfig(config);
       if (!configValidation.valid) {
         throw ErrorFactory.createValidationError(
