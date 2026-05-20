@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/d1-migrator",
-  "version": "1.8.9",
+  "version": "1.9.1",
   "description": "Resumable database migration toolkit for moving data to Cloudflare D1 with ZinTrust.",
   "private": false,
   "type": "module",
@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@zintrust/db-d1": "^1.8.0",
-    "@zintrust/db-mysql": "^1.8.8",
+    "@zintrust/db-mysql": "^1.8.9",
     "@zintrust/db-postgres": "^1.8.0",
     "@zintrust/db-sqlite": "^1.8.0",
     "@zintrust/db-sqlserver": "^1.8.0"

@@ -4,7 +4,7 @@
  * Handles the actual data migration between databases
  */
 
-import { ErrorFactory, LocalD1Resolver, Logger } from '@zintrust/core';
+import { ErrorFactory, LocalD1Resolver, Logger, WranglerD1 } from '@zintrust/core';
 
 import { MySQLAdapter } from '@zintrust/db-mysql';
 import { PostgreSQLAdapter } from '@zintrust/db-postgres';
@@ -63,6 +63,148 @@ type ConnectionDetails = {
   database: string;
   username: string;
   password: string;
+};
+
+type WranglerJsonStatementResult = {
+  results?: Record<string, unknown>[];
+  meta?: {
+    changes?: number;
+    last_row_id?: number | string;
+    rows_read?: number;
+    rows_written?: number;
+  };
+};
+
+const extractWranglerJson = (output: string): WranglerJsonStatementResult[] | null => {
+  const trimmed = output.trim();
+  if (!trimmed.startsWith('[')) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed) as WranglerJsonStatementResult[];
+  } catch {
+    return null;
+  }
+};
+
+const parseWranglerTable = (output: string): Array<Record<string, string>> => {
+  const lines = output.split('\n').map((line) => line.trim());
+  const dataLines = lines.filter((line) => line.startsWith('│') && line.endsWith('│'));
+  if (dataLines.length < 2) {
+    return [];
+  }
+
+  const parseCells = (line: string): string[] => {
+    return line
+      .slice(1, -1)
+      .split('│')
+      .map((cell) => cell.trim());
+  };
+
+  const headers = parseCells(dataLines[0]);
+  const rows: Array<Record<string, string>> = [];
+
+  for (const line of dataLines.slice(1)) {
+    const cells = parseCells(line);
+    if (cells.length !== headers.length) {
+      continue;
+    }
+
+    const row: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      row[header] = cells[index] ?? '';
+    });
+    rows.push(row);
+  }
+
+  return rows;
+};
+
+const toHex = (value: Uint8Array): string => {
+  return Array.from(value)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const toSqlLiteral = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return 'NULL';
+  }
+
+  if (value instanceof Date) {
+    return `'${value.toISOString().replace(/'/g, "''")}'`;
+  }
+
+  if (typeof value === 'string') {
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw ErrorFactory.createValidationError('Cannot serialize non-finite number for remote D1');
+    }
+    return String(value);
+  }
+
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? '1' : '0';
+  }
+
+  const globalBuffer = globalThis as unknown as {
+    Buffer?: { isBuffer(input: unknown): boolean };
+  };
+
+  if (globalBuffer.Buffer?.isBuffer(value) === true || value instanceof Uint8Array) {
+    const bytes = value instanceof Uint8Array ? value : new Uint8Array(value as ArrayLike<number>);
+    return `X'${toHex(bytes)}'`;
+  }
+
+  return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+};
+
+const bindSqlParameters = (sql: string, parameters: unknown[]): string => {
+  let index = 0;
+  return sql.replace(/\?/g, () => {
+    if (index >= parameters.length) {
+      throw ErrorFactory.createValidationError('Remote D1 SQL parameter count mismatch');
+    }
+
+    const rendered = toSqlLiteral(parameters[index]);
+    index += 1;
+    return rendered;
+  });
+};
+
+const createRemoteD1Adapter = (database: string): DatabaseAdapter => {
+  return {
+    async connect(): Promise<void> {
+      await Promise.resolve();
+    },
+    async disconnect(): Promise<void> {
+      await Promise.resolve();
+    },
+    async query(sql: string, parameters: unknown[]): Promise<AdapterQueryResult> {
+      const renderedSql = bindSqlParameters(sql, parameters);
+      const output = WranglerD1.executeSql({ dbName: database, isLocal: false, sql: renderedSql });
+      const payload = extractWranglerJson(output);
+
+      if (payload === null || payload.length === 0) {
+        const rows = parseWranglerTable(output).map((row) => row as Record<string, unknown>);
+        return { rows, rowCount: rows.length };
+      }
+
+      const last = payload[payload.length - 1];
+      const rows = Array.isArray(last.results) ? last.results : [];
+      const changes = last.meta?.changes;
+      const rowCount = typeof changes === 'number' ? changes : rows.length;
+      return { rows, rowCount };
+    },
+  };
 };
 
 const redactConnectionString = (connectionString: string): string => {
@@ -461,6 +603,10 @@ export const DataMigrator = Object.freeze({
           `Unable to connect resolved local D1 path ${d1LocalPath}: ${String(error)}`
         );
       }
+    } else {
+      Logger.info(`[DataMigrator] Using Wrangler remote D1 target: ${config.targetDatabase}`);
+      connection.adapter = createRemoteD1Adapter(config.targetDatabase);
+      await connection.adapter.connect();
     }
 
     Logger.info('✓ Target D1 database connected');

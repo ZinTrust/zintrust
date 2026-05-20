@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/db-mysql",
-  "version": "1.8.8",
+  "version": "1.8.9",
   "description": "MySQL and MariaDB database adapter for ZinTrust.",
   "private": false,
   "type": "module",

@@ -664,7 +664,7 @@ Migrates an external database (MySQL, PostgreSQL, SQLite, SQL Server) to a Cloud
 > This command is auto-registered by the core ZinTrust CLI when `@zintrust/d1-migrator` is installed in your project. Freshly scaffolded apps include it by default.
 
 **Usage:**
-`zin migrate-to-d1 [--from driver] [--to target] [--source-connection uri] [--target-database name]`
+`zin migrate-to-d1 [--from driver] [--to target|--remote] [--source-connection uri] [--target-database name]`
 
 The command resolves settings in this order: **CLI flag -> environment variable -> default**.
 
@@ -683,10 +683,25 @@ export D1_TARGET_DB=zintrust-live-test
 zin migrate-to-d1
 ```
 
+If the source MySQL or MariaDB server requires SSL/TLS, run:
+
+```bash
+DB_SSL=true MIGRATE_TO_D1_SOURCE_SSL=true zin migrate-to-d1
+```
+
+To execute against remote Cloudflare D1 through Wrangler instead of local Miniflare state, run:
+
+```bash
+zin migrate-to-d1 --remote --target-database your-binding-or-database-name
+```
+
+If the resolved D1 entry in `wrangler.jsonc` has `"remote": true`, the command also defaults to remote execution for that target.
+
 **Options:**
 
 - `-f, --from <type>`: Source db type (`mysql`, `postgresql`, `sqlite`, `sqlserver`).
 - `-t, --to <type>`: Target db type (`d1` or `d1-remote`).
+- `--remote`: Execute target D1 statements through Wrangler remote mode.
 - `-s, --source-connection <uri>`: Source connection string.
 - `-d, --target-database <string>`: D1 Database identifier (defaults to `d1`).
 - `-b, --batch-size <number>`: Pagination step for data chunking.

@@ -687,6 +687,10 @@ const resolveSourceConnection = (
 };
 
 const resolveTargetType = (options: CommandOptions): TargetType => {
+  if (readOptionFlag(options, ['remote'])) {
+    return 'd1-remote';
+  }
+
   const fromOption = readOptionString(options, ['to']);
   const fromEnv = readEnvString(TARGET_TYPE_ENV_KEYS);
   const configuredValue = fromOption ?? fromEnv;
@@ -698,7 +702,23 @@ const resolveTargetType = (options: CommandOptions): TargetType => {
     );
   }
 
-  return targetType ?? 'd1';
+  if (targetType !== undefined) {
+    return targetType;
+  }
+
+  try {
+    const resolvedTarget = WranglerConfig.getD1Database(
+      process.cwd(),
+      resolveTargetDatabase(options)
+    );
+    if ((resolvedTarget as { remote?: boolean } | undefined)?.remote === true) {
+      return 'd1-remote';
+    }
+  } catch {
+    // Fall back to local default when target resolution is unavailable here.
+  }
+
+  return 'd1';
 };
 
 const resolveSourceSsl = (options: CommandOptions): boolean => {
@@ -824,6 +844,7 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
     command
       .option('-f, --from <type>', 'Source database type (mysql, postgresql, sqlite, sqlserver)')
       .option('-t, --to <type>', 'Target D1 type (d1, d1-remote)')
+      .option('--remote', 'Use Wrangler remote D1 execution for the resolved target binding')
       .option('-s, --source-connection <string>', 'Source database connection string')
       .option('--source-ssl', 'Force SSL/TLS for source database connection')
       .option('-d, --target-database <string>', 'Target D1 database name')
@@ -868,6 +889,7 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
         driver: config.sourceDriver,
         connectionString: config.sourceConnection,
         sourceConnectionOrigin: config.sourceConnectionOrigin,
+        sourceSsl: config.sourceSsl === true,
       };
 
       // Analyze source schema
