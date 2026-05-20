@@ -6,6 +6,7 @@ const {
   loggerErrorMock,
   baseCommandCreateMock,
   resolveD1DatabaseMock,
+  getD1DatabaseMock,
   getDefaultD1DatabaseNameMock,
   analyzeSchemaMock,
   checkD1CompatibilityMock,
@@ -19,6 +20,7 @@ const {
   loggerErrorMock: vi.fn(),
   baseCommandCreateMock: vi.fn(),
   resolveD1DatabaseMock: vi.fn(),
+  getD1DatabaseMock: vi.fn(),
   getDefaultD1DatabaseNameMock: vi.fn(),
   analyzeSchemaMock: vi.fn(),
   checkD1CompatibilityMock: vi.fn(),
@@ -45,6 +47,7 @@ vi.mock('@zintrust/core', () => ({
   },
   WranglerConfig: {
     resolveD1Database: (...args: unknown[]) => resolveD1DatabaseMock(...args),
+    getD1Database: (...args: unknown[]) => getD1DatabaseMock(...args),
     getDefaultD1DatabaseName: (...args: unknown[]) => getDefaultD1DatabaseNameMock(...args),
   },
 }));
@@ -123,6 +126,7 @@ describe('MigrateToD1Command target selection', () => {
       configured: [{ database_name: 'app-dev', binding: 'zintrust_db' }],
       matches: [{ database_name: 'app-dev', binding: 'zintrust_db' }],
     });
+    getD1DatabaseMock.mockReturnValue({ database_name: 'app-dev', binding: 'zintrust_db' });
     getDefaultD1DatabaseNameMock.mockReturnValue('app-dev');
     analyzeSchemaMock.mockResolvedValue({ tables: [] });
     checkD1CompatibilityMock.mockReturnValue({ compatible: true, issues: [], warnings: [] });
@@ -212,6 +216,39 @@ describe('MigrateToD1Command target selection', () => {
       expect.objectContaining({
         sourceDriver: 'mysql',
         sourceSsl: true,
+      })
+    );
+  });
+
+  it('uses d1-remote when the --remote flag is set', async () => {
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+
+    await MigrateToD1Command.execute({ remote: true });
+
+    expect(migrateDataMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetDatabase: 'app-dev',
+        targetType: 'd1-remote',
+      })
+    );
+  });
+
+  it('defaults to d1-remote when the resolved Wrangler target is marked remote', async () => {
+    getD1DatabaseMock.mockReturnValue({
+      database_name: 'app-dev',
+      binding: 'zintrust_db',
+      remote: true,
+    });
+
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+
+    await MigrateToD1Command.execute({});
+
+    expect(getD1DatabaseMock).toHaveBeenCalledWith(process.cwd(), 'app-dev');
+    expect(migrateDataMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetDatabase: 'app-dev',
+        targetType: 'd1-remote',
       })
     );
   });

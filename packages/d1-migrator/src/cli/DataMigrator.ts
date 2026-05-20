@@ -88,6 +88,42 @@ const extractWranglerJson = (output: string): WranglerJsonStatementResult[] | nu
   }
 };
 
+const normalizeWranglerTableValue = (value: string): unknown => {
+  const trimmed = value.trim();
+  if (trimmed === '') {
+    return '';
+  }
+
+  const normalized = trimmed.toLowerCase();
+  if (normalized === 'null') {
+    return null;
+  }
+
+  if (normalized === 'true') {
+    return true;
+  }
+
+  if (normalized === 'false') {
+    return false;
+  }
+
+  if (/^-?\d+$/.test(trimmed)) {
+    const parsed = Number.parseInt(trimmed, 10);
+    if (Number.isSafeInteger(parsed)) {
+      return parsed;
+    }
+  }
+
+  if (/^-?(?:\d+\.\d+|\d+\.\d*|\.\d+)$/.test(trimmed)) {
+    const parsed = Number.parseFloat(trimmed);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return trimmed;
+};
+
 const parseWranglerTable = (output: string): Array<Record<string, string>> => {
   const lines = output.split('\n').map((line) => line.trim());
   const dataLines = lines.filter((line) => line.startsWith('│') && line.endsWith('│'));
@@ -119,6 +155,18 @@ const parseWranglerTable = (output: string): Array<Record<string, string>> => {
   }
 
   return rows;
+};
+
+const parseWranglerTableRows = (output: string): Record<string, unknown>[] => {
+  return parseWranglerTable(output).map((row) => {
+    const normalizedRow: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(row)) {
+      normalizedRow[key] = normalizeWranglerTableValue(value);
+    }
+
+    return normalizedRow;
+  });
 };
 
 const toHex = (value: Uint8Array): string => {
@@ -194,7 +242,7 @@ const createRemoteD1Adapter = (database: string): DatabaseAdapter => {
       const payload = extractWranglerJson(output);
 
       if (payload === null || payload.length === 0) {
-        const rows = parseWranglerTable(output).map((row) => row as Record<string, unknown>);
+        const rows = parseWranglerTableRows(output);
         return { rows, rowCount: rows.length };
       }
 

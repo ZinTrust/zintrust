@@ -53,7 +53,7 @@ describe('cli/d1/WranglerD1 (coverage)', () => {
 
     expect(result).toBe('ok');
     expect(loggerDebugMock).toHaveBeenCalledWith(
-      '[WranglerD1] Executing: npm exec --yes -- wrangler d1 execute db-two --remote --command SELECT 1'
+      '[WranglerD1] Executing: npm exec --yes -- wrangler d1 execute db-two --remote --json --command SELECT 1'
     );
     expect(execFileSyncMock).toHaveBeenCalledWith(
       'npm',
@@ -66,6 +66,7 @@ describe('cli/d1/WranglerD1 (coverage)', () => {
         'execute',
         'db-two',
         '--remote',
+        '--json',
         '--command',
         'SELECT 1',
       ],
