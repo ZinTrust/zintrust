@@ -344,6 +344,10 @@ const load = (options: LoadOptions = {}): LoadState => {
   return cached;
 };
 
+const resetCache = (): void => {
+  cached = undefined;
+};
+
 const ensureLoaded = (options: Omit<LoadOptions, 'overrideExisting'> = {}): LoadState =>
   load({ ...options, overrideExisting: false });
 
@@ -385,4 +389,5 @@ export const EnvFileLoader = Object.freeze({
   ensureLoaded,
   applyCliOverrides,
   getState,
+  resetCache,
 });

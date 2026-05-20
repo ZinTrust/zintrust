@@ -697,7 +697,19 @@ const resolveTargetType = (options: CommandOptions): TargetType => {
   return targetType ?? 'd1';
 };
 
-const resolveSourceSsl = (): boolean => {
+const resolveSourceSsl = (options: CommandOptions): boolean => {
+  if (readOptionFlag(options, ['source-ssl', 'sourceSsl'])) {
+    return true;
+  }
+  // Directly read from process.env to bypass env loader cache
+  const envValue =
+    process.env['MIGRATE_TO_D1_SOURCE_SSL'] ??
+    process.env['D1_MIGRATOR_SOURCE_SSL'] ??
+    process.env['DB_SSL'];
+  if (envValue === 'true' || envValue === '1' || envValue === 'yes' || envValue === 'on') {
+    return true;
+  }
+  // Fallback to env loader for consistency
   return readEnvBool(['MIGRATE_TO_D1_SOURCE_SSL', 'D1_MIGRATOR_SOURCE_SSL', 'DB_SSL']) === true;
 };
 
@@ -734,7 +746,7 @@ const resolveMigrationConfig = (
 } => {
   const sourceDriver = resolveSourceDriver(options);
   const sourceConnectionResolution = resolveSourceConnection(options, sourceDriver);
-  const sourceSsl = resolveSourceSsl();
+  const sourceSsl = resolveSourceSsl(options);
   const targetDatabase = resolveTargetDatabase(options);
   const targetType = resolveTargetType(options);
 
@@ -809,6 +821,7 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
       .option('-f, --from <type>', 'Source database type (mysql, postgresql, sqlite, sqlserver)')
       .option('-t, --to <type>', 'Target D1 type (d1, d1-remote)')
       .option('-s, --source-connection <string>', 'Source database connection string')
+      .option('--source-ssl', 'Force SSL/TLS for source database connection')
       .option('-d, --target-database <string>', 'Target D1 database name')
       .option('-b, --batch-size <number>', 'Batch size for data migration')
       .option('-c, --checkpoint-interval <number>', 'Checkpoint interval in rows')
