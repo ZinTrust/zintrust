@@ -188,4 +188,83 @@ describe('DataMigrator logging and totals', () => {
     );
     expect(migrationTableLogs).toHaveLength(1);
   });
+
+  it('passes the decoded MySQL password to the adapter for encoded source URLs', async () => {
+    const sourceAdapter = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    };
+
+    const targetAdapter = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    };
+
+    mysqlCreateMock.mockReturnValue(sourceAdapter);
+    sqliteCreateMock.mockReturnValue(targetAdapter);
+    analyzeSchemaMock.mockResolvedValue({ tables: [] });
+
+    const { DataMigrator } = await import('../../src/cli/DataMigrator');
+    const encodedPasswordSegments = ['afe', '%26', 'cfe269d57790fD3', '%21', 'dba8b'];
+    const sourceConnection = `mysql://root:${encodedPasswordSegments.join('')}@127.0.0.1:3306/app`;
+
+    await DataMigrator.migrateData({
+      migrationId: 'migration-encoded-password',
+      sourceDriver: 'mysql',
+      sourceConnection,
+      sourceConnectionOrigin: 'option',
+      targetType: 'd1',
+      targetDatabase: 'app-dev',
+      batchSize: 10,
+    });
+
+    expect(mysqlCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        driver: 'mysql',
+        username: 'root',
+        password: 'afe&cfe269d57790fD3!dba8b',
+      })
+    );
+    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('final_auth('));
+    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('matches=false'));
+  });
+
+  it('passes ssl to the MySQL adapter when sourceSsl is enabled', async () => {
+    const sourceAdapter = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    };
+
+    const targetAdapter = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    };
+
+    mysqlCreateMock.mockReturnValue(sourceAdapter);
+    sqliteCreateMock.mockReturnValue(targetAdapter);
+    analyzeSchemaMock.mockResolvedValue({ tables: [] });
+
+    const { DataMigrator } = await import('../../src/cli/DataMigrator');
+
+    await DataMigrator.migrateData({
+      migrationId: 'migration-ssl',
+      sourceDriver: 'mysql',
+      sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
+      sourceSsl: true,
+      targetType: 'd1',
+      targetDatabase: 'app-dev',
+      batchSize: 10,
+    });
+
+    expect(mysqlCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        driver: 'mysql',
+        ssl: true,
+      })
+    );
+  });
 });

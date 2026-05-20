@@ -78,6 +78,41 @@ type CloudflareSocketFactory = (options: {
   timeoutMs: number;
 }) => unknown;
 
+const getNodeMysqlSslConfig = (tlsEnabled: boolean): false | Record<string, unknown> => {
+  if (!tlsEnabled) {
+    return false;
+  }
+
+  return {
+    rejectUnauthorized: false,
+    minVersion: 'TLSv1.2',
+  };
+};
+
+const describeDriverError = (error: unknown): string | undefined => {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const details = error as {
+    code?: unknown;
+    errno?: unknown;
+    sqlState?: unknown;
+    sqlMessage?: unknown;
+    fatal?: unknown;
+  };
+
+  const parts = [
+    typeof details.code === 'string' ? `code=${details.code}` : undefined,
+    typeof details.errno === 'number' ? `errno=${details.errno}` : undefined,
+    typeof details.sqlState === 'string' ? `sqlState=${details.sqlState}` : undefined,
+    typeof details.sqlMessage === 'string' ? `sqlMessage=${details.sqlMessage}` : undefined,
+    typeof details.fatal === 'boolean' ? `fatal=${details.fatal}` : undefined,
+  ].filter((part): part is string => part !== undefined);
+
+  return parts.length > 0 ? parts.join(', ') : undefined;
+};
+
 function isMissingEsmPackage(error: unknown, packageName: string): boolean {
   if (error === null || typeof error !== 'object') return false;
   const maybe = error as { code?: unknown; message?: unknown };
@@ -196,6 +231,10 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
     const { host, port, database, user, password } = getConnectionParams(config);
     const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
     const tlsEnabled = Boolean((config as { ssl?: boolean }).ssl);
+    const nodeMysqlSslConfig = getNodeMysqlSslConfig(tlsEnabled);
+    Logger.info(
+      `[db-mysql] Effective connection params: host=${host}, port=${port}, database=${database}, user=${user}, password_len=${password.length}, ssl=${tlsEnabled}`
+    );
     let timeoutMs: number;
 
     if (typeof config.socketTimeoutMs === 'number' && config.socketTimeoutMs > 0) {
@@ -229,6 +268,7 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
         database,
         user,
         password,
+        ssl: nodeMysqlSslConfig,
         waitForConnections: true,
         connectionLimit: 10,
         namedPlaceholders: false,
@@ -245,6 +285,16 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
         "MySQL adapter requires the 'mysql2' package (run `npm install mysql2` or `zin add db:mysql`)."
       );
     }
+
+    const driverError = describeDriverError(error);
+    if (driverError !== undefined) {
+      Logger.error(`[db-mysql] MySQL driver error: ${driverError}`);
+    }
+
+    if (error instanceof Error && typeof error.stack === 'string' && error.stack.trim() !== '') {
+      Logger.error(`[db-mysql] MySQL driver stack: ${error.stack}`);
+    }
+
     throw ErrorFactory.createTryCatchError('Failed to connect to MySQL', error);
   }
 }

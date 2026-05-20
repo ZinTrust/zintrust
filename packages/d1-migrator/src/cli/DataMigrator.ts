@@ -21,6 +21,8 @@ import type { MigrationConfig, MigrationProgress } from '../types';
 export interface SourceConnection {
   driver: MigrationConfig['sourceDriver'];
   connectionString: string;
+  sourceConnectionOrigin?: MigrationConfig['sourceConnectionOrigin'];
+  sourceSsl?: boolean;
   connected: boolean;
   adapter?: DatabaseAdapter;
 }
@@ -61,6 +63,104 @@ type ConnectionDetails = {
   database: string;
   username: string;
   password: string;
+};
+
+const redactConnectionString = (connectionString: string): string => {
+  try {
+    const parsed = new URL(connectionString);
+    if (parsed.password.trim() !== '') {
+      parsed.password = '***';
+    }
+    return parsed.toString();
+  } catch {
+    return connectionString;
+  }
+};
+
+const getUrlPasswordForm = (connectionString: string): string | undefined => {
+  try {
+    const parsed = new URL(connectionString);
+    return parsed.password || '';
+  } catch {
+    return undefined;
+  }
+};
+
+const getErrorCause = (error: unknown): unknown => {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+
+  return (error as { cause?: unknown }).cause;
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+};
+
+const getErrorChainMessages = (error: unknown): string[] => {
+  const messages: string[] = [];
+  let current: unknown = error;
+
+  while (current !== undefined) {
+    const message = getErrorMessage(current);
+    if (message.trim() !== '') {
+      messages.push(message);
+    }
+    current = getErrorCause(current);
+  }
+
+  return [...new Set(messages)];
+};
+
+const describeDriverError = (error: unknown): string | undefined => {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const details = error as {
+    code?: unknown;
+    errno?: unknown;
+    sqlState?: unknown;
+    sqlMessage?: unknown;
+    fatal?: unknown;
+  };
+
+  const parts = [
+    typeof details.code === 'string' ? `code=${details.code}` : undefined,
+    typeof details.errno === 'number' ? `errno=${details.errno}` : undefined,
+    typeof details.sqlState === 'string' ? `sqlState=${details.sqlState}` : undefined,
+    typeof details.sqlMessage === 'string' ? `sqlMessage=${details.sqlMessage}` : undefined,
+    typeof details.fatal === 'boolean' ? `fatal=${details.fatal}` : undefined,
+  ].filter((part): part is string => part !== undefined);
+
+  return parts.length > 0 ? parts.join(', ') : undefined;
+};
+
+const logDetailedError = (label: string, error: unknown): void => {
+  const driverDetails = describeDriverError(error);
+  if (driverDetails !== undefined) {
+    Logger.error(`${label} driver details: ${driverDetails}`);
+  }
+
+  if (error instanceof Error && typeof error.stack === 'string' && error.stack.trim() !== '') {
+    Logger.error(`${label} stack: ${error.stack}`);
+  }
+
+  const cause = getErrorCause(error);
+  if (cause !== undefined) {
+    logDetailedError(`${label} cause`, cause);
+  }
+};
+
+const describePasswordForLog = (password: string): string => {
+  const hasSpecialCharacters = /[^a-zA-Z0-9]/.test(password);
+  const containsBang = password.includes('!');
+  return `len=${password.length}, special_chars=${hasSpecialCharacters}, contains_bang=${containsBang}`;
 };
 
 const normalizeNullLikeValue = (value: unknown): unknown => {
@@ -109,6 +209,78 @@ const parseSqliteDatabasePath = (connectionString: string): string => {
     return pathName.length > 0 ? pathName : ':memory:';
   } catch {
     return trimmed;
+  }
+};
+
+const createSourceAdapter = (config: MigrationConfig): DatabaseAdapter => {
+  switch (config.sourceDriver) {
+    case 'mysql': {
+      const connectionDetails = parseConnectionDetails(
+        config.sourceConnection,
+        3306,
+        'mysql',
+        'root'
+      );
+      const urlPasswordForm = getUrlPasswordForm(config.sourceConnection);
+      Logger.info(
+        `[DataMigrator] Source password diagnostics: ${describePasswordForLog(connectionDetails.password)}`
+      );
+      if (urlPasswordForm !== undefined) {
+        Logger.info(
+          `[DataMigrator] MySQL password handoff: url_form(${describePasswordForLog(
+            urlPasswordForm
+          )}), final_auth(${describePasswordForLog(connectionDetails.password)}), matches=${urlPasswordForm === connectionDetails.password}`
+        );
+      }
+      return MySQLAdapter.create({
+        driver: 'mysql',
+        host: connectionDetails.host,
+        port: connectionDetails.port,
+        database: connectionDetails.database,
+        username: connectionDetails.username,
+        password: connectionDetails.password,
+        ssl: config.sourceSsl,
+      });
+    }
+    case 'postgresql': {
+      const connectionDetails = parseConnectionDetails(
+        config.sourceConnection,
+        5432,
+        'postgres',
+        'postgres'
+      );
+      return PostgreSQLAdapter.create({
+        driver: 'postgresql',
+        host: connectionDetails.host,
+        port: connectionDetails.port,
+        database: connectionDetails.database,
+        username: connectionDetails.username,
+        password: connectionDetails.password,
+      });
+    }
+    case 'sqlite':
+      return SQLiteAdapter.create({
+        driver: 'sqlite',
+        database: parseSqliteDatabasePath(config.sourceConnection),
+      });
+    case 'sqlserver': {
+      const connectionDetails = parseConnectionDetails(
+        config.sourceConnection,
+        1433,
+        'master',
+        'sa'
+      );
+      return SQLServerAdapter.create({
+        driver: 'sqlserver',
+        host: connectionDetails.host,
+        port: connectionDetails.port,
+        database: connectionDetails.database,
+        username: connectionDetails.username,
+        password: connectionDetails.password,
+      });
+    }
+    default:
+      throw ErrorFactory.createValidationError(`Unsupported driver: ${config.sourceDriver}`);
   }
 };
 
@@ -206,7 +378,10 @@ export const DataMigrator = Object.freeze({
 
       return progress;
     } catch (error) {
-      Logger.error('Data migration failed:', error);
+      const errorChain = getErrorChainMessages(error);
+      Logger.error(`Data migration failed: ${errorChain.join(' -> ')}`);
+      logDetailedError('Data migration failure', error);
+      Logger.error('Data migration failure details:', error);
       throw error;
     } finally {
       await safelyDisconnect('source', sourceConnection);
@@ -218,71 +393,34 @@ export const DataMigrator = Object.freeze({
    * Connect to source database
    */
   async connectToSource(config: MigrationConfig): Promise<SourceConnection> {
-    Logger.info(`Connecting to ${config.sourceDriver} database: ${config.sourceConnection}`);
+    Logger.info(`Connecting to ${config.sourceDriver} database...`);
+    Logger.info(
+      `[DataMigrator] Source connection (redacted): ${redactConnectionString(config.sourceConnection)}`
+    );
 
-    let adapter: DatabaseAdapter;
-    switch (config.sourceDriver) {
-      case 'mysql':
-        adapter = MySQLAdapter.create({
-          driver: 'mysql',
-          connectionString: config.sourceConnection,
-        });
-        break;
-      case 'postgresql': {
-        const connectionDetails = parseConnectionDetails(
-          config.sourceConnection,
-          5432,
-          'postgres',
-          'postgres'
-        );
-        adapter = PostgreSQLAdapter.create({
-          driver: 'postgresql',
-          host: connectionDetails.host,
-          port: connectionDetails.port,
-          database: connectionDetails.database,
-          username: connectionDetails.username,
-          password: connectionDetails.password,
-        });
-        break;
-      }
-      case 'sqlite':
-        adapter = SQLiteAdapter.create({
-          driver: 'sqlite',
-          database: parseSqliteDatabasePath(config.sourceConnection),
-        });
-        break;
-      case 'sqlserver': {
-        const connectionDetails = parseConnectionDetails(
-          config.sourceConnection,
-          1433,
-          'master',
-          'sa'
-        );
-        adapter = SQLServerAdapter.create({
-          driver: 'sqlserver',
-          host: connectionDetails.host,
-          port: connectionDetails.port,
-          database: connectionDetails.database,
-          username: connectionDetails.username,
-          password: connectionDetails.password,
-        });
-        break;
-      }
-      default:
-        throw ErrorFactory.createValidationError(`Unsupported driver: ${config.sourceDriver}`);
+    const adapter = createSourceAdapter(config);
+
+    try {
+      await adapter.connect();
+    } catch (error) {
+      const errorChain = getErrorChainMessages(error);
+      Logger.error(`Source database connection failed: ${errorChain.join(' -> ')}`);
+      logDetailedError('Source database connection failure', error);
+      Logger.error('Source database connection failure details:', error);
+      throw error;
     }
 
-    await adapter.connect();
-
-    const connection: SourceConnection = {
+    const sourceConnection: SourceConnection = {
       driver: config.sourceDriver,
-      connectionString: config.sourceConnection || '',
+      connectionString: config.sourceConnection,
+      sourceConnectionOrigin: config.sourceConnectionOrigin,
+      sourceSsl: config.sourceSsl,
       connected: true,
       adapter,
     };
 
     Logger.info('✓ Source database connected');
-    return connection;
+    return sourceConnection;
   },
 
   /**
@@ -347,6 +485,8 @@ export const DataMigrator = Object.freeze({
     const sourceSchema = await SchemaAnalyzer.analyzeSchema({
       driver: sourceConnection.driver,
       connectionString: sourceConnection.connectionString,
+      sourceConnectionOrigin: sourceConnection.sourceConnectionOrigin,
+      sourceSsl: sourceConnection.sourceSsl,
     });
 
     const d1Schema = SchemaBuilder.buildD1Schema(sourceSchema.tables, config.sourceDriver);
@@ -382,6 +522,8 @@ export const DataMigrator = Object.freeze({
     const sourceSchema = await SchemaAnalyzer.analyzeSchema({
       driver: _connection.driver,
       connectionString: _connection.connectionString,
+      sourceConnectionOrigin: _connection.sourceConnectionOrigin,
+      sourceSsl: _connection.sourceSsl,
     });
 
     const tables = sourceSchema.tables.map((table) => ({

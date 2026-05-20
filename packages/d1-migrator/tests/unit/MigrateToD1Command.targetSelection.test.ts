@@ -104,11 +104,17 @@ describe('MigrateToD1Command target selection', () => {
     process.env['DB_DATABASE'] = 'zupago';
     process.env['DB_USERNAME'] = 'root';
     process.env['DB_PASSWORD'] = 'secret';
+    delete process.env['DB_SSL'];
     delete process.env['D1_TARGET_DB'];
     delete process.env['D1_DATABASE'];
     delete process.env['D1_DATABASE_ID'];
     delete process.env['MIGRATE_TO_D1_TARGET_DATABASE'];
     delete process.env['D1_MIGRATOR_TARGET_DATABASE'];
+    delete process.env['MIGRATE_TO_D1_SOURCE_CONNECTION'];
+    delete process.env['D1_MIGRATOR_SOURCE_CONNECTION'];
+    delete process.env['SOURCE_DATABASE_URL'];
+    delete process.env['DATABASE_URL'];
+    delete process.env['DB_URL'];
 
     resolveD1DatabaseMock.mockReturnValue({
       status: 'resolved',
@@ -133,11 +139,17 @@ describe('MigrateToD1Command target selection', () => {
     delete process.env['DB_DATABASE'];
     delete process.env['DB_USERNAME'];
     delete process.env['DB_PASSWORD'];
+    delete process.env['DB_SSL'];
     delete process.env['D1_TARGET_DB'];
     delete process.env['D1_DATABASE'];
     delete process.env['D1_DATABASE_ID'];
     delete process.env['MIGRATE_TO_D1_TARGET_DATABASE'];
     delete process.env['D1_MIGRATOR_TARGET_DATABASE'];
+    delete process.env['MIGRATE_TO_D1_SOURCE_CONNECTION'];
+    delete process.env['D1_MIGRATOR_SOURCE_CONNECTION'];
+    delete process.env['SOURCE_DATABASE_URL'];
+    delete process.env['DATABASE_URL'];
+    delete process.env['DB_URL'];
   });
 
   it('uses the unique Wrangler target when D1_TARGET_DB is not set', async () => {
@@ -168,6 +180,101 @@ describe('MigrateToD1Command target selection', () => {
     expect(sourceConnection).toContain('mysql://root:');
     expect(sourceConnection).toContain('%21');
     expect(sourceConnection).not.toContain('test-value!bang@');
+  });
+
+  it('encodes &, !, $, and # in DB_PASSWORD when building the source connection', async () => {
+    const passwordSegments = ['test-va', '&', 'lue', '!', 'ba', '$', 'ng', '#'];
+    process.env['DB_PASSWORD'] = passwordSegments.join('');
+
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+
+    await MigrateToD1Command.execute({});
+
+    const [{ sourceConnection }] = migrateDataMock.mock.calls.at(-1) as [
+      { sourceConnection: string },
+    ];
+
+    expect(sourceConnection).toContain('%26');
+    expect(sourceConnection).toContain('%21');
+    expect(sourceConnection).toContain('%24');
+    expect(sourceConnection).toContain('%23');
+    expect(sourceConnection).not.toContain('test-va&lue!ba$ng#@');
+  });
+
+  it('propagates DB_SSL to the MySQL migration config', async () => {
+    process.env['DB_SSL'] = 'true';
+
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+
+    await MigrateToD1Command.execute({});
+
+    expect(migrateDataMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceDriver: 'mysql',
+        sourceSsl: true,
+      })
+    );
+  });
+
+  it('preserves direct source-connection option values exactly as provided', async () => {
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+    const encodedPasswordSegments = ['aafe', '%26', 'cfe269d57790fD3', '%21', 'dba8bcd0'];
+    const sourceConnectionInput = `mysql://root:${encodedPasswordSegments.join('')}@127.0.0.1:3306/zupago`;
+
+    await MigrateToD1Command.execute({
+      from: 'mysql',
+      to: 'd1',
+      'target-database': 'app-dev',
+      'source-connection': sourceConnectionInput,
+    });
+
+    const [{ sourceConnection, sourceConnectionOrigin }] = migrateDataMock.mock.calls.at(-1) as [
+      { sourceConnection: string; sourceConnectionOrigin: string },
+    ];
+
+    expect(sourceConnection).toBe(sourceConnectionInput);
+    expect(sourceConnectionOrigin).toBe('option');
+    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('matches=true'));
+  });
+
+  it('preserves direct source-connection option values for encoded &, !, $, and # exactly as provided', async () => {
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+    const encodedPasswordSegments = ['test-va', '%26', 'lue', '%21', 'ba', '%24', 'ng', '%23'];
+    const sourceConnectionInput = `mysql://root:${encodedPasswordSegments.join('')}@127.0.0.1:3306/zupago`;
+
+    await MigrateToD1Command.execute({
+      from: 'mysql',
+      to: 'd1',
+      'target-database': 'app-dev',
+      'source-connection': sourceConnectionInput,
+    });
+
+    const [{ sourceConnection, sourceConnectionOrigin }] = migrateDataMock.mock.calls.at(-1) as [
+      { sourceConnection: string; sourceConnectionOrigin: string },
+    ];
+
+    expect(sourceConnection).toBe(sourceConnectionInput);
+    expect(sourceConnectionOrigin).toBe('option');
+    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('matches=true'));
+  });
+
+  it('preserves exported source-connection values exactly as provided', async () => {
+    const encodedPasswordSegments = ['aafe', '%26', 'cfe269d57790fD3', '%21', 'dba8bcd0'];
+    const sourceConnectionInput = `mysql://root:${encodedPasswordSegments.join('')}@127.0.0.1:3306/zupago`;
+    process.env['MIGRATE_TO_D1_SOURCE_CONNECTION'] = sourceConnectionInput;
+
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+
+    await MigrateToD1Command.execute({});
+
+    const [{ sourceConnection, sourceConnectionOrigin }] = migrateDataMock.mock.calls.at(-1) as [
+      { sourceConnection: string; sourceConnectionOrigin: string },
+    ];
+
+    expect(sourceConnection).toBe(sourceConnectionInput);
+    expect(sourceConnectionOrigin).toBe('env');
+    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('origin: env'));
+    expect(loggerInfoMock).toHaveBeenCalledWith(expect.stringContaining('matches=true'));
   });
 
   it('does not fall back to DB_DATABASE when multiple Wrangler targets are configured', async () => {

@@ -8,7 +8,7 @@ import { BaseCommand, type CommandOptions } from '@zintrust/core/cli';
 import type { Command } from 'commander';
 import { SchemaBuilder } from '../schema/SchemaBuilder';
 import { SchemaValidator } from '../schema/Validator';
-import type { MigrationConfig } from '../types';
+import type { MigrationConfig, SourceConnectionOrigin } from '../types';
 import { DataMigrator } from './DataMigrator';
 import { SchemaAnalyzer } from './SchemaAnalyzer';
 
@@ -74,6 +74,22 @@ const TARGET_DATABASE_ENV_KEYS = Object.freeze([
   'D1_DATABASE',
   'D1_DATABASE_ID',
 ]);
+
+const uniq = (items: string[]): string[] => {
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const item of items) {
+    if (seen.has(item)) {
+      continue;
+    }
+
+    seen.add(item);
+    out.push(item);
+  }
+
+  return out;
+};
 
 type WranglerTargetConfig = {
   binding?: string;
@@ -247,6 +263,212 @@ const encodeConnectionSegment = (value: string): string => {
   return encodeURIComponent(value).replace(/[!'()*]/g, (match) => {
     return `%${match.charCodeAt(0).toString(16).toUpperCase()}`;
   });
+};
+
+const decodeConnectionSegment = (value: string): string => {
+  return value.trim() === '' ? '' : decodeURIComponent(value);
+};
+
+const getNetworkScheme = (
+  sourceDriver: SourceDriver
+): NetworkSourceDetails['scheme'] | undefined => {
+  if (sourceDriver === 'mysql') return 'mysql';
+  if (sourceDriver === 'postgresql') return 'postgresql';
+  if (sourceDriver === 'sqlserver') return 'mssql';
+  return undefined;
+};
+
+const getDefaultNetworkPort = (sourceDriver: SourceDriver): number => {
+  if (sourceDriver === 'mysql') return 3306;
+  if (sourceDriver === 'postgresql') return 5432;
+  return 1433;
+};
+
+const parseNetworkConnectionDetails = (
+  connectionString: string,
+  sourceDriver: SourceDriver
+): NetworkSourceDetails | undefined => {
+  const expectedScheme = getNetworkScheme(sourceDriver);
+  if (expectedScheme === undefined) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(connectionString);
+    const protocol = parsed.protocol.replace(/:$/, '').toLowerCase();
+    const allowedProtocols =
+      sourceDriver === 'sqlserver' ? ['mssql', 'sqlserver'] : [expectedScheme];
+
+    if (!allowedProtocols.includes(protocol)) {
+      return undefined;
+    }
+
+    return {
+      scheme: expectedScheme,
+      host: parsed.hostname || 'localhost',
+      port:
+        parsed.port.trim() === ''
+          ? getDefaultNetworkPort(sourceDriver)
+          : Number.parseInt(parsed.port, 10),
+      database: decodeConnectionSegment(parsed.pathname.replace(/^\/+/, '')),
+      username: decodeConnectionSegment(parsed.username),
+      password: decodeConnectionSegment(parsed.password),
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+const normalizeSourceConnectionString = (
+  sourceConnection: string,
+  sourceDriver: SourceDriver,
+  origin: SourceConnectionOrigin
+): string => {
+  if (origin !== 'db-env') {
+    return sourceConnection;
+  }
+
+  const details = parseNetworkConnectionDetails(sourceConnection, sourceDriver);
+  if (details === undefined) {
+    return sourceConnection;
+  }
+
+  return buildNetworkConnectionString(details);
+};
+
+const redactConnectionString = (sourceConnection: string): string => {
+  try {
+    const parsed = new URL(sourceConnection);
+    if (parsed.password.trim() !== '') {
+      parsed.password = '***';
+    }
+    return parsed.toString();
+  } catch {
+    return sourceConnection;
+  }
+};
+
+const getPasswordForDiagnostics = (
+  sourceConnection: string,
+  sourceDriver: SourceDriver,
+  origin: SourceConnectionOrigin
+): string | undefined => {
+  if (origin === 'db-env') {
+    return parseNetworkConnectionDetails(sourceConnection, sourceDriver)?.password;
+  }
+
+  try {
+    const parsed = new URL(sourceConnection);
+    return parsed.password;
+  } catch {
+    return undefined;
+  }
+};
+
+const describePasswordForLog = (password: string): string => {
+  const hasSpecialCharacters = /[^a-zA-Z0-9]/.test(password);
+  const containsBang = password.includes('!');
+  return `len=${password.length}, special_chars=${hasSpecialCharacters}, contains_bang=${containsBang}`;
+};
+
+const getErrorCause = (error: unknown): unknown => {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+
+  return (error as { cause?: unknown }).cause;
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+};
+
+const getErrorChainMessages = (error: unknown): string[] => {
+  const messages: string[] = [];
+  let current: unknown = error;
+
+  while (current !== undefined) {
+    const message = getErrorMessage(current);
+    if (message.trim() !== '') {
+      messages.push(message);
+    }
+    current = getErrorCause(current);
+  }
+
+  return uniq(messages);
+};
+
+const describeDriverError = (error: unknown): string | undefined => {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const details = error as {
+    code?: unknown;
+    errno?: unknown;
+    sqlState?: unknown;
+    sqlMessage?: unknown;
+    fatal?: unknown;
+  };
+
+  const parts = [
+    typeof details.code === 'string' ? `code=${details.code}` : undefined,
+    typeof details.errno === 'number' ? `errno=${details.errno}` : undefined,
+    typeof details.sqlState === 'string' ? `sqlState=${details.sqlState}` : undefined,
+    typeof details.sqlMessage === 'string' ? `sqlMessage=${details.sqlMessage}` : undefined,
+    typeof details.fatal === 'boolean' ? `fatal=${details.fatal}` : undefined,
+  ].filter((part): part is string => part !== undefined);
+
+  return parts.length > 0 ? parts.join(', ') : undefined;
+};
+
+const logDetailedError = (label: string, error: unknown): void => {
+  const driverDetails = describeDriverError(error);
+  if (driverDetails !== undefined) {
+    Logger.error(`${label} driver details: ${driverDetails}`);
+  }
+
+  if (error instanceof Error && typeof error.stack === 'string' && error.stack.trim() !== '') {
+    Logger.error(`${label} stack: ${error.stack}`);
+  }
+
+  const cause = getErrorCause(error);
+  if (cause !== undefined) {
+    logDetailedError(`${label} cause`, cause);
+  }
+};
+
+const logSourceConnectionDiagnostics = (
+  sourceDriver: SourceDriver,
+  sourceConnection: string,
+  origin: SourceConnectionOrigin,
+  originalValue: string
+): void => {
+  Logger.info(`[d1-migrator] Source connection origin: ${origin}`);
+  Logger.info(`[d1-migrator] Source connection driver: ${sourceDriver}`);
+  Logger.info(
+    `[d1-migrator] Source connection (redacted): ${redactConnectionString(sourceConnection)}`
+  );
+
+  const originalPassword = getPasswordForDiagnostics(originalValue, sourceDriver, origin);
+  const finalPassword = getPasswordForDiagnostics(sourceConnection, sourceDriver, origin);
+
+  if (originalPassword === undefined || finalPassword === undefined) {
+    Logger.info(
+      '[d1-migrator] Source connection diagnostics: non-network source or unable to parse URL'
+    );
+    return;
+  }
+
+  Logger.info(
+    `[d1-migrator] Source password diagnostics: provided(${describePasswordForLog(
+      originalPassword
+    )}), final(${describePasswordForLog(finalPassword)}), matches=${originalPassword === finalPassword}`
+  );
 };
 
 const normalizeSourceDriver = (value: string | undefined): SourceDriver | undefined => {
@@ -424,20 +646,35 @@ const buildSourceConnectionFromDbEnv = (sourceDriver: SourceDriver): string | un
   });
 };
 
-const resolveSourceConnection = (options: CommandOptions, sourceDriver: SourceDriver): string => {
+const resolveSourceConnection = (
+  options: CommandOptions,
+  sourceDriver: SourceDriver
+): { value: string; origin: SourceConnectionOrigin; originalValue: string } => {
   const fromOption = readOptionString(options, ['source-connection', 'sourceConnection']);
   if (fromOption !== undefined) {
-    return fromOption;
+    return {
+      value: normalizeSourceConnectionString(fromOption, sourceDriver, 'option'),
+      origin: 'option',
+      originalValue: fromOption,
+    };
   }
 
   const fromEnv = readEnvString(SOURCE_CONNECTION_ENV_KEYS);
   if (fromEnv !== undefined) {
-    return fromEnv;
+    return {
+      value: normalizeSourceConnectionString(fromEnv, sourceDriver, 'env'),
+      origin: 'env',
+      originalValue: fromEnv,
+    };
   }
 
   const fromDbEnv = buildSourceConnectionFromDbEnv(sourceDriver);
   if (fromDbEnv !== undefined && fromDbEnv.trim().length > 0) {
-    return fromDbEnv;
+    return {
+      value: normalizeSourceConnectionString(fromDbEnv, sourceDriver, 'db-env'),
+      origin: 'db-env',
+      originalValue: fromDbEnv,
+    };
   }
 
   throw ErrorFactory.createValidationError(
@@ -458,6 +695,10 @@ const resolveTargetType = (options: CommandOptions): TargetType => {
   }
 
   return targetType ?? 'd1';
+};
+
+const resolveSourceSsl = (): boolean => {
+  return readEnvBool(['MIGRATE_TO_D1_SOURCE_SSL', 'D1_MIGRATOR_SOURCE_SSL', 'DB_SSL']) === true;
 };
 
 const resolveTargetDatabase = (options: CommandOptions): string => {
@@ -488,9 +729,12 @@ const resolveMigrationConfig = (
 ): {
   config: MigrationConfig;
   schemaOnly: boolean;
+  sourceConnectionOrigin: SourceConnectionOrigin;
+  originalSourceConnection: string;
 } => {
   const sourceDriver = resolveSourceDriver(options);
-  const sourceConnection = resolveSourceConnection(options, sourceDriver);
+  const sourceConnectionResolution = resolveSourceConnection(options, sourceDriver);
+  const sourceSsl = resolveSourceSsl();
   const targetDatabase = resolveTargetDatabase(options);
   const targetType = resolveTargetType(options);
 
@@ -521,7 +765,9 @@ const resolveMigrationConfig = (
 
   return {
     config: {
-      sourceConnection,
+      sourceConnection: sourceConnectionResolution.value,
+      sourceConnectionOrigin: sourceConnectionResolution.origin,
+      sourceSsl,
       sourceDriver,
       targetDatabase,
       targetType,
@@ -544,6 +790,8 @@ const resolveMigrationConfig = (
       migrationId,
     },
     schemaOnly,
+    sourceConnectionOrigin: sourceConnectionResolution.origin,
+    originalSourceConnection: sourceConnectionResolution.originalValue,
   };
 };
 
@@ -575,7 +823,14 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
     try {
       Logger.info('Starting D1 migration process...');
 
-      const { config, schemaOnly } = resolveMigrationConfig(options);
+      const { config, schemaOnly, sourceConnectionOrigin, originalSourceConnection } =
+        resolveMigrationConfig(options);
+      logSourceConnectionDiagnostics(
+        config.sourceDriver,
+        config.sourceConnection,
+        sourceConnectionOrigin,
+        originalSourceConnection
+      );
       const configValidation = validateConfig(config);
       if (!configValidation.valid) {
         throw ErrorFactory.createValidationError(
@@ -595,6 +850,7 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
       const connection = {
         driver: config.sourceDriver,
         connectionString: config.sourceConnection,
+        sourceConnectionOrigin: config.sourceConnectionOrigin,
       };
 
       // Analyze source schema
@@ -643,8 +899,14 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
       Logger.info(`Migration completed: ${migrationProgress.processedRows} rows migrated`);
       Logger.info('D1 migration completed successfully');
     } catch (error) {
-      Logger.error('Migration failed:', error);
-      throw ErrorFactory.createValidationError(`Migration failed: ${error}`);
+      const errorChain = getErrorChainMessages(error);
+      Logger.error(`Migration failed: ${errorChain.join(' -> ')}`);
+      logDetailedError('Migration failure', error);
+      Logger.error('Migration failure details:', error);
+      throw ErrorFactory.createValidationError(
+        `Migration failed: ${errorChain[0] ?? getErrorMessage(error)}`,
+        error
+      );
     }
   },
 });
@@ -655,6 +917,7 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
 async function executeMigration(config: MigrationConfig): Promise<void> {
   Logger.info('Migration configuration:', {
     sourceDriver: config.sourceDriver,
+    sourceSsl: config.sourceSsl === true,
     targetDatabase: config.targetDatabase,
     targetType: config.targetType,
     batchSize: config.batchSize,
@@ -693,6 +956,7 @@ async function runInteractiveMode(config: MigrationConfig): Promise<void> {
     const connection = {
       driver: config.sourceDriver,
       connectionString: config.sourceConnection,
+      sourceConnectionOrigin: config.sourceConnectionOrigin,
     };
 
     const sourceSchema = await SchemaAnalyzer.analyzeSchema(connection);
@@ -783,6 +1047,7 @@ async function runAutomatedMode(config: MigrationConfig): Promise<void> {
     const connection = {
       driver: config.sourceDriver,
       connectionString: config.sourceConnection,
+      sourceConnectionOrigin: config.sourceConnectionOrigin,
     };
 
     const sourceSchema = await SchemaAnalyzer.analyzeSchema(connection);
