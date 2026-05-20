@@ -55,6 +55,7 @@ vi.mock('@proxy/smtp/SmtpProxyServer', () => ({
 }));
 
 vi.mock('@proxy/d1/register', () => ({}));
+vi.mock('@proxy/email/register', () => ({}));
 vi.mock('@proxy/kv/register', () => ({}));
 vi.mock('@proxy/mysql/register', () => ({}));
 vi.mock('@proxy/postgres/register', () => ({}));
@@ -93,6 +94,25 @@ describe('Proxy command patch coverage', () => {
       expect.objectContaining({
         command: 'tsx',
         args: ['bin/zin.ts', 'proxy:postgres', '--foo', 'bar'],
+      })
+    );
+    exitSpy.mockRestore();
+  });
+
+  it('ProxyCommand dispatches email target aliases', async () => {
+    const { SpawnUtil } = await import('@cli/utils/spawn');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${String(code)}`);
+    }) as never);
+
+    process.argv = ['node', 'bin/zin.ts', 'proxy', 'cl:mail', '--port', '8788'];
+    const { ProxyCommand } = await import('@cli/commands/ProxyCommand');
+
+    await expect(ProxyCommand.create().execute({ args: ['cl:mail'] })).rejects.toThrow('exit:0');
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'tsx',
+        args: ['bin/zin.ts', 'proxy:email', '--port', '8788'],
       })
     );
     exitSpy.mockRestore();

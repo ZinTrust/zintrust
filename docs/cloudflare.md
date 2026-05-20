@@ -27,6 +27,30 @@ Direct Worker bindings still override packed values.
 
 For full usage, local `.env.pack` support, precedence rules, and diagnostics helpers, see [docs/cloudflare-packed-secrets.md](./cloudflare-packed-secrets.md).
 
+## Secret sync CLI
+
+ZinTrust includes a Cloudflare secret upload command for manual Wrangler secret management.
+
+```bash
+# Upload one or more `.zintrust.json` groups
+zin put cloudflare --wg d1-proxy --var d1_env --env_path .env
+
+# Upload the resolved set in bulk per target
+zin put cloudflare --wg d1-proxy kv-proxy --var d1_env kv_env --bulk --env_path .env
+
+# Upload one direct key without group expansion
+zin put cloudflare --wg staging --key CRYPTO_PROXY_CF_ACCESS_CLIENT_ID --value "..."
+
+# Upload selected keys from a one-off env file
+zin put cloudflare --wg staging --keys KEY_ONE KEY_TWO --env_path /tmp/one-off.env
+```
+
+Notes:
+
+- If `--wg` is omitted, ZinTrust targets the top-level Worker.
+- Empty values are skipped before upload and reported as `skipped_empty`.
+- Dry-run output shows the exact final key set for each Wrangler target.
+
 ## D1 Database
 
 Cloudflare D1 is a native serverless SQL database. ZinTrust provides a dedicated adapter to use D1 as your primary ORM database.

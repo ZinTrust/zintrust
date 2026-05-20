@@ -13,10 +13,124 @@ import type {
   DatabaseSchema,
   ForeignKeySchema,
   IndexSchema,
+  SourceConnectionOrigin,
   TableConstraint,
   TableRelationship,
   TableSchema,
 } from '../types';
+
+type ConnectionDetails = {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+};
+
+const parseConnectionDetails = (
+  connectionString: string,
+  defaultPort: number,
+  defaultDatabase: string,
+  defaultUsername: string
+): ConnectionDetails => {
+  try {
+    const parsed = new URL(connectionString);
+    const databaseName = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+    return {
+      host: parsed.hostname || 'localhost',
+      port: parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort,
+      database: databaseName || defaultDatabase,
+      username: parsed.username ? decodeURIComponent(parsed.username) : defaultUsername,
+      password: parsed.password ? decodeURIComponent(parsed.password) : '',
+    };
+  } catch (error) {
+    throw ErrorFactory.createValidationError('Invalid source connection string format', error);
+  }
+};
+
+const redactConnectionString = (connectionString: string): string => {
+  try {
+    const parsed = new URL(connectionString);
+    if (parsed.password.trim() !== '') {
+      parsed.password = '***';
+    }
+    return parsed.toString();
+  } catch {
+    return connectionString;
+  }
+};
+
+const getErrorCause = (error: unknown): unknown => {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+
+  return (error as { cause?: unknown }).cause;
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+};
+
+const getErrorChainMessages = (error: unknown): string[] => {
+  const messages: string[] = [];
+  let current: unknown = error;
+
+  while (current !== undefined) {
+    const message = getErrorMessage(current);
+    if (message.trim() !== '') {
+      messages.push(message);
+    }
+    current = getErrorCause(current);
+  }
+
+  return [...new Set(messages)];
+};
+
+const describeDriverError = (error: unknown): string | undefined => {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const details = error as {
+    code?: unknown;
+    errno?: unknown;
+    sqlState?: unknown;
+    sqlMessage?: unknown;
+    fatal?: unknown;
+    stack?: unknown;
+  };
+
+  const parts = [
+    typeof details.code === 'string' ? `code=${details.code}` : undefined,
+    typeof details.errno === 'number' ? `errno=${details.errno}` : undefined,
+    typeof details.sqlState === 'string' ? `sqlState=${details.sqlState}` : undefined,
+    typeof details.sqlMessage === 'string' ? `sqlMessage=${details.sqlMessage}` : undefined,
+    typeof details.fatal === 'boolean' ? `fatal=${details.fatal}` : undefined,
+  ].filter((part): part is string => part !== undefined);
+
+  return parts.length > 0 ? parts.join(', ') : undefined;
+};
+
+const logDetailedError = (label: string, error: unknown): void => {
+  const driverDetails = describeDriverError(error);
+  if (driverDetails !== undefined) {
+    Logger.error(`${label} driver details: ${driverDetails}`);
+  }
+
+  if (error instanceof Error && typeof error.stack === 'string' && error.stack.trim() !== '') {
+    Logger.error(`${label} stack: ${error.stack}`);
+  }
+
+  const cause = getErrorCause(error);
+  if (cause !== undefined) {
+    logDetailedError(`${label} cause`, cause);
+  }
+};
 
 // Type definitions for adapters
 export interface IDatabaseAdapter {
@@ -47,6 +161,8 @@ export const SchemaAnalyzer = Object.freeze({
   async analyzeSchema(connection: {
     driver: string;
     connectionString: string;
+    sourceConnectionOrigin?: SourceConnectionOrigin;
+    sourceSsl?: boolean;
   }): Promise<DatabaseSchema> {
     Logger.info('Analyzing database schema...');
 
@@ -67,6 +183,9 @@ export const SchemaAnalyzer = Object.freeze({
       );
       return schema;
     } catch (error) {
+      const errorChain = getErrorChainMessages(error);
+      Logger.error(`Schema analysis failure chain: ${errorChain.join(' -> ')}`);
+      logDetailedError('Schema analysis failure', error);
       Logger.error('Failed to analyze database schema:', error);
       throw error;
     }
@@ -78,19 +197,37 @@ export const SchemaAnalyzer = Object.freeze({
   async extractTables(connection: {
     driver: string;
     connectionString: string;
+    sourceConnectionOrigin?: SourceConnectionOrigin;
+    sourceSsl?: boolean;
   }): Promise<TableSchema[]> {
     Logger.info(`Extracting tables from ${connection.driver} database...`);
+    Logger.info(
+      `[SchemaAnalyzer] Source connection (redacted): ${redactConnectionString(connection.connectionString)}`
+    );
+    Logger.info(`[SchemaAnalyzer] Source SSL enabled: ${connection.sourceSsl === true}`);
 
     try {
       // Create appropriate adapter based on driver
       let adapter: IDatabaseAdapter;
       switch (connection.driver) {
-        case 'mysql':
+        case 'mysql': {
+          const connectionDetails = parseConnectionDetails(
+            connection.connectionString,
+            3306,
+            'mysql',
+            'root'
+          );
           adapter = MySQLAdapter.create({
             driver: connection.driver,
-            connectionString: connection.connectionString,
+            host: connectionDetails.host,
+            port: connectionDetails.port,
+            database: connectionDetails.database,
+            username: connectionDetails.username,
+            password: connectionDetails.password,
+            ssl: connection.sourceSsl,
           });
           break;
+        }
         case 'postgresql':
           adapter = PostgreSQLAdapter.create({
             driver: connection.driver,
@@ -129,8 +266,14 @@ export const SchemaAnalyzer = Object.freeze({
       Logger.info(`Extracted ${tableSchemas.length} tables`);
       return tableSchemas;
     } catch (error) {
-      Logger.error('Failed to extract database tables:', error);
-      throw ErrorFactory.createTryCatchError('Schema extraction failed', error);
+      const errorChain = getErrorChainMessages(error);
+      Logger.error(`Failed to extract database tables: ${errorChain.join(' -> ')}`);
+      logDetailedError('Schema extraction failure', error);
+      Logger.error('Schema extraction failure details:', error);
+      throw ErrorFactory.createTryCatchError(
+        `Schema extraction failed: ${errorChain[0] ?? getErrorMessage(error)}`,
+        error
+      );
     }
   },
 

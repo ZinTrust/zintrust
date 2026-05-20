@@ -58,4 +58,40 @@ describe('src/config/mail patch coverage', () => {
       /Mail driver not configured/i
     );
   });
+
+  it('resolves the Cloudflare alias when MAIL_DRIVER=cl', () => {
+    vi.stubEnv('MAIL_DRIVER', 'cl');
+
+    const fakeConfig = {
+      default: 'disabled',
+      drivers: {
+        disabled: { driver: 'disabled' },
+        cl: { driver: 'cl', binding: 'SEND_EMAIL' },
+        cloudflare: { driver: 'cl', binding: 'SEND_EMAIL' },
+      },
+    };
+
+    expect((mailConfig.getDriver as any).call(fakeConfig, undefined)).toMatchObject({
+      driver: 'cl',
+      binding: 'SEND_EMAIL',
+    });
+  });
+
+  it('resolves the Cloudflare alias when MAIL_DRIVER=cloudflare', () => {
+    vi.stubEnv('MAIL_DRIVER', 'cloudflare');
+
+    const fakeConfig = {
+      default: 'disabled',
+      drivers: {
+        disabled: { driver: 'disabled' },
+        cl: { driver: 'cl', binding: 'SEND_EMAIL' },
+        cloudflare: { driver: 'cl', binding: 'SEND_EMAIL' },
+      },
+    };
+
+    expect((mailConfig.getDriver as any).call(fakeConfig, undefined)).toMatchObject({
+      driver: 'cl',
+      binding: 'SEND_EMAIL',
+    });
+  });
 });

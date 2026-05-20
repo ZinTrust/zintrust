@@ -52,10 +52,19 @@ const getMailDriver = (config: MailConfigInput, name?: string): MailDriverConfig
  * Create base mail drivers configuration
  */
 const createMailDrivers = (): Record<string, MailDriverConfig> => {
+  const cloudflareDriver = {
+    driver: 'cl' as const,
+    binding: Env.get('MAIL_CLOUDFLARE_BINDING', Env.get('MAIL_CL_BINDING', 'SEND_EMAIL')).trim(),
+  };
+
   return {
     disabled: {
       driver: 'disabled' as const,
     },
+
+    cl: cloudflareDriver,
+
+    cloudflare: cloudflareDriver,
 
     sendgrid: {
       driver: 'sendgrid' as const,
@@ -167,10 +176,7 @@ const ensureMailConfig = (): MailConfig => {
   cached = createMailConfig();
 
   try {
-    Object.defineProperties(
-      proxyTarget as unknown as object,
-      Object.getOwnPropertyDescriptors(cached)
-    );
+    Object.defineProperties(proxyTarget, Object.getOwnPropertyDescriptors(cached));
   } catch {
     // best-effort
   }
@@ -184,10 +190,10 @@ export const mailConfig: MailConfig = new Proxy(proxyTarget, {
   },
   ownKeys() {
     ensureMailConfig();
-    return Reflect.ownKeys(proxyTarget as unknown as object);
+    return Reflect.ownKeys(proxyTarget);
   },
   getOwnPropertyDescriptor(_target, prop) {
     ensureMailConfig();
-    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+    return Object.getOwnPropertyDescriptor(proxyTarget, prop);
   },
 });

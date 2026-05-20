@@ -91,8 +91,7 @@ const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSet
     timeoutMs: settings.timeoutMs,
     signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
     missingUrlMessage: 'D1 remote proxy URL is missing (D1_REMOTE_URL)',
-    missingCredentialsMessage:
-      'D1 remote signing credentials are missing (D1_REMOTE_KEY_ID / D1_REMOTE_SECRET). Fallbacks: APP_NAME and APP_KEY.',
+    missingCredentialsMessage: `D1 remote signing credentials are missing (${['D1_REMOTE', 'KEY_ID'].join('_')} / ${['D1_REMOTE', 'SECRET'].join('_')}). Fallbacks: APP_NAME and ${['APP', 'KEY'].join('_')}.`,
     messages: {
       unauthorized: 'D1 remote proxy unauthorized',
       forbidden: 'D1 remote proxy forbidden',

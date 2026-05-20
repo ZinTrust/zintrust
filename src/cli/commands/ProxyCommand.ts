@@ -5,6 +5,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
 import { ProxyRegistry } from '@proxy/ProxyRegistry';
 import '@proxy/d1/register';
+import '@proxy/email/register';
 import '@proxy/kv/register';
 import '@proxy/mysql/register';
 import '@proxy/postgres/register';
@@ -14,6 +15,11 @@ import type { Command } from 'commander';
 
 const PROXY_TARGET_MAP: Readonly<Record<string, string>> = Object.freeze({
   d1: 'proxy:d1',
+  email: 'proxy:email',
+  cl: 'proxy:email',
+  'cl:mail': 'proxy:email',
+  'cloudflare:mail': 'proxy:email',
+  'cloudflare-mail': 'proxy:email',
   kv: 'proxy:kv',
   mysql: 'proxy:mysql',
   my: 'proxy:mysql',

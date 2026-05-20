@@ -1,0 +1,38 @@
+{
+  "name": "@zintrust/cloudflare-email-proxy",
+  "version": "2.0.0",
+  "description": "Cloudflare email proxy package for ZinTrust.",
+  "type": "module",
+  "private": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@zintrust/core": "*"
+  },
+  "keywords": [
+    "zintrust",
+    "cloudflare",
+    "email",
+    "mail",
+    "proxy",
+    "workers"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
+    "prepublishOnly": "npm run build",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  }
+}

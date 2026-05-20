@@ -47,6 +47,7 @@ export const WranglerD1 = Object.freeze({
       'execute',
       opts.dbName,
       opts.isLocal ? '--local' : '--remote',
+      '--json',
       '--command',
       opts.sql,
     ];

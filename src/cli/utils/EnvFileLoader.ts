@@ -234,7 +234,7 @@ const loadFromCwd = (cwd: string, overrideExisting: boolean): LoadState => {
 
   // Set NODE_ENV to the normalized mode if we have one (after applying files)
   if (mode !== undefined) {
-    safeEnvSet('NODE_ENV', mode as node_env);
+    safeEnvSet('NODE_ENV', mode);
   }
 
   return { loadedFiles, mode };
@@ -250,7 +250,7 @@ const loadFromFile = (filePath: string, overrideExisting: boolean): LoadState =>
   const rawMode = parsed['NODE_ENV'];
   const mode = isNonEmptyString(rawMode) ? normalizeAppMode(rawMode) : undefined;
   if (mode !== undefined) {
-    safeEnvSet('NODE_ENV', mode as node_env);
+    safeEnvSet('NODE_ENV', mode);
   }
 
   return { loadedFiles: [filePath], mode };
@@ -344,6 +344,10 @@ const load = (options: LoadOptions = {}): LoadState => {
   return cached;
 };
 
+const resetCache = (): void => {
+  cached = undefined;
+};
+
 const ensureLoaded = (options: Omit<LoadOptions, 'overrideExisting'> = {}): LoadState =>
   load({ ...options, overrideExisting: false });
 
@@ -385,4 +389,5 @@ export const EnvFileLoader = Object.freeze({
   ensureLoaded,
   applyCliOverrides,
   getState,
+  resetCache,
 });

@@ -45,6 +45,8 @@ Mail uses these environment variables by default:
 
 Driver-specific variables:
 
+- Cloudflare Workers mail: `MAIL_CLOUDFLARE_BINDING` (optional, defaults to `SEND_EMAIL`)
+- Cloudflare mail proxy: `MAIL_CLOUDFLARE_PROXY_URL`, `MAIL_CLOUDFLARE_PROXY_KEY_ID`, `MAIL_CLOUDFLARE_PROXY_SECRET`, `MAIL_CLOUDFLARE_PROXY_TIMEOUT_MS`
 - SendGrid: `SENDGRID_API_KEY`
 - Mailgun: `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_BASE_URL`
 - SMTP / Nodemailer: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_SECURE`
@@ -62,11 +64,16 @@ Driver-specific variables:
 The core config includes driver entries for:
 
 - `disabled`
+- `cl` / `cloudflare`
 - `sendgrid`
 - `mailgun`
 - `smtp`
 - `nodemailer`
 - `ses`
+
+`cl` is the built-in Cloudflare Workers outgoing mail driver. It uses a Wrangler `send_email` binding plus the Workers `cloudflare:email` runtime API, so it does not require an external adapter package.
+
+If `MAIL_CLOUDFLARE_PROXY_URL` is set, the built-in `cl` / `cloudflare` driver switches to signed HTTPS forwarding and posts the outgoing message to a Cloudflare Worker proxy endpoint instead of requiring a local Workers runtime.
 
 `disabled` is a real, intentionally safe configuration. At runtime, `Mail.send()` will throw a config error if the selected driver is disabled.
 

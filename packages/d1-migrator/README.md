@@ -86,6 +86,12 @@ export D1_TARGET_DB=zintrust-live-test
 zin migrate-to-d1
 ```
 
+If your source MySQL or MariaDB server requires SSL/TLS, run:
+
+```bash
+DB_SSL=true MIGRATE_TO_D1_SOURCE_SSL=true zin migrate-to-d1
+```
+
 The command resolves values in this order: **CLI flag → environment variable → built-in default**.
 
 #### Explicit flags
@@ -137,11 +143,13 @@ zin migrate-to-d1 \
 zin migrate-to-d1 \
   --from postgresql \
   --source-connection "postgresql://user:password@localhost:5432/sourcedb" \
-  --to d1-remote \
+  --remote \
   --target-database my-d1-remote \
   --batch-size 5000 \
   --checkpoint-interval 25000
 ```
+
+Use `--remote` to execute against the resolved Wrangler D1 binding with `wrangler d1 ... --remote`. If the target entry in `wrangler.jsonc` has `"remote": true`, `zin migrate-to-d1` also defaults to remote execution automatically for that binding.
 
 #### Dry Run (Test Mode)
 
@@ -190,6 +198,7 @@ zin migrate-to-d1 \
 | ----------------------- | ----- | ------- | -------- | ------- | ------------------------------------------------------------------ |
 | `--from`                | `-f`  | string  | ✗        | —       | Source database type: `mysql`, `postgresql`, `sqlite`, `sqlserver` |
 | `--to`                  | `-t`  | string  | ✗        | `d1`    | Target: `d1` (local) or `d1-remote`                                |
+| `--remote`              | —     | boolean | ✗        | `false` | Execute target D1 statements through Wrangler remote mode          |
 | `--source-connection`   | `-s`  | string  | ✗        | —       | Source connection URI (falls back to env or DB\_\* composition)    |
 | `--target-database`     | `-d`  | string  | ✗        | `d1`    | Target D1 database identifier (or env fallback)                    |
 | `--batch-size`          | `-b`  | number  | ✗        | `1000`  | Records per batch during data copy                                 |

@@ -1,7 +1,16 @@
 import { ZintrustD1Proxy } from '@proxy/d1/ZintrustD1Proxy';
+import { ZintrustEmailProxy } from '@proxy/email/ZintrustEmailProxy';
 import { ZintrustKvProxy } from '@proxy/kv/ZintrustKvProxy';
 import { SignedRequest } from '@security/SignedRequest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('cloudflare:email', () => ({
+  EmailMessage: vi.fn(function (this: Record<string, unknown>, from: string, to: string, raw: string) {
+    this.from = from;
+    this.to = to;
+    this.raw = raw;
+  }),
+}));
 
 const toHex = (bytes: ArrayBuffer): string => {
   const view = new Uint8Array(bytes);
@@ -119,6 +128,52 @@ describe('Optional proxy exports (patch coverage)', () => {
     });
 
     const response = await ZintrustKvProxy.fetch(request, { KV_REMOTE_SECRET: 'super-secret' });
+    const payload = (await response.json()) as { code?: string };
+
+    expect(response.status).toBe(404);
+    expect(payload.code).toBe('NOT_FOUND');
+  });
+
+  it('ZintrustEmailProxy rejects unsupported methods', async () => {
+    const response = await ZintrustEmailProxy.fetch(
+      new Request('https://example.test/zin/mail/cloudflare/send', { method: 'GET' }),
+      {}
+    );
+
+    expect(response.status).toBe(405);
+  });
+
+  it('ZintrustEmailProxy returns config error when signing credentials are missing', async () => {
+    const request = new Request('https://example.test/zin/mail/cloudflare/send', {
+      method: 'POST',
+      body: JSON.stringify({
+        message: {
+          to: 'demo@example.com',
+          from: { email: 'from@example.com' },
+          subject: 'Proxy hello',
+          text: 'Hello from proxy',
+        },
+      }),
+    });
+
+    const response = await ZintrustEmailProxy.fetch(request, {});
+    const payload = (await response.json()) as { code?: string };
+
+    expect(response.status).toBe(401);
+    expect(payload.code).toBe('CONFIG_ERROR');
+  });
+
+  it('ZintrustEmailProxy returns not found for unknown signed paths', async () => {
+    const request = await buildSignedRequest({
+      url: 'https://example.test/zin/mail/cloudflare/unknown',
+      body: JSON.stringify({}),
+      keyId: 'k1',
+      secret: 'super-secret',
+    });
+
+    const response = await ZintrustEmailProxy.fetch(request, {
+      MAIL_CLOUDFLARE_PROXY_SECRET: 'super-secret',
+    });
     const payload = (await response.json()) as { code?: string };
 
     expect(response.status).toBe(404);

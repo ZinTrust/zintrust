@@ -35,7 +35,11 @@ zin proxy:kv
 
 ```bash
 zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
+zin put cloudflare --wg kv-proxy --var kv_env --bulk --env_path .env
+zin put cloudflare --wg kv-proxy --key KV_REMOTE_SECRET --value "..."
 ```
+
+Use `--bulk` when you want one Wrangler `secret bulk` call per target. Use `--key` / `--keys` for one-off secret rotation without expanding the whole group.
 
 ## Configuration
 

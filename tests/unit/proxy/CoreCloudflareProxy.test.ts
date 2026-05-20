@@ -1,7 +1,16 @@
 import { ZintrustD1Proxy } from '@proxy/d1/ZintrustD1Proxy';
+import { ZintrustEmailProxy } from '@proxy/email/ZintrustEmailProxy';
 import { ZintrustKvProxy } from '@proxy/kv/ZintrustKvProxy';
 import { SignedRequest } from '@security/SignedRequest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('cloudflare:email', () => ({
+  EmailMessage: vi.fn(function (this: Record<string, unknown>, from: string, to: string, raw: string) {
+    this.from = from;
+    this.to = to;
+    this.raw = raw;
+  }),
+}));
 
 const toHex = (bytes: ArrayBuffer): string => {
   const view = new Uint8Array(bytes);
@@ -98,6 +107,32 @@ describe('core cloudflare proxy exports', () => {
     const response = await ZintrustKvProxy.fetch(request, {
       CACHE: cache,
       KV_REMOTE_SECRET: 'super-secret',
+    });
+
+    expect(response).toBeInstanceOf(Response);
+    expect(response.status).toBe(200);
+  });
+
+  it('returns a Response from ZintrustEmailProxy.fetch', async () => {
+    const send = async (_message: unknown) => undefined;
+
+    const request = await buildSignedRequest({
+      url: 'https://example.test/zin/mail/cloudflare/send',
+      body: JSON.stringify({
+        message: {
+          to: 'demo@example.com',
+          from: { email: 'from@example.com' },
+          subject: 'Proxy hello',
+          text: 'Hello from proxy',
+        },
+      }),
+      keyId: 'k1',
+      secret: 'super-secret',
+    });
+
+    const response = await ZintrustEmailProxy.fetch(request, {
+      SEND_EMAIL: { send },
+      MAIL_CLOUDFLARE_PROXY_SECRET: 'super-secret',
     });
 
     expect(response).toBeInstanceOf(Response);

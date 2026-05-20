@@ -1,7 +1,8 @@
 {
   "name": "@zintrust/signer",
-  "version": "2.1.0",
+  "version": "2.0.0",
   "description": "Request signing and signature verification utilities for ZinTrust.",
+  "private": false,
   "type": "module",
   "exports": {
     ".": {
@@ -25,6 +26,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "peerDependencies": {
     "@zintrust/core": "*"

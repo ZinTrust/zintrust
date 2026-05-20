@@ -1,3 +1,23 @@
+# 2026-05-15
+
+- Fixed Cloudflare secret sync for the top-level Wrangler Worker. `zin put cloudflare` now treats an omitted `--wg` as the main Worker instead of a fake `worker` environment, uploads to that target with Wrangler's explicit `--env=` sentinel, and warns on empty optional secret values instead of counting them as failed uploads.
+
+- Pinned the workspace Wrangler CLI to `4.90.0` for local development and deploy flows because `4.92.0` regressed local auth behavior in this repo. This removes the accidental dependency on a globally installed Wrangler version when running commands like `npm run deploy`.
+
+- Updated the local Wrangler-backed proxy launcher to ignore `CLOUDFLARE_API_TOKEN` by default when starting `wrangler dev`. This works around Wrangler `4.92.x` forcing an OAuth login path that now fails when an API token is exported in the shell, while still allowing an explicit opt-in back to token auth with `ZIN_WRANGLER_DEV_KEEP_API_TOKEN=true`.
+
+- Updated the root docs-site deploy flow behind `npm run deploy` to launch Wrangler through a local wrapper that ignores `CLOUDFLARE_API_TOKEN` by default outside CI. This fixes the new Wrangler `4.92.x` local deploy failure path while preserving token-based auth in CI and allowing an explicit local override with `ZIN_WRANGLER_KEEP_API_TOKEN=true`.
+
+- Added a dedicated Wrangler-backed Cloudflare email proxy CLI command. ZinTrust now supports `zin proxy:email`, `zin proxy:cl:mail`, and `zin proxy email`, scaffolding `src/proxy/email/ZintrustEmailProxy.ts` plus `env.email-proxy` in `wrangler.jsonc` so the Worker email proxy can be started the same way as the D1 and KV proxies.
+
+- Fixed the shared raw RFC 2822 mail builder used by SMTP and Cloudflare mail sends so it now emits standards-compliant `Date` and `Message-ID` headers. This resolves Cloudflare Email Workers rejecting otherwise valid messages with `invalid message-id`, and the focused mail tests now pin the sender-domain message id shape and fallback behavior.
+
+- Added a signed Cloudflare email proxy path for the built-in `cl` / `cloudflare` mail driver. ZinTrust now exposes `MAIL_CLOUDFLARE_PROXY_URL`, `MAIL_CLOUDFLARE_PROXY_KEY_ID`, `MAIL_CLOUDFLARE_PROXY_SECRET`, and `MAIL_CLOUDFLARE_PROXY_TIMEOUT_MS`, includes a new `@zintrust/cloudflare-email-proxy` Worker package, and can forward outgoing mail payloads over HTTPS to a remote Worker that performs the actual `send_email` call.
+
+- Added a built-in Cloudflare Workers outgoing mail driver selected by `MAIL_DRIVER=cl` or `MAIL_DRIVER=cloudflare`. The core mail config now exposes `MAIL_CLOUDFLARE_BINDING`, the mail runtime sends through Wrangler `send_email` bindings via the `cloudflare:email` runtime API, and the focused mail test suite now covers the config alias, dispatcher path, and Worker binding transport.
+
+- Updated the root and workspace dependency set to clear the active `npm audit` findings and refresh the stale direct package line. Root/workspace manifests now pin the current OpenTelemetry, Cloudflare containers, BullMQ, Vitest, Miniflare, XML, and related dependency versions, and the root override set now forces fixed `fast-uri`, `fast-xml-builder`, and `fast-xml-parser` transitive versions so `npm audit` returns zero vulnerabilities again.
+
 # 2026-05-08
 
 - Added focused Workers R2 regression coverage for the new core storage path so the real patch gate now exercises the changed `R2Driver` branches for invalid bindings, object-body decoding, not-found reads, and direct Workers `head`/`delete` behavior. This closes the pre-push `coverage:patch` failure that had been stuck on [src/tools/storage/drivers/R2.ts](/opt/homebrew/var/www/Sites/zintrust/src/tools/storage/drivers/R2.ts).

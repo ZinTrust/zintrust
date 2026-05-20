@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cloudflare-containers-proxy",
-  "version": "2.1.0",
+  "version": "2.0.0",
   "description": "Cloudflare Containers gateway package for the ZinTrust proxy stack.",
   "private": false,
   "type": "module",
@@ -30,8 +30,8 @@
     "@zintrust/core": "*"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.3.3",
-    "@cloudflare/workers-types": "^4.20260501.1"
+    "@cloudflare/containers": "^0.3.4",
+    "@cloudflare/workers-types": "^4.20260515.1"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",

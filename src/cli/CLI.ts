@@ -26,6 +26,7 @@ import { DeployContainerWorkersCommand } from '@cli/commands/DeployContainerWork
 import { DockerCommand } from '@cli/commands/DockerCommand';
 import { DockerPushCommand } from '@cli/commands/DockerPushCommand';
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
+import { EmailProxyCommand } from '@cli/commands/EmailProxyCommand';
 import { EnvKeyGenerateCommand } from '@cli/commands/EnvKeyGenerateCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
@@ -154,6 +155,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     JwtDevCommand,
     ProxyCommand.create(),
     D1ProxyCommand.create(),
+    EmailProxyCommand.create(),
     KvProxyCommand.create(),
     MySqlProxyCommand.create(),
     PostgresProxyCommand.create(),

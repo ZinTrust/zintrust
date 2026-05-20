@@ -1,7 +1,8 @@
 {
   "name": "@zintrust/expose",
-  "version": "2.1.0",
+  "version": "2.0.0",
   "description": "ZinTrust local tunnel exposure package",
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -26,11 +27,14 @@
     "dotenv": "^17.4.2"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.8.0",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
     "@zintrust/core": "*"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "author": "ZinTrust",
   "license": "MIT"

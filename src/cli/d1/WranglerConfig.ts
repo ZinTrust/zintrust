@@ -7,6 +7,7 @@ export type WranglerD1DatabaseConfig = {
   database_name?: string;
   database_id?: string;
   migrations_dir?: string;
+  remote?: boolean;
 };
 
 export type WranglerD1ResolutionMatch = 'database_name' | 'binding' | 'single-configured';
@@ -144,7 +145,7 @@ const stripJsonc = (input: string): string => {
 
   for (let i = 0; i < input.length; i += 1) {
     const ch = input[i] ?? '';
-    const next = i + 1 < input.length ? input[i + 1] ?? '' : '';
+    const next = i + 1 < input.length ? (input[i + 1] ?? '') : '';
 
     if (processStripChar(state, ch, next, out)) continue;
 

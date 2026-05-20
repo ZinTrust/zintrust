@@ -78,6 +78,113 @@ type CloudflareSocketFactory = (options: {
   timeoutMs: number;
 }) => unknown;
 
+const getNodeMysqlSslConfig = (tlsEnabled: boolean): false | Record<string, unknown> => {
+  if (!tlsEnabled) {
+    return false;
+  }
+
+  return {
+    rejectUnauthorized: false,
+    minVersion: 'TLSv1.2',
+  };
+};
+
+const getSocketTimeoutMs = (config: DatabaseConfig): number => {
+  if (typeof config.socketTimeoutMs === 'number' && config.socketTimeoutMs > 0) {
+    return config.socketTimeoutMs;
+  }
+
+  return 30000;
+};
+
+type CreateWorkersPoolOptions = {
+  mysql: MySqlModule;
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  tlsEnabled: boolean;
+  timeoutMs: number;
+};
+
+const createWorkersPool = async ({
+  mysql,
+  host,
+  port,
+  database,
+  user,
+  password,
+  tlsEnabled,
+  timeoutMs,
+}: CreateWorkersPoolOptions): Promise<MySqlPool> => {
+  if (!Cloudflare.isCloudflareSocketsEnabled()) {
+    throw ErrorFactory.createConfigError(
+      'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use MySQL sockets on Workers.'
+    );
+  }
+
+  const createSocket = await loadCloudflareSocketFactory();
+  return mysql.createPool({
+    host,
+    port,
+    database,
+    user,
+    password,
+    waitForConnections: true,
+    connectionLimit: 10,
+    namedPlaceholders: false,
+    disableEval: true,
+    stream: () => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
+  });
+};
+
+const createNodePool = (
+  mysql: MySqlModule,
+  host: string,
+  port: number,
+  database: string,
+  user: string,
+  password: string,
+  nodeMysqlSslConfig: false | Record<string, unknown>
+): MySqlPool => {
+  return mysql.createPool({
+    host,
+    port,
+    database,
+    user,
+    password,
+    ssl: nodeMysqlSslConfig,
+    waitForConnections: true,
+    connectionLimit: 10,
+    namedPlaceholders: false,
+  });
+};
+
+const describeDriverError = (error: unknown): string | undefined => {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const details = error as {
+    code?: unknown;
+    errno?: unknown;
+    sqlState?: unknown;
+    sqlMessage?: unknown;
+    fatal?: unknown;
+  };
+
+  const parts = [
+    typeof details.code === 'string' ? `code=${details.code}` : undefined,
+    typeof details.errno === 'number' ? `errno=${details.errno}` : undefined,
+    typeof details.sqlState === 'string' ? `sqlState=${details.sqlState}` : undefined,
+    typeof details.sqlMessage === 'string' ? `sqlMessage=${details.sqlMessage}` : undefined,
+    typeof details.fatal === 'boolean' ? `fatal=${details.fatal}` : undefined,
+  ].filter((part): part is string => part !== undefined);
+
+  return parts.length > 0 ? parts.join(', ') : undefined;
+};
+
 function isMissingEsmPackage(error: unknown, packageName: string): boolean {
   if (error === null || typeof error !== 'object') return false;
   const maybe = error as { code?: unknown; message?: unknown };
@@ -196,43 +303,21 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
     const { host, port, database, user, password } = getConnectionParams(config);
     const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
     const tlsEnabled = Boolean((config as { ssl?: boolean }).ssl);
-    let timeoutMs: number;
-
-    if (typeof config.socketTimeoutMs === 'number' && config.socketTimeoutMs > 0) {
-      timeoutMs = config.socketTimeoutMs;
-    } else {
-      timeoutMs = 30000; // default 30s
-    }
+    const nodeMysqlSslConfig = getNodeMysqlSslConfig(tlsEnabled);
+    const timeoutMs = getSocketTimeoutMs(config);
     if (isWorkersRuntime) {
-      if (!Cloudflare.isCloudflareSocketsEnabled()) {
-        throw ErrorFactory.createConfigError(
-          'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use MySQL sockets on Workers.'
-        );
-      }
-      const createSocket = await loadCloudflareSocketFactory();
-      state.pool = mysql.createPool({
+      state.pool = await createWorkersPool({
+        mysql,
         host,
         port,
         database,
         user,
         password,
-        waitForConnections: true,
-        connectionLimit: 10,
-        namedPlaceholders: false,
-        disableEval: true,
-        stream: () => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
+        tlsEnabled,
+        timeoutMs,
       });
     } else {
-      state.pool = mysql.createPool({
-        host,
-        port,
-        database,
-        user,
-        password,
-        waitForConnections: true,
-        connectionLimit: 10,
-        namedPlaceholders: false,
-      });
+      state.pool = createNodePool(mysql, host, port, database, user, password, nodeMysqlSslConfig);
     }
 
     // Probe.
@@ -245,6 +330,16 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
         "MySQL adapter requires the 'mysql2' package (run `npm install mysql2` or `zin add db:mysql`)."
       );
     }
+
+    const driverError = describeDriverError(error);
+    if (driverError !== undefined) {
+      Logger.error(`[db-mysql] MySQL driver error: ${driverError}`);
+    }
+
+    if (error instanceof Error && typeof error.stack === 'string' && error.stack.trim() !== '') {
+      Logger.error(`[db-mysql] MySQL driver stack: ${error.stack}`);
+    }
+
     throw ErrorFactory.createTryCatchError('Failed to connect to MySQL', error);
   }
 }
@@ -270,7 +365,6 @@ async function rawQuery<T>(state: AdapterState, sql: string, parameters?: unknow
   const pool = ensurePool(state);
 
   try {
-    Logger.warn(`Raw SQL Query executed: ${sql}`, Logger.withTraceSkipContext({ sql, parameters }));
     const [rows] = await pool.execute(sql, parameters ?? []);
     if (Array.isArray(rows)) return rows as T[];
     return [] as T[];

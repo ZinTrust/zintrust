@@ -7,8 +7,12 @@ import type { Command } from 'commander';
 
 export type SourceDatabaseDriver = 'mysql' | 'postgresql' | 'sqlite' | 'sqlserver';
 
+export type SourceConnectionOrigin = 'option' | 'env' | 'db-env';
+
 export interface MigrationConfig {
   sourceConnection: string;
+  sourceConnectionOrigin?: SourceConnectionOrigin;
+  sourceSsl?: boolean;
   sourceDriver: SourceDatabaseDriver;
   targetDatabase: string;
   targetType: 'd1' | 'd1-remote';

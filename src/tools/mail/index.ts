@@ -2,6 +2,7 @@ import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { mailConfig } from '@config/mail';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
+import { CloudflareDriver } from '@mail/drivers/Cloudflare';
 import type { MailAddress } from '@mail/drivers/SendGrid';
 import { SesDriver } from '@mail/drivers/Ses';
 
@@ -23,7 +24,7 @@ export type SendMailInput = {
 
 export type SendMailResult = {
   ok: boolean;
-  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer';
+  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer' | 'cl';
   messageId?: string;
 };
 
@@ -117,6 +118,11 @@ const sendWithDriver = async (
   driver: ReturnType<typeof mailConfig.getDriver>,
   message: MailMessage
 ): Promise<SendMailResult> => {
+  if (driver.driver === 'cl') {
+    const result = await CloudflareDriver.send({ driver: 'cl', binding: driver.binding }, message);
+    return { ok: result.ok, driver: 'cl', messageId: result.messageId };
+  }
+
   if (driver.driver === 'ses') {
     const result = await SesDriver.send({ region: driver.region }, message);
     return { ok: result.ok, driver: 'ses', messageId: result.messageId };
@@ -133,7 +139,12 @@ const sendWithDriver = async (
     };
   }
 
-  if (driver.driver === 'sendgrid' || driver.driver === 'mailgun' || driver.driver === 'smtp') {
+  if (
+    driver.driver === 'sendgrid' ||
+    driver.driver === 'mailgun' ||
+    driver.driver === 'smtp' ||
+    driver.driver === 'nodemailer'
+  ) {
     throw ErrorFactory.createConfigError(
       `Mail driver not registered: ${driver.driver} (run \`zin add mail:${driver.driver}\` / \`npm i @zintrust/mail-${driver.driver}\`)`
     );
@@ -141,7 +152,7 @@ const sendWithDriver = async (
 
   // Config exists for future drivers, but implementations are intentionally CLI/runtime-safe and added incrementally.
   throw ErrorFactory.createConfigError(
-    `Mail driver not registered: ${mailConfig.default}. Available drivers: ses, sendgrid, mailgun, smtp. Run \`zin add mail:${mailConfig.default}\` to install.`
+    `Mail driver not registered: ${mailConfig.default}. Available drivers: cl, ses, sendgrid, mailgun, smtp, nodemailer. Run \`zin add mail:${mailConfig.default}\` to install.`
   );
 };
 
@@ -194,17 +205,11 @@ async function renderTemplateToHtml(input: RenderMailInput): Promise<string> {
   // Import lazily to avoid circular deps
   const { loadTemplate } = await import('./template-loader.js');
   if (looksLikeHtml(template)) {
-    return loadTemplate(
-      template,
-      (variables ?? {}) as import('@mail/template-utils').TemplateVariables
-    );
+    return loadTemplate(template, variables ?? {});
   }
   // template-loader expects full filename
   const fileName = template.endsWith('.html') ? template : `${template}.html`;
-  return loadTemplate(
-    fileName,
-    (variables ?? {}) as import('@mail/template-utils').TemplateVariables
-  );
+  return loadTemplate(fileName, variables ?? {});
 }
 
 export const Mail = Object.freeze({

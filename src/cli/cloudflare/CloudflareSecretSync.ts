@@ -6,7 +6,8 @@ import { resolveNpmPath } from '@common/index';
 import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
-import { existsSync } from '@node-singletons/fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from '@node-singletons/fs';
+import { tmpdir } from '@node-singletons/os';
 import * as path from '@node-singletons/path';
 import { EnvFile } from '@toolkit/Secrets/EnvFile';
 
@@ -28,6 +29,7 @@ type ResolveSelectedKeysArgs = {
   cwd: string;
   wranglerEnvs: string[];
   configGroups?: string[];
+  directKeys?: string[];
   configPath?: string;
   target?: string;
   requireSelection: boolean;
@@ -40,18 +42,30 @@ type CloudflareSecretSyncArgs = {
   envPath: string;
   dryRun?: boolean;
   configGroups?: string[];
+  directKeys?: string[];
+  inlineValues?: Record<string, string>;
   configPath?: string;
   target?: string;
+  bulk?: boolean;
   requireSelection?: boolean;
 };
 
 export type CloudflareSecretSyncResult = {
   pushed: number;
+  pushedKeys: string[];
+  skippedEmptyKeys: string[];
   failures: CloudflareSecretSyncFailure[];
   selectedKeys: string[];
 };
 
-const uniq = (items: string[]): string[] => {
+type CloudflareSecretSyncProgress = {
+  pushed: number;
+  pushedKeys: string[];
+  skippedEmptyKeys: string[];
+  failures: CloudflareSecretSyncFailure[];
+};
+
+export const uniq = (items: string[]): string[] => {
   const seen = new Set<string>();
   const out: string[] = [];
 
@@ -63,6 +77,24 @@ const uniq = (items: string[]): string[] => {
   }
 
   return out;
+};
+
+const createSyncProgress = (): CloudflareSecretSyncProgress => {
+  return {
+    pushed: 0,
+    pushedKeys: [],
+    skippedEmptyKeys: [],
+    failures: [],
+  };
+};
+
+const forEachWranglerEnv = (
+  wranglerEnvs: string[],
+  callback: (wranglerEnv: string, wranglerEnvLabel: string) => void
+): void => {
+  for (const wranglerEnv of wranglerEnvs) {
+    callback(wranglerEnv, describeWranglerEnv(wranglerEnv));
+  }
 };
 
 const getConfigArray = (config: Record<string, unknown>, key: string): string[] => {
@@ -77,6 +109,16 @@ const resolveValue = (key: string, envMap: Record<string, string>): string => {
   return fromFile ?? fromProcess ?? '';
 };
 
+const resolveValueWithOverrides = (
+  key: string,
+  envMap: Record<string, string>,
+  inlineValues: Record<string, string>
+): string => {
+  const inlineValue = inlineValues[key];
+  if (typeof inlineValue === 'string') return inlineValue;
+  return resolveValue(key, envMap);
+};
+
 const getPutTimeoutMs = (): number => {
   const raw = process.env['ZT_PUT_TIMEOUT_MS'];
   if (typeof raw !== 'string') return 120000;
@@ -84,6 +126,9 @@ const getPutTimeoutMs = (): number => {
   if (!Number.isFinite(parsed) || parsed <= 0) return 120000;
   return parsed;
 };
+
+const describeWranglerEnv = (wranglerEnv: string): string =>
+  wranglerEnv.trim() === '' ? 'top-level worker' : wranglerEnv;
 
 const putSecret = (
   wranglerEnv: string,
@@ -98,11 +143,46 @@ const putSecret = (
     args.push('--config', configPath.trim());
   }
 
-  args.push('secret', 'put', key, '--env', wranglerEnv);
+  args.push('secret', 'put', key);
+
+  if (wranglerEnv.trim() === '') {
+    args.push('--env=');
+  } else {
+    args.push('--env', wranglerEnv);
+  }
 
   execFileSync(npmPath, args, {
     stdio: ['pipe', 'inherit', 'inherit'],
     input: value,
+    encoding: 'utf8',
+    timeout: getPutTimeoutMs(),
+    killSignal: 'SIGTERM',
+    env: appConfig.getSafeEnv(),
+  });
+};
+
+const putSecretBulk = (
+  wranglerEnv: string,
+  payloadPath: string,
+  configPath: string | undefined
+): void => {
+  const npmPath = resolveNpmPath();
+  const args = ['exec', '--yes', '--', 'wrangler'];
+
+  if (typeof configPath === 'string' && configPath.trim() !== '') {
+    args.push('--config', configPath.trim());
+  }
+
+  args.push('secret', 'bulk', payloadPath);
+
+  if (wranglerEnv.trim() === '') {
+    args.push('--env=');
+  } else {
+    args.push('--env', wranglerEnv);
+  }
+
+  execFileSync(npmPath, args, {
+    stdio: ['ignore', 'inherit', 'inherit'],
     encoding: 'utf8',
     timeout: getPutTimeoutMs(),
     killSignal: 'SIGTERM',
@@ -119,10 +199,16 @@ const resolveSelectedKeys = ({
   cwd,
   wranglerEnvs,
   configGroups = [],
+  directKeys = [],
   configPath,
   target,
   requireSelection,
 }: ResolveSelectedKeysArgs): string[] => {
+  const selectedDirectKeys = uniq(directKeys);
+  if (selectedDirectKeys.length > 0) {
+    return selectedDirectKeys;
+  }
+
   const explicitKeys = uniq(
     configGroups.flatMap((groupKey) => {
       const keys = getConfigArray(config, groupKey);
@@ -154,9 +240,42 @@ const resolveSelectedKeys = ({
 
   throw ErrorFactory.createCliError(
     configGroups.length === 0
-      ? 'No secret keys resolved from .zintrust.json cloudflare.shared_env/cloudflare.targets/cloudflare.wrangler_envs. Use --var <group> or add a Cloudflare env manifest.'
+      ? 'No secret keys resolved from explicit keys or .zintrust.json cloudflare.shared_env/cloudflare.targets/cloudflare.wrangler_envs. Use --key/--keys, --var <group>, or add a Cloudflare env manifest.'
       : 'No secret keys resolved from selected groups.'
   );
+};
+
+type ResolvedBulkPayload = {
+  payload: Record<string, string>;
+  includedKeys: string[];
+  skippedEmptyKeys: string[];
+};
+
+const resolveBulkPayload = (
+  log: CloudflareSecretLog,
+  wranglerEnv: string,
+  selectedKeys: string[],
+  envMap: Record<string, string>,
+  inlineValues: Record<string, string>
+): ResolvedBulkPayload => {
+  const payload: Record<string, string> = {};
+  const includedKeys: string[] = [];
+  const skippedEmptyKeys: string[] = [];
+  const wranglerEnvLabel = describeWranglerEnv(wranglerEnv);
+
+  for (const key of selectedKeys) {
+    const value = resolveValueWithOverrides(key, envMap, inlineValues);
+    if (value.trim() === '') {
+      log.warn(`skip ${key} -> ${wranglerEnvLabel}: empty value`);
+      skippedEmptyKeys.push(key);
+      continue;
+    }
+
+    payload[key] = value;
+    includedKeys.push(key);
+  }
+
+  return { payload, includedKeys, skippedEmptyKeys };
 };
 
 const processSecretSync = (
@@ -165,51 +284,111 @@ const processSecretSync = (
   selectedKeys: string[],
   envMap: Record<string, string>,
   dryRun: boolean,
-  configPath: string | undefined
-): { pushed: number; failures: CloudflareSecretSyncFailure[] } => {
-  let pushed = 0;
-  const failures: CloudflareSecretSyncFailure[] = [];
+  configPath: string | undefined,
+  inlineValues: Record<string, string>
+): CloudflareSecretSyncProgress => {
+  const progress = createSyncProgress();
 
-  for (const wranglerEnv of wranglerEnvs) {
+  forEachWranglerEnv(wranglerEnvs, (wranglerEnv, wranglerEnvLabel) => {
     for (const key of selectedKeys) {
-      const value = resolveValue(key, envMap);
+      const value = resolveValueWithOverrides(key, envMap, inlineValues);
       if (value.trim() === '') {
-        failures.push({ wranglerEnv, key, reason: 'empty value' });
+        log.warn(`skip ${key} -> ${wranglerEnvLabel}: empty value`);
+        progress.skippedEmptyKeys.push(key);
         continue;
       }
 
       try {
         if (!dryRun) {
-          log.info(`putting ${key} -> ${wranglerEnv}...`);
+          log.info(`putting ${key} -> ${wranglerEnvLabel}...`);
           putSecret(wranglerEnv, key, value, configPath);
         }
-        pushed += 1;
-        log.info(`${dryRun ? '[dry-run] ' : ''}put ${key} -> ${wranglerEnv}`);
+        progress.pushed += 1;
+        progress.pushedKeys.push(key);
+        log.info(`${dryRun ? '[dry-run] ' : ''}put ${key} -> ${wranglerEnvLabel}`);
       } catch (error) {
-        failures.push({ wranglerEnv, key, reason: getFailureReason(error) });
+        progress.failures.push({ wranglerEnv, key, reason: getFailureReason(error) });
       }
     }
-  }
+  });
 
-  return { pushed, failures };
+  return progress;
+};
+
+const processSecretBulkSync = (
+  log: CloudflareSecretLog,
+  wranglerEnvs: string[],
+  selectedKeys: string[],
+  envMap: Record<string, string>,
+  dryRun: boolean,
+  configPath: string | undefined,
+  inlineValues: Record<string, string>
+): CloudflareSecretSyncProgress => {
+  const progress = createSyncProgress();
+
+  forEachWranglerEnv(wranglerEnvs, (wranglerEnv, wranglerEnvLabel) => {
+    const {
+      payload,
+      includedKeys,
+      skippedEmptyKeys: skippedForEnv,
+    } = resolveBulkPayload(log, wranglerEnv, selectedKeys, envMap, inlineValues);
+
+    progress.skippedEmptyKeys.push(...skippedForEnv);
+
+    if (includedKeys.length === 0) {
+      log.info(`skip bulk upload -> ${wranglerEnvLabel}: no non-empty keys`);
+      return;
+    }
+
+    log.info(
+      `${dryRun ? '[dry-run] ' : ''}bulk keys -> ${wranglerEnvLabel}: ${includedKeys.join(', ')}`
+    );
+
+    if (dryRun) {
+      progress.pushed += includedKeys.length;
+      progress.pushedKeys.push(...includedKeys);
+      return;
+    }
+
+    const tempDir = mkdtempSync(path.join(tmpdir(), 'zintrust-cloudflare-secret-bulk-'));
+    const payloadPath = path.join(tempDir, 'secrets.json');
+
+    try {
+      writeFileSync(payloadPath, JSON.stringify(payload, null, 2), 'utf8');
+      log.info(`bulk uploading ${includedKeys.length} key(s) -> ${wranglerEnvLabel}...`);
+      putSecretBulk(wranglerEnv, payloadPath, configPath);
+      progress.pushed += includedKeys.length;
+      progress.pushedKeys.push(...includedKeys);
+      log.info(`bulk put ${includedKeys.length} key(s) -> ${wranglerEnvLabel}`);
+    } catch (error) {
+      const reason = getFailureReason(error);
+      for (const key of includedKeys) {
+        progress.failures.push({ wranglerEnv, key, reason });
+      }
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  return progress;
 };
 
 export const reportCloudflareSecretSync = (
   log: CloudflareSecretLog,
-  result: Pick<CloudflareSecretSyncResult, 'pushed' | 'failures'>
+  result: Pick<CloudflareSecretSyncResult, 'pushed' | 'skippedEmptyKeys' | 'failures'>
 ): void => {
   if (typeof log.success === 'function') {
     log.success(
-      `Cloudflare secrets report: pushed=${result.pushed}, failed=${result.failures.length}`
+      `Cloudflare secrets report: pushed=${result.pushed}, skipped_empty=${result.skippedEmptyKeys.length}, failed=${result.failures.length}`
     );
   } else {
     log.info(
-      `Cloudflare secrets report: pushed=${result.pushed}, failed=${result.failures.length}`
+      `Cloudflare secrets report: pushed=${result.pushed}, skipped_empty=${result.skippedEmptyKeys.length}, failed=${result.failures.length}`
     );
   }
 
   for (const item of result.failures) {
-    log.warn(`${item.key} -> ${item.wranglerEnv}: ${item.reason}`);
+    log.warn(`${item.key} -> ${describeWranglerEnv(item.wranglerEnv)}: ${item.reason}`);
   }
 };
 
@@ -220,8 +399,11 @@ export const syncCloudflareSecrets = async ({
   envPath,
   dryRun = false,
   configGroups = [],
+  directKeys = [],
+  inlineValues = {},
   configPath,
   target,
+  bulk = false,
   requireSelection = true,
 }: CloudflareSecretSyncArgs): Promise<CloudflareSecretSyncResult> => {
   const normalizedConfigPath =
@@ -237,24 +419,36 @@ export const syncCloudflareSecrets = async ({
     cwd,
     wranglerEnvs,
     configGroups,
+    directKeys,
     configPath: normalizedConfigPath,
     target,
     requireSelection,
   });
 
   if (selectedKeys.length === 0) {
-    return { pushed: 0, failures: [], selectedKeys: [] };
+    return { pushed: 0, pushedKeys: [], skippedEmptyKeys: [], failures: [], selectedKeys: [] };
   }
 
   const envMap = await EnvFile.read({ cwd, path: envPath });
-  const syncResult = processSecretSync(
-    log,
-    wranglerEnvs,
-    selectedKeys,
-    envMap,
-    dryRun,
-    normalizedConfigPath
-  );
+  const syncResult = bulk
+    ? processSecretBulkSync(
+        log,
+        wranglerEnvs,
+        selectedKeys,
+        envMap,
+        dryRun,
+        normalizedConfigPath,
+        inlineValues
+      )
+    : processSecretSync(
+        log,
+        wranglerEnvs,
+        selectedKeys,
+        envMap,
+        dryRun,
+        normalizedConfigPath,
+        inlineValues
+      );
 
   return {
     ...syncResult,

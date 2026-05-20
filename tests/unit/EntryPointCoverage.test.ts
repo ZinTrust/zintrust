@@ -5,6 +5,7 @@ import {
   RequestValidator,
   WorkerSigning,
   ZintrustD1Proxy,
+  ZintrustEmailProxy,
   ZintrustKvProxy,
 } from '@/proxy';
 import { WorkerCommands } from '@/worker-commands';
@@ -18,6 +19,7 @@ describe('entrypoint coverage', () => {
     expect(RequestValidator).toBeDefined();
     expect(WorkerSigning).toBeDefined();
     expect(ZintrustD1Proxy).toBeDefined();
+    expect(ZintrustEmailProxy).toBeDefined();
     expect(ZintrustKvProxy).toBeDefined();
     expect(WorkerCommands).toBeDefined();
     expect(registerHealthRoutes).toBeDefined();
