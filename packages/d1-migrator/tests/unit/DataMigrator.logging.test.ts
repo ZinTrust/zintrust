@@ -351,6 +351,161 @@ describe('DataMigrator logging and totals', () => {
     expect(loggerInfoMock).toHaveBeenCalledWith(
       '[DataMigrator] Using Wrangler remote D1 target: app-dev'
     );
+    expect(
+      loggerInfoMock.mock.calls.some(
+        ([message]) =>
+          typeof message === 'string' &&
+          message.includes('[DataMigrator] Chunk users offset=0 rows=3 duration=')
+      )
+    ).toBe(true);
+    expect(
+      loggerInfoMock.mock.calls.some(
+        ([message]) =>
+          typeof message === 'string' &&
+          message.includes('[DataMigrator] Table users completed rows=3/3 duration=')
+      )
+    ).toBe(true);
+  });
+
+  it('groups remote tables into dependency-safe migration levels', async () => {
+    const sourceAdapter = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockImplementation((sql: string) => {
+        if (sql.startsWith('SELECT * FROM `accounts`')) {
+          return Promise.resolve({ rows: [{ id: 1, name: 'Acme' }] });
+        }
+
+        if (sql.startsWith('SELECT * FROM `users`')) {
+          return Promise.resolve({ rows: [{ id: 1, account_id: 1 }] });
+        }
+
+        return Promise.resolve({ rows: [] });
+      }),
+    };
+
+    mysqlCreateMock.mockReturnValue(sourceAdapter);
+    analyzeSchemaMock.mockResolvedValue({
+      tables: [
+        {
+          name: 'accounts',
+          primaryKey: 'id',
+          columns: [],
+          indexes: [],
+          foreignKeys: [],
+          primaryKeys: ['id'],
+          rowCount: 1,
+        },
+        {
+          name: 'users',
+          primaryKey: 'id',
+          columns: [],
+          indexes: [],
+          foreignKeys: [
+            {
+              name: 'users_account_id_foreign',
+              column: 'account_id',
+              referencedTable: 'accounts',
+              referencedColumn: 'id',
+            },
+          ],
+          primaryKeys: ['id'],
+          rowCount: 1,
+        },
+      ],
+    });
+    buildD1SchemaMock.mockReturnValue([]);
+
+    wranglerExecuteSqlMock.mockImplementation(({ sql }: { sql: string }) => {
+      if (sql.includes('SELECT COUNT(*) as count FROM `accounts`')) {
+        return JSON.stringify([{ results: [{ count: 0 }] }]);
+      }
+
+      if (sql.includes('SELECT COUNT(*) as count FROM `users`')) {
+        return JSON.stringify([{ results: [{ count: 0 }] }]);
+      }
+
+      return JSON.stringify([{ results: [], meta: { changes: 1 } }]);
+    });
+
+    const { DataMigrator } = await import('../../src/cli/DataMigrator');
+
+    const progress = await DataMigrator.migrateData({
+      migrationId: 'migration-remote-dependency-levels',
+      sourceDriver: 'mysql',
+      sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
+      targetType: 'd1-remote',
+      targetDatabase: 'app-dev',
+      batchSize: 10,
+    });
+
+    expect(progress.processedRows).toBe(2);
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      '[DataMigrator] Starting table level 1/2: accounts'
+    );
+    expect(loggerInfoMock).toHaveBeenCalledWith('[DataMigrator] Starting table level 2/2: users');
+  });
+
+  it('adapts remote batch sizing upward after a fast large remote insert', async () => {
+    const sourceRows = Array.from({ length: 400 }, (_, index) => ({
+      id: index + 1,
+      email: `user-${index + 1}@example.com`,
+    }));
+    const sourceAdapter = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockImplementation((sql: string) => {
+        if (sql.startsWith('SELECT * FROM `users`')) {
+          return Promise.resolve({ rows: sourceRows });
+        }
+
+        return Promise.resolve({ rows: [] });
+      }),
+    };
+
+    mysqlCreateMock.mockReturnValue(sourceAdapter);
+    analyzeSchemaMock.mockResolvedValue({
+      tables: [
+        {
+          name: 'users',
+          primaryKey: 'id',
+          columns: [],
+          indexes: [],
+          foreignKeys: [],
+          primaryKeys: ['id'],
+          rowCount: 400,
+        },
+      ],
+    });
+    buildD1SchemaMock.mockReturnValue([]);
+
+    wranglerExecuteSqlMock.mockImplementation(({ sql }: { sql: string }) => {
+      if (sql.includes('SELECT COUNT(*) as count FROM `users`')) {
+        return JSON.stringify([{ results: [{ count: 0 }] }]);
+      }
+
+      return JSON.stringify([{ results: [], meta: { changes: 400 } }]);
+    });
+
+    const { DataMigrator } = await import('../../src/cli/DataMigrator');
+
+    const progress = await DataMigrator.migrateData({
+      migrationId: 'migration-remote-adaptive-batching',
+      sourceDriver: 'mysql',
+      sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
+      targetType: 'd1-remote',
+      targetDatabase: 'app-dev',
+      batchSize: 400,
+    });
+
+    expect(progress.processedRows).toBe(400);
+    expect(
+      loggerInfoMock.mock.calls.some(
+        ([message]) =>
+          typeof message === 'string' &&
+          message.includes('[DataMigrator] Adaptive remote batching: rows_per_statement 200 -> 250')
+      )
+    ).toBe(true);
   });
 
   it('falls back to parsing Wrangler table output for remote D1 count queries', async () => {
