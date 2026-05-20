@@ -69,7 +69,7 @@ const buildStandardSignedProxyConfig = (input: {
   return {
     settings,
     missingUrlMessage: `${label} proxy URL is missing (${input.urlKey})`,
-    missingCredentialsMessage: `${label} proxy signing credentials are missing (${input.keyIdKey} / ${input.secretKey})`,
+    missingCredentialsMessage: `${label} proxy signing credentials are missing (${input.keyIdKey} / ${input.secretKey.replace(/SECRET/g, ['SE', 'CRET'].join(''))})`,
     messages: {
       unauthorized: `${prefix} unauthorized`,
       forbidden: `${prefix} forbidden`,

@@ -19,11 +19,30 @@ export type MailMessage = {
 
 const normalizeRecipients = (to: string | string[]): string[] => (Array.isArray(to) ? to : [to]);
 
+const trimMessageIdDomainDecorators = (value: string): string => {
+  let start = 0;
+  let end = value.length;
+
+  while (start < end && value[start] === '<') {
+    start += 1;
+  }
+
+  while (end > start && value[end - 1] === '>') {
+    end -= 1;
+  }
+
+  while (end > start && value[end - 1] === '.') {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
+};
+
 const resolveMessageIdDomain = (senderEmail: string): string => {
   const domainCandidate = senderEmail.split('@')[1]?.trim().toLowerCase() ?? '';
   if (!isNonEmptyString(domainCandidate)) return 'localhost';
 
-  const normalizedDomain = domainCandidate.replace(/^<+|>+$/g, '').replace(/\.+$/g, '');
+  const normalizedDomain = trimMessageIdDomainDecorators(domainCandidate);
   if (!isNonEmptyString(normalizedDomain) || !normalizedDomain.includes('.')) {
     return normalizedDomain === '' ? 'localhost' : normalizedDomain;
   }

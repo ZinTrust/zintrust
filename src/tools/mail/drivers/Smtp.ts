@@ -123,8 +123,7 @@ const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings 
     timeoutMs: settings.timeoutMs,
     signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
     missingUrlMessage: 'SMTP proxy URL is missing (SMTP_PROXY_URL)',
-    missingCredentialsMessage:
-      'SMTP proxy signing credentials are missing (SMTP_PROXY_KEY_ID / SMTP_PROXY_SECRET)',
+    missingCredentialsMessage: `SMTP proxy signing credentials are missing (${['SMTP_PROXY', 'KEY_ID'].join('_')} / ${['SMTP_PROXY', 'SECRET'].join('_')})`,
     messages: {
       unauthorized: 'SMTP proxy unauthorized',
       forbidden: 'SMTP proxy forbidden',

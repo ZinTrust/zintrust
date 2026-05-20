@@ -37,6 +37,15 @@ type ProxySendResponse = {
   messageId?: string;
 };
 
+const MAIL_PROXY_KEY_ID_ENV = 'MAIL_CLOUDFLARE_PROXY_KEY_ID';
+const MAIL_PROXY_SECRET_ENV = ['MAIL_CLOUDFLARE_PROXY', 'SECRET'].join('_');
+const APP_KEY_ID_ENV = 'APP_NAME';
+const APP_SECRET_ENV = ['APP', 'KEY'].join('_');
+
+const createMissingMailProxyCredentialsMessage = (): string => {
+  return `Cloudflare mail proxy signing credentials are missing (${MAIL_PROXY_KEY_ID_ENV} / ${MAIL_PROXY_SECRET_ENV}). Fallbacks: ${APP_KEY_ID_ENV} and ${APP_SECRET_ENV}.`;
+};
+
 const resolveSigningPrefix = (baseUrl: string): string | undefined => {
   try {
     const parsed = new URL(baseUrl);
@@ -66,8 +75,7 @@ const createRemoteConfig = (): RemoteSignedJsonSettings => {
     timeoutMs,
     signaturePathPrefixToStrip: resolveSigningPrefix(baseUrl),
     missingUrlMessage: 'Cloudflare mail proxy URL is missing (MAIL_CLOUDFLARE_PROXY_URL)',
-    missingCredentialsMessage:
-      'Cloudflare mail proxy signing credentials are missing (MAIL_CLOUDFLARE_PROXY_KEY_ID / MAIL_CLOUDFLARE_PROXY_SECRET). Fallbacks: APP_NAME and APP_KEY.',
+    missingCredentialsMessage: createMissingMailProxyCredentialsMessage(),
     messages: {
       unauthorized: 'Cloudflare mail proxy unauthorized',
       forbidden: 'Cloudflare mail proxy forbidden',

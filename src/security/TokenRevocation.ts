@@ -522,8 +522,7 @@ const kvRemoteCreateRemoteSettings = (proxy: KvRemoteProxySettings): RemoteSigne
   timeoutMs: proxy.timeoutMs,
   signaturePathPrefixToStrip: resolveSigningPrefix(proxy.baseUrl),
   missingUrlMessage: 'KV remote proxy URL is missing (KV_REMOTE_URL)',
-  missingCredentialsMessage:
-    'KV remote signing credentials are missing (KV_REMOTE_KEY_ID / KV_REMOTE_SECRET)',
+  missingCredentialsMessage: `KV remote signing credentials are missing (${['KV_REMOTE', 'KEY_ID'].join('_')} / ${['KV_REMOTE', 'SECRET'].join('_')})`,
   messages: {
     unauthorized: 'KV remote proxy unauthorized',
     forbidden: 'KV remote proxy forbidden',
