@@ -536,6 +536,25 @@ export const DataMigrator = Object.freeze({
   },
 
   /**
+   * Get target table row count for resumability
+   */
+  async getTargetRowCount(targetConnection: TargetConnection, tableName: string): Promise<number> {
+    if (!targetConnection.adapter) return 0;
+
+    try {
+      const result = await targetConnection.adapter.query(
+        `SELECT COUNT(*) as count FROM \`${tableName}\``,
+        []
+      );
+      const count = result.rows[0]?.['count'] as number | undefined;
+      return typeof count === 'number' ? count : 0;
+    } catch {
+      // Table might not exist or query failed
+      return 0;
+    }
+  },
+
+  /**
    * Migrate single table
    */
   async migrateTable(
@@ -553,10 +572,27 @@ export const DataMigrator = Object.freeze({
       const totalRows = table.rowCount || 0;
       const batchSize = config.batchSize || 1000;
 
-      Logger.info(`Processing ${totalRows} rows in batches of ${batchSize}`);
+      // Check if table is already synced for resumability
+      const targetRowCount = await DataMigrator.getTargetRowCount(targetConnection, table.name);
+      if (targetRowCount >= totalRows) {
+        Logger.info(
+          `Table ${table.name} already synced: ${targetRowCount}/${totalRows} rows, skipping`
+        );
+        return { rowsMigrated: 0, errors: [] };
+      }
+
+      if (targetRowCount > 0) {
+        Logger.info(
+          `Table ${table.name} partially synced: ${targetRowCount}/${totalRows} rows, resuming from offset ${targetRowCount}`
+        );
+      } else {
+        Logger.info(`Processing ${totalRows} rows in batches of ${batchSize}`);
+      }
 
       // Process data in chunks sequentially for data integrity
-      for (let offset = 0; offset < totalRows; offset += batchSize) {
+      // Start from the last synced offset for resumability
+      const startOffset = targetRowCount;
+      for (let offset = startOffset; offset < totalRows; offset += batchSize) {
         try {
           const chunk = await DataMigrator.readDataChunk(
             sourceConnection,

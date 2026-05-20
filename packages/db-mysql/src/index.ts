@@ -89,6 +89,78 @@ const getNodeMysqlSslConfig = (tlsEnabled: boolean): false | Record<string, unkn
   };
 };
 
+const getSocketTimeoutMs = (config: DatabaseConfig): number => {
+  if (typeof config.socketTimeoutMs === 'number' && config.socketTimeoutMs > 0) {
+    return config.socketTimeoutMs;
+  }
+
+  return 30000;
+};
+
+type CreateWorkersPoolOptions = {
+  mysql: MySqlModule;
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  tlsEnabled: boolean;
+  timeoutMs: number;
+};
+
+const createWorkersPool = async ({
+  mysql,
+  host,
+  port,
+  database,
+  user,
+  password,
+  tlsEnabled,
+  timeoutMs,
+}: CreateWorkersPoolOptions): Promise<MySqlPool> => {
+  if (!Cloudflare.isCloudflareSocketsEnabled()) {
+    throw ErrorFactory.createConfigError(
+      'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use MySQL sockets on Workers.'
+    );
+  }
+
+  const createSocket = await loadCloudflareSocketFactory();
+  return mysql.createPool({
+    host,
+    port,
+    database,
+    user,
+    password,
+    waitForConnections: true,
+    connectionLimit: 10,
+    namedPlaceholders: false,
+    disableEval: true,
+    stream: () => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
+  });
+};
+
+const createNodePool = (
+  mysql: MySqlModule,
+  host: string,
+  port: number,
+  database: string,
+  user: string,
+  password: string,
+  nodeMysqlSslConfig: false | Record<string, unknown>
+): MySqlPool => {
+  return mysql.createPool({
+    host,
+    port,
+    database,
+    user,
+    password,
+    ssl: nodeMysqlSslConfig,
+    waitForConnections: true,
+    connectionLimit: 10,
+    namedPlaceholders: false,
+  });
+};
+
 const describeDriverError = (error: unknown): string | undefined => {
   if (error === null || typeof error !== 'object') {
     return undefined;
@@ -235,44 +307,20 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
     Logger.info(
       `[db-mysql] Effective connection params: host=${host}, port=${port}, database=${database}, user=${user}, password_len=${password.length}, ssl=${tlsEnabled}`
     );
-    let timeoutMs: number;
-
-    if (typeof config.socketTimeoutMs === 'number' && config.socketTimeoutMs > 0) {
-      timeoutMs = config.socketTimeoutMs;
-    } else {
-      timeoutMs = 30000; // default 30s
-    }
+    const timeoutMs = getSocketTimeoutMs(config);
     if (isWorkersRuntime) {
-      if (!Cloudflare.isCloudflareSocketsEnabled()) {
-        throw ErrorFactory.createConfigError(
-          'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use MySQL sockets on Workers.'
-        );
-      }
-      const createSocket = await loadCloudflareSocketFactory();
-      state.pool = mysql.createPool({
+      state.pool = await createWorkersPool({
+        mysql,
         host,
         port,
         database,
         user,
         password,
-        waitForConnections: true,
-        connectionLimit: 10,
-        namedPlaceholders: false,
-        disableEval: true,
-        stream: () => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
+        tlsEnabled,
+        timeoutMs,
       });
     } else {
-      state.pool = mysql.createPool({
-        host,
-        port,
-        database,
-        user,
-        password,
-        ssl: nodeMysqlSslConfig,
-        waitForConnections: true,
-        connectionLimit: 10,
-        namedPlaceholders: false,
-      });
+      state.pool = createNodePool(mysql, host, port, database, user, password, nodeMysqlSslConfig);
     }
 
     // Probe.

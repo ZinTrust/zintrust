@@ -261,7 +261,11 @@ const resolveFlag = (
 
 const encodeConnectionSegment = (value: string): string => {
   return encodeURIComponent(value).replace(/[!'()*]/g, (match) => {
-    return `%${match.charCodeAt(0).toString(16).toUpperCase()}`;
+    const codePoint = match.codePointAt(0);
+    if (codePoint === undefined) {
+      return match;
+    }
+    return `%${codePoint.toString(16).toUpperCase()}`;
   });
 };
 
