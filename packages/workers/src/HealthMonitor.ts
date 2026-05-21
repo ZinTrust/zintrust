@@ -86,9 +86,9 @@ const verifyWorkerHealth = async (worker: Worker): Promise<boolean> => {
   if (!isRunning) return false;
 
   const client = await worker.client;
-  const pingResult = await client.ping();
-  if (pingResult !== 'PONG') {
-    throw ErrorFactory.createWorkerError(`Redis ping failed: ${pingResult}`);
+  const redisInfo = await client.info();
+  if (redisInfo.trim() === '') {
+    throw ErrorFactory.createWorkerError('Redis info command returned empty response');
   }
   return true;
 };

@@ -47,6 +47,7 @@ export interface TargetConnection {
   connected: boolean;
   adapter?: DatabaseAdapter;
   remoteBatchTuning?: RemoteBatchTuning;
+  targetRowCountsCache?: Record<string, number>;
 }
 
 export interface TableInfo {
@@ -1033,6 +1034,12 @@ async function migrateSmallTablesGroup(
       });
       const durationMs = Date.now() - executionStartTime;
 
+      if (targetConnection.targetRowCountsCache) {
+        for (const table of tables) {
+          targetConnection.targetRowCountsCache[table.name] = table.rowCount || 0;
+        }
+      }
+
       Logger.info(
         `[DataMigrator] Successfully migrated group of ${tables.length} tables in ${formatDuration(durationMs)}`
       );
@@ -1458,6 +1465,83 @@ const getErrorChainMessages = (error: unknown): string[] => {
   return [...new Set(messages)];
 };
 
+const cacheTargetRowCount = (
+  targetConnection: TargetConnection,
+  row: Record<string, unknown>
+): void => {
+  const name = typeof row['name'] === 'string' ? row['name'] : null;
+  const count = Number(row['count']);
+
+  if (name !== null && Number.isFinite(count) && targetConnection.targetRowCountsCache) {
+    targetConnection.targetRowCountsCache[name] = count;
+  }
+};
+
+const cacheTargetRowCountPayload = (
+  targetConnection: TargetConnection,
+  payload: WranglerJsonStatementResult[]
+): void => {
+  for (const statementResult of payload) {
+    const row = statementResult.results?.[0];
+    if (row !== undefined) {
+      cacheTargetRowCount(targetConnection, row);
+    }
+  }
+};
+
+const unlinkTempFile = (tempFilePath: string): void => {
+  try {
+    unlinkSync(tempFilePath);
+  } catch (error) {
+    Logger.debug(
+      `[DataMigrator] Failed to remove temp file ${tempFilePath}: ${getErrorMessage(error)}`
+    );
+  }
+};
+
+const executeRemoteCountPrefetch = (
+  targetConnection: TargetConnection,
+  sqlStatements: string
+): void => {
+  const tempFileDir = path.join('.wrangler', 'tmp');
+  const tempFileName = `migration-counts-${Date.now()}-${Math.random().toString(36).substring(7)}.sql`;
+  const tempFilePath = path.join(tempFileDir, tempFileName);
+
+  try {
+    mkdirSync(tempFileDir, { recursive: true });
+    writeFileSync(tempFilePath, `${sqlStatements};`, 'utf8');
+
+    const output = WranglerD1.executeSql({
+      dbName: targetConnection.database,
+      isLocal: false,
+      file: tempFilePath,
+    });
+    const payload = extractWranglerJson(output);
+
+    if (payload !== null) {
+      cacheTargetRowCountPayload(targetConnection, payload);
+    }
+  } finally {
+    unlinkTempFile(tempFilePath);
+  }
+};
+
+const executeLocalCountPrefetch = async (
+  targetConnection: TargetConnection,
+  sqlStatements: string[]
+): Promise<void> => {
+  if (!targetConnection.adapter) {
+    return;
+  }
+
+  for (const sql of sqlStatements) {
+    const result = await targetConnection.adapter.query(sql, []);
+    for (const row of result.rows) {
+      cacheTargetRowCount(targetConnection, row);
+    }
+  }
+};
+
 const describeDriverError = (error: unknown): string | undefined => {
   if (error === null || typeof error !== 'object') {
     return undefined;
@@ -1671,6 +1755,7 @@ export const DataMigrator = Object.freeze({
 
       if (targetConnection.adapter) {
         await DataMigrator.prepareTargetSchema(sourceConnection, targetConnection, config);
+        await DataMigrator.populateTargetRowCountsCache(targetConnection, schema.tables);
       }
 
       Logger.info('Starting table migration...');
@@ -1915,10 +2000,55 @@ export const DataMigrator = Object.freeze({
   },
 
   /**
+   * Populate target table row counts cache to optimize performance and prevent countless individual DB count queries
+   */
+  async populateTargetRowCountsCache(
+    targetConnection: TargetConnection,
+    tables: TableInfo[]
+  ): Promise<void> {
+    if (!targetConnection.adapter) return;
+    targetConnection.targetRowCountsCache = {};
+
+    if (tables.length === 0) return;
+
+    Logger.info(
+      `[DataMigrator] Pre-fetching target row counts for ${tables.length} tables to optimize migration speed...`
+    );
+
+    const chunkSize = 50;
+    for (let i = 0; i < tables.length; i += chunkSize) {
+      const chunk = tables.slice(i, i + chunkSize);
+      const countQueries = chunk.map(
+        (t) =>
+          `SELECT '${t.name.replaceAll("'", "''")}' as name, COUNT(*) as count FROM \`${t.name}\``
+      );
+
+      try {
+        if (targetConnection.type === 'd1-remote') {
+          executeRemoteCountPrefetch(targetConnection, countQueries.join(';\n'));
+        } else {
+          await executeLocalCountPrefetch(targetConnection, countQueries);
+        }
+      } catch (error) {
+        Logger.debug(
+          `[DataMigrator] Chunked pre-fetch failed, falling back to individual table counts on demand. Error: ${getErrorMessage(error)}`
+        );
+      }
+    }
+  },
+
+  /**
    * Get target table row count for resumability
    */
   async getTargetRowCount(targetConnection: TargetConnection, tableName: string): Promise<number> {
     if (!targetConnection.adapter) return 0;
+
+    if (
+      targetConnection.targetRowCountsCache &&
+      typeof targetConnection.targetRowCountsCache[tableName] === 'number'
+    ) {
+      return targetConnection.targetRowCountsCache[tableName];
+    }
 
     try {
       const result = await targetConnection.adapter.query(
@@ -2155,7 +2285,14 @@ export const DataMigrator = Object.freeze({
     }
 
     if (targetConnection.type === 'd1-remote') {
-      return insertRemoteRowsWithRetry(targetConnection, tableName, data);
+      const insertedRows = await insertRemoteRowsWithRetry(targetConnection, tableName, data);
+      if (
+        targetConnection.targetRowCountsCache &&
+        typeof targetConnection.targetRowCountsCache[tableName] === 'number'
+      ) {
+        targetConnection.targetRowCountsCache[tableName] += insertedRows;
+      }
+      return insertedRows;
     }
 
     const batchSettings = getInsertBatchSettings(targetConnection);
@@ -2181,6 +2318,13 @@ export const DataMigrator = Object.freeze({
         executionDurationMs,
         getSqlByteLength(statement.sql)
       );
+    }
+
+    if (
+      targetConnection.targetRowCountsCache &&
+      typeof targetConnection.targetRowCountsCache[tableName] === 'number'
+    ) {
+      targetConnection.targetRowCountsCache[tableName] += insertedRows;
     }
 
     return insertedRows;

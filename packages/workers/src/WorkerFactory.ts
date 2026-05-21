@@ -1234,9 +1234,9 @@ const waitForWorkerConnection = async (
 
         // Check Redis connection
         const client = await worker.client;
-        const pingResult = await client.ping();
-        if (pingResult !== 'PONG') {
-          throw ErrorFactory.createWorkerError('Redis ping failed');
+        const redisInfo = await client.info();
+        if (redisInfo.trim() === '') {
+          throw ErrorFactory.createWorkerError('Redis info command returned empty response');
         }
 
         // Removed heavy Queue instantiation loop - relying on Redis ping for connectivity check
@@ -1244,7 +1244,7 @@ const waitForWorkerConnection = async (
 
         Logger.debug(`Worker health verification passed for ${name}`, {
           isRunning,
-          pingResult,
+          redisInfoLength: redisInfo.length,
         });
 
         if (timeoutId) clearTimeout(timeoutId);
