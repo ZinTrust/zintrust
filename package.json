@@ -217,6 +217,10 @@
   ],
   "author": "ZinTrust Team",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
   "workspaces": [
     "packages/*"
   ],

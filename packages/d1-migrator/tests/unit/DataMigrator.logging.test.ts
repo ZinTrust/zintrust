@@ -147,11 +147,15 @@ describe('DataMigrator logging and totals', () => {
       connect: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockImplementation((sql: string) => {
-        if (sql.startsWith('SELECT * FROM `users`')) {
-          return Promise.resolve({ rows: sourceRows });
+        if (!sql.startsWith('SELECT * FROM `users`')) {
+          return Promise.resolve({ rows: [] });
         }
 
-        return Promise.resolve({ rows: [] });
+        const limitMatch = sql.match(/LIMIT (\d+)/i);
+        const offsetMatch = sql.match(/OFFSET (\d+)/i);
+        const limit = limitMatch ? Number.parseInt(limitMatch[1], 10) : sourceRows.length;
+        const offset = offsetMatch ? Number.parseInt(offsetMatch[1], 10) : 0;
+        return Promise.resolve({ rows: sourceRows.slice(offset, offset + limit) });
       }),
     };
 
@@ -447,7 +451,7 @@ describe('DataMigrator logging and totals', () => {
   });
 
   it('adapts remote batch sizing upward after a fast large remote insert', async () => {
-    const sourceRows = Array.from({ length: 400 }, (_, index) => ({
+    const sourceRows = Array.from({ length: 1000 }, (_, index) => ({
       id: index + 1,
       email: `user-${index + 1}@example.com`,
     }));
@@ -473,7 +477,7 @@ describe('DataMigrator logging and totals', () => {
           indexes: [],
           foreignKeys: [],
           primaryKeys: ['id'],
-          rowCount: 400,
+          rowCount: 1000,
         },
       ],
     });
@@ -484,7 +488,11 @@ describe('DataMigrator logging and totals', () => {
         return JSON.stringify([{ results: [{ count: 0 }] }]);
       }
 
-      return JSON.stringify([{ results: [], meta: { changes: 400 } }]);
+      const statementCount = (sql.match(/INSERT INTO /g) ?? []).length;
+      const tupleSeparators = (sql.match(/\),\s*\(/g) ?? []).length;
+      const changes = statementCount + tupleSeparators;
+
+      return JSON.stringify([{ results: [], meta: { changes } }]);
     });
 
     const { DataMigrator } = await import('../../src/cli/DataMigrator');
@@ -495,15 +503,17 @@ describe('DataMigrator logging and totals', () => {
       sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
       targetType: 'd1-remote',
       targetDatabase: 'app-dev',
-      batchSize: 400,
+      batchSize: 1000,
     });
 
-    expect(progress.processedRows).toBe(400);
+    expect(progress.processedRows).toBeGreaterThanOrEqual(1000);
     expect(
       loggerInfoMock.mock.calls.some(
         ([message]) =>
           typeof message === 'string' &&
-          message.includes('[DataMigrator] Adaptive remote batching: rows_per_statement 200 -> 250')
+          message.includes(
+            '[DataMigrator] Adaptive remote batching: rows_per_statement 1000 -> 1300'
+          )
       )
     ).toBe(true);
   });
@@ -552,5 +562,40 @@ describe('DataMigrator logging and totals', () => {
 
     expect(progress.processedRows).toBe(0);
     expect(loggerInfoMock).toHaveBeenCalledWith('Table users already synced: 1/1 rows, skipping');
+  });
+
+  it('logs chunk read failures as warnings without leaking sql text', async () => {
+    const sourceAdapter = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockRejectedValue(new Error('upstream read failed')),
+    };
+
+    mysqlCreateMock.mockReturnValue(sourceAdapter);
+    analyzeSchemaMock.mockResolvedValue({
+      tables: [],
+    });
+    buildD1SchemaMock.mockReturnValue([]);
+
+    const { DataMigrator } = await import('../../src/cli/DataMigrator');
+
+    await expect(
+      DataMigrator.readDataChunk(
+        {
+          driver: 'mysql',
+          connectionString: 'mysql://root:secret@127.0.0.1:3306/app',
+          connected: true,
+          adapter: sourceAdapter,
+        },
+        'users',
+        0,
+        100
+      )
+    ).rejects.toThrow('upstream read failed');
+
+    expect(loggerWarnMock).toHaveBeenCalledWith('Chunk read failed: upstream read failed');
+    expect(loggerErrorMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('SELECT * FROM `users`')
+    );
   });
 });

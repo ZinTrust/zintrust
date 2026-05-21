@@ -864,6 +864,25 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
       Logger.info('Starting data migration...');
       const migrationProgress = await DataMigrator.migrateData(config);
 
+      if (migrationProgress.status === 'failed') {
+        const errorDetails = Object.values(migrationProgress.errors).filter(
+          (error): error is string => {
+            return typeof error === 'string' && error.trim().length > 0;
+          }
+        );
+
+        Logger.error(
+          `Migration finished with failures: ${migrationProgress.processedRows} rows migrated`
+        );
+        if (errorDetails.length > 0) {
+          Logger.error(`Migration error details: ${errorDetails.join(' | ')}`);
+        }
+
+        throw ErrorFactory.createValidationError(
+          `Migration failed after migrating ${migrationProgress.processedRows} rows`
+        );
+      }
+
       Logger.info(`Migration completed: ${migrationProgress.processedRows} rows migrated`);
       Logger.info('D1 migration completed successfully');
     } catch (error) {

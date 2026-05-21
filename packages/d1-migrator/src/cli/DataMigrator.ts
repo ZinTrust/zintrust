@@ -25,7 +25,19 @@ export interface SourceConnection {
   sourceSsl?: boolean;
   connected: boolean;
   adapter?: DatabaseAdapter;
+  sourceBatchTuning?: SourceBatchTuning;
 }
+
+type SourceBatchHistoryEntry = {
+  rowsRead: number;
+  durationMs: number;
+  timePerRow: number;
+};
+
+type SourceBatchTuning = {
+  readBatchSize: number;
+  readBatchHistory: SourceBatchHistoryEntry[];
+};
 
 export interface TargetConnection {
   type: 'd1' | 'd1-remote';
@@ -201,11 +213,11 @@ const toSqlLiteral = (value: unknown): string => {
   }
 
   if (value instanceof Date) {
-    return `'${value.toISOString().replace(/'/g, "''")}'`;
+    return `'${value.toISOString().replaceAll("'", "''")}'`;
   }
 
   if (typeof value === 'string') {
-    return `'${value.replace(/'/g, "''")}'`;
+    return `'${value.replaceAll("'", "''")}'`;
   }
 
   if (typeof value === 'number') {
@@ -232,12 +244,12 @@ const toSqlLiteral = (value: unknown): string => {
     return `X'${toHex(bytes)}'`;
   }
 
-  return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+  return `'${JSON.stringify(value).replaceAll("'", "''")}'`;
 };
 
 const bindSqlParameters = (sql: string, parameters: unknown[]): string => {
   let index = 0;
-  return sql.replace(/\?/g, () => {
+  return sql.replaceAll('?', () => {
     if (index >= parameters.length) {
       throw ErrorFactory.createValidationError('Remote D1 SQL parameter count mismatch');
     }
@@ -248,13 +260,19 @@ const bindSqlParameters = (sql: string, parameters: unknown[]): string => {
   });
 };
 
-const REMOTE_INSERT_ROWS_PER_STATEMENT = 200;
+const REMOTE_INSERT_ROWS_PER_STATEMENT = 1000;
 const LOCAL_INSERT_ROWS_PER_STATEMENT = 500;
-const MAX_REMOTE_INSERT_SQL_LENGTH = 100000;
-const MAX_REMOTE_EXECUTION_SQL_LENGTH = 250000;
-const MIN_REMOTE_INSERT_ROWS_PER_STATEMENT = 50;
-const MAX_REMOTE_INSERT_ROWS_PER_STATEMENT = 2000;
-const DEFAULT_REMOTE_TABLE_PARALLELISM = 4;
+const MAX_REMOTE_INSERT_SQL_LENGTH = 300000;
+const MAX_REMOTE_EXECUTION_SQL_LENGTH = 800000;
+const MIN_REMOTE_INSERT_ROWS_PER_STATEMENT = 100;
+const MAX_REMOTE_INSERT_ROWS_PER_STATEMENT = 3000;
+const DEFAULT_REMOTE_TABLE_PARALLELISM = 8;
+const DEFAULT_SOURCE_READ_BATCH_SIZE = 250;
+const MIN_SOURCE_READ_BATCH_SIZE = 50;
+const MAX_SOURCE_READ_BATCH_SIZE = 1500;
+const SOURCE_READ_TARGET_TIME_MS = 5000;
+const SOURCE_CONNECT_RETRY_ATTEMPTS = 3;
+const SOURCE_CONNECT_RETRY_BASE_DELAY_MS = 500;
 
 const formatDuration = (durationMs: number): string => {
   if (durationMs < 1000) {
@@ -271,6 +289,152 @@ const formatRowsPerSecond = (rows: number, durationMs: number): string => {
 
   const rate = rows / (durationMs / 1000);
   return `${rate >= 100 ? rate.toFixed(0) : rate.toFixed(2)} rows/s`;
+};
+
+const waitMs = async (durationMs: number): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    const start = Date.now();
+    const poll = (): void => {
+      if (Date.now() - start >= durationMs) {
+        resolve();
+        return;
+      }
+
+      globalThis.queueMicrotask(poll);
+    };
+
+    poll();
+  });
+};
+
+const calculateOptimalBatchSize = (
+  measuredTimePerRowMs: number,
+  targetTimePerBatchMs = 5000,
+  minBatchSize = 100,
+  maxBatchSize = 3000
+): number => {
+  if (measuredTimePerRowMs <= 0) {
+    return minBatchSize;
+  }
+
+  const calculatedSize = Math.floor(targetTimePerBatchMs / measuredTimePerRowMs);
+  return Math.max(minBatchSize, Math.min(maxBatchSize, calculatedSize));
+};
+
+const getSourceBatchTuning = (
+  connection: SourceConnection,
+  initialBatchSize: number
+): SourceBatchTuning => {
+  if (connection.sourceBatchTuning !== undefined) {
+    return connection.sourceBatchTuning;
+  }
+
+  const startingBatchSize = Math.max(
+    MIN_SOURCE_READ_BATCH_SIZE,
+    Math.min(DEFAULT_SOURCE_READ_BATCH_SIZE, initialBatchSize)
+  );
+
+  connection.sourceBatchTuning = {
+    readBatchSize: startingBatchSize,
+    readBatchHistory: [],
+  };
+
+  return connection.sourceBatchTuning;
+};
+
+const isRetryableConnectionError = (error: unknown): boolean => {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes('etimedout') ||
+    message.includes('timed out') ||
+    message.includes('timeout') ||
+    message.includes('econnreset') ||
+    message.includes('connection lost') ||
+    message.includes('server has gone away') ||
+    message.includes('read timeout') ||
+    message.includes('write timeout') ||
+    message.includes('wait_timeout')
+  );
+};
+
+const connectWithRetry = async (adapter: DatabaseAdapter, label: string): Promise<void> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < SOURCE_CONNECT_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      await adapter.connect();
+      return;
+    } catch (error) {
+      lastError = error;
+      const retryable = isRetryableConnectionError(error);
+      const isLastAttempt = attempt >= SOURCE_CONNECT_RETRY_ATTEMPTS - 1;
+
+      if (!retryable || isLastAttempt) {
+        throw error;
+      }
+
+      const delayMs = SOURCE_CONNECT_RETRY_BASE_DELAY_MS * 2 ** attempt;
+      Logger.warn(
+        `[DataMigrator] ${label} connect failed on attempt ${attempt + 1}/${SOURCE_CONNECT_RETRY_ATTEMPTS}, retrying in ${delayMs}ms: ${getErrorMessage(error)}`
+      );
+      await waitMs(delayMs);
+    }
+  }
+
+  throw lastError;
+};
+
+const updateSourceBatchTuningAfterSuccess = (
+  connection: SourceConnection,
+  rowsRead: number,
+  durationMs: number,
+  batchSize: number
+): void => {
+  const tuning = getSourceBatchTuning(connection, batchSize);
+  const timePerRow = rowsRead > 0 ? durationMs / rowsRead : durationMs;
+  tuning.readBatchHistory.push({ rowsRead, durationMs, timePerRow });
+  if (tuning.readBatchHistory.length > 10) {
+    tuning.readBatchHistory.shift();
+  }
+
+  const avgTimePerRow =
+    tuning.readBatchHistory.reduce((sum, entry) => sum + entry.timePerRow, 0) /
+    tuning.readBatchHistory.length;
+  const targetTimePerBatchMs = Math.max(
+    1000,
+    Math.min(SOURCE_READ_TARGET_TIME_MS, Math.floor(batchSize * 5))
+  );
+  const optimalSize = calculateOptimalBatchSize(
+    avgTimePerRow,
+    targetTimePerBatchMs,
+    MIN_SOURCE_READ_BATCH_SIZE,
+    MAX_SOURCE_READ_BATCH_SIZE
+  );
+
+  if (Math.abs(optimalSize - tuning.readBatchSize) >= 50) {
+    tuning.readBatchSize = optimalSize;
+    Logger.info(
+      `[DataMigrator] Adaptive source batching: adjusted to ${optimalSize} rows (avg ${avgTimePerRow.toFixed(2)}ms/row)`
+    );
+  }
+};
+
+const reduceSourceBatchSizeAfterTimeout = (
+  connection: SourceConnection,
+  batchSize: number
+): number => {
+  const tuning = getSourceBatchTuning(connection, batchSize);
+  const reducedSize = Math.max(
+    MIN_SOURCE_READ_BATCH_SIZE,
+    Math.floor(Math.min(tuning.readBatchSize, batchSize) / 2)
+  );
+  if (reducedSize < tuning.readBatchSize) {
+    tuning.readBatchSize = reducedSize;
+    Logger.warn(
+      `[DataMigrator] Adaptive source batching: reduced to ${reducedSize} rows after timeout-like failure`
+    );
+  }
+  return reducedSize;
 };
 
 const getRemoteBatchTuning = (connection: TargetConnection): RemoteBatchTuning => {
@@ -319,18 +483,18 @@ const adjustRemoteBatchTuning = (
   const nearSqlLimit = sqlLength >= Math.floor(tuning.maxExecutionSqlLength * 0.9);
 
   if (
-    durationMs <= 1500 &&
+    durationMs <= 2500 &&
     executedRows >= Math.floor(previousRowsPerStatement * 0.8) &&
     !nearSqlLimit
   ) {
     tuning.rowsPerStatement = Math.min(
       MAX_REMOTE_INSERT_ROWS_PER_STATEMENT,
-      Math.max(previousRowsPerStatement + 25, Math.floor(previousRowsPerStatement * 1.25))
+      Math.max(previousRowsPerStatement + 50, Math.floor(previousRowsPerStatement * 1.3))
     );
-  } else if (durationMs >= 6000 || nearSqlLimit) {
+  } else if (durationMs >= 10000 || nearSqlLimit) {
     tuning.rowsPerStatement = Math.max(
       MIN_REMOTE_INSERT_ROWS_PER_STATEMENT,
-      Math.min(previousRowsPerStatement - 25, Math.floor(previousRowsPerStatement * 0.75))
+      Math.min(previousRowsPerStatement - 50, Math.floor(previousRowsPerStatement * 0.8))
     );
   }
 
@@ -338,6 +502,281 @@ const adjustRemoteBatchTuning = (
     Logger.info(
       `[DataMigrator] Adaptive remote batching: rows_per_statement ${previousRowsPerStatement} -> ${tuning.rowsPerStatement} after ${executedRows} rows in ${formatDuration(durationMs)}`
     );
+  }
+};
+
+const reduceRemoteBatchTuningAfterFailure = (
+  connection: TargetConnection,
+  sqlLength: number
+): void => {
+  if (connection.type !== 'd1-remote') {
+    return;
+  }
+
+  const tuning = getRemoteBatchTuning(connection);
+  const previousRowsPerStatement = tuning.rowsPerStatement;
+  const nearSqlLimit = sqlLength >= Math.floor(tuning.maxExecutionSqlLength * 0.8);
+
+  if (!nearSqlLimit && previousRowsPerStatement <= MIN_REMOTE_INSERT_ROWS_PER_STATEMENT) {
+    return;
+  }
+
+  tuning.rowsPerStatement = Math.max(
+    MIN_REMOTE_INSERT_ROWS_PER_STATEMENT,
+    Math.min(previousRowsPerStatement - 50, Math.floor(previousRowsPerStatement * 0.5))
+  );
+
+  if (tuning.rowsPerStatement !== previousRowsPerStatement) {
+    Logger.warn(
+      `[DataMigrator] Adaptive remote batching: rows_per_statement ${previousRowsPerStatement} -> ${tuning.rowsPerStatement} after failed remote insert`
+    );
+  }
+};
+
+const logTableMigrationProgress = (
+  table: TableInfo,
+  rowsMigrated: number,
+  totalRows: number,
+  batchSize: number
+): void => {
+  if (totalRows <= 10000 || rowsMigrated % (batchSize * 10) !== 0) {
+    return;
+  }
+
+  const normalizedTotalRows = Math.max(totalRows, rowsMigrated);
+  const percentage = Math.round((rowsMigrated / normalizedTotalRows) * 100);
+  Logger.info(`Table ${table.name}: ${rowsMigrated}/${normalizedTotalRows} (${percentage}%)`);
+};
+
+type ProcessTableChunkResult = {
+  rowsMigrated: number;
+  nextOffset: number;
+  nextBatchSize: number;
+  continueProcessing: boolean;
+};
+
+type TableChunkState = {
+  rowsMigrated: number;
+  offset: number;
+  currentBatchSize: number;
+  retryBatchSize: number;
+};
+
+const getTableChunkBatchSize = (
+  sourceConnection: SourceConnection,
+  retryBatchSize: number
+): number => {
+  if (sourceConnection.driver !== 'mysql') {
+    return retryBatchSize;
+  }
+
+  return getSourceBatchTuning(sourceConnection, retryBatchSize).readBatchSize;
+};
+
+const applyTableChunkResult = (
+  state: TableChunkState,
+  result: ProcessTableChunkResult,
+  initialBatchSize: number,
+  table: TableInfo,
+  totalRows: number
+): TableChunkState => {
+  const nextState: TableChunkState = {
+    rowsMigrated: state.rowsMigrated + result.rowsMigrated,
+    offset: result.nextOffset,
+    currentBatchSize: result.nextBatchSize,
+    retryBatchSize: result.nextBatchSize,
+  };
+
+  logTableMigrationProgress(table, nextState.rowsMigrated, totalRows, nextState.currentBatchSize);
+
+  if (
+    !result.continueProcessing &&
+    result.rowsMigrated === 0 &&
+    result.nextBatchSize < initialBatchSize
+  ) {
+    return nextState;
+  }
+
+  return nextState;
+};
+
+const verifyChunkInsertCount = (
+  tableName: string,
+  offset: number,
+  expectedRows: number,
+  insertedRows: number
+): void => {
+  if (insertedRows === expectedRows) {
+    return;
+  }
+
+  const verificationError = DataMigrator.createChunkVerificationError(
+    tableName,
+    offset,
+    expectedRows,
+    insertedRows
+  );
+  throw ErrorFactory.createValidationError(
+    `Chunk insert mismatch on ${tableName}`,
+    verificationError
+  );
+};
+
+const logChunkProcessingSuccess = (
+  tableName: string,
+  offset: number,
+  insertedRows: number,
+  chunkDurationMs: number
+): void => {
+  Logger.info(
+    `[DataMigrator] Chunk ${tableName} offset=${offset} rows=${insertedRows} duration=${formatDuration(chunkDurationMs)} rate=${formatRowsPerSecond(insertedRows, chunkDurationMs)}`
+  );
+};
+
+type ChunkExecutionResult = {
+  chunkLength: number;
+  insertedRows: number;
+};
+
+type ChunkExecutionContext = {
+  table: TableInfo;
+  sourceConnection: SourceConnection;
+  targetConnection: TargetConnection;
+  offset: number;
+  batchSize: number;
+};
+
+const executeChunkRows = async (
+  context: ChunkExecutionContext
+): Promise<ChunkExecutionResult | null> => {
+  const chunk = await DataMigrator.readDataChunk(
+    context.sourceConnection,
+    context.table.name,
+    context.offset,
+    context.batchSize
+  );
+
+  if (chunk.length === 0) {
+    return null;
+  }
+
+  const transformedChunk = await DataMigrator.transformData(chunk, context.table.name);
+  const insertedRows = await DataMigrator.insertData(
+    context.targetConnection,
+    context.table.name,
+    transformedChunk
+  );
+  verifyChunkInsertCount(context.table.name, context.offset, chunk.length, insertedRows);
+
+  return {
+    chunkLength: chunk.length,
+    insertedRows,
+  };
+};
+
+const createEmptyChunkResult = (offset: number, batchSize: number): ProcessTableChunkResult => {
+  return {
+    rowsMigrated: 0,
+    nextOffset: offset,
+    nextBatchSize: batchSize,
+    continueProcessing: false,
+  };
+};
+
+const buildChunkProcessingSuccessResult = async (
+  table: TableInfo,
+  sourceConnection: SourceConnection,
+  targetConnection: TargetConnection,
+  offset: number,
+  batchSize: number
+): Promise<ProcessTableChunkResult> => {
+  const chunkStartTime = Date.now();
+  const executionResult = await executeChunkRows({
+    table,
+    sourceConnection,
+    targetConnection,
+    offset,
+    batchSize,
+  });
+
+  if (executionResult === null) {
+    return createEmptyChunkResult(offset, batchSize);
+  }
+
+  const { chunkLength, insertedRows } = executionResult;
+  const chunkDurationMs = Date.now() - chunkStartTime;
+
+  if (sourceConnection.driver === 'mysql') {
+    updateSourceBatchTuningAfterSuccess(sourceConnection, insertedRows, chunkDurationMs, batchSize);
+  }
+
+  logChunkProcessingSuccess(table.name, offset, insertedRows, chunkDurationMs);
+
+  if (chunkLength < batchSize) {
+    return {
+      rowsMigrated: insertedRows,
+      nextOffset: offset + chunkLength,
+      nextBatchSize: batchSize,
+      continueProcessing: false,
+    };
+  }
+
+  return {
+    rowsMigrated: insertedRows,
+    nextOffset: offset + batchSize,
+    nextBatchSize: batchSize,
+    continueProcessing: true,
+  };
+};
+
+const buildChunkProcessingFailureResult = (
+  sourceConnection: SourceConnection,
+  offset: number,
+  batchSize: number,
+  error: unknown,
+  errors: string[]
+): ProcessTableChunkResult => {
+  const errorMessage = getErrorMessage(error);
+  const errorMsg = `Chunk processing failed at offset ${offset}: ${errorMessage}`;
+  Logger.warn(errorMsg);
+  errors.push(errorMsg);
+
+  if (sourceConnection.driver === 'mysql' && isRetryableConnectionError(error)) {
+    const reducedBatchSize = reduceSourceBatchSizeAfterTimeout(sourceConnection, batchSize);
+    return {
+      rowsMigrated: 0,
+      nextOffset: offset,
+      nextBatchSize: reducedBatchSize,
+      continueProcessing: reducedBatchSize >= batchSize,
+    };
+  }
+
+  return {
+    rowsMigrated: 0,
+    nextOffset: offset + batchSize,
+    nextBatchSize: batchSize,
+    continueProcessing: true,
+  };
+};
+
+const processTableChunk = async (
+  table: TableInfo,
+  sourceConnection: SourceConnection,
+  targetConnection: TargetConnection,
+  offset: number,
+  batchSize: number,
+  errors: string[]
+): Promise<ProcessTableChunkResult> => {
+  try {
+    return await buildChunkProcessingSuccessResult(
+      table,
+      sourceConnection,
+      targetConnection,
+      offset,
+      batchSize
+    );
+  } catch (error) {
+    return buildChunkProcessingFailureResult(sourceConnection, offset, batchSize, error, errors);
   }
 };
 
@@ -654,10 +1093,6 @@ const logDetailedError = (label: string, error: unknown): void => {
     Logger.error(`${label} driver details: ${driverDetails}`);
   }
 
-  if (error instanceof Error && typeof error.stack === 'string' && error.stack.trim() !== '') {
-    Logger.error(`${label} stack: ${error.stack}`);
-  }
-
   const cause = getErrorCause(error);
   if (cause !== undefined) {
     logDetailedError(`${label} cause`, cause);
@@ -730,6 +1165,14 @@ const createSourceAdapter = (config: MigrationConfig): DatabaseAdapter => {
         username: connectionDetails.username,
         password: connectionDetails.password,
         ssl: config.sourceSsl,
+        socketTimeoutMs: config.sourceSocketTimeoutMs,
+        connectTimeoutMs: Math.max(config.sourceSocketTimeoutMs ?? 30000, 60000),
+        acquireTimeoutMs: Math.max(config.sourceSocketTimeoutMs ?? 30000, 60000),
+        enableKeepAlive: true,
+        keepAliveInitialDelayMs: 0,
+        waitTimeoutSeconds: config.sourceWaitTimeoutSeconds,
+        netReadTimeoutSeconds: config.sourceNetReadTimeoutSeconds,
+        netWriteTimeoutSeconds: config.sourceNetWriteTimeoutSeconds,
       });
     }
     case 'postgresql': {
@@ -885,7 +1328,6 @@ export const DataMigrator = Object.freeze({
       const errorChain = getErrorChainMessages(error);
       Logger.error(`Data migration failed: ${errorChain.join(' -> ')}`);
       logDetailedError('Data migration failure', error);
-      Logger.error('Data migration failure details:', error);
       throw error;
     } finally {
       await safelyDisconnect('source', sourceConnection);
@@ -902,12 +1344,11 @@ export const DataMigrator = Object.freeze({
     const adapter = createSourceAdapter(config);
 
     try {
-      await adapter.connect();
+      await connectWithRetry(adapter, config.sourceDriver);
     } catch (error) {
       const errorChain = getErrorChainMessages(error);
       Logger.error(`Source database connection failed: ${errorChain.join(' -> ')}`);
       logDetailedError('Source database connection failure', error);
-      Logger.error('Source database connection failure details:', error);
       throw error;
     }
 
@@ -921,6 +1362,12 @@ export const DataMigrator = Object.freeze({
     };
 
     Logger.info('✓ Source database connected');
+    if (config.sourceDriver === 'mysql') {
+      sourceConnection.sourceBatchTuning = getSourceBatchTuning(
+        sourceConnection,
+        config.batchSize ?? DEFAULT_SOURCE_READ_BATCH_SIZE
+      );
+    }
     return sourceConnection;
   },
 
@@ -986,6 +1433,7 @@ export const DataMigrator = Object.freeze({
       );
     }
 
+    const adapter = targetConnection.adapter;
     Logger.info('Preparing target D1 schema...');
     const sourceSchema = await SchemaAnalyzer.analyzeSchema({
       driver: sourceConnection.driver,
@@ -997,12 +1445,42 @@ export const DataMigrator = Object.freeze({
     const d1Schema = SchemaBuilder.buildD1Schema(sourceSchema.tables, config.sourceDriver);
     SchemaBuilder.assertValidSchema(d1Schema);
 
+    const schemaStatements: string[] = [];
+    const maxBatchSqlLength =
+      targetConnection.type === 'd1-remote'
+        ? Math.max(0, MAX_REMOTE_EXECUTION_SQL_LENGTH - 2000)
+        : Number.POSITIVE_INFINITY;
+
+    const executeSchemaBatch = async (): Promise<void> => {
+      if (schemaStatements.length === 0) {
+        return;
+      }
+
+      const batchSql = `${schemaStatements.join(';\n')};`;
+      await adapter.query(batchSql, []);
+      schemaStatements.length = 0;
+    };
+
+    const pushSchemaStatement = async (sql: string): Promise<void> => {
+      const trimmedSql = sql.trim();
+      const nextLength =
+        schemaStatements.length === 0
+          ? trimmedSql.length
+          : schemaStatements.join(';\n').length + 2 + trimmedSql.length;
+
+      if (targetConnection.type === 'd1-remote' && nextLength > maxBatchSqlLength) {
+        await executeSchemaBatch();
+      }
+
+      schemaStatements.push(trimmedSql);
+    };
+
     for (const table of d1Schema) {
       const createSQL = SchemaBuilder.generateCreateTableSQL(table).replace(
         /^CREATE TABLE\s+/i,
         'CREATE TABLE IF NOT EXISTS '
       );
-      await targetConnection.adapter.query(createSQL, []);
+      await pushSchemaStatement(createSQL);
 
       const indexSQL = SchemaBuilder.generateIndexSQL(table).map((sql) =>
         sql
@@ -1011,9 +1489,15 @@ export const DataMigrator = Object.freeze({
       );
 
       for (const sql of indexSQL) {
-        await targetConnection.adapter.query(sql, []);
+        await pushSchemaStatement(sql);
+      }
+
+      if (targetConnection.type !== 'd1-remote') {
+        await executeSchemaBatch();
       }
     }
+
+    await executeSchemaBatch();
 
     Logger.info(`✓ Target schema prepared for ${d1Schema.length} tables`);
   },
@@ -1128,64 +1612,36 @@ export const DataMigrator = Object.freeze({
     startOffset: number,
     errors: string[]
   ): Promise<number> {
-    let rowsMigrated = 0;
+    let state: TableChunkState = {
+      rowsMigrated: 0,
+      offset: startOffset,
+      currentBatchSize: batchSize,
+      retryBatchSize: batchSize,
+    };
 
-    for (let offset = startOffset; offset < totalRows; offset += batchSize) {
-      try {
-        const chunkStartTime = Date.now();
-        const chunk = await DataMigrator.readDataChunk(
-          sourceConnection,
-          table.name,
-          offset,
-          batchSize
-        );
+    while (state.offset < totalRows) {
+      state.currentBatchSize = getTableChunkBatchSize(sourceConnection, state.retryBatchSize);
 
-        if (chunk.length === 0) {
-          break;
-        }
+      const result = await processTableChunk(
+        table,
+        sourceConnection,
+        targetConnection,
+        state.offset,
+        state.currentBatchSize,
+        errors
+      );
 
-        const transformedChunk = await DataMigrator.transformData(chunk, table.name);
-        const insertedRows = await DataMigrator.insertData(
-          targetConnection,
-          table.name,
-          transformedChunk
-        );
+      state = applyTableChunkResult(state, result, batchSize, table, totalRows);
 
-        if (insertedRows !== chunk.length) {
-          const verificationError = DataMigrator.createChunkVerificationError(
-            table.name,
-            offset,
-            chunk.length,
-            insertedRows
-          );
-          throw ErrorFactory.createValidationError(
-            `Chunk insert mismatch on ${table.name}`,
-            verificationError
-          );
-        }
-
-        rowsMigrated += insertedRows;
-
-        const chunkDurationMs = Date.now() - chunkStartTime;
-        Logger.info(
-          `[DataMigrator] Chunk ${table.name} offset=${offset} rows=${insertedRows} duration=${formatDuration(chunkDurationMs)} rate=${formatRowsPerSecond(insertedRows, chunkDurationMs)}`
-        );
-
-        if (totalRows > 10000 && rowsMigrated % (batchSize * 10) === 0) {
-          const normalizedTotalRows = Math.max(totalRows, rowsMigrated);
-          const percentage = Math.round((rowsMigrated / normalizedTotalRows) * 100);
-          Logger.info(
-            `Table ${table.name}: ${rowsMigrated}/${normalizedTotalRows} (${percentage}%)`
-          );
-        }
-      } catch (error) {
-        const errorMsg = `Chunk processing failed at offset ${offset}: ${error}`;
-        Logger.error(errorMsg);
-        errors.push(errorMsg);
+      if (
+        !result.continueProcessing &&
+        !(result.rowsMigrated === 0 && result.nextBatchSize < batchSize)
+      ) {
+        break;
       }
     }
 
-    return rowsMigrated;
+    return state.rowsMigrated;
   },
 
   /**
@@ -1201,14 +1657,28 @@ export const DataMigrator = Object.freeze({
 
     try {
       const selectSql = DataMigrator.buildSelectChunkSQL(sourceConnection.driver, tableName);
+      const startTime = Date.now();
       const result = await sourceConnection.adapter.query(
         `${selectSql} LIMIT ${batchSize} OFFSET ${offset}`,
         []
       );
+      const durationMs = Date.now() - startTime;
+      if (sourceConnection.driver === 'mysql') {
+        updateSourceBatchTuningAfterSuccess(
+          sourceConnection,
+          result.rows.length,
+          durationMs,
+          batchSize
+        );
+      }
       return result.rows || [];
     } catch (error) {
-      Logger.error(`Chunk read failed ${error}`);
-      return [];
+      const errorMessage = getErrorMessage(error);
+      if (sourceConnection.driver === 'mysql' && isRetryableConnectionError(error)) {
+        reduceSourceBatchSizeAfterTimeout(sourceConnection, batchSize);
+      }
+      Logger.warn(`Chunk read failed: ${errorMessage}`);
+      throw error;
     }
   },
 
@@ -1304,11 +1774,25 @@ export const DataMigrator = Object.freeze({
           executionDurationMs,
           statement.sql.length
         );
-      } catch (error) {
+      } catch {
+        if (targetConnection.type === 'd1-remote' && data.length > 1 && statement.rowCount > 1) {
+          reduceRemoteBatchTuningAfterFailure(targetConnection, statement.sql.length);
+          const midpoint = Math.max(1, Math.floor(data.length / 2));
+          const left = await DataMigrator.insertData(
+            targetConnection,
+            tableName,
+            data.slice(0, midpoint)
+          );
+          const right = await DataMigrator.insertData(
+            targetConnection,
+            tableName,
+            data.slice(midpoint)
+          );
+          return left + right;
+        }
+
         throw ErrorFactory.createValidationError(`Insert failed for table ${tableName}`, {
-          sql: statement.sql,
           rowCount: statement.rowCount,
-          cause: error,
         });
       }
     }

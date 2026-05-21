@@ -332,6 +332,29 @@ describe('MigrateToD1Command target selection', () => {
     expect(migrateDataMock).not.toHaveBeenCalled();
   });
 
+  it('fails when the data migrator reports a failed status', async () => {
+    migrateDataMock.mockResolvedValueOnce({
+      processedRows: 12,
+      totalTables: 3,
+      status: 'failed',
+      errors: {
+        users: 'Chunk insert mismatch on users',
+      },
+    });
+
+    const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
+
+    await expect(MigrateToD1Command.execute({})).rejects.toThrow(
+      /Migration failed after migrating 12 rows/
+    );
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Migration finished with failures: 12 rows migrated'
+    );
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Migration error details: Chunk insert mismatch on users'
+    );
+  });
+
   it('fails clearly when an explicit database_name target is ambiguous', async () => {
     process.env['D1_TARGET_DB'] = 'app-dev';
     resolveD1DatabaseMock.mockReturnValueOnce({
