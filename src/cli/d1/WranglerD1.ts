@@ -18,14 +18,30 @@ type ExecuteSqlOptions = {
   cmd?: IBaseCommand;
 };
 
+const createWranglerLogMessage = (args: string[]): string => {
+  const command = args[0] ?? 'wrangler';
+  const resource = args[1] ?? 'command';
+  const action = args[2] ?? 'run';
+  const target = args[3] ?? 'unknown';
+  let mode = 'default';
+
+  if (args.includes('--local')) {
+    mode = 'local';
+  } else if (args.includes('--remote')) {
+    mode = 'remote';
+  }
+
+  return `[WranglerD1] Executing ${command} ${resource} ${action} for ${target} (${mode})`;
+};
+
 const runWrangler = (args: string[], cmd?: IBaseCommand): string => {
   const npmPath = resolveNpmPath();
-  const printable = `npm exec --yes -- wrangler ${args.join(' ')}`;
+  const logMessage = createWranglerLogMessage(args);
 
   if (cmd) {
-    cmd.debug(`Executing: ${printable}`);
+    cmd.debug(logMessage);
   } else {
-    Logger.debug(`[WranglerD1] Executing: ${printable}`);
+    Logger.debug(logMessage);
   }
 
   return execFileSync(npmPath, ['exec', '--yes', '--', 'wrangler', ...args], {

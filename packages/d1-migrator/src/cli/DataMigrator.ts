@@ -1462,7 +1462,10 @@ export const DataMigrator = Object.freeze({
     };
 
     const pushSchemaStatement = async (sql: string): Promise<void> => {
-      const trimmedSql = sql.trim();
+      const trimmedSql = sql.trim().replace(/;+$/u, '');
+      if (trimmedSql === '') {
+        return;
+      }
       const nextLength =
         schemaStatements.length === 0
           ? trimmedSql.length
