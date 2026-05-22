@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -18,6 +18,10 @@
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js"
     },
+    "./runtime": {
+      "types": "./dist/src/runtime-index.d.ts",
+      "import": "./dist/src/runtime-index.js"
+    },
     "./start": {
       "types": "./dist/src/start.d.ts",
       "import": "./dist/src/start.js"
@@ -27,16 +31,16 @@
       "import": "./dist/src/boot.js"
     },
     "./cli": {
-      "types": "./dist/src/cli.d.ts",
-      "import": "./dist/src/cli.js"
+      "types": "./dist/src/cli-index.d.ts",
+      "import": "./dist/src/cli-index.js"
     },
     "./worker-commands": {
       "types": "./dist/src/worker-commands.d.ts",
       "import": "./dist/src/worker-commands.js"
     },
     "./proxy": {
-      "types": "./dist/src/proxy.d.ts",
-      "import": "./dist/src/proxy.js"
+      "types": "./dist/src/proxy-index.d.ts",
+      "import": "./dist/src/proxy-index.js"
     },
     "./proxy/*": {
       "types": "./dist/src/proxy/*.d.ts",
@@ -53,6 +57,70 @@
     "./node": {
       "types": "./dist/src/node.d.ts",
       "import": "./dist/src/node.js"
+    },
+    "./seeders": {
+      "types": "./dist/src/seeders-index.d.ts",
+      "import": "./dist/src/seeders-index.js"
+    },
+    "./testing": {
+      "types": "./dist/src/testing-index.d.ts",
+      "import": "./dist/src/testing-index.js"
+    },
+    "./scripts": {
+      "types": "./dist/src/scripts-index.d.ts",
+      "import": "./dist/src/scripts-index.js"
+    },
+    "./tools": {
+      "types": "./dist/src/tools-index.d.ts",
+      "import": "./dist/src/tools-index.js"
+    },
+    "./tools/mail": {
+      "types": "./dist/src/tools-mail-index.d.ts",
+      "import": "./dist/src/tools-mail-index.js"
+    },
+    "./tools/notification": {
+      "types": "./dist/src/tools-notification-index.d.ts",
+      "import": "./dist/src/tools-notification-index.js"
+    },
+    "./tools/storage": {
+      "types": "./dist/src/tools-storage-index.d.ts",
+      "import": "./dist/src/tools-storage-index.js"
+    },
+    "./tools/queue": {
+      "types": "./dist/src/tools-queue-index.d.ts",
+      "import": "./dist/src/tools-queue-index.js"
+    },
+    "./tools/broadcast": {
+      "types": "./dist/src/tools-broadcast-index.d.ts",
+      "import": "./dist/src/tools-broadcast-index.js"
+    },
+    "./tools/http": {
+      "types": "./dist/src/tools-http-index.d.ts",
+      "import": "./dist/src/tools-http-index.js"
+    },
+    "./orm": {
+      "types": "./dist/src/orm-index.d.ts",
+      "import": "./dist/src/orm-index.js"
+    },
+    "./config": {
+      "types": "./dist/src/config-index.d.ts",
+      "import": "./dist/src/config-index.js"
+    },
+    "./security": {
+      "types": "./dist/src/security-index.d.ts",
+      "import": "./dist/src/security-index.js"
+    },
+    "./auth": {
+      "types": "./dist/src/auth-index.d.ts",
+      "import": "./dist/src/auth-index.js"
+    },
+    "./redis": {
+      "types": "./dist/src/redis-index.d.ts",
+      "import": "./dist/src/redis-index.js"
+    },
+    "./templates": {
+      "types": "./dist/src/templates-index.d.ts",
+      "import": "./dist/src/templates-index.js"
     },
     "./routes/*": {
       "types": "./dist/routes/*.d.ts",
@@ -301,7 +369,7 @@
     "husky": "^9.1.7",
     "jscpd": "^4.2.3",
     "lint-staged": "^17.0.5",
-    "miniflare": "^4.20260520.0",
+    "miniflare": "^4.20260521.0",
     "mongodb": "^7.2.0",
     "mssql": "^12.5.4",
     "prom-client": "^15.1.3",
@@ -311,6 +379,6 @@
     "typescript-eslint": "^8.59.4",
     "fast-xml-builder": "file:./patches/fast-xml-builder",
     "vitest": "^4.1.7",
-    "wrangler": "4.93.1"
+    "wrangler": "4.90.0"
   }
 }

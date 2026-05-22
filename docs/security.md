@@ -79,7 +79,7 @@ If you're building a pure Bearer-token API (no cookie-based authentication), you
 configuring `skipPaths`:
 
 ```typescript
-import { CsrfMiddleware } from '@zintrust/core';
+import { CsrfMiddleware } from '@zintrust/core/security';
 
 const csrf = CsrfMiddleware.create({
   skipPaths: ['/api/*'],
@@ -118,7 +118,7 @@ export interface ICsrfTokenManager {
 The framework provides an `XssProtection` utility to sanitize user input and prevent XSS attacks.
 
 ```typescript
-import { Xss } from '@zintrust/core';
+import { Xss } from '@zintrust/core/security';
 
 const cleanHtml = Xss.sanitize(req.body.content);
 ```
@@ -142,7 +142,7 @@ export interface IXss {
 Always use the built-in `Hash` utility for storing passwords:
 
 ```typescript
-import { Hash } from '@zintrust/core';
+import { Hash } from '@zintrust/core/security';
 
 const hashedPassword = await Hash.make(password);
 const matches = await Hash.check(password, hashedPassword);
@@ -196,7 +196,7 @@ The `Sanitizer` utility provides character whitelisting to remove unwanted chara
 **Important**: This is NOT a complete SQL injection defense. Always use parameterized queries via the ORM/QueryBuilder.
 
 ```typescript
-import { Sanitizer } from '@zintrust/core';
+import { Sanitizer } from '@zintrust/core/security';
 
 const username = Sanitizer.alphanumeric(req.body.username);
 const email = Sanitizer.email(req.body.email);

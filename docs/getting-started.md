@@ -146,7 +146,7 @@ npm run build
 
 ```typescript
 // app/Models/User.ts
-import { Model } from '@zintrust/core';
+import { Model } from '@zintrust/core/orm';
 
 export const User = Model.define({
   table: 'users',

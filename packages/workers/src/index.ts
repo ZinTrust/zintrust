@@ -75,7 +75,7 @@ export type {
   WorkersGlobalConfig,
   WorkerStatus,
   WorkerVersioningConfig,
-} from '@zintrust/core';
+} from '@zintrust/core/config';
 
 // Re-export bullmq types for type compatibility
 export type { Job, Worker, WorkerOptions } from 'bullmq';

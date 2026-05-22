@@ -19,7 +19,7 @@ Add the queue monitor configuration to your environment:
 
 ```typescript
 // config/queue.ts
-import { QueueConfig } from '@zintrust/core';
+import { QueueConfig } from '@zintrust/core/config';
 
 export const queue: QueueConfig = {
   driver: 'redis', // or other queue driver
@@ -39,7 +39,8 @@ export const queue: QueueConfig = {
 ## Usage
 
 ```typescript
-import { Queue, QueueMonitor } from '@zintrust/core';
+import { Queue } from '@zintrust/core/tools/queue';
+import { QueueMonitor } from '@zintrust/queue-monitor';
 
 // Basic queue monitoring
 const stats = await QueueMonitor.getStats();
@@ -166,7 +167,7 @@ const customMetrics = await QueueMonitor.getCustomMetrics();
 ### Built-in Dashboard
 
 ```typescript
-import { QueueMonitorDashboard } from '@zintrust/queue-monitor';
+import { QueueMonitorDashboard } from '@zintrust/queue-monitor/dashboard';
 
 // Enable dashboard
 const dashboard = new QueueMonitorDashboard({

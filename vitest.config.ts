@@ -36,9 +36,29 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@zintrust/core/node': path.resolve(__dirname, './src/node.ts'),
-      '@zintrust/core/proxy': path.resolve(__dirname, './src/proxy.ts'),
+      '@zintrust/core/runtime': path.resolve(__dirname, './src/runtime-index.ts'),
+      '@zintrust/core/proxy': path.resolve(__dirname, './src/proxy-index.ts'),
       '@zintrust/core/start': path.resolve(__dirname, './src/start.ts'),
-      '@zintrust/core/cli': path.resolve(__dirname, './src/cli.ts'),
+      '@zintrust/core/cli': path.resolve(__dirname, './src/cli-index.ts'),
+      '@zintrust/core/config': path.resolve(__dirname, './src/config-index.ts'),
+      '@zintrust/core/orm': path.resolve(__dirname, './src/orm-index.ts'),
+      '@zintrust/core/security': path.resolve(__dirname, './src/security-index.ts'),
+      '@zintrust/core/auth': path.resolve(__dirname, './src/auth-index.ts'),
+      '@zintrust/core/redis': path.resolve(__dirname, './src/redis-index.ts'),
+      '@zintrust/core/seeders': path.resolve(__dirname, './src/seeders-index.ts'),
+      '@zintrust/core/testing': path.resolve(__dirname, './src/testing-index.ts'),
+      '@zintrust/core/scripts': path.resolve(__dirname, './src/scripts-index.ts'),
+      '@zintrust/core/templates': path.resolve(__dirname, './src/templates-index.ts'),
+      '@zintrust/core/tools': path.resolve(__dirname, './src/tools-index.ts'),
+      '@zintrust/core/tools/mail': path.resolve(__dirname, './src/tools-mail-index.ts'),
+      '@zintrust/core/tools/notification': path.resolve(
+        __dirname,
+        './src/tools-notification-index.ts'
+      ),
+      '@zintrust/core/tools/storage': path.resolve(__dirname, './src/tools-storage-index.ts'),
+      '@zintrust/core/tools/queue': path.resolve(__dirname, './src/tools-queue-index.ts'),
+      '@zintrust/core/tools/broadcast': path.resolve(__dirname, './src/tools-broadcast-index.ts'),
+      '@zintrust/core/tools/http': path.resolve(__dirname, './src/tools-http-index.ts'),
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@zintrust/client-rds-data': path.resolve(
         __dirname,
@@ -51,6 +71,22 @@ export default defineConfig({
       '@zintrust/db-sqlite': path.resolve(__dirname, './packages/db-sqlite/src/index.ts'),
       '@zintrust/db-sqlserver': path.resolve(__dirname, './packages/db-sqlserver/src/index.ts'),
       '@zintrust/queue-monitor': path.resolve(__dirname, './packages/queue-monitor/src/index.ts'),
+      '@zintrust/queue-monitor/runtime': path.resolve(
+        __dirname,
+        './packages/queue-monitor/src/runtime-index.ts'
+      ),
+      '@zintrust/queue-monitor/driver': path.resolve(
+        __dirname,
+        './packages/queue-monitor/src/driver-index.ts'
+      ),
+      '@zintrust/queue-monitor/metrics': path.resolve(
+        __dirname,
+        './packages/queue-monitor/src/metrics-index.ts'
+      ),
+      '@zintrust/queue-monitor/dashboard': path.resolve(
+        __dirname,
+        './packages/queue-monitor/src/dashboard-index.ts'
+      ),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
       '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
       '@zintrust/socket': path.resolve(__dirname, './packages/socket/src/index.ts'),
