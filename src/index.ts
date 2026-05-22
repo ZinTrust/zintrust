@@ -23,45 +23,8 @@ export type {
   PaginationQuery,
   Paginator as PaginatorType,
 } from '@database/Paginator';
-export { Controller } from '@http/Controller';
-export { FileUpload } from '@http/FileUpload';
-export type { FileUploadOptions, IFileUploadHandler, UploadedFile } from '@http/FileUpload';
-export { Kernel } from '@http/Kernel';
-export { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
-export { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
-export { BodyParsers } from '@http/parsers/BodyParsers';
-export { MultipartParser } from '@http/parsers/MultipartParser';
-export { MultipartParserRegistry } from '@http/parsers/MultipartParserRegistry';
-export type {
-  MultipartFieldValue,
-  MultipartParseInput,
-  MultipartParserProvider,
-  ParsedMultipartData,
-} from '@http/parsers/MultipartParserRegistry';
-export { Request } from '@http/Request';
-export type { IRequest, ValidatedRequest } from '@http/Request';
-export { RequestContext } from '@http/RequestContext';
-export { Response } from '@http/Response';
-export type { IResponse } from '@http/Response';
-export {
-  getValidatedBody,
-  getValidatedHeaders,
-  getValidatedParams,
-  getValidatedQuery,
-  hasValidatedBody,
-  requireValidatedBody,
-  ValidationHelper,
-} from '@http/ValidationHelper';
-export { BulletproofAuthMiddleware } from '@middleware/BulletproofAuthMiddleware';
-export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
-export { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
-export { LoggingMiddleware } from '@middleware/LoggingMiddleware';
-export { MiddlewareStack } from '@middleware/MiddlewareStack';
-export type { Middleware } from '@middleware/MiddlewareStack';
-export { RateLimiter } from '@middleware/RateLimiter';
-export { SecurityMiddleware } from '@middleware/SecurityMiddleware';
-export { SessionMiddleware } from '@middleware/SessionMiddleware';
-export { ValidationMiddleware } from '@middleware/ValidationMiddleware';
+
+// HTTP primitives - re-exported from runtime
 export { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 export { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
@@ -74,6 +37,48 @@ export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
 export type { InsertResult, IQueryBuilder, PaginationOptions } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
+export {
+  BodyParsers,
+  bodyParsingMiddleware,
+  BulletproofAuthMiddleware,
+  Controller,
+  CsrfMiddleware,
+  ErrorHandlerMiddleware,
+  FileUpload,
+  fileUploadMiddleware,
+  getValidatedBody,
+  getValidatedHeaders,
+  getValidatedParams,
+  getValidatedQuery,
+  hasValidatedBody,
+  Kernel,
+  LoggingMiddleware,
+  MiddlewareStack,
+  MultipartParser,
+  MultipartParserRegistry,
+  RateLimiter,
+  Request,
+  RequestContext,
+  requireValidatedBody,
+  Response,
+  SecurityMiddleware,
+  SessionMiddleware,
+  ValidationHelper,
+  ValidationMiddleware,
+} from '@zintrust/core/runtime';
+export type {
+  FileUploadOptions,
+  IFileUploadHandler,
+  IRequest,
+  IResponse,
+  Middleware,
+  MultipartFieldValue,
+  MultipartParseInput,
+  MultipartParserProvider,
+  ParsedMultipartData,
+  UploadedFile,
+  ValidatedRequest,
+} from '@zintrust/core/runtime';
 
 // Time Utilities
 export { DateTime } from '@time/DateTime';
@@ -93,15 +98,17 @@ export { normalizeRouteMeta, RouteRegistry } from '@core-routes/RouteRegistry';
 export type { RouteMeta, RouteMetaInput, RouteRegistration } from '@core-routes/RouteRegistry';
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 
-// Common
+// Common - re-exported from runtime
 export {
+  ContextLoader,
+  delay,
+  ensureDirSafe,
   generateSecureJobId,
   generateUuid,
   getString,
+  RemoteSignedJson,
   Utilities,
-  type UtilitiesType,
-} from '@/common/utility';
-export { ContextLoader } from '@common/ContextLoader';
+} from '@zintrust/core/runtime';
 export type {
   ContextLoaderBatchHandler,
   ContextLoaderBatchKey,
@@ -111,10 +118,9 @@ export type {
   ContextLoaderMode,
   ContextLoaderPlan,
   ContextLoaderResolver,
-} from '@common/ContextLoader';
-export { delay, ensureDirSafe } from '@common/index';
-export { RemoteSignedJson } from '@common/RemoteSignedJson';
-export type { RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
+  RemoteSignedJsonSettings,
+  UtilitiesType,
+} from '@zintrust/core/runtime';
 
 // Collections
 export { collect, Collection } from '@/collections/index';
