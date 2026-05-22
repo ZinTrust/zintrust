@@ -59,3 +59,6 @@ export type {
   WorkerVersioningConfig,
 } from '@config/type';
 export { createRedisConnection, workersConfig } from '@config/workers';
+
+// Migration schema definitions
+export { Schema as MigrationSchema, type Blueprint } from '@migrations/schema';

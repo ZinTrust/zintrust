@@ -302,8 +302,7 @@ export type { MicroservicesConfig } from '@config/microservices';
 // Microservices
 export { MicroserviceBootstrap } from '@microservices/MicroserviceBootstrap';
 export type { IMicroserviceBootstrap, ServiceConfig } from '@microservices/MicroserviceBootstrap';
-export { MicroserviceManager } from '@microservices/MicroserviceManager';
-export type { IMicroserviceManager, MicroserviceConfig } from '@microservices/MicroserviceManager';
+// MicroserviceManager and ProjectRuntime moved to @zintrust/core/runtime
 export { RequestTracingMiddleware } from '@microservices/RequestTracingMiddleware';
 export { ServiceAuthMiddleware } from '@microservices/ServiceAuthMiddleware';
 export { HealthCheckHandler, ServiceHealthMonitor } from '@microservices/ServiceHealthMonitor';
@@ -318,7 +317,6 @@ export {
   normalizeServiceManifest,
 } from '@microservices/ServiceManifest';
 export type { ProjectRuntimeModule, ServiceManifestEntry } from '@microservices/ServiceManifest';
-export { ProjectRuntime } from '@runtime/ProjectRuntime';
 
 export { clearMiddlewareConfigCache, middlewareConfig, MiddlewareKeys } from '@config/middleware';
 export type { MiddlewareKey } from '@config/middleware';

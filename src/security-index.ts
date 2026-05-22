@@ -55,7 +55,7 @@ export type {
 } from '@security/PasswordResetTokenBroker';
 
 // Sanitization
-export { createSanitizer, Sanitizer, type SanitizerType } from '@security/Sanitizer';
+export { Sanitizer, createSanitizer, type SanitizerType } from '@security/Sanitizer';
 
 // Token revocation
 export { TokenRevocation } from '@security/TokenRevocation';
@@ -75,3 +75,6 @@ export {
   type SecurePayloadPipelineIssue,
   type SecurePayloadPipelineStage,
 } from '@security/SecurePayload';
+
+// Error types
+export type { SanitizerError } from '@exceptions/ZintrustError';

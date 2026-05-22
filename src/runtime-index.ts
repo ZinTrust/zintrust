@@ -210,6 +210,10 @@ export * as NodeSingletons from '@node-singletons/index';
 
 // Auth features moved to @zintrust/core/auth subpath
 
+// MicroserviceManager moved to @zintrust/core/microservices
+export type { ProjectRuntimeModule, ServiceManifestEntry } from '@microservices/ServiceManifest';
+export { ProjectRuntime } from '@runtime/ProjectRuntime';
+
 // Utility functions
 export { nowIso } from '@common/utility';
 export type { SanitizerError } from '@exceptions/ZintrustError';

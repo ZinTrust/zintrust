@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.0.3",
+  "version": "2.0.7",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -117,6 +117,22 @@
     "./redis": {
       "types": "./dist/src/redis-index.d.ts",
       "import": "./dist/src/redis-index.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/src/cloudflare-index.d.ts",
+      "import": "./dist/src/cloudflare-index.js"
+    },
+    "./constants": {
+      "types": "./dist/src/constants-index.d.ts",
+      "import": "./dist/src/constants-index.js"
+    },
+    "./microservices": {
+      "types": "./dist/src/microservices-index.d.ts",
+      "import": "./dist/src/microservices-index.js"
+    },
+    "./middleware": {
+      "types": "./dist/src/middleware-index.d.ts",
+      "import": "./dist/src/middleware-index.js"
     },
     "./templates": {
       "types": "./dist/src/templates-index.d.ts",
