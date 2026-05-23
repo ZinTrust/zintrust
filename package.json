@@ -307,6 +307,6 @@
     "typescript-eslint": "^8.59.4",
     "fast-xml-builder": "file:./patches/fast-xml-builder",
     "vitest": "^4.1.6",
-    "wrangler": "4.93.0"
+    "wrangler": "4.94.0"
   }
 }
