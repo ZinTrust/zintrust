@@ -13,6 +13,7 @@ import {
   isFunction,
   isNonEmptyString,
   isObject,
+  JobStateTracker,
   Logger,
   NodeSingletons,
   useEnsureDbConnected,
@@ -29,7 +30,6 @@ import {
   type RedisConfig,
 } from '@zintrust/core/config';
 import { DatabaseConnectionRegistry, registerDatabasesFromRuntimeConfig } from '@zintrust/core/orm';
-import { JobStateTracker } from '@zintrust/core/tools/queue';
 import { Worker, type Job, type WorkerOptions } from 'bullmq';
 import { AutoScaler, type AutoScalerConfig } from './AutoScaler';
 import { CanaryController } from './CanaryController';
@@ -100,7 +100,7 @@ const canUseProjectFileImports = (): boolean =>
   typeof NodeSingletons?.path?.join === 'function';
 
 const getProcessorPackageBridgeGlobal = (): ProcessorPackageBridgeGlobal => {
-  return globalThis as ProcessorPackageBridgeGlobal;
+  return globalThis;
 };
 
 const isValidBridgeExportName = (value: string): boolean => {
@@ -109,7 +109,7 @@ const isValidBridgeExportName = (value: string): boolean => {
 
 const resolveRuntimeBridgeModule = (specifier: string): Record<string, unknown> | null => {
   if (specifier === '@zintrust/core') {
-    return ZintrustCoreModule as Record<string, unknown>;
+    return ZintrustCoreModule;
   }
 
   return null;
@@ -1234,10 +1234,18 @@ const waitForWorkerConnection = async (
         }
 
         // Check Redis connection
-        const client = await worker.client;
-        const redisInfo = await client.info();
-        if (redisInfo.trim() === '') {
-          throw ErrorFactory.createWorkerError('Redis info command returned empty response');
+        const client = (await worker.client) as unknown as {
+          ping?: () => Promise<string> | Promise<unknown>;
+        };
+        const ping = client.ping;
+
+        if (typeof ping !== 'function') {
+          throw ErrorFactory.createWorkerError('Redis ping command is not available');
+        }
+
+        const pingResult = await ping.call(client);
+        if (typeof pingResult === 'string' && pingResult.trim() === '') {
+          throw ErrorFactory.createWorkerError('Redis ping command returned empty response');
         }
 
         // Removed heavy Queue instantiation loop - relying on Redis ping for connectivity check
@@ -1245,7 +1253,7 @@ const waitForWorkerConnection = async (
 
         Logger.debug(`Worker health verification passed for ${name}`, {
           isRunning,
-          redisInfoLength: redisInfo.length,
+          redisInfoLength: typeof pingResult === 'string' ? pingResult.length : 0,
         });
 
         if (timeoutId) clearTimeout(timeoutId);
@@ -3144,7 +3152,7 @@ export const WorkerFactory = Object.freeze({
       );
       const errorMessage = typeof error === 'string' ? error : error?.message;
       await store.update(name, {
-        status: status as WorkerCreationStatus,
+        status: status,
         updatedAt: new Date(),
         lastError: errorMessage,
       });

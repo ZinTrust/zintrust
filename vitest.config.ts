@@ -1,6 +1,10 @@
 import { codecovVitePlugin } from '@codecov/vite-plugin';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const COVERAGE_STRICT = process.env.COVERAGE_STRICT === 'true';
 const COVERAGE_REPORTS_DIRECTORY = process.env.ZINTRUST_COVERAGE_REPORTS_DIR?.trim() || 'coverage';
@@ -49,6 +53,7 @@ export default defineConfig({
       '@zintrust/core/constants': path.resolve(__dirname, './src/constants-index.ts'),
       '@zintrust/core/microservices': path.resolve(__dirname, './src/microservices-index.ts'),
       '@zintrust/core/middleware': path.resolve(__dirname, './src/middleware-index.ts'),
+      '@zintrust/core/scheduler': path.resolve(__dirname, './src/scheduler-index.ts'),
       '@zintrust/core/seeders': path.resolve(__dirname, './src/seeders-index.ts'),
       '@zintrust/core/testing': path.resolve(__dirname, './src/testing-index.ts'),
       '@zintrust/core/scripts': path.resolve(__dirname, './src/scripts-index.ts'),

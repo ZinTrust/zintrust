@@ -10,6 +10,7 @@ import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
+import type { IRouter } from '@core-routes/Router';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString, ShutdownTrace } from '@helper/index';
 import { existsSync } from '@node-singletons/fs';
@@ -27,7 +28,6 @@ import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notificati
 import { QueueReliabilityOrchestrator } from '@tools/queue/QueueReliabilityOrchestrator';
 import { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegistration';
 import { registerDisksFromRuntimeConfig } from '@tools/storage/StorageRuntimeRegistration';
-import type { IRouter } from '@zintrust/core';
 
 interface IQueueMonitor {
   create: (config: object) => {

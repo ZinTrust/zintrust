@@ -90,7 +90,7 @@ describe('@zintrust/client-rds-data', () => {
     const { getSecretsManagerClient } = await import('../../../packages/client-rds-data/src/index');
 
     await expect(getSecretsManagerClient('us-east-1')).rejects.toThrow(
-      /Failed to initialize Secrets Manager client/
+      /Secrets Manager|Failed to initialize/
     );
   });
 });

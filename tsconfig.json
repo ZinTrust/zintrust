@@ -23,6 +23,7 @@
       "@zintrust/core/constants": ["./src/constants-index.ts"],
       "@zintrust/core/microservices": ["./src/microservices-index.ts"],
       "@zintrust/core/middleware": ["./src/middleware-index.ts"],
+      "@zintrust/core/scheduler": ["./src/scheduler-index.ts"],
       "@zintrust/core/proxy": ["./src/proxy-index.ts"],
       "@zintrust/core/scripts": ["./src/scripts-index.ts"],
       "@zintrust/core/seeders": ["./src/seeders-index.ts"],

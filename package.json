@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.0.7",
+  "version": "2.0.9",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -133,6 +133,10 @@
     "./middleware": {
       "types": "./dist/src/middleware-index.d.ts",
       "import": "./dist/src/middleware-index.js"
+    },
+    "./scheduler": {
+      "types": "./dist/src/scheduler-index.d.ts",
+      "import": "./dist/src/scheduler-index.js"
     },
     "./templates": {
       "types": "./dist/src/templates-index.d.ts",
@@ -350,7 +354,7 @@
   "dependencies": {
     "@cloudflare/containers": "^0.3.4",
     "bcryptjs": "^3.0.3",
-    "bullmq": "^5.77.0",
+    "bullmq": "^5.77.1",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
     "inquirer": "^13.4.3",

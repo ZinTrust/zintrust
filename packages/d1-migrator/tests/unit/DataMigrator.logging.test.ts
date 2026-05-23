@@ -321,8 +321,14 @@ describe('DataMigrator logging and totals', () => {
     );
     vi.mocked(SchemaBuilder.generateIndexSQL).mockReturnValue([]);
 
-    wranglerExecuteSqlMock.mockImplementation(({ sql }: { sql: string }) => {
-      if (sql.includes('SELECT COUNT(*) as count FROM `users`')) {
+    wranglerExecuteSqlMock.mockImplementation((arg: { sql?: string; file?: string }) => {
+      const sql = arg.sql ?? '';
+      const file = arg.file ?? '';
+
+      if (
+        sql.includes('SELECT COUNT(*) as count FROM `users`') ||
+        file.includes('migration-counts-')
+      ) {
         return JSON.stringify([{ results: [{ count: 0 }] }]);
       }
 
@@ -349,7 +355,7 @@ describe('DataMigrator logging and totals', () => {
     );
     expect(
       wranglerExecuteSqlMock.mock.calls.filter(
-        ([arg]) => !(arg as { sql: string }).sql.includes('SELECT COUNT(*) as count FROM `users`')
+        ([arg]) => typeof arg === 'object' && arg !== null && 'file' in arg
       )
     ).toHaveLength(2);
     expect(loggerInfoMock).toHaveBeenCalledWith(
@@ -420,12 +426,15 @@ describe('DataMigrator logging and totals', () => {
     });
     buildD1SchemaMock.mockReturnValue([]);
 
-    wranglerExecuteSqlMock.mockImplementation(({ sql }: { sql: string }) => {
-      if (sql.includes('SELECT COUNT(*) as count FROM `accounts`')) {
-        return JSON.stringify([{ results: [{ count: 0 }] }]);
-      }
+    wranglerExecuteSqlMock.mockImplementation((arg: { sql?: string; file?: string }) => {
+      const sql = arg.sql ?? '';
+      const file = arg.file ?? '';
 
-      if (sql.includes('SELECT COUNT(*) as count FROM `users`')) {
+      if (
+        sql.includes('SELECT COUNT(*) as count FROM `accounts`') ||
+        sql.includes('SELECT COUNT(*) as count FROM `users`') ||
+        file.includes('migration-counts-')
+      ) {
         return JSON.stringify([{ results: [{ count: 0 }] }]);
       }
 
@@ -451,9 +460,12 @@ describe('DataMigrator logging and totals', () => {
   });
 
   it('adapts remote batch sizing upward after a fast large remote insert', async () => {
+    const previousGroupSetting = process.env['MIGRATE_TO_D1_GROUP_SMALL_TABLES'];
+
+    process.env['MIGRATE_TO_D1_GROUP_SMALL_TABLES'] = 'false';
+
     const sourceRows = Array.from({ length: 1000 }, (_, index) => ({
       id: index + 1,
-      email: `user-${index + 1}@example.com`,
     }));
     const sourceAdapter = {
       connect: vi.fn().mockResolvedValue(undefined),
@@ -483,9 +495,19 @@ describe('DataMigrator logging and totals', () => {
     });
     buildD1SchemaMock.mockReturnValue([]);
 
-    wranglerExecuteSqlMock.mockImplementation(({ sql }: { sql: string }) => {
-      if (sql.includes('SELECT COUNT(*) as count FROM `users`')) {
+    wranglerExecuteSqlMock.mockImplementation((arg: { sql?: string; file?: string }) => {
+      const sql = arg.sql ?? '';
+      const file = arg.file ?? '';
+
+      if (
+        sql.includes('SELECT COUNT(*) as count FROM `users`') ||
+        file.includes('migration-counts-')
+      ) {
         return JSON.stringify([{ results: [{ count: 0 }] }]);
+      }
+
+      if (file.includes('migration-users-')) {
+        return JSON.stringify([{ results: [], meta: { changes: 1000 } }]);
       }
 
       const statementCount = (sql.match(/INSERT INTO /g) ?? []).length;
@@ -511,11 +533,15 @@ describe('DataMigrator logging and totals', () => {
       loggerInfoMock.mock.calls.some(
         ([message]) =>
           typeof message === 'string' &&
-          message.includes(
-            '[DataMigrator] Adaptive remote batching: rows_per_statement 1000 -> 1300'
-          )
+          message.includes('[DataMigrator] Remote batch growth: rows_per_statement 1000 -> 2000')
       )
     ).toBe(true);
+
+    if (previousGroupSetting === undefined) {
+      delete process.env['MIGRATE_TO_D1_GROUP_SMALL_TABLES'];
+    } else {
+      process.env['MIGRATE_TO_D1_GROUP_SMALL_TABLES'] = previousGroupSetting;
+    }
   });
 
   it('falls back to parsing Wrangler table output for remote D1 count queries', async () => {
