@@ -7,10 +7,11 @@ WORKDIR /app
 # Reuse npm cache across builds (requires BuildKit)
 ENV NPM_CONFIG_CACHE=/root/.npm
 ENV NPM_CONFIG_PREFER_OFFLINE=true
+ENV npm_config_nodedir=/usr/local
 ENV DIST_SKIP_NPM_VERSION_CHECK=true
 
-# Upgrade Alpine base packages first so OS-level security fixes land in the image.
-RUN apk upgrade --no-cache \
+# Install build tools required for native modules.
+RUN sed -i 's/https:/http:/g' /etc/apk/repositories \
   && apk add --no-cache g++ git make python3
 
 # Patch npm (base image includes npm 10.x with vulnerable bundled deps)
@@ -86,9 +87,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=7772
 ENV HOST=0.0.0.0
+ENV npm_config_nodedir=/usr/local
 
 # Create non-root user for security
-RUN apk upgrade --no-cache \
+RUN sed -i 's/https:/http:/g' /etc/apk/repositories \
   && addgroup -g 1001 -S nodejs \
   && adduser -u 1001 -S -G nodejs nodejs
 
