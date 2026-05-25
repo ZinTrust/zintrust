@@ -6,6 +6,7 @@ import { securityConfig } from '@config/security';
 import { createRedisConnection } from '@config/workers';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase } from '@orm/Database';
+import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 import {
   shouldRetryAuthStoreInsertWithGeneratedId,
   withGeneratedAuthStoreId,
@@ -147,54 +148,101 @@ const createMemoryStore = (): TokenRevocationStore => {
   };
 };
 
-const createDatabaseStore = (params: {
+type DatabaseStoreParams = {
   connection: string;
   table: string;
-}): TokenRevocationStore => {
-  let checkCount = 0;
+};
 
-  const maybeCleanup = async (): Promise<void> => {
-    checkCount += 1;
-    if (checkCount % 250 !== 0) return;
-    try {
-      const db = useDatabase(undefined, params.connection);
-      await db.table(params.table).where('expires_at_ms', '<=', Date.now()).delete();
-    } catch (error) {
-      Logger.debug('TokenRevocation database cleanup failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+const registerDatabaseRuntimeConfig = (hasAttemptedRegistration: boolean): void => {
+  if (hasAttemptedRegistration) return;
+
+  try {
+    registerDatabasesFromRuntimeConfig({
+      default: Env.get('DB_CONNECTION', 'mysql'),
+    } as never);
+  } catch {
+    // best-effort: if runtime config is unavailable or invalid, fall back to
+    // the existing error handling path in `useDatabase()`
+  }
+};
+
+const createDatabaseRevocationPayload = (key: RevocationKey): Record<string, unknown> => ({
+  jti: key.id,
+  sub: key.sub ?? null,
+  user_id: key.sub ?? null,
+  expires_at_ms: key.expiresAtMs,
+});
+
+const cleanupDatabaseRevocations = async (params: DatabaseStoreParams): Promise<void> => {
+  try {
+    const db = useDatabase(undefined, params.connection);
+    await db.table(params.table).where('expires_at_ms', '<=', Date.now()).delete();
+  } catch (error) {
+    Logger.debug('TokenRevocation database cleanup failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+const writeDatabaseRevocation = async (
+  params: DatabaseStoreParams,
+  key: RevocationKey
+): Promise<void> => {
+  const ttlMs = Math.max(0, key.expiresAtMs - Date.now());
+  if (ttlMs === 0) return;
+
+  const db = useDatabase(undefined, params.connection);
+  const existing = await db
+    .table(params.table)
+    .where('jti', '=', key.id)
+    .first<Record<string, unknown>>();
+  const payload = createDatabaseRevocationPayload(key);
+
+  if (existing) {
+    await db.table(params.table).where('jti', '=', key.id).update(payload);
+    return;
+  }
+
+  try {
+    await db.table(params.table).insert(payload);
+  } catch (error) {
+    if (!shouldRetryAuthStoreInsertWithGeneratedId(error)) {
+      throw error;
     }
-  };
+
+    await db.table(params.table).insert(withGeneratedAuthStoreId(payload));
+  }
+};
+
+const readDatabaseRevocation = async (
+  params: DatabaseStoreParams,
+  id: string
+): Promise<boolean> => {
+  const db = useDatabase(undefined, params.connection);
+  const row = await db.table(params.table).where('jti', '=', id).first<Record<string, unknown>>();
+  if (!row) return false;
+
+  const expiresAt = row['expires_at_ms'];
+  const expiresAtMs = typeof expiresAt === 'number' ? expiresAt : Number(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) return true;
+  if (expiresAtMs <= Date.now()) {
+    await db.table(params.table).where('jti', '=', id).delete();
+    return false;
+  }
+
+  return true;
+};
+
+const createDatabaseStore = (params: DatabaseStoreParams): TokenRevocationStore => {
+  let checkCount = 0;
+  let registrationAttempted = false;
 
   return {
     async revoke(key: RevocationKey): Promise<void> {
-      const ttlMs = Math.max(0, key.expiresAtMs - Date.now());
-      if (ttlMs === 0) return;
       try {
-        const db = useDatabase(undefined, params.connection);
-        const existing = await db
-          .table(params.table)
-          .where('jti', '=', key.id)
-          .first<Record<string, unknown>>();
-        const payload: Record<string, unknown> = {
-          jti: key.id,
-          sub: key.sub ?? null,
-          user_id: key.sub ?? null,
-          expires_at_ms: key.expiresAtMs,
-        };
-        if (existing) {
-          await db.table(params.table).where('jti', '=', key.id).update(payload);
-        } else {
-          try {
-            await db.table(params.table).insert(payload);
-          } catch (error) {
-            if (!shouldRetryAuthStoreInsertWithGeneratedId(error)) {
-              throw error;
-            }
-
-            await db.table(params.table).insert(withGeneratedAuthStoreId(payload));
-          }
-        }
+        registerDatabaseRuntimeConfig(registrationAttempted);
+        registrationAttempted = true;
+        await writeDatabaseRevocation(params, key);
       } catch (error) {
         logWarnBestEffort('TokenRevocation database revoke failed (token will not be revoked)', {
           error: error instanceof Error ? error.message : String(error),
@@ -203,22 +251,15 @@ const createDatabaseStore = (params: {
       }
     },
     async isRevoked(id: string): Promise<boolean> {
-      await maybeCleanup();
+      checkCount += 1;
+      if (checkCount % 250 === 0) {
+        await cleanupDatabaseRevocations(params);
+      }
+
       try {
-        const db = useDatabase(undefined, params.connection);
-        const row = await db
-          .table(params.table)
-          .where('jti', '=', id)
-          .first<Record<string, unknown>>();
-        if (!row) return false;
-        const expiresAt = row['expires_at_ms'];
-        const expiresAtMs = typeof expiresAt === 'number' ? expiresAt : Number(expiresAt);
-        if (!Number.isFinite(expiresAtMs)) return true;
-        if (expiresAtMs <= Date.now()) {
-          await db.table(params.table).where('jti', '=', id).delete();
-          return false;
-        }
-        return true;
+        registerDatabaseRuntimeConfig(registrationAttempted);
+        registrationAttempted = true;
+        return await readDatabaseRevocation(params, id);
       } catch (error) {
         logWarnBestEffort('TokenRevocation database check failed (treating as not revoked)', {
           error: error instanceof Error ? error.message : String(error),

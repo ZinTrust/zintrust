@@ -167,6 +167,8 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts', 'packages/**/*.test.ts'],
     setupFiles: ['tests/vitest.setup.ts'],
+    fileParallelism: false,
+    maxWorkers: 1,
     hookTimeout: IS_COVERAGE_RUN ? 60000 : 30000,
     coverage: {
       provider: 'v8',
