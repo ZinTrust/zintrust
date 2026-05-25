@@ -96,13 +96,7 @@ async function fetchPersistenceWithTimeout(
 }
 
 async function fetchQueueDataSafe(): Promise<QueueData> {
-  const defaultData: QueueData = {
-    driver: 'memory',
-    totalQueues: 0,
-    totalJobs: 0,
-    processingJobs: 0,
-    failedJobs: 0,
-  };
+  const defaultData = buildEmptyQueueData(resolveConfiguredQueueDriver());
 
   try {
     return await withTimeout(getQueueData(), 3000, 'Queue data timeout');
@@ -392,6 +386,24 @@ const normalizeDriver = (driver: string): WorkerDriver => {
   return 'memory';
 };
 
+const normalizeQueueDriver = (driver: string): WorkerDriver => {
+  return normalizeDriver(driver);
+};
+
+const resolveConfiguredQueueDriver = (): WorkerDriver => {
+  return normalizeQueueDriver(Env.get('QUEUE_DRIVER', 'redis'));
+};
+
+const buildEmptyQueueData = (driver: WorkerDriver): QueueData => {
+  return {
+    driver,
+    totalQueues: 0,
+    totalJobs: 0,
+    processingJobs: 0,
+    failedJobs: 0,
+  };
+};
+
 const getAvailableDriversFromDrivers = (drivers: WorkerDriver[]): WorkerDriver[] => {
   const uniqueDrivers = new Set(drivers);
   return Array.from(uniqueDrivers);
@@ -577,7 +589,7 @@ function applySorting(
 }
 
 async function getQueueData(): Promise<QueueData> {
-  const queueDriver = Env.get('QUEUE_DRIVER', 'redis');
+  const queueDriver = resolveConfiguredQueueDriver();
 
   try {
     // Get queue statistics based on QUEUE_DRIVER
@@ -586,14 +598,12 @@ async function getQueueData(): Promise<QueueData> {
         return await getRedisQueueData();
       case 'database':
         return await getDatabaseQueueData();
-      case 'db':
-        return await getDatabaseQueueData();
       default:
         return await getMemoryQueueData();
     }
   } catch (error) {
     Logger.error('Error fetching queue data:', error);
-    return await getMemoryQueueData();
+    return buildEmptyQueueData(queueDriver);
   }
 }
 
@@ -717,13 +727,7 @@ async function getMemoryQueueData(): Promise<QueueData> {
   // access the actual queue registry from the queue system
   // Since memory queues don't persist, we return basic info
   // In a real implementation, you'd track active memory queues
-  return {
-    driver: 'memory',
-    totalQueues: 0, // Memory queues are not persisted
-    totalJobs: 0,
-    processingJobs: 0,
-    failedJobs: 0,
-  };
+  return buildEmptyQueueData('memory');
 }
 
 const createWorkerMetricRequests = (

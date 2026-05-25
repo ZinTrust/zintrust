@@ -13,6 +13,7 @@ import { redactHeaders, redactUnknown } from '../utils/redact';
 import { RequestFilter } from '../utils/requestFilter';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
+let _scheduleBackgroundTask: ((task: Promise<void>) => void) | null = null;
 let _redactHeaderNames: string[] = [];
 let _redactBodyFields: string[] = [];
 let _ignoreRoutes: string[] = [];
@@ -182,7 +183,7 @@ const emit = ({
     sourceRule,
     normalizedSource
   );
-  _storage
+  const writePromise = _storage
     .writeEntry({
       uuid: crypto.randomUUID(),
       batchId: TraceContext.getBatchId(),
@@ -193,13 +194,20 @@ const emit = ({
       createdAt: TraceContext.now(),
     })
     .catch(() => undefined);
+
+  // Use background task scheduler if available (Workers waitUntil support)
+  if (_scheduleBackgroundTask) {
+    _scheduleBackgroundTask(writePromise);
+  }
+  // Otherwise, the promise is already fire-and-forget with error suppression
 };
 
 export const HttpClientWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze({
   emit,
-  register({ storage, config }: ITraceWatcherConfig): () => void {
+  register({ storage, config, scheduleBackgroundTask }: ITraceWatcherConfig): () => void {
     if (!isWatcherEnabled(config.watchers.clientRequest)) return () => undefined;
     _storage = storage;
+    _scheduleBackgroundTask = scheduleBackgroundTask ?? null;
     _clientRequestWatcher =
       typeof config.watchers.clientRequest === 'object' && config.watchers.clientRequest !== null
         ? config.watchers.clientRequest
@@ -210,6 +218,7 @@ export const HttpClientWatcher: ITraceWatcher & { emit: typeof emit } = Object.f
     _ignorePaths = config.ignorePaths;
     return () => {
       _storage = null;
+      _scheduleBackgroundTask = null;
       _clientRequestWatcher = undefined;
       _redactBodyFields = [];
       _ignoreRoutes = [];

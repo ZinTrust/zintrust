@@ -48,6 +48,7 @@ const buildContent = (err: Error, context?: ExceptionCaptureContext): ExceptionC
 };
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
+let _scheduleBackgroundTask: ((task: Promise<void>) => void) | null = null;
 let _listenerRefCount = 0;
 let _ignoreRoutes: string[] = [];
 let _ignorePaths: string[] = [];
@@ -86,7 +87,7 @@ const captureException = (err: unknown, context?: ExceptionCaptureContext): void
   const hash = familyHash(`${content.class}:${content.file}:${content.line}`);
   const uuid = crypto.randomUUID();
 
-  storage
+  const writePromise = storage
     .writeEntry({
       uuid,
       batchId: context?.batchId ?? TraceContext.getBatchId(),
@@ -99,6 +100,12 @@ const captureException = (err: unknown, context?: ExceptionCaptureContext): void
     })
     .then(() => storage.markFamilyStale(hash, uuid))
     .catch(() => undefined);
+
+  // Use background task scheduler if available (Workers waitUntil support)
+  if (_scheduleBackgroundTask) {
+    _scheduleBackgroundTask(writePromise);
+  }
+  // Otherwise, the promise is already fire-and-forget with error suppression
 };
 
 export const ExceptionWatcher: ITraceWatcher & {
@@ -106,9 +113,10 @@ export const ExceptionWatcher: ITraceWatcher & {
 } = Object.freeze({
   capture: captureException,
 
-  register({ storage, config }: ITraceWatcherConfig): () => void {
+  register({ storage, config, scheduleBackgroundTask }: ITraceWatcherConfig): () => void {
     if (config.watchers.exception === false) return () => undefined;
     _storage = storage;
+    _scheduleBackgroundTask = scheduleBackgroundTask ?? null;
     _ignoreRoutes = config.ignoreRoutes;
     _ignorePaths = config.ignorePaths;
 
@@ -123,6 +131,7 @@ export const ExceptionWatcher: ITraceWatcher & {
         unregisterProcessListeners();
       }
       _storage = null;
+      _scheduleBackgroundTask = null;
       _ignoreRoutes = [];
       _ignorePaths = [];
     };

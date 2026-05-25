@@ -188,7 +188,12 @@ const shouldIgnore = (req: IRequest, config: ITraceConfig): boolean => {
 const isWatcherEnabled = (config: ITraceConfig): boolean => config.watchers.request !== false;
 
 export const HttpWatcher: ITraceWatcher = Object.freeze({
-  register({ storage, config, registerMiddleware }: ITraceWatcherConfig): () => void {
+  register({
+    storage,
+    config,
+    registerMiddleware,
+    scheduleBackgroundTask,
+  }: ITraceWatcherConfig): () => void {
     if (!isWatcherEnabled(config)) return () => undefined;
     if (!registerMiddleware) return () => undefined;
 
@@ -225,14 +230,22 @@ export const HttpWatcher: ITraceWatcher = Object.freeze({
           createdAt: TraceContext.now(),
         };
 
-        storage.writeEntry(entry).catch((error: unknown) => {
+        const writePromise = storage.writeEntry(entry).catch((error: unknown) => {
           Logger.warn('[trace] HttpWatcher writeEntry failed', {
             method: content.method,
             uri: content.uri,
             entryUuid: entry.uuid,
             error: error instanceof Error ? error.message : String(error),
           });
-        }); // fire-and-forget
+        });
+
+        // Use background task scheduler if available (Workers waitUntil support)
+        if (scheduleBackgroundTask) {
+          scheduleBackgroundTask(writePromise);
+        } else {
+          // Fallback to fire-and-forget for backward compatibility
+          writePromise.catch(() => undefined);
+        }
       };
 
       const completionHandler = registerCompletionHandler(response, persistEntry);

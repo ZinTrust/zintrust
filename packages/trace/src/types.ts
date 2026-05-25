@@ -316,6 +316,8 @@ export interface ITraceWatcherConfig {
   registerMiddleware?: (
     fn: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
   ) => void;
+  /** Optional: schedule a background task (maps to ctx.waitUntil in Workers, normal promise in Node). */
+  scheduleBackgroundTask?: (task: Promise<void>) => void;
 }
 
 export interface ITraceWatcher {
