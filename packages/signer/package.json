@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/signer",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Request signing and signature verification utilities for ZinTrust.",
   "private": false,
   "type": "module",
