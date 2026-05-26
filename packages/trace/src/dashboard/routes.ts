@@ -3,14 +3,10 @@
  * Mounts the SPA + all REST API endpoints under the configured basePath.
  * Auth is NOT applied here — callers add middleware via routeOptions.
  */
-import {
-  appConfig,
-  ErrorFactory,
-  Router,
-  useDatabase,
-  type IRouter,
-  type RouteOptions,
-} from '@zintrust/core';
+import { appConfig } from '@zintrust/core/config';
+import { useDatabase } from '@zintrust/core/database';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Router, type IRouter, type RouteOptions } from '@zintrust/core/http';
 import { TraceConfig } from '../config';
 import { TraceStorage } from '../storage';
 import {

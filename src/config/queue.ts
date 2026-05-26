@@ -63,6 +63,7 @@ export type QueueConfigOverrides = Partial<{
     middleware: ReadonlyArray<string>;
     autoRefresh: boolean;
     refreshIntervalMs: number;
+    queueDataTimeoutMs: number;
   };
 }>;
 
@@ -217,6 +218,7 @@ const createBaseMonitor = (): {
   middleware: ReadonlyArray<string>;
   autoRefresh: boolean;
   refreshIntervalMs: number;
+  queueDataTimeoutMs: number;
 } => {
   const enabled = Env.getBool('QUEUE_MONITOR_ENABLED', false);
   const basePath = Env.get('QUEUE_MONITOR_BASE_PATH', '/queue-monitor');
@@ -251,6 +253,7 @@ const createBaseMonitor = (): {
     middleware,
     autoRefresh: Env.getBool('QUEUE_MONITOR_AUTO_REFRESH', true),
     refreshIntervalMs: Env.getInt('QUEUE_MONITOR_REFRESH_MS', 5000),
+    queueDataTimeoutMs: Env.getInt('QUEUE_DATA_TIMEOUT_MS', 10000),
   };
 };
 
@@ -266,6 +269,7 @@ const createQueueConfig = (): {
     middleware: ReadonlyArray<string>;
     autoRefresh: boolean;
     refreshIntervalMs: number;
+    queueDataTimeoutMs: number;
   };
 } => {
   const overrides: QueueConfigOverrides =
@@ -349,10 +353,7 @@ const ensureQueueConfig = (): QueueConfig => {
   cached = createQueueConfig();
 
   try {
-    Object.defineProperties(
-      proxyTarget as unknown as object,
-      Object.getOwnPropertyDescriptors(cached)
-    );
+    Object.defineProperties(proxyTarget, Object.getOwnPropertyDescriptors(cached));
   } catch {
     // best-effort
   }
@@ -366,10 +367,10 @@ export const queueConfig: QueueConfig = new Proxy(proxyTarget, {
   },
   ownKeys() {
     ensureQueueConfig();
-    return Reflect.ownKeys(proxyTarget as unknown as object);
+    return Reflect.ownKeys(proxyTarget);
   },
   getOwnPropertyDescriptor(_target, prop) {
     ensureQueueConfig();
-    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+    return Object.getOwnPropertyDescriptor(proxyTarget, prop);
   },
 });

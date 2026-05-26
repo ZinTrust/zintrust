@@ -1,10 +1,6 @@
-import {
-  Logger,
-  NodeSingletons,
-  workersConfig,
-  type IRequest,
-  type IResponse,
-} from '@zintrust/core';
+import type { IRequest, IResponse } from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
+import { NodeSingletons, workersConfig } from '@zintrust/core/workers';
 
 export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
 

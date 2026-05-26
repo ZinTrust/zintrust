@@ -4,7 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, type RedisConfig } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import type { RedisConfig } from '@zintrust/core/redis';
 import type { Queue } from 'bullmq';
 
 export type PriorityLevel = 'critical' | 'high' | 'normal' | 'low';

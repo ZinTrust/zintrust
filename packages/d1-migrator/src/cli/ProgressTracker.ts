@@ -3,7 +3,7 @@
  * Tracks migration progress and provides status updates
  */
 
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 import type { MigrationProgress } from '../types';
 
 /**

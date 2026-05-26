@@ -1,4 +1,4 @@
-import { Env, appConfig } from '@zintrust/core';
+import { appConfig, Env } from '@zintrust/core/config';
 
 const normalizeBaseUrl = (value: string): string => {
   let end = value.length;

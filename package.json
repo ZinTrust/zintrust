@@ -146,6 +146,54 @@
       "types": "./dist/routes/*.d.ts",
       "import": "./dist/routes/*.js"
     },
+    "./errors": {
+      "types": "./dist/src/errors-index.d.ts",
+      "import": "./dist/src/errors-index.js"
+    },
+    "./logger": {
+      "types": "./dist/src/logger-index.d.ts",
+      "import": "./dist/src/logger-index.js"
+    },
+    "./http": {
+      "types": "./dist/src/http-index.d.ts",
+      "import": "./dist/src/http-index.js"
+    },
+    "./database": {
+      "types": "./dist/src/database-index.d.ts",
+      "import": "./dist/src/database-index.js"
+    },
+    "./queue": {
+      "types": "./dist/src/queue-index.d.ts",
+      "import": "./dist/src/queue-index.js"
+    },
+    "./workers": {
+      "types": "./dist/src/workers-index.d.ts",
+      "import": "./dist/src/workers-index.js"
+    },
+    "./utils": {
+      "types": "./dist/src/utils-index.d.ts",
+      "import": "./dist/src/utils-index.js"
+    },
+    "./lang": {
+      "types": "./dist/src/lang-index.d.ts",
+      "import": "./dist/src/lang-index.js"
+    },
+    "./storage": {
+      "types": "./dist/src/storage-index.d.ts",
+      "import": "./dist/src/storage-index.js"
+    },
+    "./mail": {
+      "types": "./dist/src/mail-index.d.ts",
+      "import": "./dist/src/mail-index.js"
+    },
+    "./trace": {
+      "types": "./dist/src/trace-index.d.ts",
+      "import": "./dist/src/trace-index.js"
+    },
+    "./socket": {
+      "types": "./dist/src/socket-index.d.ts",
+      "import": "./dist/src/socket-index.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {

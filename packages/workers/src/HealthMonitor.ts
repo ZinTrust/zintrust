@@ -1,4 +1,5 @@
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import type { Worker } from 'bullmq';
 import { WorkerCreationStatus, WorkerFactory } from './WorkerFactory';
 

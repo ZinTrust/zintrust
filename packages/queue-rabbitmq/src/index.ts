@@ -1,4 +1,7 @@
-import { Cloudflare, ErrorFactory, Logger, generateUuid } from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core/cloudflare';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { generateUuid } from '@zintrust/core/utils';
 
 export type QueueMessage<T = unknown> = { id: string; payload: T; attempts: number };
 

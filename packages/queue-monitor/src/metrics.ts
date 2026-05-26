@@ -1,4 +1,4 @@
-import { RedisKeys } from '@zintrust/core';
+import { RedisKeys } from '@zintrust/core/queue';
 import { type Job, type JobsOptions } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';
 

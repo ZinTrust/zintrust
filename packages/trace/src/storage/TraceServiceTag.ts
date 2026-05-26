@@ -1,4 +1,4 @@
-import { ErrorFactory } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
 import type { ITraceConfig, ITraceEntry, ITraceStorage } from '../types';
 
 const appendServiceTag = (entry: ITraceEntry, serviceTag?: string): ITraceEntry => {

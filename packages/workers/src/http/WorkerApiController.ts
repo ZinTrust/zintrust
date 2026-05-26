@@ -3,8 +3,8 @@
  * HTTP handlers for worker management API
  */
 
-import type { IRequest, IResponse } from '@zintrust/core';
-import { Logger } from '@zintrust/core';
+import type { IRequest, IResponse } from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
 import type {
   GetWorkersQuery,
   WorkerDriver,

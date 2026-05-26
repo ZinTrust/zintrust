@@ -3,7 +3,8 @@
  * Analyzes database schemas for migration compatibility
  */
 
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import { MySQLAdapter } from '@zintrust/db-mysql';
 import { PostgreSQLAdapter } from '@zintrust/db-postgres';
 import { SQLiteAdapter } from '@zintrust/db-sqlite';

@@ -3,8 +3,9 @@
  * CLI command for migrating databases to Cloudflare D1
  */
 
-import { ErrorFactory, Logger, WranglerConfig } from '@zintrust/core';
-import { BaseCommand, type CommandOptions } from '@zintrust/core/cli';
+import { BaseCommand, WranglerConfig, type CommandOptions } from '@zintrust/core/cli';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import type { Command } from 'commander';
 import { SchemaBuilder } from '../schema/SchemaBuilder';
 import { SchemaValidator } from '../schema/Validator';

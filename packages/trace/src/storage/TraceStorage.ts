@@ -3,7 +3,7 @@
  * Resolves the correct IDatabase from the app config, then delegates all
  * read/write operations to the trace storage facade.
  */
-import type { IDatabase } from '@zintrust/core';
+import type { IDatabase } from '@zintrust/core/database';
 import type {
   EntryTypeValue,
   ITraceEntry,

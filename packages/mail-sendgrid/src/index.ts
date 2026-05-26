@@ -1,11 +1,11 @@
-export { SendGridDriver } from '@zintrust/core';
+export { SendGridDriver } from '@zintrust/core/mail';
 export type {
   SendGridConfig,
   SendGridMailAddress,
   SendGridMailAttachment,
   SendGridMailMessage,
   SendGridSendResult,
-} from '@zintrust/core';
+} from '@zintrust/core/mail';
 
 /**
  * Package version and build metadata

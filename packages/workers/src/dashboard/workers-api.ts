@@ -1,4 +1,6 @@
-import { Env, ErrorFactory, Logger } from '@zintrust/core';
+import { Env, queueConfig } from '@zintrust/core/config';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
 import { WorkerRegistry } from '../WorkerRegistry';
@@ -99,7 +101,9 @@ async function fetchQueueDataSafe(): Promise<QueueData> {
   const defaultData = buildEmptyQueueData(resolveConfiguredQueueDriver());
 
   try {
-    return await withTimeout(getQueueData(), 3000, 'Queue data timeout');
+    const timeoutMs =
+      queueConfig.monitor?.queueDataTimeoutMs ?? Env.getInt('QUEUE_DATA_TIMEOUT_MS', 10000);
+    return await withTimeout(getQueueData(), timeoutMs, 'Queue data timeout');
   } catch (err) {
     Logger.warn('[getWorkers] Queue data fetch failed or timed out', err);
     return defaultData;
@@ -463,7 +467,7 @@ const buildWorkerFromRaw = (workerData: RawWorkerData, driver: WorkerDriver): Wo
     autoStart: workerData.autoStart || false,
     activeStatus: workerData.activeStatus ?? true,
     details: workerData.details || {
-      configuration: {} as WorkerConfiguration,
+      configuration: {},
       health: {} as WorkerHealth,
       metrics: {} as WorkerMetrics,
       recentLogs: [],
@@ -611,7 +615,6 @@ async function getRedisQueueData(): Promise<QueueData> {
   try {
     // Use existing queue monitor infrastructure
     const { QueueMonitor } = await import('@zintrust/queue-monitor');
-    const { queueConfig } = await import('@zintrust/core');
 
     const redisConfig = queueConfig.drivers.redis;
     if (redisConfig?.driver !== 'redis') {

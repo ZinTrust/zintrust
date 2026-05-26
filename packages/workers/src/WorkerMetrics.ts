@@ -4,13 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import {
-  ErrorFactory,
-  Logger,
-  RedisKeys,
-  createRedisConnection,
-  type RedisConfig,
-} from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { RedisKeys, createRedisConnection, type RedisConfig } from '@zintrust/core/redis';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
 type RedisPipeline = ReturnType<RedisConnection['pipeline']>;

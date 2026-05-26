@@ -1,5 +1,5 @@
-export { MailgunDriver } from '@zintrust/core';
-export type { MailgunConfig, MailgunMessage, MailgunResult } from '@zintrust/core';
+export { MailgunDriver } from '@zintrust/core/mail';
+export type { MailgunConfig, MailgunMessage, MailgunResult } from '@zintrust/core/mail';
 
 /**
  * Package version and build metadata

@@ -7,7 +7,7 @@ export {
   type RedisPublishClient,
 } from './RedisPublishClient';
 
-export type { QueueMessage } from '@zintrust/core';
+export type { QueueMessage } from '@zintrust/core/queue';
 
 /**
  * Package version and build metadata

@@ -1,4 +1,4 @@
-import { ErrorFactory } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
 
 export type NodemailerMailConfig = {
   driver: 'nodemailer';

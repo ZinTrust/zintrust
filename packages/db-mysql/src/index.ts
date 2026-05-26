@@ -1,11 +1,8 @@
-import {
-  BaseAdapter,
-  Cloudflare,
-  ErrorFactory,
-  FeatureFlags,
-  Logger,
-  QueryBuilder,
-} from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core/cloudflare';
+import { FeatureFlags } from '@zintrust/core/config';
+import { BaseAdapter, QueryBuilder } from '@zintrust/core/database';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import { CREATE_MIGRATIONS_TABLE_SQL, MYSQL_PLACEHOLDER, MYSQL_TYPE } from './common.js';
 
 export type DatabaseConfig = {

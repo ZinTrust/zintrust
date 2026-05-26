@@ -3,7 +3,7 @@
  * Converts database types between different database systems
  */
 
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 
 /**
  * TypeConverter - Sealed namespace for type conversion

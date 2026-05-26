@@ -3,7 +3,9 @@
  * File-based persistent state tracking for resumable operations
  */
 
-import { ErrorFactory, Logger, NodeSingletons } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { NodeSingletons } from '@zintrust/core/workers';
 import type { CheckpointData, MigrationError, MigrationState } from '../types';
 
 const MIGRATION_DIR = '.zintrust/migration';

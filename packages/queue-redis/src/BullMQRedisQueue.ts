@@ -1,20 +1,17 @@
-import type { BullMQPayload, QueueMessage } from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core/cloudflare';
+import { Env, queueConfig } from '@zintrust/core/config';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import type { BullMQPayload, QueueMessage } from '@zintrust/core/queue';
 import {
-  Cloudflare,
   createLockProvider,
-  createRedisConnection,
-  Env,
-  ErrorFactory,
-  generateUuid,
-  getBullMQSafeQueueName,
   getLockProvider,
-  Logger,
-  queueConfig,
   registerLockProvider,
   resolveDeduplicationLockKey,
   resolveLockPrefix,
-  ZintrustLang,
-} from '@zintrust/core';
+} from '@zintrust/core/queue';
+import { createRedisConnection, getBullMQSafeQueueName } from '@zintrust/core/redis';
+import { generateUuid, ZintrustLang } from '@zintrust/core/utils';
 import { Queue, type JobsOptions, type QueueOptions } from 'bullmq';
 import { HttpQueueDriver } from './HttpQueueDriver';
 

@@ -1,4 +1,4 @@
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/runtime';
 
 // Minimal interface to avoid importing internal core types
 export interface CacheDriver {

@@ -5,11 +5,15 @@
 
 // Redis key manager
 export {
+  RedisKeys,
   createRedisKey,
   extractOriginalKey,
   getBullMQSafeQueueName,
   getPrefix,
   isAppKey,
-  RedisKeys,
   type RedisKeyType,
 } from '@tools/redis/RedisKeyManager';
+
+// Redis connection
+export type { RedisConfig } from '@config/type';
+export { createRedisConnection } from '@config/workers';

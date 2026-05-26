@@ -1,4 +1,8 @@
-import { Cloudflare, Env, ErrorFactory, Logger, createRedisConnection } from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core/cloudflare';
+import { Env } from '@zintrust/core/config';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { createRedisConnection } from '@zintrust/core/redis';
 
 // Minimal interface to avoid importing internal core types
 export interface CacheDriver {

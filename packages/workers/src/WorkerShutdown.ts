@@ -5,7 +5,7 @@
  * Coordinates orderly shutdown of all worker modules and the WorkerFactory.
  */
 
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 import { WorkerFactory } from './WorkerFactory';
 
 // ============================================================================

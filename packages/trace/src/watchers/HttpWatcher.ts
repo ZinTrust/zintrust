@@ -2,8 +2,8 @@
  * HttpWatcher — records inbound HTTP requests as trace entries.
  * Registers as a global middleware via Kernel.registerGlobalMiddleware().
  */
-import type { IRequest, IResponse } from '@zintrust/core';
-import { Logger } from '@zintrust/core';
+import type { IRequest, IResponse } from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
 import { TraceContext } from '../context';
 import type { ITraceConfig, ITraceWatcher, ITraceWatcherConfig, RequestContent } from '../types';
 import { EntryType } from '../types';

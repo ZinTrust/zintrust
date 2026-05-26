@@ -1,4 +1,4 @@
-import { R2Driver, StorageDriverRegistry } from '@zintrust/core';
+import { R2Driver, StorageDriverRegistry } from '@zintrust/core/storage';
 
 type StorageDriverEntry = {
   driver: unknown;

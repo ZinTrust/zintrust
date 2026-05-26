@@ -1,7 +1,6 @@
 /**
- * ZinTrust Cloudflare Runtime Helpers
- * Cloudflare Workers-specific runtime utilities and bindings
+ * Cloudflare Exports
+ * Provides Cloudflare Workers utilities
  */
 
 export { Cloudflare } from '@config/cloudflare';
-export type { AssetsBinding } from '@config/type';

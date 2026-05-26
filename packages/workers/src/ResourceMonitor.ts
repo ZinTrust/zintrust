@@ -4,7 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { Env, Logger, NodeSingletons } from '@zintrust/core';
+import { Env } from '@zintrust/core/config';
+import { Logger } from '@zintrust/core/logger';
+import { NodeSingletons } from '@zintrust/core/workers';
 
 const getOsModule = (): typeof NodeSingletons.os => NodeSingletons?.os ?? null;
 

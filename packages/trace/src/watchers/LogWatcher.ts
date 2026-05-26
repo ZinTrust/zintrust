@@ -1,7 +1,7 @@
 /**
  * LogWatcher — captures Logger output via Logger.addSink().
  */
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 import { TraceContext } from '../context';
 import type { ITraceWatcher, ITraceWatcherConfig, LogContent } from '../types';
 import { EntryType } from '../types';

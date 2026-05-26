@@ -1,11 +1,11 @@
 import {
   MultipartParserRegistry,
-  NodeSingletons,
   type MultipartFieldValue,
   type MultipartParseInput,
   type ParsedMultipartData,
   type UploadedFile,
-} from '@zintrust/core';
+} from '@zintrust/core/http';
+import { NodeSingletons } from '@zintrust/core/workers';
 import Busboy from 'busboy';
 
 export type StreamingMultipartParserOptions = {

@@ -1,4 +1,6 @@
-import { Env, ErrorFactory, createRedisConnection } from '@zintrust/core';
+import { Env } from '@zintrust/core/config';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { createRedisConnection } from '@zintrust/core/redis';
 import type { CacheDriver } from './index.js';
 
 type RedisProxyClient = {

@@ -2,7 +2,7 @@
  * Migration: CreateZinTraceEntriesTable
  * Creates the main entries table for @zintrust/trace
  */
-import { MigrationSchema, type Blueprint, type IDatabase } from '@zintrust/core';
+import { MigrationSchema, type Blueprint, type IDatabase } from '@zintrust/core/database';
 
 export interface Migration {
   up(db: IDatabase): Promise<void>;

@@ -1,5 +1,6 @@
-import type { IRequest, IResponse, IRouter, RouteOptions } from '@zintrust/core';
-import { Env, Router } from '@zintrust/core';
+import { Env } from '@zintrust/core/config';
+import type { IRequest, IResponse, IRouter, RouteOptions } from '@zintrust/core/http';
+import { Router } from '@zintrust/core/http';
 import type { TelemetrySettings } from './api/TelemetryAPI';
 import { createSnapshotBuilder } from './api/TelemetryAPI';
 import { teleStream } from './api/TelemetryMonitoringService';

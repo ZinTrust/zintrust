@@ -1,4 +1,5 @@
-import { ErrorFactory, getBullMQSafeQueueName } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { getBullMQSafeQueueName } from '@zintrust/core/redis';
 import type { ConnectionOptions, Job, JobsOptions } from 'bullmq';
 import { Queue } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';

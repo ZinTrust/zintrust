@@ -2,7 +2,7 @@
  * TraceDashboard handlers — pure handler functions wired to ITraceStorage.
  * No auth in this layer — caller mounts middleware as needed.
  */
-import type { IRequest, IResponse } from '@zintrust/core';
+import type { IRequest, IResponse } from '@zintrust/core/http';
 import type { EntryTypeValue, ITraceEntry, ITraceStorage } from '../types';
 
 // ---------------------------------------------------------------------------

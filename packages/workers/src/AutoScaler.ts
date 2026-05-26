@@ -4,8 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import type { WorkerConfig } from '@zintrust/core';
-import { ErrorFactory, Logger, workersConfig } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { type WorkerConfig, workersConfig } from '@zintrust/core/workers';
 
 export type ScalingDecision = {
   workerName: string;

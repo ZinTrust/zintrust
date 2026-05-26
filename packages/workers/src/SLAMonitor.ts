@@ -4,7 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, generateUuid } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { generateUuid } from '@zintrust/core/utils';
 import { HealthMonitor, type HealthCheckResult } from './HealthMonitor';
 import { WorkerMetrics, type MetricPoint, type MetricType } from './WorkerMetrics';
 

@@ -1,4 +1,6 @@
-import { isNonEmptyString, isObject, Logger, queueConfig } from '@zintrust/core';
+import { queueConfig } from '@zintrust/core/config';
+import { Logger } from '@zintrust/core/logger';
+import { isNonEmptyString, isObject } from '@zintrust/core/utils';
 
 type QueueMonitorStatus = 'completed' | 'failed';
 

@@ -3,8 +3,11 @@
  * HTTP API for managing workers with dashboard functionality
  */
 
-import type { IRequest, IResponse, IRouter } from '@zintrust/core';
-import { Cloudflare, Env, Logger, Router } from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core/cloudflare';
+import { Env } from '@zintrust/core/config';
+import type { IRequest, IResponse, IRouter } from '@zintrust/core/http';
+import { Router } from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
 import { type WorkersDashboardUiOptions } from '../dashboard';
 import { HealthMonitor } from '../HealthMonitor';
 import { ValidationSchemas, withCustomValidation } from '../http/middleware/CustomValidation';

@@ -4,7 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 
 export type CircuitState = 'closed' | 'open' | 'half-open';
 

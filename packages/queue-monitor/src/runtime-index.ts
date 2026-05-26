@@ -3,13 +3,11 @@
  * Excludes dashboard UI components that are not needed for runtime
  */
 
-import {
-  isNonEmptyString,
-  Logger,
-  queueConfig,
-  resolveLockPrefix,
-  ShutdownTrace,
-} from '@zintrust/core';
+import { queueConfig } from '@zintrust/core/config';
+import { Logger } from '@zintrust/core/logger';
+import { resolveLockPrefix } from '@zintrust/core/queue';
+import { isNonEmptyString } from '@zintrust/core/utils';
+import { ShutdownTrace } from '@zintrust/core/workers';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { createBullMQDriver, type QueueDriver } from './driver';
 import { createMetrics, type Metrics } from './metrics';

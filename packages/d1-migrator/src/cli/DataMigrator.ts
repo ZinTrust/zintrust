@@ -4,7 +4,9 @@
  * Handles the actual data migration between databases
  */
 
-import { ErrorFactory, LocalD1Resolver, Logger, WranglerD1 } from '@zintrust/core';
+import { LocalD1Resolver, WranglerD1 } from '@zintrust/core/cli';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import { appendFileSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 

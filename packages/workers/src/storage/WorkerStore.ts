@@ -3,8 +3,8 @@
  * Persistence layer for workers (memory, redis, db)
  */
 
-import type { createRedisConnection } from '@zintrust/core';
-import { type IDatabase } from '@zintrust/core';
+import { type IDatabase } from '@zintrust/core/database';
+import { type createRedisConnection } from '@zintrust/core/redis';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
 

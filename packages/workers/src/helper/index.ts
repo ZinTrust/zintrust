@@ -1,4 +1,4 @@
-import type { IRequest } from '@zintrust/core';
+import type { IRequest } from '@zintrust/core/http';
 
 /**
  * Helper to get path parameter

@@ -2,7 +2,7 @@
  * Migration: CreateZinTraceEntriesTagsTable
  * Creates the tag join table for @zintrust/trace
  */
-import { MigrationSchema, type Blueprint, type IDatabase } from '@zintrust/core';
+import { MigrationSchema, type Blueprint, type IDatabase } from '@zintrust/core/database';
 
 export interface Migration {
   up(db: IDatabase): Promise<void>;

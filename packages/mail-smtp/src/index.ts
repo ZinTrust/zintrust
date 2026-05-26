@@ -1,7 +1,7 @@
-import { SmtpDriver as CoreSmtpDriver } from '@zintrust/core';
+import { SmtpDriver as CoreSmtpDriver } from '@zintrust/core/mail';
 
 const SmtpDriver: typeof CoreSmtpDriver = CoreSmtpDriver;
-export type { SmtpDriverConfig } from '@zintrust/core';
+export type { SmtpDriverConfig } from '@zintrust/core/mail';
 export { SmtpDriver };
 
 /**

@@ -4,7 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, type WorkerConfig, type WorkerStatus } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { type WorkerConfig, type WorkerStatus } from '@zintrust/core/workers';
 import { AnomalyDetection } from './AnomalyDetection';
 
 export type WorkerMetadata = {

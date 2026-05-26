@@ -16,12 +16,13 @@ export type {
   DatabaseConfigOverrides,
   DatabaseConfig as DatabaseRuntimeConfig,
 } from '@config/database';
+export { Env } from '@config/env';
 export { FeatureFlags } from '@config/features';
 export { mailConfig } from '@config/mail';
 export type { MailConfig, MailConfigOverrides } from '@config/mail';
 export { microservicesConfig } from '@config/microservices';
 export type { MicroservicesConfig } from '@config/microservices';
-export { clearMiddlewareConfigCache, middlewareConfig, MiddlewareKeys } from '@config/middleware';
+export { MiddlewareKeys, clearMiddlewareConfigCache, middlewareConfig } from '@config/middleware';
 export type { MiddlewareKey } from '@config/middleware';
 export { default as notificationConfig } from '@config/notification';
 export type { NotificationConfig, NotificationConfigOverrides } from '@config/notification';
@@ -29,10 +30,10 @@ export { createBaseDrivers, queueConfig } from '@config/queue';
 export type { QueueConfig, QueueConfigOverrides } from '@config/queue';
 export * from '@config/redis';
 export {
-  getDatabaseCredentials,
-  getJwtSecrets,
   SECRETS,
   SecretsManager,
+  getDatabaseCredentials,
+  getJwtSecrets,
 } from '@config/SecretsManager';
 export type { DatabaseCredentials, JwtSecrets } from '@config/SecretsManager';
 export { securityConfig } from '@config/security';
@@ -43,6 +44,7 @@ export { storageConfig } from '@config/storage';
 export type { StorageConfig, StorageConfigOverrides } from '@config/storage';
 export type * from '@config/type';
 export type {
+  AssetsBinding,
   MailDriverConfig,
   MailDriverName,
   MiddlewareConfigType,
@@ -52,11 +54,11 @@ export type {
   WorkerConfig,
   WorkerCostConfig,
   WorkerObservabilityConfig,
+  WorkerStatus,
+  WorkerVersioningConfig,
   WorkersConfigOverrides,
   WorkersEnv,
   WorkersGlobalConfig,
-  WorkerStatus,
-  WorkerVersioningConfig,
 } from '@config/type';
 export { createRedisConnection, workersConfig } from '@config/workers';
 

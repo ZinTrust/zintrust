@@ -1,5 +1,5 @@
-import type { IRequest, IResponse } from '@zintrust/core';
-import { Logger } from '@zintrust/core';
+import type { IRequest, IResponse } from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
 import type { QueueDriver } from './driver';
 import type { LockAnalytics, QueueMonitorSnapshot } from './index';
 import type { JobSummary, Metrics } from './metrics';

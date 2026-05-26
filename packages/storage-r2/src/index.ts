@@ -1,5 +1,5 @@
-export { R2Driver } from '@zintrust/core';
-export type { R2Config } from '@zintrust/core';
+export { R2Driver } from '@zintrust/core/storage';
+export type { R2Config } from '@zintrust/core/storage';
 
 /**
  * Package version and build metadata
