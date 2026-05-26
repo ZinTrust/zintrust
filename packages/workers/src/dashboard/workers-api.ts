@@ -615,8 +615,9 @@ async function getRedisQueueData(): Promise<QueueData> {
   try {
     // Use existing queue monitor infrastructure
     const { QueueMonitor } = await import('@zintrust/queue-monitor');
+    const { queueConfig: FreshqQeueConfig } = await import('@zintrust/core/config');
 
-    const redisConfig = queueConfig.drivers.redis;
+    const redisConfig = FreshqQeueConfig.drivers.redis;
     if (redisConfig?.driver !== 'redis') {
       throw ErrorFactory.createConfigError('Redis driver not configured');
     }
