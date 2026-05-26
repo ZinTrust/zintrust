@@ -55,7 +55,6 @@ export {
   LoggingMiddleware,
   MiddlewareStack,
   MultipartParser,
-  MultipartParserRegistry,
   RateLimiter,
   Request,
   RequestContext,
@@ -427,6 +426,7 @@ export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/Broadcas
 // forcing resolution of `@zintrust/workers` for consumers that don't use it.
 
 // Storage (for file management and signed URLs)
+export { MultipartParserRegistry } from '@http/parsers/MultipartParserRegistry';
 export { Storage } from '@tools/storage/index';
 export { LocalSignedUrl } from '@tools/storage/LocalSignedUrl';
 export { StorageDriverRegistry } from '@tools/storage/StorageDriverRegistry';

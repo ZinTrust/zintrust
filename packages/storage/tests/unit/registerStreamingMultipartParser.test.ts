@@ -44,13 +44,12 @@ const createRequest = (): EventEmitter & {
 };
 
 describe('registerStreamingMultipartParser', () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
-  afterEach(async () => {
+  beforeEach(async () => {
     const { MultipartParserRegistry } = await import('@zintrust/core');
     MultipartParserRegistry.clear();
+  });
+
+  afterEach(() => {
     state.driveBusboy = undefined;
     vi.restoreAllMocks();
   });

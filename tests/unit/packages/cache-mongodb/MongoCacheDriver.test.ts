@@ -4,7 +4,7 @@ const { loggerWarn } = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
 }));
 
-vi.mock('@zintrust/core', () => {
+vi.mock('@zintrust/core/runtime', () => {
   return {
     Logger: {
       warn: loggerWarn,

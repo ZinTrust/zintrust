@@ -33,20 +33,39 @@ const waitForCondition = async (predicate: () => boolean, attempts = 20): Promis
   await waitForCondition(predicate, attempts - 1);
 };
 
-vi.mock('@zintrust/core', () => ({
+vi.mock('@zintrust/core/cloudflare', () => ({
   Cloudflare: {},
+}));
+
+vi.mock('@zintrust/core/redis', () => ({
   createRedisConnection: vi.fn(),
+}));
+
+vi.mock('@zintrust/core/database', () => ({
   databaseConfig: {},
   DatabaseConnectionRegistry: {},
+  registerDatabasesFromRuntimeConfig: vi.fn(),
+  useEnsureDbConnected: vi.fn(),
+}));
+
+vi.mock('@zintrust/core/config', () => ({
   Env: {
     get: vi.fn(() => ''),
     getBool: vi.fn(() => false),
     getInt: vi.fn(() => 0),
   },
+  queueConfig: {},
+  workersConfig: {},
+}));
+
+vi.mock('@zintrust/core/errors', () => ({
   ErrorFactory: {
     createGeneralError: (message: string, details?: unknown) =>
       Object.assign(new Error(message), { details }),
   },
+}));
+
+vi.mock('@zintrust/core/utils', () => ({
   generateUuid: vi.fn(() => 'uuid'),
   getBullMQSafeQueueName: vi.fn((value: string) => value),
   isFunction: (value: unknown): value is (...args: unknown[]) => unknown =>
@@ -55,13 +74,23 @@ vi.mock('@zintrust/core', () => ({
     typeof value === 'string' && value.trim().length > 0,
   isObject: (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null,
+  ZintrustLang: {},
+}));
+
+vi.mock('@zintrust/core/queue', () => ({
   JobStateTracker: {},
+}));
+
+vi.mock('@zintrust/core/logger', () => ({
   Logger: {
     info: infoMock,
     warn: warnMock,
     debug: debugMock,
     error: errorMock,
   },
+}));
+
+vi.mock('@zintrust/core/workers', () => ({
   NodeSingletons: {
     path: {
       join: (...parts: string[]) => parts.join('/'),
@@ -78,11 +107,6 @@ vi.mock('@zintrust/core', () => ({
     },
     module: {},
   },
-  queueConfig: {},
-  registerDatabasesFromRuntimeConfig: vi.fn(),
-  useEnsureDbConnected: vi.fn(),
-  workersConfig: {},
-  ZintrustLang: {},
 }));
 
 vi.mock('bullmq', () => ({
@@ -153,8 +177,8 @@ describe('WorkerFactory.shutdown', () => {
     const clusterLockDeferred = createDeferred();
     const pluginManagerDeferred = createDeferred();
 
-    clusterLockShutdown.mockReturnValueOnce(clusterLockDeferred.promise);
-    pluginManagerShutdown.mockReturnValueOnce(pluginManagerDeferred.promise);
+    clusterLockShutdown.mockReturnValueOnce(clusterLockDeferred.promise as Promise<undefined>);
+    pluginManagerShutdown.mockReturnValueOnce(pluginManagerDeferred.promise as Promise<undefined>);
 
     const { WorkerFactory } = await import('../../src/WorkerFactory');
 

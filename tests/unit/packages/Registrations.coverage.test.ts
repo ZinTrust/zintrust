@@ -38,7 +38,7 @@ describe('package registration coverage', () => {
 
   it('warns when mongo cache uri missing', async () => {
     const warn = vi.fn();
-    vi.doMock('@zintrust/core', () => ({
+    vi.doMock('@zintrust/core/runtime', () => ({
       Logger: { warn },
     }));
 

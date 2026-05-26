@@ -33,6 +33,9 @@ vi.mock('@zintrust/core', async (importOriginal) => {
           database: 0,
         },
       },
+      monitor: {
+        enabled: false,
+      },
     },
     workersConfig: {
       intervalMs: 5000,

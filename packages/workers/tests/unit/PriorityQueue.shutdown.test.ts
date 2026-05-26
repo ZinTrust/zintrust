@@ -5,10 +5,13 @@ const warnMock = vi.fn();
 const debugMock = vi.fn();
 const errorMock = vi.fn();
 
-vi.mock('@zintrust/core', () => ({
+vi.mock('@zintrust/core/errors', () => ({
   ErrorFactory: {
     createWorkerError: (message: string) => new Error(message),
   },
+}));
+
+vi.mock('@zintrust/core/logger', () => ({
   Logger: {
     info: infoMock,
     warn: warnMock,

@@ -182,6 +182,14 @@
       "types": "./dist/src/storage-index.d.ts",
       "import": "./dist/src/storage-index.js"
     },
+    "./storage-index": {
+      "types": "./dist/src/storage-index.d.ts",
+      "import": "./dist/src/storage-index.js"
+    },
+    "./http-index": {
+      "types": "./dist/src/http-index.d.ts",
+      "import": "./dist/src/http-index.js"
+    },
     "./mail": {
       "types": "./dist/src/mail-index.d.ts",
       "import": "./dist/src/mail-index.js"

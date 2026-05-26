@@ -8,6 +8,7 @@ export { R2Driver } from '@tools/storage/drivers/R2';
 export { S3Driver } from '@tools/storage/drivers/S3';
 export { StorageDriverRegistry } from '@tools/storage/StorageDriverRegistry';
 
+export { MultipartParserRegistry } from '@http/parsers/MultipartParserRegistry';
 export type {
   MultipartFieldValue,
   MultipartParseInput,

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const addSink = vi.fn();
 
-vi.mock('@zintrust/core', () => ({
+vi.mock('@zintrust/core/logger', () => ({
   Logger: {
     addSink,
     shouldSkipTraceLogContext: (context?: Record<string, unknown>) =>

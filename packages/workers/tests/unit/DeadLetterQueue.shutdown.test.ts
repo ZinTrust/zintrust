@@ -10,16 +10,22 @@ const redisState = {
   disconnect: vi.fn(),
 };
 
-vi.mock('@zintrust/core', () => ({
+vi.mock('@zintrust/core/errors', () => ({
   ErrorFactory: {
     createConfigError: (message: string) => new Error(message),
   },
+}));
+
+vi.mock('@zintrust/core/logger', () => ({
   Logger: {
     info: infoMock,
     warn: warnMock,
     debug: debugMock,
     error: errorMock,
   },
+}));
+
+vi.mock('@zintrust/core/redis', () => ({
   createRedisConnection: vi.fn(() => ({
     quit: redisState.quit,
     disconnect: redisState.disconnect,
@@ -47,7 +53,7 @@ describe('DeadLetterQueue.shutdown', () => {
   });
 
   it('forces disconnect when Redis quit hangs during shutdown', async () => {
-    redisState.quit.mockImplementationOnce(() => new Promise<string>(() => undefined));
+    redisState.quit.mockImplementationOnce(() => new Promise<never>(() => undefined));
 
     const { DeadLetterQueue } = await import('../../src/DeadLetterQueue');
 

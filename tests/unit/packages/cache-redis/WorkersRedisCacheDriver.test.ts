@@ -17,13 +17,9 @@ const mockClient = {
   },
 };
 
-vi.mock('@zintrust/core', async () => {
-  const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
-  return {
-    ...actual,
-    createRedisConnection: () => mockClient,
-  };
-});
+vi.mock('@zintrust/core/redis', () => ({
+  createRedisConnection: () => mockClient,
+}));
 
 import { RedisCacheDriver } from '../../../../packages/cache-redis/src/index';
 
@@ -46,18 +42,15 @@ describe('Redis cache driver (Workers)', () => {
       },
     };
 
-    vi.doMock('@zintrust/core', async () => {
-      const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
-      return {
-        ...actual,
-        Env: {
-          ...actual.Env,
-          REDIS_PROXY_URL: 'http://127.0.0.1:8791/redis',
-          USE_REDIS_PROXY: true,
-        },
-        createRedisConnection: () => proxyClient,
-      };
-    });
+    vi.doMock('@zintrust/core/config', () => ({
+      Env: {
+        REDIS_PROXY_URL: 'http://127.0.0.1:8791/redis',
+        USE_REDIS_PROXY: true,
+      },
+    }));
+    vi.doMock('@zintrust/core/redis', () => ({
+      createRedisConnection: () => proxyClient,
+    }));
 
     const { RedisCacheDriver: RedisCacheDriverWithProxy } =
       await import('../../../../packages/cache-redis/src/index');
@@ -116,21 +109,17 @@ describe('Redis cache driver (Workers)', () => {
 
     vi.doMock('redis', () => ({ createClient }));
 
-    vi.doMock('@zintrust/core', async () => {
-      const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
-      return {
-        ...actual,
-        Env: {
-          ...actual.Env,
-          REDIS_PROXY_URL: '',
-          USE_REDIS_PROXY: false,
-        },
-        Cloudflare: {
-          ...actual.Cloudflare,
-          getWorkersEnv: () => null,
-        },
-      };
-    });
+    vi.doMock('@zintrust/core/config', () => ({
+      Env: {
+        REDIS_PROXY_URL: '',
+        USE_REDIS_PROXY: false,
+      },
+    }));
+    vi.doMock('@zintrust/core/cloudflare', () => ({
+      Cloudflare: {
+        getWorkersEnv: () => null,
+      },
+    }));
 
     const { RedisCacheDriver: NodeDriver } =
       await import('../../../../packages/cache-redis/src/index');
@@ -181,16 +170,11 @@ describe('Redis cache driver (Workers)', () => {
       }),
     }));
 
-    vi.doMock('@zintrust/core', async () => {
-      const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
-      return {
-        ...actual,
-        Logger: {
-          ...actual.Logger,
-          error: errorSpy,
-        },
-      };
-    });
+    vi.doMock('@zintrust/core/logger', () => ({
+      Logger: {
+        error: errorSpy,
+      },
+    }));
 
     const { RedisCacheDriver: AuthFailingDriver } =
       await import('../../../../packages/cache-redis/src/index');
