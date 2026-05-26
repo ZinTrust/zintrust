@@ -223,3 +223,25 @@ export { randomBytes } from '@node-singletons/crypto';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.
+
+// Socket/WebSocket primitives
+export { CloudflareSocket } from '@sockets/CloudflareSocket';
+export { SocketFeature } from '@sockets/SocketRuntime';
+export type {
+  SocketAuthorizationContext,
+  SocketAuthorizationDecision,
+  SocketAuthorizer,
+  SocketAuthorizerHandler,
+  SocketFeatureSettings,
+  SocketNodeUpgradeInput,
+  SocketPublishContext,
+  SocketPublishDecision,
+  SocketPublishPolicy,
+  SocketPublishPolicyHandler,
+  SocketRouteRegistrar,
+  SocketRuntime,
+  SocketRuntimeDiagnostics,
+  SocketTransportMode,
+  SocketWorkerContext,
+} from '@sockets/SocketRuntime';
+export { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';

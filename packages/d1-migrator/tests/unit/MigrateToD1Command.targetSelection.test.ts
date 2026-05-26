@@ -45,16 +45,16 @@ vi.mock('@zintrust/core', () => ({
     warn: (...args: unknown[]) => loggerWarnMock(...args),
     error: (...args: unknown[]) => loggerErrorMock(...args),
   },
-  WranglerConfig: {
-    resolveD1Database: (...args: unknown[]) => resolveD1DatabaseMock(...args),
-    getD1Database: (...args: unknown[]) => getD1DatabaseMock(...args),
-    getDefaultD1DatabaseName: (...args: unknown[]) => getDefaultD1DatabaseNameMock(...args),
-  },
 }));
 
 vi.mock('@zintrust/core/cli', () => ({
   BaseCommand: {
     create: (...args: unknown[]) => baseCommandCreateMock(...args),
+  },
+  WranglerConfig: {
+    resolveD1Database: (...args: unknown[]) => resolveD1DatabaseMock(...args),
+    getD1Database: (...args: unknown[]) => getD1DatabaseMock(...args),
+    getDefaultD1DatabaseName: (...args: unknown[]) => getDefaultD1DatabaseNameMock(...args),
   },
 }));
 
