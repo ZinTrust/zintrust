@@ -149,6 +149,10 @@ const createRedisConnectionCacheKey = (
     db: config.db,
     password: config.password ?? '',
     maxRetries,
+    connectTimeout: config.connectTimeout,
+    keepAlive: config.keepAlive,
+    enableOfflineQueue: config.enableOfflineQueue,
+    maxLoadingRetryTime: config.maxLoadingRetryTime,
   });
 };
 
@@ -389,6 +393,10 @@ const resolveEffectiveRedisConfig = (
       port: Env.getInt('REDIS_PORT', config.port),
       password: Env.get('REDIS_PASSWORD', config.password),
       db: Env.getInt('REDIS_QUEUE_DB', config.db),
+      connectTimeout: config.connectTimeout,
+      keepAlive: config.keepAlive,
+      enableOfflineQueue: config.enableOfflineQueue,
+      maxLoadingRetryTime: config.maxLoadingRetryTime,
     };
   }
 
@@ -439,6 +447,11 @@ export const createRedisConnection = (
       if (times > maxRetries) return null;
       return Math.min(times * 50, 2000);
     },
+    // Cloudflare tunnel-specific options
+    connectTimeout: effectiveConfig.connectTimeout ?? Env.REDIS_CONNECT_TIMEOUT,
+    keepAlive: effectiveConfig.keepAlive ?? Env.REDIS_KEEP_ALIVE,
+    enableOfflineQueue: effectiveConfig.enableOfflineQueue ?? Env.REDIS_ENABLE_OFFLINE_QUEUE,
+    maxLoadingRetryTime: effectiveConfig.maxLoadingRetryTime ?? Env.REDIS_MAX_LOADING_RETRY_TIME,
   });
 
   setupRedisErrorHandler(client);

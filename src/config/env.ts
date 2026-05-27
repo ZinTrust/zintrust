@@ -18,8 +18,7 @@ export type ResolvedEnvState = {
 };
 
 // Cache process check once at module load time
-const processLike: ProcessLike | undefined =
-  typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
+const processLike: ProcessLike | undefined = typeof process === 'undefined' ? undefined : process;
 
 let externalEnvSource: EnvSource | null = null;
 const DIRECT_ENV_SOURCE = 'direct-env';
@@ -513,6 +512,11 @@ export const Env = Object.freeze({
   REDIS_PASSWORD: get('REDIS_PASSWORD', ''),
   REDIS_DB: getInt('REDIS_DB', 0),
   REDIS_URL: get('REDIS_URL', ''),
+  // Cloudflare tunnel-specific ioredis options
+  REDIS_CONNECT_TIMEOUT: getInt('REDIS_CONNECT_TIMEOUT', 7000),
+  REDIS_KEEP_ALIVE: getInt('REDIS_KEEP_ALIVE', 5000),
+  REDIS_ENABLE_OFFLINE_QUEUE: getBool('REDIS_ENABLE_OFFLINE_QUEUE', true),
+  REDIS_MAX_LOADING_RETRY_TIME: getInt('REDIS_MAX_LOADING_RETRY_TIME', 5000),
   MONGO_URI: get('MONGO_URI'),
   MONGO_DB: get('MONGO_DB', 'zintrust_cache'),
 
