@@ -161,7 +161,7 @@ describe('queue-monitor retry API', () => {
     testState.currentDriver.retryJob = vi.fn(async () => ({
       ok: false as const,
       status: 'missing' as const,
-    }));
+    })) as never;
 
     const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
     monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);

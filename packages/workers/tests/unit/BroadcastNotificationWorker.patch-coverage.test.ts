@@ -32,6 +32,9 @@ vi.mock('@zintrust/core', async (importOriginal) => {
           port: 6379,
           database: 0,
         },
+        inmemory: {
+          driver: 'inmemory',
+        },
       },
       monitor: {
         enabled: false,
@@ -49,7 +52,16 @@ vi.mock('@zintrust/core', async (importOriginal) => {
       warn: vi.fn(),
       error: vi.fn(),
     },
-    Queue: queueMock,
+    Queue: {
+      ...actual.Queue,
+      get: vi.fn((name?: string) => {
+        // Always return the mock queue regardless of driver name
+        return queueMock;
+      }),
+      enqueue: queueMock.enqueue,
+      dequeue: queueMock.dequeue,
+      ack: queueMock.ack,
+    },
     Broadcast: broadcastMock,
     Notification: notificationMock,
     NodeSingletons: {
@@ -80,7 +92,7 @@ vi.mock('@zintrust/core', async (importOriginal) => {
 vi.unmock('@zintrust/workers');
 
 describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
 
@@ -91,6 +103,10 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
     broadcastMock.publish.mockResolvedValue(undefined);
     notificationMock.send.mockResolvedValue(undefined);
     queueMonitorMetricsMock.recordJob.mockResolvedValue(undefined);
+
+    // Register inmemory queue driver
+    const { Queue } = await import('@zintrust/core');
+    Queue.register('inmemory', queueMock as any);
   });
 
   it('BroadcastWorker.processOne uses Broadcast.publish', async () => {

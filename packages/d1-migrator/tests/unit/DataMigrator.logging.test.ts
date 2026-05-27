@@ -175,7 +175,7 @@ describe('DataMigrator logging and totals', () => {
       sourceDriver: 'mysql',
       sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
       targetType: 'd1',
-      targetDatabase: 'app-dev',
+      targetDatabase: 'd1-proxy-db',
       batchSize: 10,
     });
 
@@ -225,7 +225,7 @@ describe('DataMigrator logging and totals', () => {
       sourceConnection,
       sourceConnectionOrigin: 'option',
       targetType: 'd1',
-      targetDatabase: 'app-dev',
+      targetDatabase: 'd1-proxy-db',
       batchSize: 10,
     });
 
@@ -263,7 +263,7 @@ describe('DataMigrator logging and totals', () => {
       sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
       sourceSsl: true,
       targetType: 'd1',
-      targetDatabase: 'app-dev',
+      targetDatabase: 'd1-proxy-db',
       batchSize: 10,
     });
 
@@ -342,7 +342,7 @@ describe('DataMigrator logging and totals', () => {
       sourceDriver: 'mysql',
       sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
       targetType: 'd1-remote',
-      targetDatabase: 'app-dev',
+      targetDatabase: 'd1-proxy-db',
       batchSize: 10,
     });
 
@@ -448,7 +448,7 @@ describe('DataMigrator logging and totals', () => {
       sourceDriver: 'mysql',
       sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
       targetType: 'd1-remote',
-      targetDatabase: 'app-dev',
+      targetDatabase: 'd1-proxy-db',
       batchSize: 10,
     });
 
@@ -524,7 +524,7 @@ describe('DataMigrator logging and totals', () => {
       sourceDriver: 'mysql',
       sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
       targetType: 'd1-remote',
-      targetDatabase: 'app-dev',
+      targetDatabase: 'd1-proxy-db',
       batchSize: 1000,
     });
 
@@ -582,7 +582,7 @@ describe('DataMigrator logging and totals', () => {
       sourceDriver: 'mysql',
       sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
       targetType: 'd1-remote',
-      targetDatabase: 'app-dev',
+      targetDatabase: 'd1-proxy-db',
       batchSize: 10,
     });
 

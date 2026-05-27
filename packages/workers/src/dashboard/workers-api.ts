@@ -4,6 +4,7 @@ import { Logger } from '@zintrust/core/logger';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
 import { WorkerRegistry } from '../WorkerRegistry';
+import { maskInfrastructurePasswords } from '../helper';
 import type { WorkerRecord } from '../storage/WorkerStore';
 import type {
   GetWorkersQuery,
@@ -912,7 +913,7 @@ function buildWorkerConfiguration(
     activeStatus: persisted.activeStatus ?? true,
     version: persisted.version ?? worker.version,
     features: persisted.features ?? null,
-    infrastructure: persisted.infrastructure ?? null,
+    infrastructure: maskInfrastructurePasswords(persisted.infrastructure),
     datacenter: persisted.datacenter ?? null,
   };
 }

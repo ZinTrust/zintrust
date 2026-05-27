@@ -21,9 +21,14 @@ function list(): Array<CacheDriverConfig['driver']> {
   return Array.from(registry.keys());
 }
 
+function clear(): void {
+  registry.clear();
+}
+
 export const CacheDriverRegistry = Object.freeze({
   register,
   get,
   has,
   list,
+  clear,
 });

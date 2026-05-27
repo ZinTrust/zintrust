@@ -1163,7 +1163,7 @@ const executeWithConcurrency = async <TInput, TResult>(
     while (index < items.length) {
       const currentIndex = index;
       index += 1;
-      results[currentIndex] = await worker(items[currentIndex] as TInput);
+      results[currentIndex] = await worker(items[currentIndex]);
     }
   };
 

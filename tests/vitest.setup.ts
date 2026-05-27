@@ -1,7 +1,7 @@
 // Global Vitest setup
 
-import { ensureEslintAjv8 } from '../scripts/ci/ensure-eslint-ajv8.mjs';
 import { vi } from 'vitest';
+import { ensureEslintAjv8 } from '../scripts/ci/ensure-eslint-ajv8.mjs';
 
 ensureEslintAjv8();
 

@@ -165,7 +165,7 @@ describe('MigrateToD1Command target selection', () => {
     expect(migrateDataMock).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceDriver: 'mysql',
-        targetDatabase: 'app-dev',
+        targetDatabase: 'd1-proxy-db',
       })
     );
   });
@@ -227,7 +227,7 @@ describe('MigrateToD1Command target selection', () => {
 
     expect(migrateDataMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        targetDatabase: 'app-dev',
+        targetDatabase: 'd1-proxy-db',
         targetType: 'd1-remote',
       })
     );
@@ -247,7 +247,7 @@ describe('MigrateToD1Command target selection', () => {
     expect(getD1DatabaseMock).toHaveBeenCalledWith(process.cwd(), 'app-dev');
     expect(migrateDataMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        targetDatabase: 'app-dev',
+        targetDatabase: 'd1-proxy-db',
         targetType: 'd1-remote',
       })
     );

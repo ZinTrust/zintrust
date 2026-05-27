@@ -100,7 +100,7 @@ describe('registerStreamingMultipartParser', () => {
       })
     );
 
-    await parsed?.files.photo?.[0]?.cleanup();
+    await parsed!.files.photo[0].cleanup();
   });
 
   it('still rejects when the request closes before completion', async () => {

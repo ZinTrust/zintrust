@@ -3,11 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 // These tests intentionally import the TypeScript source entrypoints (not the `.js` specifiers)
 // so V8 coverage attributes lines to the adapter package sources.
 
+// Unmock storage packages for these specific tests
+vi.unmock('../../../packages/storage-s3/src/register');
+vi.unmock('../../../packages/storage-r2/src/register');
+vi.unmock('../../../packages/storage-gcs/src/register');
+vi.unmock('../../../packages/storage/src/register');
+
 describe('adapter packages /register (TS source coverage)', () => {
   it('registers cache mongodb (register.ts)', async () => {
     vi.resetModules();
     const core = await import('../../../src/index');
 
+    core.CacheDriverRegistry.clear();
     expect(core.CacheDriverRegistry.has('mongodb')).toBe(false);
     await import('../../../packages/cache-mongodb/src/register');
     expect(core.CacheDriverRegistry.has('mongodb')).toBe(true);
@@ -26,8 +33,10 @@ describe('adapter packages /register (TS source coverage)', () => {
 
   it('registers storage s3/r2/gcs (register.ts)', async () => {
     vi.resetModules();
+
     const core = await import('../../../src/index');
 
+    core.StorageDriverRegistry.clear();
     expect(core.StorageDriverRegistry.has('s3')).toBe(false);
     expect(core.StorageDriverRegistry.has('r2')).toBe(false);
     expect(core.StorageDriverRegistry.has('gcs')).toBe(false);
@@ -43,6 +52,7 @@ describe('adapter packages /register (TS source coverage)', () => {
 
   it('registers the storage multipart parser from the documented entrypoint', async () => {
     vi.resetModules();
+
     const core = await import('../../../src/index');
 
     core.MultipartParserRegistry.clear();
