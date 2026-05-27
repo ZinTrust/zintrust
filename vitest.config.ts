@@ -114,6 +114,46 @@ export default defineConfig({
       '@zintrust/trace': path.resolve(__dirname, './packages/trace/src/index.ts'),
       '@zintrust/trace/ui': path.resolve(__dirname, './packages/trace/src/ui.ts'),
       '@zintrust/trace/register': path.resolve(__dirname, './packages/trace/src/register.ts'),
+      'packages/storage-s3/src/register': path.resolve(
+        __dirname,
+        './packages/storage-s3/src/register.ts'
+      ),
+      'packages/storage-r2/src/register': path.resolve(
+        __dirname,
+        './packages/storage-r2/src/register.ts'
+      ),
+      'packages/storage-gcs/src/register': path.resolve(
+        __dirname,
+        './packages/storage-gcs/src/register.ts'
+      ),
+      'packages/storage/src/register': path.resolve(
+        __dirname,
+        './packages/storage/src/register.ts'
+      ),
+      'packages/storage/src/registerStreamingMultipartParser': path.resolve(
+        __dirname,
+        './packages/storage/src/registerStreamingMultipartParser.ts'
+      ),
+      'packages/cache-mongodb/src/register': path.resolve(
+        __dirname,
+        './packages/cache-mongodb/src/register.ts'
+      ),
+      'packages/queue-redis/src/register': path.resolve(
+        __dirname,
+        './packages/queue-redis/src/register.ts'
+      ),
+      'packages/mail-smtp/src/register': path.resolve(
+        __dirname,
+        './packages/mail-smtp/src/register.ts'
+      ),
+      'packages/mail-sendgrid/src/register': path.resolve(
+        __dirname,
+        './packages/mail-sendgrid/src/register.ts'
+      ),
+      'packages/mail-mailgun/src/register': path.resolve(
+        __dirname,
+        './packages/mail-mailgun/src/register.ts'
+      ),
       '@cli': path.resolve(__dirname, './src/cli'),
       '@registry': path.resolve(__dirname, './src/boot/registry'),
       '@boot': path.resolve(__dirname, './src/boot'),

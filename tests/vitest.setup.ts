@@ -1,6 +1,7 @@
 // Global Vitest setup
 
 import { vi } from 'vitest';
+// @ts-ignore - TypeScript declaration file exists but import resolution may differ
 import { ensureEslintAjv8 } from '../scripts/ci/ensure-eslint-ajv8.mjs';
 
 ensureEslintAjv8();
@@ -206,7 +207,6 @@ vi.mock('packages/telemetry-dashboard/src', () => ({
 vi.mock('packages/queue-monitor/src/driver', () => ({}));
 vi.mock('packages/db-mysql/src/register', () => ({}));
 vi.mock('packages/db-postgres/src/register', () => ({}));
-vi.mock('packages/queue-redis/src/register', () => ({}));
 vi.mock('packages/cache-redis/src/index', () => ({
   RedisProxyAdapter: {
     create: () => ({
@@ -227,6 +227,17 @@ vi.mock('packages/queue-redis/src/HttpQueueDriver', () => ({
     drain: async () => 0,
   },
 }));
+
+// Don't mock these packages - they need to be real for adapter registration tests
+vi.unmock('packages/queue-redis/src/register');
+vi.unmock('packages/storage-s3/src/register');
+vi.unmock('packages/storage-r2/src/register');
+vi.unmock('packages/storage-gcs/src/register');
+vi.unmock('packages/storage/src/register');
+vi.unmock('packages/cache-mongodb/src/register');
+vi.unmock('packages/mail-smtp/src/register');
+vi.unmock('packages/mail-sendgrid/src/register');
+vi.unmock('packages/mail-mailgun/src/register');
 
 // Mock database adapter registry to match actual global structure
 vi.mock('src/orm/DatabaseAdapterRegistry', () => {

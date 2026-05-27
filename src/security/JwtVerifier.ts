@@ -383,7 +383,7 @@ const fetchJwks = async (
 
   let body: unknown;
   try {
-    body = (await response.json()) as unknown;
+    body = await response.json();
   } catch (error) {
     return toFailure('invalid_jwks', 'JWKS response was not valid JSON', {
       jwksUrl: input.jwksUrl,
