@@ -24,6 +24,7 @@ vi.mock('@orm/SchemaStatemenWriter', () => ({
 vi.mock('@orm/adapters/SqlProxyAdapterUtils', () => ({
   isRecord: (value: unknown): value is Record<string, unknown> =>
     value !== null && value !== undefined && typeof value === 'object',
+  parseCustomHeadersFromEnv: () => undefined,
 }));
 
 vi.mock('@orm/adapters/SqlProxyRegistryMode', () => ({

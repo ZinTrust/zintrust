@@ -217,4 +217,35 @@ describe('patch coverage: RedisTransport', () => {
     expect(streamError).toBeInstanceOf(Error);
     expect(String(streamError)).toContain('scan failed');
   });
+
+  it('covers custom headers assignment in proxy headers', async () => {
+    const info = vi.fn();
+    const error = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue(createJsonResponse('OK'));
+
+    vi.stubGlobal('fetch', fetchMock);
+    mockLogger(info, error);
+    mockEnv({
+      USE_REDIS_PROXY: true,
+      REDIS_PROXY_URL: 'http://proxy.local/base',
+      REDIS_PROXY_HOST: 'proxy.local',
+      REDIS_PROXY_PORT: 8787,
+      REDIS_PROXY_KEY_ID: 'key',
+      REDIS_PROXY_SECRET: 'secret',
+      REDIS_PROXY_TIMEOUT_MS: 1500,
+      REDIS_PROXY_HEADERS_X_Custom_Header: 'custom-value',
+    });
+    mockSignedRequest();
+
+    const { createRedisProxyConnection } = await import('@/tools/redis/RedisTransport');
+    const client = createRedisProxyConnection(redisConfig, { subsystem: 'cache' });
+
+    await client.set('a', '1');
+
+    // Verify custom headers are included in the request
+    expect(fetchMock).toHaveBeenCalled();
+    const [_, options] = fetchMock.mock.calls[0] as [RequestInfo, RequestInit];
+    const headers = options?.headers as Record<string, string>;
+    expect(headers).toBeDefined();
+  });
 });

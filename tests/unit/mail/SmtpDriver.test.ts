@@ -529,4 +529,41 @@ describe('SmtpDriver', () => {
 
     expect(res.ok).toBe(true);
   });
+
+  it('covers parseCustomHeadersFromEnv in proxy settings', async () => {
+    // Set environment variable for custom headers
+    process.env['SMTP_PROXY_HEADERS_X_Custom_Header'] = 'custom-value';
+
+    const responses = [
+      '220 welcome',
+      '250 OK',
+      '250 OK',
+      '250 OK',
+      '354 Continue',
+      '250 Queued',
+      '221 Bye',
+    ];
+    const socket = createMockSocket(responses);
+    // @ts-ignore
+    vi.mocked(netConnect).mockReturnValue(socket);
+
+    process.env['SMTP_PROXY_URL'] = 'http://localhost:8080';
+    process.env['SMTP_PROXY_KEY_ID'] = 'key';
+    process.env['SMTP_PROXY_SECRET'] = 'secret';
+
+    const res = await SmtpDriver.send({ host: 'localhost', port: 25, secure: false }, {
+      to: 'a@b.com',
+      from: { email: 'from@ex.com' },
+      subject: 's',
+      text: 't',
+    } as any);
+
+    expect(res.ok).toBe(true);
+
+    // Clean up
+    delete process.env['SMTP_PROXY_HEADERS_X_Custom_Header'];
+    delete process.env['SMTP_PROXY_URL'];
+    delete process.env['SMTP_PROXY_KEY_ID'];
+    delete process.env['SMTP_PROXY_SECRET'];
+  });
 });

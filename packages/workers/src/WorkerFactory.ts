@@ -2640,12 +2640,7 @@ const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): 
 
   return {
     ...options,
-    connection: {
-      host: redisConfig.host,
-      port: redisConfig.port,
-      db: redisConfig.db,
-      password: redisConfig.password,
-    },
+    connection: createRedisConnection(redisConfig, 3, { subsystem: 'worker-queue' }),
   };
 };
 

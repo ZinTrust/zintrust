@@ -242,4 +242,20 @@ describe('Cache', () => {
     expect(kvImpl.set).toHaveBeenCalledWith('zt:c', 'd', undefined);
     expect(kvImpl.delete).toHaveBeenCalledWith('zt:a');
   });
+
+  it('getRedisClient throws when driver does not support it', async () => {
+    cacheDriverName = 'memory';
+    const mod = await import('@cache/Cache');
+
+    expect(() => mod.Cache.getRedisClient()).toThrowError(
+      'getRedisClient() is only supported by Redis cache driver'
+    );
+  });
+
+  it('getRedisClient throws with no-op driver', async () => {
+    cacheDriverName = 'noop';
+    const mod = await import('@cache/Cache');
+
+    expect(() => mod.Cache.getRedisClient()).toThrowError('Cache default store not configured');
+  });
 });

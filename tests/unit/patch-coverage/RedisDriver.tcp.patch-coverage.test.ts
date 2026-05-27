@@ -341,5 +341,10 @@ describe('patch coverage: RedisDriver TCP socket branches', () => {
     // Command timeout path in sendCommand
     await expect(driver.get('k')).resolves.toBeNull();
     expect(loggerError).toHaveBeenCalled();
+
+    // Test getRedisClient() throws for TCP socket driver
+    expect(() => driver.getRedisClient()).toThrowError(
+      'getRedisClient() is only supported with ioredis driver, not TCP socket driver'
+    );
   });
 });

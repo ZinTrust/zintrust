@@ -7,6 +7,7 @@ vi.mock('@orm/adapters/SqlProxyAdapterUtils', () => ({
   ensureSignedSettings: (...args: unknown[]) => ensureSignedSettingsMock(...args),
   isRecord: (value: unknown): value is Record<string, unknown> =>
     value !== null && value !== undefined && typeof value === 'object',
+  parseCustomHeadersFromEnv: () => undefined,
   requestSignedProxy: (...args: unknown[]) => requestSignedProxyMock(...args),
 }));
 

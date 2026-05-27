@@ -340,6 +340,8 @@ export const createRedisProxyConnection = (
       _event: string,
       _handler: (...args: unknown[]) => void
     ): RedisProxyConnection => client,
+    setMaxListeners: (_count: number): RedisProxyConnection => client,
+    getMaxListeners: (): number => Infinity,
     call: async (command: string, ...args: unknown[]): Promise<unknown> => {
       return requestProxyCommand(settings, command, args);
     },
@@ -352,6 +354,16 @@ export const createRedisProxyConnection = (
     get(obj, prop) {
       if (typeof prop !== 'string') return Reflect.get(obj, prop) as unknown;
       if (prop === 'then') return undefined;
+      if (prop === 'setMaxListeners') {
+        return function (_count: number): RedisProxyConnection {
+          return client;
+        };
+      }
+      if (prop === 'getMaxListeners') {
+        return function (): number {
+          return Infinity;
+        };
+      }
       if (prop in obj) return Reflect.get(obj, prop) as unknown;
       return async (...args: unknown[]) => requestProxyCommand(settings, prop.toUpperCase(), args);
     },

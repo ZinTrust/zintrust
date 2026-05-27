@@ -26,10 +26,12 @@ async function sha256HexStmt(): Promise<string> {
 const createSqlProxyAdapterUtilsModule = (): {
   ensureSignedSettings: ReturnType<typeof vi.fn>;
   isRecord: (value: unknown) => boolean;
+  parseCustomHeadersFromEnv: () => undefined;
   requestSignedProxy: ReturnType<typeof vi.fn>;
 } => ({
   ensureSignedSettings: vi.fn(() => ({ ok: true })),
   isRecord: isRecordValue,
+  parseCustomHeadersFromEnv: () => undefined,
   requestSignedProxy: vi.fn(requestSignedProxyByPath),
 });
 
@@ -130,6 +132,7 @@ describe('Proxy adapters remaining patch coverage', () => {
     vi.doMock('@orm/adapters/SqlProxyAdapterUtils', () => ({
       ensureSignedSettings: ensureSignedSettingsOk,
       isRecord: isRecordValue,
+      parseCustomHeadersFromEnv: () => undefined,
       requestSignedProxy,
     }));
 
@@ -156,7 +159,23 @@ describe('Proxy adapters remaining patch coverage', () => {
     vi.doUnmock('@orm/adapters/SqlProxyAdapterUtils');
     vi.doMock('@proxy/SigningService', createSigningServicePassthroughModule);
 
-    const { ensureSignedSettings } = await import('@orm/adapters/SqlProxyAdapterUtils');
+    const { ensureSignedSettings, parseCustomHeadersFromEnv } =
+      await import('@orm/adapters/SqlProxyAdapterUtils');
+
+    // Test parseCustomHeadersFromEnv with custom headers
+    process.env['MYSQL_PROXY_HEADERS_X_Tracing_Id'] = 'trace-123';
+    process.env['MYSQL_PROXY_HEADERS_X_Custom_Header'] = 'custom-value';
+    const headers = parseCustomHeadersFromEnv('MYSQL');
+    expect(headers).toEqual({
+      'X-Tracing-Id': 'trace-123',
+      'X-Custom-Header': 'custom-value',
+    });
+
+    // Test parseCustomHeadersFromEnv with no headers returns undefined
+    delete process.env['MYSQL_PROXY_HEADERS_X_Tracing_Id'];
+    delete process.env['MYSQL_PROXY_HEADERS_X_Custom_Header'];
+    const noHeaders = parseCustomHeadersFromEnv('MYSQL');
+    expect(noHeaders).toBeUndefined();
 
     expect(() =>
       ensureSignedSettings({
