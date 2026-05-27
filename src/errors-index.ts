@@ -4,4 +4,4 @@
  */
 
 export { ErrorFactory } from '@exceptions/ZintrustError';
-export type { ZintrustError, ZintrustErrorInit } from '@exceptions/ZintrustError';
+export type { SanitizerError, ZintrustError, ZintrustErrorInit } from '@exceptions/ZintrustError';
