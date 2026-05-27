@@ -91,6 +91,12 @@ export const MongoDriver = Object.freeze({
         } | null;
         return result?.document !== undefined && result.document !== null;
       },
+
+      getRedisClient(): unknown {
+        throw ErrorFactory.createConfigError(
+          'getRedisClient() is only supported by Redis cache driver, not MongoDB driver'
+        );
+      },
     };
   },
 });

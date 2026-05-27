@@ -156,6 +156,46 @@ MYSQL_PROXY_SIGNING_WINDOW_MS=60000
 
 When signing is enabled, the Worker will send signed requests automatically. Any unsigned or invalid request is rejected by the proxy.
 
+## Custom request headers
+
+You can pass additional custom headers to the proxy server using environment variables. This is useful for tracing, custom authentication, or other metadata that needs to be forwarded to the proxy.
+
+To add custom headers, set environment variables with the pattern:
+
+```env
+MYSQL_PROXY_HEADERS_<Header-Name>=<Header-Value>
+```
+
+### Examples
+
+Add a tracing ID header:
+
+```env
+MYSQL_PROXY_HEADERS_X_Tracing_Id=my-trace-id-123
+```
+
+Add multiple custom headers:
+
+```env
+MYSQL_PROXY_HEADERS_X_Tracing_Id=my-trace-id-123
+MYSQL_PROXY_HEADERS_X_Request-Id=req-456
+MYSQL_PROXY_HEADERS_X_Custom-Auth=secret-token
+```
+
+The proxy server will receive these headers in the `request.headers` object and can use them for logging, authentication, or other purposes.
+
+### Header name transformation
+
+Environment variable names are transformed to HTTP header names:
+
+- Underscores (`_`) are converted to hyphens (`-`)
+- The `MYSQL_PROXY_HEADERS_` prefix is stripped
+
+For example:
+
+- `MYSQL_PROXY_HEADERS_X_Tracing_Id` → `X-Tracing-Id`
+- `MYSQL_PROXY_HEADERS_X_Request_Id` → `X-Request-Id`
+
 ## Statement registry mode (optional, security-focused)
 
 If you want the proxy to execute only allowlisted statements (and avoid sending SQL text over the network), enable registry mode:

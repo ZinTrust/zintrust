@@ -9,6 +9,7 @@ export type RemoteSignedJsonSettings = {
   secret: string;
   timeoutMs: number;
   signaturePathPrefixToStrip?: string;
+  customHeaders?: Record<string, string>;
 
   missingUrlMessage: string;
   missingCredentialsMessage: string;
@@ -180,7 +181,12 @@ export const RemoteSignedJson = Object.freeze({
     try {
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Connection: 'close', ...signed },
+        headers: {
+          'Content-Type': 'application/json',
+          Connection: 'close',
+          ...signed,
+          ...normalized.customHeaders,
+        },
         body,
         signal: nativeSignal,
       });

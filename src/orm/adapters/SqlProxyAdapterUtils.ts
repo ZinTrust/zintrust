@@ -4,12 +4,32 @@ import { isObject } from '@helper/index';
 import { resolveSigningPrefix } from '@orm/adapters/ProxySigningPath';
 import { normalizeSigningCredentials } from '@proxy/SigningService';
 
+// Export parseCustomHeadersFromEnv for use by other proxy adapters (Redis, SMTP, etc.)
+export const parseCustomHeadersFromEnv = (prefix: string): Record<string, string> | undefined => {
+  const headers: Record<string, string> = {};
+  const prefixUpper = prefix.toUpperCase();
+  const headerPrefix = `${prefixUpper}_PROXY_HEADERS_`;
+
+  // Get all environment variables that start with the header prefix
+  const envVars = typeof process !== 'undefined' && process.env !== undefined ? process.env : {};
+  for (const [key, value] of Object.entries(envVars)) {
+    if (key.startsWith(headerPrefix) && typeof value === 'string' && value.trim() !== '') {
+      // Extract header name: MYSQL_PROXY_HEADERS_X_Tracing_Id -> X-Tracing-Id
+      const headerName = key.slice(headerPrefix.length).replaceAll('_', '-');
+      headers[headerName] = value.trim();
+    }
+  }
+
+  return Object.keys(headers).length > 0 ? headers : undefined;
+};
+
 export type ProxySettings = {
   baseUrl: string;
   keyId?: string;
   secret?: string;
   timeoutMs: number;
   signaturePathPrefixToStrip?: string;
+  customHeaders?: Record<string, string>;
 };
 
 export type SignedProxyConfig = {
@@ -32,6 +52,7 @@ export const buildSignedSettings = (config: SignedProxyConfig): RemoteSignedJson
     timeoutMs: config.settings.timeoutMs,
     signaturePathPrefixToStrip:
       config.settings.signaturePathPrefixToStrip ?? resolveSigningPrefix(config.settings.baseUrl),
+    customHeaders: config.settings.customHeaders,
     missingUrlMessage: config.missingUrlMessage,
     missingCredentialsMessage: config.missingCredentialsMessage,
     messages: config.messages,

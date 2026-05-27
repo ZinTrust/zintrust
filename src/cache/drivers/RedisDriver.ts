@@ -140,6 +140,10 @@ const createCacheDriverFromIoredisClient = (client: RedisClientLike): CacheDrive
       return false;
     }
   },
+
+  getRedisClient(): unknown {
+    return client;
+  },
 });
 
 const createIoredisCacheDriver = (params: {
@@ -359,6 +363,12 @@ const createTcpCacheDriver = (): CacheDriver => {
         Logger.error('Redis EXISTS failed', error);
         return false;
       }
+    },
+
+    getRedisClient(): unknown {
+      throw ErrorFactory.createConfigError(
+        'getRedisClient() is only supported with ioredis driver, not TCP socket driver'
+      );
     },
   };
 };

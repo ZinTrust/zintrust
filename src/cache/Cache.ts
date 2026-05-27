@@ -40,6 +40,11 @@ function createNoOpDriver(): CacheDriver {
     delete: async (): Promise<void> => {},
     clear: async (): Promise<void> => {},
     has: async (): Promise<boolean> => false,
+    getRedisClient(): unknown {
+      throw ErrorFactory.createConfigError(
+        'getRedisClient() is not supported with no-op cache driver'
+      );
+    },
   };
 }
 
@@ -300,6 +305,16 @@ const reset = (): void => {
   instances.clear();
 };
 
+const getRedisClient = (storeName?: string): unknown => {
+  const driver = getDriverInstance(storeName);
+  if (typeof driver.getRedisClient !== 'function') {
+    throw ErrorFactory.createConfigError(
+      'getRedisClient() is only supported by Redis cache driver'
+    );
+  }
+  return driver.getRedisClient();
+};
+
 // Sealed namespace with cache functionality
 export const Cache = Object.freeze({
   get,
@@ -308,6 +323,7 @@ export const Cache = Object.freeze({
   clear,
   has,
   getDriver,
+  getRedisClient,
   store,
   reset,
 });

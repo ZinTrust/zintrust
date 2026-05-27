@@ -2,6 +2,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { RedisConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { parseCustomHeadersFromEnv } from '@orm/adapters/SqlProxyAdapterUtils';
 import { SignedRequest } from '@security/SignedRequest';
 
 export type RedisTransportMode = 'direct' | 'proxy';
@@ -16,6 +17,7 @@ type ProxySettings = Readonly<{
   keyId?: string;
   secret?: string;
   timeoutMs: number;
+  customHeaders?: Record<string, string>;
 }>;
 
 type RedisProxyConnection = {
@@ -104,6 +106,7 @@ const resolveProxySettings = (): ProxySettings => ({
   keyId: Env.REDIS_PROXY_KEY_ID.trim() === '' ? undefined : Env.REDIS_PROXY_KEY_ID,
   secret: Env.REDIS_PROXY_SECRET.trim() === '' ? undefined : Env.REDIS_PROXY_SECRET,
   timeoutMs: Env.REDIS_PROXY_TIMEOUT_MS,
+  customHeaders: parseCustomHeadersFromEnv('REDIS'),
 });
 
 const buildHeaders = async (
@@ -125,6 +128,10 @@ const buildHeaders = async (
       secret: settings.secret,
     });
     Object.assign(headers, signed);
+  }
+
+  if (settings.customHeaders !== undefined) {
+    Object.assign(headers, settings.customHeaders);
   }
 
   return headers;

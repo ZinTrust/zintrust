@@ -131,6 +131,7 @@ For the full workflow, Cloudflare examples, `.env.pack` local development suppor
 | `MYSQL_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).         |
 | `ZT_MYSQL_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/mysql/statement`. |
 | `ZT_MYSQL_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                |
+| `MYSQL_PROXY_HEADERS_*`         | empty                        | Custom headers to send with proxy requests (e.g., `MYSQL_PROXY_HEADERS_X_Tracing_Id=123`).  |
 
 ## Postgres proxy (HTTP)
 
@@ -149,36 +150,39 @@ For the full workflow, Cloudflare examples, `.env.pack` local development suppor
 | `POSTGRES_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).            |
 | `ZT_POSTGRES_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/postgres/statement`. |
 | `ZT_POSTGRES_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                   |
+| `POSTGRES_PROXY_HEADERS_*`         | empty                        | Custom headers to send with proxy requests (e.g., `POSTGRES_PROXY_HEADERS_X_Tracing_Id=123`).  |
 
 ## Redis proxy (HTTP)
 
-| Key                             | Default                      | Description                                         |
-| ------------------------------- | ---------------------------- | --------------------------------------------------- |
-| `REDIS_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
-| `REDIS_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
-| `REDIS_PROXY_PORT`              | `8791`                       | Proxy port.                                         |
-| `REDIS_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
-| `REDIS_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
-| `REDIS_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
-| `REDIS_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
-| `REDIS_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
-| `REDIS_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
-| `USE_REDIS_PROXY`               | `false`                      | Enable Redis proxy.                                 |
+| Key                             | Default                      | Description                                                                                |
+| ------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `REDIS_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).                                                      |
+| `REDIS_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                                                                |
+| `REDIS_PROXY_PORT`              | `8791`                       | Proxy port.                                                                                |
+| `REDIS_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                                                            |
+| `REDIS_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty).                                        |
+| `REDIS_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).                                         |
+| `REDIS_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                           |
+| `REDIS_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                   |
+| `REDIS_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                 |
+| `USE_REDIS_PROXY`               | `false`                      | Enable Redis proxy.                                                                        |
+| `REDIS_PROXY_HEADERS_*`         | empty                        | Custom headers to send with proxy requests (e.g., `REDIS_PROXY_HEADERS_X_Tracing_Id=123`). |
 
 ## MongoDB proxy (HTTP)
 
-| Key                               | Default                      | Description                                         |
-| --------------------------------- | ---------------------------- | --------------------------------------------------- |
-| `MONGODB_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
-| `MONGODB_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
-| `MONGODB_PROXY_PORT`              | `8792`                       | Proxy port.                                         |
-| `MONGODB_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
-| `MONGODB_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
-| `MONGODB_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
-| `MONGODB_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
-| `MONGODB_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
-| `MONGODB_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
-| `USE_MONGODB_PROXY`               | `false`                      | Enable MongoDB proxy.                               |
+| Key                               | Default                      | Description                                                                                  |
+| --------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------- |
+| `MONGODB_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).                                                        |
+| `MONGODB_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                                                                  |
+| `MONGODB_PROXY_PORT`              | `8792`                       | Proxy port.                                                                                  |
+| `MONGODB_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                                                              |
+| `MONGODB_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty).                                          |
+| `MONGODB_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).                                           |
+| `MONGODB_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                             |
+| `MONGODB_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                     |
+| `MONGODB_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                   |
+| `USE_MONGODB_PROXY`               | `false`                      | Enable MongoDB proxy.                                                                        |
+| `MONGODB_PROXY_HEADERS_*`         | empty                        | Custom headers to send with proxy requests (e.g., `MONGODB_PROXY_HEADERS_X_Tracing_Id=123`). |
 
 ## SQL Server proxy (HTTP)
 
@@ -198,6 +202,20 @@ For the full workflow, Cloudflare examples, `.env.pack` local development suppor
 | `SQLSERVER_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).             |
 | `ZT_SQLSERVER_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/sqlserver/statement`. |
 | `ZT_SQLSERVER_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                    |
+| `SQLSERVER_PROXY_HEADERS_*`         | empty                        | Custom headers to send with proxy requests (e.g., `SQLSERVER_PROXY_HEADERS_X_Tracing_Id=123`).  |
+
+## SMTP proxy (HTTP)
+
+| Key                     | Default               | Description                                                                               |
+| ----------------------- | --------------------- | ----------------------------------------------------------------------------------------- |
+| `SMTP_PROXY_URL`        | empty                 | Full proxy URL (overrides host/port).                                                     |
+| `SMTP_PROXY_HOST`       | `127.0.0.1`           | Proxy host.                                                                               |
+| `SMTP_PROXY_PORT`       | `8794`                | Proxy port.                                                                               |
+| `SMTP_PROXY_KEY_ID`     | empty                 | Signing key id (defaults to `APP_NAME` when empty).                                       |
+| `SMTP_PROXY_SECRET`     | empty                 | Signing secret (defaults to `APP_KEY` when empty).                                        |
+| `SMTP_PROXY_TIMEOUT_MS` | `ZT_PROXY_TIMEOUT_MS` | Request timeout in milliseconds.                                                          |
+| `USE_SMTP_PROXY`        | `false`               | Enable SMTP proxy.                                                                        |
+| `SMTP_PROXY_HEADERS_*`  | empty                 | Custom headers to send with proxy requests (e.g., `SMTP_PROXY_HEADERS_X_Tracing_Id=123`). |
 
 ## Cache
 

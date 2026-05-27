@@ -99,7 +99,7 @@ const validateCommandPayload = (
 
 const getRedisModule = async (): Promise<typeof import('ioredis')> => {
   const mod = await import('ioredis');
-  return mod as unknown as typeof import('ioredis');
+  return mod;
 };
 
 const createClient = async (config: ProxyConfig): Promise<RedisClient> => {

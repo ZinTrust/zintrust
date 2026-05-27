@@ -40,7 +40,7 @@
   "dependencies": {
     "@eslint/js": "^10.0.1",
     "globals": "^17.6.0",
-    "typescript-eslint": "^8.59.4"
+    "typescript-eslint": "^8.60.0"
   },
   "overrides": {
     "ajv": "^8.18.0",

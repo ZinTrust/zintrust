@@ -50,9 +50,6 @@ const recordJobImpl = async (
   const minute = Math.floor(Date.now() / 60000);
   const dateKey = getKey('stats', queue, minute.toString());
 
-  await redis.hincrby(dateKey, status, 1);
-  await redis.expire(dateKey, 86400);
-
   const jobData: JobSummary = {
     id: job.id,
     name: job.name,
@@ -65,15 +62,21 @@ const recordJobImpl = async (
     finishedOn: job.finishedOn,
   };
 
+  const pipeline = redis.pipeline();
+  pipeline.hincrby(dateKey, status, 1);
+  pipeline.expire(dateKey, 86400);
+
   const listKey = getKey('recent', queue);
-  await redis.lpush(listKey, JSON.stringify(jobData));
-  await redis.ltrim(listKey, 0, 99);
+  pipeline.lpush(listKey, JSON.stringify(jobData));
+  pipeline.ltrim(listKey, 0, 99);
 
   if (status === 'failed') {
     const failedKey = getKey('failed', queue);
-    await redis.lpush(failedKey, JSON.stringify(jobData));
-    await redis.ltrim(failedKey, 0, 99);
+    pipeline.lpush(failedKey, JSON.stringify(jobData));
+    pipeline.ltrim(failedKey, 0, 99);
   }
+
+  await pipeline.exec();
 };
 
 const getStatsImpl = async (

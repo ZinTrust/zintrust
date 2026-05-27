@@ -8,6 +8,7 @@ import { ProxyCache } from '@orm/adapters/ProxyCache';
 import {
   ensureSignedSettings,
   isRecord,
+  parseCustomHeadersFromEnv,
   requestSignedProxy,
   type ProxySettings,
   type SignedProxyConfig,
@@ -44,8 +45,9 @@ const buildProxySettings = (): ProxySettings => {
   const keyId = Env.get('MONGODB_PROXY_KEY_ID', '');
   const secret = Env.get('MONGODB_PROXY_SECRET', '');
   const timeoutMs = Env.getInt('MONGODB_PROXY_TIMEOUT_MS', 30000);
+  const customHeaders = parseCustomHeadersFromEnv('MONGODB');
 
-  return { baseUrl, keyId, secret, timeoutMs };
+  return { baseUrl, keyId, secret, timeoutMs, customHeaders };
 };
 
 const buildSignedProxyConfig = (settings: ProxySettings): SignedProxyConfig => ({

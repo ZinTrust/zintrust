@@ -522,7 +522,7 @@ function registerJobsApi(
     router,
     `${settings.basePath}/api/jobs/:queue`,
     async (req: IRequest, res: IResponse) => {
-      await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
+      await handleJobsEndpoint(req, res, metrics, driver);
     },
     routeOptions
   );
@@ -561,7 +561,7 @@ function registerRetryApi(
     router,
     `${settings.basePath}/api/retry/:queue/:jobId`,
     async (req: IRequest, res: IResponse) => {
-      await handleRetryEndpoint(req as RequestWithParams, res, driver, metrics);
+      await handleRetryEndpoint(req, res, driver, metrics);
     },
     routeOptions
   );

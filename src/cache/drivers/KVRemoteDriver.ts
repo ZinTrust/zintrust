@@ -404,6 +404,12 @@ const createKvRemoteDriver = (): CacheDriver => {
 
     clear: clearKvRemoteDriver,
     has: createKvRemoteHas(cf.getJson),
+
+    getRedisClient(): unknown {
+      throw ErrorFactory.createConfigError(
+        'getRedisClient() is only supported by Redis cache driver, not KV remote driver'
+      );
+    },
   };
 };
 

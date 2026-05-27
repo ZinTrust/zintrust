@@ -76,6 +76,14 @@ await Cache.clear();
 // Atomic operations
 await Cache.increment('counter:123');
 await Cache.decrement('counter:123');
+
+// Redis transactions (Redis driver only)
+const redisClient = Cache.getRedisClient();
+const multi = redisClient.multi();
+multi.set('key1', 'value1');
+multi.set('key2', 'value2');
+multi.incr('counter');
+const results = await multi.exec();
 ```
 
 ## Features

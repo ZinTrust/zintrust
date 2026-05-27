@@ -5,6 +5,7 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as net from '@node-singletons/net';
 import * as tls from '@node-singletons/tls';
+import { parseCustomHeadersFromEnv } from '@orm/adapters/SqlProxyAdapterUtils';
 import { normalizeSigningCredentials } from '@proxy/SigningService';
 import {
   buildRfc2822Message,
@@ -44,6 +45,7 @@ type ProxySettings = {
   keyId?: string;
   secret?: string;
   timeoutMs: number;
+  customHeaders?: Record<string, string>;
 };
 
 type AttachmentPayload = {
@@ -107,8 +109,9 @@ const buildProxySettings = (): ProxySettings => {
   const keyId = Env.SMTP_PROXY_KEY_ID ?? '';
   const secret = Env.SMTP_PROXY_SECRET ?? '';
   const timeoutMs = Env.SMTP_PROXY_TIMEOUT_MS;
+  const customHeaders = parseCustomHeadersFromEnv('SMTP');
 
-  return { baseUrl, keyId, secret, timeoutMs };
+  return { baseUrl, keyId, secret, timeoutMs, customHeaders };
 };
 
 const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
@@ -122,6 +125,7 @@ const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings 
     secret: creds.secret,
     timeoutMs: settings.timeoutMs,
     signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
+    customHeaders: settings.customHeaders,
     missingUrlMessage: 'SMTP proxy URL is missing (SMTP_PROXY_URL)',
     missingCredentialsMessage: `SMTP proxy signing credentials are missing (${['SMTP_PROXY', 'KEY_ID'].join('_')} / ${['SMTP_PROXY', 'SECRET'].join('_')})`,
     messages: {

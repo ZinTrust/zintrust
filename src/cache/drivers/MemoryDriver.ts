@@ -4,6 +4,7 @@
  */
 
 import type { CacheDriver } from '@cache/CacheDriver';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 type UnrefableTimer = { unref: () => void };
 
@@ -86,6 +87,12 @@ const create = (): CacheDriver => {
       clearInterval(cleanupInterval);
       storage.clear();
       await Promise.resolve();
+    },
+
+    getRedisClient(): unknown {
+      throw ErrorFactory.createConfigError(
+        'getRedisClient() is only supported by Redis cache driver, not memory driver'
+      );
     },
   };
 };

@@ -2,6 +2,7 @@ import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import {
   ensureSignedSettings,
+  parseCustomHeadersFromEnv,
   requestSignedProxy,
   type ProxySettings,
   type SignedProxyConfig,
@@ -22,6 +23,7 @@ export type ProxySettingsBuildInput = {
   sharedKeyIdKey?: string;
   sharedSecretKey?: string;
   sharedTimeoutKey?: string;
+  customHeadersPrefix?: string;
 };
 
 const resolveBaseUrl = (input: ProxySettingsBuildInput): string => {
@@ -52,8 +54,14 @@ const buildProxySettingsFromEnv = (input: ProxySettingsBuildInput): ProxySetting
     input.timeoutKey,
     Env.getInt(input.sharedTimeoutKey ?? 'ZT_PROXY_TIMEOUT_MS', 30000)
   );
+  const customHeaders =
+    input.customHeadersPrefix !== undefined &&
+    input.customHeadersPrefix !== null &&
+    input.customHeadersPrefix !== ''
+      ? parseCustomHeadersFromEnv(input.customHeadersPrefix)
+      : undefined;
 
-  return { baseUrl, keyId, secret, timeoutMs };
+  return { baseUrl, keyId, secret, timeoutMs, customHeaders };
 };
 
 const buildStandardSignedProxyConfig = (input: {
@@ -69,7 +77,7 @@ const buildStandardSignedProxyConfig = (input: {
   return {
     settings,
     missingUrlMessage: `${label} proxy URL is missing (${input.urlKey})`,
-    missingCredentialsMessage: `${label} proxy signing credentials are missing (${input.keyIdKey} / ${input.secretKey.replace(/SECRET/g, ['SE', 'CRET'].join(''))})`,
+    missingCredentialsMessage: `${label} proxy signing credentials are missing (${input.keyIdKey} / ${input.secretKey})`,
     messages: {
       unauthorized: `${prefix} unauthorized`,
       forbidden: `${prefix} forbidden`,
