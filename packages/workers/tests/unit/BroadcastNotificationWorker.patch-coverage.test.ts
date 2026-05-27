@@ -54,7 +54,7 @@ vi.mock('@zintrust/core', async (importOriginal) => {
     },
     Queue: {
       ...actual.Queue,
-      get: vi.fn((name?: string) => {
+      get: vi.fn((_name?: string) => {
         // Always return the mock queue regardless of driver name
         return queueMock;
       }),

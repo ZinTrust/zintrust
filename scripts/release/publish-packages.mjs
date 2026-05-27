@@ -323,7 +323,6 @@ async function assertCoreShimHasRequiredExports() {
       'export type Blueprint = any;',
     ],
     'orm.d.ts': ['export declare const Model: any;'],
-    'security.d.ts': ['export declare const SignedRequest: any;'],
     'storage.d.ts': [
       'export declare const StorageDriverRegistry: any;',
       'export declare const S3Driver: any;',
@@ -331,6 +330,7 @@ async function assertCoreShimHasRequiredExports() {
     'security.d.ts': [
       'export declare const SignedRequest: any;',
       'export declare const RemoteSignedJson: {',
+      'export declare const SignedRequest: any;',
     ],
   };
 
