@@ -9,6 +9,9 @@ const queueMock = {
 const broadcastMock = { publish: vi.fn() };
 const notificationMock = { send: vi.fn() };
 
+// Local drivers map for the mock Queue
+const mockQueueDrivers = new Map<string, unknown>();
+
 const queueMonitorMetricsMock = {
   recordJob: vi.fn().mockResolvedValue(undefined),
 };
@@ -16,6 +19,48 @@ const queueMonitorMetricsMock = {
 vi.mock('@zintrust/queue-monitor', () => ({
   createMetrics: vi.fn(() => queueMonitorMetricsMock),
 }));
+
+vi.mock('@zintrust/core/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/utils')>();
+  return {
+    ...actual,
+    Broadcast: broadcastMock,
+  };
+});
+
+vi.mock('@zintrust/core/mail', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/mail')>();
+  return {
+    ...actual,
+    Notification: notificationMock,
+  };
+});
+
+vi.mock('@zintrust/core/queue', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/queue')>();
+  return {
+    ...actual,
+    Queue: {
+      ...actual.Queue,
+      register: vi.fn((name: string, driver: unknown) => {
+        mockQueueDrivers.set(name.toLowerCase(), driver);
+      }),
+      reset: vi.fn(() => {
+        mockQueueDrivers.clear();
+      }),
+      get: vi.fn((name?: string) => {
+        const driverName = (name ?? 'inmemory').toLowerCase();
+        if (mockQueueDrivers.has(driverName)) {
+          return queueMock;
+        }
+        return queueMock;
+      }),
+      enqueue: queueMock.enqueue,
+      dequeue: queueMock.dequeue,
+      ack: queueMock.ack,
+    },
+  };
+});
 
 vi.mock('@zintrust/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@zintrust/core')>();
@@ -54,8 +99,18 @@ vi.mock('@zintrust/core', async (importOriginal) => {
     },
     Queue: {
       ...actual.Queue,
-      get: vi.fn((_name?: string) => {
-        // Always return the mock queue regardless of driver name
+      register: vi.fn((name: string, driver: unknown) => {
+        mockQueueDrivers.set(name.toLowerCase(), driver);
+      }),
+      reset: vi.fn(() => {
+        mockQueueDrivers.clear();
+      }),
+      get: vi.fn((name?: string) => {
+        const driverName = (name ?? 'inmemory').toLowerCase();
+        if (mockQueueDrivers.has(driverName)) {
+          return queueMock;
+        }
+        // Fallback to the mock queue for compatibility
         return queueMock;
       }),
       enqueue: queueMock.enqueue,
@@ -95,6 +150,7 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
+    mockQueueDrivers.clear();
 
     queueMock.dequeue.mockResolvedValue(undefined);
     queueMock.enqueue.mockResolvedValue('id');
@@ -105,7 +161,7 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
     queueMonitorMetricsMock.recordJob.mockResolvedValue(undefined);
 
     // Register inmemory queue driver
-    const { Queue } = await import('@zintrust/core');
+    const { Queue } = await import('@zintrust/core/queue');
     Queue.register('inmemory', queueMock as any);
     Queue.register('redis', queueMock as any);
   });

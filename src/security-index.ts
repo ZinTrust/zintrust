@@ -78,4 +78,5 @@ export {
 
 export { RemoteSignedJson } from '@common/RemoteSignedJson';
 export type { RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
+export type { SanitizerError } from '@exceptions/ZintrustError';
 export { SignedRequest } from '@security/SignedRequest';
