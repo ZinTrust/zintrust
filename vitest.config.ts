@@ -79,6 +79,7 @@ export default defineConfig({
       '@zintrust/core/storage': path.resolve(__dirname, './src/storage-index.ts'),
       '@zintrust/core/mail': path.resolve(__dirname, './src/mail-index.ts'),
       '@zintrust/core/trace': path.resolve(__dirname, './src/trace-index.ts'),
+      '@zintrust/core/helper': path.resolve(__dirname, './src/helper/index.ts'),
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@zintrust/client-rds-data': path.resolve(
         __dirname,

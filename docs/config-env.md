@@ -411,12 +411,13 @@ For the full workflow, Cloudflare examples, `.env.pack` local development suppor
 
 ## Deployment
 
-| Key                | Default       | Description                     |
-| ------------------ | ------------- | ------------------------------- |
-| `ENVIRONMENT`      | `development` | Deployment environment label.   |
-| `REQUEST_TIMEOUT`  | `30000`       | Global request timeout (ms).    |
-| `MAX_BODY_SIZE`    | `10485760`    | Max request body size in bytes. |
-| `SHUTDOWN_TIMEOUT` | `10000`       | Graceful shutdown timeout (ms). |
+| Key                | Default       | Description                                                                              |
+| ------------------ | ------------- | ---------------------------------------------------------------------------------------- |
+| `ENVIRONMENT`      | `development` | Deployment environment label.                                                            |
+| `REQUEST_TIMEOUT`  | `30000`       | Global request timeout (ms).                                                             |
+| `MAX_BODY_SIZE`    | `10485760`    | Max request body size in bytes.                                                          |
+| `SHUTDOWN_TIMEOUT` | `10000`       | Graceful shutdown timeout (ms).                                                          |
+| `SHUTDOWN_WORKER`  | `true`        | Enable worker shutdown during graceful shutdown. Set to `false` to skip worker shutdown. |
 
 ## SSE
 
