@@ -20,7 +20,7 @@ const mockRuntimeDependencies = (): void => {
     },
   }));
   vi.doMock('@config/cloudflare', () => ({
-    Cloudflare: { getWorkersEnv: () => null },
+    Cloudflare: { getWorkersEnv: () => null, getWorkersVar: () => null },
   }));
   vi.doMock('@config/workers', () => ({
     shutdownRedisConnections: vi.fn(async () => undefined),
@@ -210,6 +210,88 @@ describe('Bootstrap start flow', () => {
     expect(process.exit).toHaveBeenCalledWith(1);
   });
 
+  it('skips worker shutdown when SHUTDOWN_WORKER is false', async () => {
+    const loggerWarn = vi.fn();
+    const mockApp = {
+      boot: vi.fn().mockResolvedValue(undefined),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+      getContainer: vi.fn().mockReturnValue({ get: () => ({}) }),
+    } as any;
+
+    const mockServer = {
+      listen: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        getInt: (_key: string, defaultVal?: number) => defaultVal ?? 0,
+        get: () => 'localhost',
+        getBool: (key: string, defaultVal?: boolean) => {
+          if (key === 'SHUTDOWN_WORKER') return false;
+          return defaultVal ?? false;
+        },
+        getFloat: (_key: string, defaultVal?: number) => defaultVal ?? 0,
+      },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: {
+        worker: true,
+        dockerWorker: false,
+        cloudflareWorker: false,
+        detectRuntime: () => 'nodejs',
+      },
+    }));
+    vi.doMock('@config/cloudflare', () => ({
+      Cloudflare: {
+        getWorkersEnv: () => null,
+        getWorkersVar: () => null,
+      },
+    }));
+    vi.doMock('@config/workers', () => ({
+      shutdownRedisConnections: vi.fn(async () => undefined),
+    }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: loggerWarn, error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: { tryLoadHooks: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@runtime/StartupErrorLogging', () => ({
+      StartupErrorLogging: { logDetails: vi.fn() },
+    }));
+    vi.doMock('@runtime/WorkerProjectAutoImports', () => ({
+      WorkerProjectAutoImports: { load: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerInit: {
+          initialize: vi.fn(async () => undefined),
+          autoStartPersistedWorkers: vi.fn(async () => undefined),
+        },
+        WorkerShutdown: {
+          shutdown: vi.fn(async () => undefined),
+        },
+      })),
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: { create: () => mockApp },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => mockServer },
+    }));
+
+    await importBootstrap();
+
+    process.emit('SIGTERM');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // WorkerShutdown.shutdown should not be called when SHUTDOWN_WORKER is false
+    const { loadWorkersModule } = await import('@runtime/WorkersModule');
+    const workersModule = await loadWorkersModule();
+    expect(workersModule.WorkerShutdown.shutdown).not.toHaveBeenCalled();
+  });
+
   it('continues graceful shutdown when worker and redis cleanup fail', async () => {
     const loggerWarn = vi.fn();
     const mockApp = {
@@ -240,7 +322,10 @@ describe('Bootstrap start flow', () => {
       },
     }));
     vi.doMock('@config/cloudflare', () => ({
-      Cloudflare: { getWorkersEnv: () => null },
+      Cloudflare: {
+        getWorkersEnv: () => null,
+        getWorkersVar: () => null,
+      },
     }));
     vi.doMock('@config/workers', () => ({
       shutdownRedisConnections: vi.fn(async () =>
