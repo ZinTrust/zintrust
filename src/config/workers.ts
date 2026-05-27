@@ -96,13 +96,13 @@ const awaitRedisQuitWithin = async (
 
 const forceDisconnectRedisClient = (client: ManagedRedisConnection, error?: unknown): void => {
   if (error !== undefined) {
-    Logger.warn('Tracked Redis graceful shutdown failed, forcing disconnect', error as Error);
+    Logger.warn('Tracked Redis graceful shutdown failed, forcing disconnect', error);
   }
 
   try {
     client.disconnect();
   } catch (disconnectError) {
-    Logger.error('Tracked Redis forced disconnect failed', disconnectError as Error);
+    Logger.error('Tracked Redis forced disconnect failed', disconnectError);
   }
 };
 
@@ -348,11 +348,16 @@ const setupRedisErrorHandler = (client: IORedis): void => {
           Logger.error(
             '[workers][redis] NOAUTH: Redis requires authentication. Provide `password` in the workers Redis config.'
           );
+        } else if (err?.message?.includes('WRONGPASS')) {
+          Logger.error(
+            '[workers][redis] WRONGPASS: Redis password is incorrect. Provide correct `password` in the workers Redis config.'
+          );
+        } else {
+          // eslint-disable-next-line no-console
+          console.error('[workers][redis] Redis error:', err.message || err);
         }
-        // eslint-disable-next-line no-console
-        console.error('[workers][redis] Redis error:', err.message || err);
       } catch (error_) {
-        Logger.error('Redis error handler failed', error_ as Error);
+        Logger.error('Redis error handler failed', error_);
       }
     });
   }
@@ -611,10 +616,7 @@ const ensureWorkersConfig = (): WorkersConfig => {
   cached = createWorkersConfig();
 
   try {
-    Object.defineProperties(
-      proxyTarget as unknown as object,
-      Object.getOwnPropertyDescriptors(cached)
-    );
+    Object.defineProperties(proxyTarget, Object.getOwnPropertyDescriptors(cached));
   } catch {
     // best-effort
   }
@@ -628,10 +630,10 @@ export const workersConfig: WorkersConfig = new Proxy(proxyTarget, {
   },
   ownKeys() {
     ensureWorkersConfig();
-    return Reflect.ownKeys(proxyTarget as unknown as object);
+    return Reflect.ownKeys(proxyTarget);
   },
   getOwnPropertyDescriptor(_target, prop) {
     ensureWorkersConfig();
-    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+    return Object.getOwnPropertyDescriptor(proxyTarget, prop);
   },
 });
