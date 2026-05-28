@@ -1,4 +1,4 @@
-import { ErrorFactory } from "@zintrust/core";
+import { ErrorFactory } from '@zintrust/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const addMock = vi.fn();
@@ -19,6 +19,12 @@ vi.mock('@zintrust/core', () => ({
     createTryCatchError: (message: string) => new Error(message),
   },
   getBullMQSafeQueueName: () => 'zintrust',
+}));
+
+vi.mock('@zintrust/core/logger', () => ({
+  Logger: {
+    info: vi.fn(),
+  },
 }));
 
 vi.mock('bullmq', () => ({
@@ -115,5 +121,116 @@ describe('queue-monitor driver retryJob', () => {
       ok: true,
       status: 'retried',
     });
+  });
+});
+
+describe('queue-monitor driver getJobCountsMany', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns empty array for empty input', async () => {
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    await expect(driver.getJobCountsMany([])).resolves.toEqual([]);
+  });
+
+  it('returns empty array for only invalid queue names', async () => {
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    await expect(
+      driver.getJobCountsMany(['', '  ', null as unknown as string, undefined as unknown as string])
+    ).resolves.toEqual([]);
+  });
+
+  it('deduplicates queue names', async () => {
+    getJobCountsMock.mockResolvedValue({
+      waiting: 5,
+      active: 2,
+      completed: 10,
+      failed: 1,
+      delayed: 0,
+      paused: 0,
+    });
+
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    const result = await driver.getJobCountsMany(['emails', 'emails', 'emails']);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      name: 'emails',
+      counts: {
+        waiting: 5,
+        active: 2,
+        completed: 10,
+        failed: 1,
+        delayed: 0,
+        paused: 0,
+      },
+    });
+    expect(getJobCountsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches counts for multiple unique queues', async () => {
+    getJobCountsMock
+      .mockResolvedValueOnce({
+        waiting: 5,
+        active: 2,
+        completed: 10,
+        failed: 1,
+        delayed: 0,
+        paused: 0,
+      })
+      .mockResolvedValueOnce({
+        waiting: 3,
+        active: 1,
+        completed: 5,
+        failed: 0,
+        delayed: 0,
+        paused: 0,
+      });
+
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    const result = await driver.getJobCountsMany(['emails', 'notifications']);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      name: 'emails',
+      counts: {
+        waiting: 5,
+        active: 2,
+        completed: 10,
+        failed: 1,
+        delayed: 0,
+        paused: 0,
+      },
+    });
+    expect(result[1]).toEqual({
+      name: 'notifications',
+      counts: {
+        waiting: 3,
+        active: 1,
+        completed: 5,
+        failed: 0,
+        delayed: 0,
+        paused: 0,
+      },
+    });
+    expect(getJobCountsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('filters out invalid queue names while processing valid ones', async () => {
+    getJobCountsMock.mockResolvedValue({
+      waiting: 5,
+      active: 2,
+      completed: 10,
+      failed: 1,
+      delayed: 0,
+      paused: 0,
+    });
+
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    const result = await driver.getJobCountsMany(['emails', '', '  ', 'notifications']);
+
+    expect(result).toHaveLength(2);
+    expect(getJobCountsMock).toHaveBeenCalledTimes(2);
   });
 });

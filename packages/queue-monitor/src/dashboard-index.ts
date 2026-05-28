@@ -3,4 +3,4 @@
  * Contains the dashboard UI components for development/admin use
  */
 
-export { getDashboardHtml } from './dashboard-ui';
+export { getDashboardHtml } from './dashboard-ui.js';

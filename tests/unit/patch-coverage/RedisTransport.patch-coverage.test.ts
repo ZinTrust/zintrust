@@ -244,7 +244,7 @@ describe('patch coverage: RedisTransport', () => {
 
     // Verify custom headers are included in the request
     expect(fetchMock).toHaveBeenCalled();
-    const [_, options] = fetchMock.mock.calls[0] as [RequestInfo, RequestInit];
+    const [_, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = options?.headers as Record<string, string>;
     expect(headers).toBeDefined();
   });

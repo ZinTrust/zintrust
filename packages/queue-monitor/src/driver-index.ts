@@ -3,5 +3,11 @@
  * Contains only the core queue driver functionality for production Workers
  */
 
-export type { JobPayload, JobCounts, RetrySnapshot, RetryJobResult, QueueDriver } from './driver';
-export { createBullMQDriver } from './driver';
+export { createBullMQDriver } from './driver.js';
+export type {
+  JobCounts,
+  JobPayload,
+  QueueDriver,
+  RetryJobResult,
+  RetrySnapshot,
+} from './driver.js';

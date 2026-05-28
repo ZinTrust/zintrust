@@ -1,7 +1,7 @@
 import { getBullMQSafeQueueName } from '@zintrust/core/redis';
 import { Worker, type Job, type Processor } from 'bullmq';
-import { createRedisConnection, type RedisConfig } from './connection';
-import type { Metrics } from './metrics';
+import { createRedisConnection, type RedisConfig } from './connection.js';
+import type { Metrics } from './metrics.js';
 
 export type QueueWorker = {
   close: () => Promise<void>;

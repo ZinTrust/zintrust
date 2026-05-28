@@ -1,8 +1,8 @@
 import type { IRequest, IResponse } from '@zintrust/core/http';
 import { Logger } from '@zintrust/core/logger';
-import type { QueueDriver } from './driver';
-import type { LockAnalytics, QueueMonitorSnapshot } from './index';
-import type { JobSummary, Metrics } from './metrics';
+import type { QueueDriver } from './driver.js';
+import type { LockAnalytics, QueueMonitorSnapshot } from './index.js';
+import type { JobSummary, Metrics } from './metrics.js';
 
 export const ALL_QUEUES = '__all__';
 

@@ -17,6 +17,22 @@ type ReadAndVerifyJsonOptions = WorkerSigningOptions &
 
 type ProxyRequestEnv = object;
 
+export type ProxyRpcService = 'redis' | 'worker' | 'queue-monitor';
+
+export type ProxyRpcEnvelope = Readonly<{
+  service: ProxyRpcService;
+  action: string;
+  requestId: string;
+  payload: Record<string, unknown>;
+}>;
+
+export const resolveProxyRpcService = (subsystem?: string): ProxyRpcService => {
+  const normalized = typeof subsystem === 'string' ? subsystem.trim().toLowerCase() : '';
+  if (normalized.startsWith('queue-monitor')) return 'queue-monitor';
+  if (normalized.startsWith('worker')) return 'worker';
+  return 'redis';
+};
+
 export const json = (status: number, body: unknown): Response => {
   return new Response(JSON.stringify(body), {
     status,

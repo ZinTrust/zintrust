@@ -3,5 +3,5 @@
  * Contains only the metrics functionality for production Workers
  */
 
-export type { JobStatus, JobSummary, Metrics } from './metrics';
-export { createMetrics } from './metrics';
+export { createMetrics } from './metrics.js';
+export type { JobStatus, JobSummary, Metrics } from './metrics.js';

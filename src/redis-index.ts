@@ -17,3 +17,4 @@ export {
 // Redis connection
 export type { RedisConfig } from '@config/type';
 export { createRedisConnection } from '@config/workers';
+export type { RedisTransportOptions } from '@tools/redis/RedisTransport';

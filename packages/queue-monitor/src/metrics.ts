@@ -1,6 +1,6 @@
 import { RedisKeys } from '@zintrust/core/queue';
 import { type Job, type JobsOptions } from 'bullmq';
-import { createRedisConnection, type RedisConfig } from './connection';
+import { createRedisConnection, type RedisConfig } from './connection.js';
 
 export type JobStatus = 'completed' | 'failed';
 

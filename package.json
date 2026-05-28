@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.2.1",
+  "version": "2.2.6",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -418,7 +418,7 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.22.4",
     "pg": "^8.21.0",
-    "redis": "^5.12.1",
+    "redis": "^6.0.0",
     "tsx": "^4.22.3"
   },
   "overrides": {

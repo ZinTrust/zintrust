@@ -8,13 +8,13 @@ import { Logger } from '@zintrust/core/logger';
 import { resolveLockPrefix } from '@zintrust/core/queue';
 import { isNonEmptyString } from '@zintrust/core/utils';
 import { ShutdownTrace } from '@zintrust/core/workers';
-import { createRedisConnection, type RedisConfig } from './connection';
-import { createBullMQDriver, type QueueDriver } from './driver';
-import { createMetrics, type Metrics } from './metrics';
+import { createRedisConnection, type RedisConfig } from './connection.js';
+import { createBullMQDriver, type QueueDriver } from './driver.js';
+import { createMetrics, type Metrics } from './metrics.js';
 
-export type { JobPayload } from './driver';
-export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics';
-export { createWorker as createQueueWorker, type QueueWorker } from './worker';
+export type { JobPayload } from './driver.js';
+export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics.js';
+export { createWorker as createQueueWorker, type QueueWorker } from './worker.js';
 
 export type QueueMonitorConfig = {
   enabled?: boolean;
@@ -371,7 +371,7 @@ export const QueueMonitor = Object.freeze({
 
 export default QueueMonitor;
 
-export { createBullMQDriver } from './driver';
+export { createBullMQDriver } from './driver.js';
 
 /**
  * Package version and build metadata
