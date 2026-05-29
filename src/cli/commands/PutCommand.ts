@@ -18,6 +18,7 @@ type PutCommandOptions = CommandOptions & {
   dryRun?: boolean;
   config?: string;
   bulk?: boolean;
+  all?: boolean;
 };
 
 const toStringArray = (value: unknown): string[] => {
@@ -76,6 +77,10 @@ const addOptions = (command: Command): void => {
     .option('--env_path <path>', 'Path to env file used as source values', '.env')
     .option('-c, --config <path>', 'Wrangler config file to target (optional)')
     .option('--bulk', 'Upload the final key set with one wrangler secret bulk call per target')
+    .option(
+      '--all',
+      'Sync both custom env file and process.env (only applies when custom env file is provided)'
+    )
     .option('--dry-run', 'Show what would be uploaded without calling wrangler');
 };
 
@@ -103,6 +108,7 @@ const execute = async (cmd: IBaseCommand, options: PutCommandOptions): Promise<v
     target: typeof options.target === 'string' ? options.target : undefined,
     bulk: options.bulk === true,
     requireSelection: true,
+    all: options.all === true,
   });
   reportCloudflareSecretSync(cmd, result);
 };
