@@ -1,3 +1,4 @@
+import type { QueueMonitorContext } from '@proxy/redis/RedisProxyActions';
 import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

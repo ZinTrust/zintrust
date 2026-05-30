@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 describe('CloudflareSecretSync resolveValue', () => {
   it('returns empty string when custom env file is provided and key is not found', async () => {
