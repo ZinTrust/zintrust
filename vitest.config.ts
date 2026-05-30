@@ -205,6 +205,7 @@ export default defineConfig({
       '@tools': path.resolve(__dirname, './src/tools'),
       '@toolkit': path.resolve(__dirname, './src/toolkit'),
       '@mail': path.resolve(__dirname, './src/tools/mail'),
+      '@logging': path.resolve(__dirname, './src/config/logging'),
       '@notification': path.resolve(__dirname, './src/tools/notification'),
       '@templates': path.resolve(__dirname, './src/tools/templates'),
       '@auth': path.resolve(__dirname, './src/auth'),

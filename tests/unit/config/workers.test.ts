@@ -117,6 +117,7 @@ describe('workers config', () => {
     vi.stubEnv('REDIS_PROXY_URL', 'http://127.0.0.1:8791/redis');
     vi.stubEnv('REDIS_PROXY_KEY_ID', 'test-key');
     vi.stubEnv('REDIS_PROXY_SECRET', 'test-secret');
+    vi.stubEnv('REDIS_REQUIRE_DIRECT_FOR_SCRIPTS', 'false');
 
     const fetchMock = vi.fn(async () => ({
       ok: true,

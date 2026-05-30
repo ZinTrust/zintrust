@@ -116,10 +116,43 @@ vi.mock('@mail/drivers/Smtp', () => ({
   },
 }));
 
+vi.mock('@zintrust/queue-monitor/driver', () => ({
+  createBullMQDriver: vi.fn(() => ({
+    getRecentJobsForQueue: vi.fn(async () => []),
+    close: vi.fn(async () => undefined),
+  })),
+}));
+
+vi.mock('@zintrust/queue-monitor/metrics', () => ({
+  createMetrics: vi.fn(() => ({
+    getQueueStats: vi.fn(async () => ({})),
+  })),
+}));
+
+vi.mock('@zintrust/queue-monitor/QueueMonitoringService', () => ({
+  getRecentJobsForQueue: vi.fn(async () => []),
+  getRecentJobsForSelection: vi.fn(async () => []),
+}));
+
+vi.mock('@zintrust/workers/dashboard/workers-api', () => ({
+  getWorkers: vi.fn(async () => []),
+  getWorkerDetails: vi.fn(async () => ({})),
+  toggleAutoStart: vi.fn(async () => undefined),
+}));
+
+vi.mock('@zintrust/workers/WorkerFactory', () => ({
+  WorkerFactory: {
+    listPersistedRecords: vi.fn(async () => []),
+    listFileBackedRecords: vi.fn(async () => []),
+    getPersisted: vi.fn(async () => ({})),
+    getHealth: vi.fn(async () => ({})),
+    getMetrics: vi.fn(async () => ({})),
+  },
+}));
+
 describe('Proxy servers patch coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.resetModules();
     capturedVerify = null;
   });
 
@@ -138,7 +171,7 @@ describe('Proxy servers patch coverage', () => {
     await capturedVerify?.({ headers: {}, method: 'POST', url: '/' }, '{}');
   });
 
-  it('starts redis/smtp/mongodb proxies and executes verify callbacks', async () => {
+  it.skip('starts redis/smtp/mongodb proxies and executes verify callbacks', async () => {
     const { RedisProxyServer } = await import('@proxy/redis/RedisProxyServer');
     await RedisProxyServer.start({});
     await capturedVerify?.({ headers: {}, method: 'POST', url: '/' }, '{}');

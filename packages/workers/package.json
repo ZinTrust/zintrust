@@ -27,6 +27,10 @@
       "types": "./dist/ResourceMonitor.d.ts",
       "default": "./dist/ResourceMonitor.js"
     },
+    "./dashboard/workers-api": {
+      "types": "./dist/dashboard/workers-api.d.ts",
+      "default": "./dist/dashboard/workers-api.js"
+    },
     "./telemetry": {
       "types": "./telemetry/dist/index.d.ts",
       "default": "./telemetry/dist/index.js"

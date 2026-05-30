@@ -530,7 +530,7 @@ const safeStringify = (obj: unknown, indent: boolean = false): string => {
   );
 };
 
-type FileWriterModule = { FileLogWriter: { write: (line: string) => void } };
+type FileWriterModule = { FileLogWriter: { write: (line: string) => boolean } };
 
 let fileWriterPromise: Promise<FileWriterModule> | undefined;
 let fileWriter: FileWriterModule['FileLogWriter'] | undefined;
@@ -538,14 +538,14 @@ let fileWriter: FileWriterModule['FileLogWriter'] | undefined;
 const getFileWriter = (): void => {
   if (fileWriter !== undefined) return;
   if (fileWriterPromise !== undefined) return;
-  fileWriterPromise = import('@config/FileLogWriter')
+  fileWriterPromise = import('@config/FileLogWriter.js')
     .then((mod) => {
       fileWriter = mod.FileLogWriter;
       return mod;
     })
     .catch(() => {
       fileWriterPromise = undefined;
-      return { FileLogWriter: { write: (_line: string) => undefined } };
+      return { FileLogWriter: { write: (_line: string) => false } };
     });
 };
 
@@ -663,7 +663,7 @@ const emitCloudLogs = (event: CloudLogEvent): void => {
   void (async (): Promise<void> => {
     try {
       if (event.level === 'error' || event.level === 'fatal') {
-        const mod = await import('@config/logging/KvLogger');
+        const mod = await import('./logging/KvLogger.js');
         void mod.KvLogger.enqueue(event);
       }
     } catch {
@@ -672,7 +672,7 @@ const emitCloudLogs = (event: CloudLogEvent): void => {
 
     try {
       if (event.level === 'warn' || event.level === 'error' || event.level === 'fatal') {
-        const mod = await import('@config/logging/SlackLogger');
+        const mod = await import('./logging/SlackLogger.js');
         void mod.SlackLogger.enqueue(event);
       }
     } catch {
@@ -680,7 +680,7 @@ const emitCloudLogs = (event: CloudLogEvent): void => {
     }
 
     try {
-      const mod = await import('@config/logging/HttpLogger');
+      const mod = await import('./logging/HttpLogger.js');
       void mod.HttpLogger.enqueue(event);
     } catch {
       // best-effort
@@ -901,12 +901,12 @@ export const cleanLogsOnce = async (): Promise<string[]> => {
   if (!shouldLogToFile()) return [];
 
   try {
-    const mod = await import('@config/FileLogWriter');
+    const mod = await import('@config/FileLogWriter.js');
     const deleted = mod.cleanOnce();
     logInfo('Log cleanup executed', { deletedCount: deleted.length });
     return deleted;
   } catch (err: unknown) {
-    logError('Log cleanup failed', err as Error);
+    logError('Log cleanup failed', err);
     return [];
   }
 };

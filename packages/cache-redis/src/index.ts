@@ -2,7 +2,7 @@ import { Cloudflare } from '@zintrust/core/cloudflare';
 import { Env } from '@zintrust/core/config';
 import { ErrorFactory } from '@zintrust/core/errors';
 import { Logger } from '@zintrust/core/logger';
-import { createRedisConnection } from '@zintrust/core/redis';
+import { createRedisConnection, type RedisTransportOptions } from '@zintrust/core/redis';
 
 // Minimal interface to avoid importing internal core types
 export interface CacheDriver {
@@ -41,10 +41,6 @@ type IoRedisClient = {
   flushdb?: () => Promise<unknown>;
   flushDb?: () => Promise<unknown>;
   exists: (key: string) => Promise<number>;
-};
-
-type RedisTransportOptions = {
-  subsystem: string;
 };
 
 const createSharedRedisConnection = createRedisConnection as unknown as (
@@ -171,7 +167,6 @@ const createCacheOperations = <TClient>(
 const createWorkersCacheDriver = (config: RedisCacheConfig): CacheDriver => {
   let client: IoRedisClient | undefined;
   let connected = false;
-
   const ensureClient = async (): Promise<IoRedisClient> => {
     client ??= createSharedRedisConnection(
       {
@@ -181,7 +176,7 @@ const createWorkersCacheDriver = (config: RedisCacheConfig): CacheDriver => {
         db: config.database ?? 0,
       },
       3,
-      { subsystem: 'cache' }
+      { subsystem: 'cache', requireDirectForScripts: false }
     );
 
     if (!connected && typeof client.connect === 'function') {

@@ -319,10 +319,10 @@ const flushPendingWrites = (logFile: string): void => {
 };
 
 export const FileLogWriter = Object.freeze({
-  write(line: string): void {
-    if (isWorkersRuntime()) return;
+  write(line: string): boolean {
+    if (isWorkersRuntime()) return false;
     const cwd = getCwdSafe();
-    if (cwd === '') return;
+    if (cwd === '') return false;
 
     const logsDir = path.join(cwd, 'logs');
     ensureDirSafeBestEffort(logsDir);
@@ -337,7 +337,7 @@ export const FileLogWriter = Object.freeze({
     if (!canUseWriteStreams()) {
       appendFileSafe(logFile, `${line}\n`);
       cleanupOldLogs(logsDir, Env.LOG_ROTATION_DAYS);
-      return;
+      return true;
     }
 
     try {
@@ -350,10 +350,11 @@ export const FileLogWriter = Object.freeze({
       process.nextTick(() => flushPendingWrites(logFile));
     } catch {
       // best-effort
-      return;
+      return false;
     }
 
     cleanupOldLogs(logsDir, Env.LOG_ROTATION_DAYS);
+    return true;
   },
 
   // Flush all streams (for graceful shutdown)

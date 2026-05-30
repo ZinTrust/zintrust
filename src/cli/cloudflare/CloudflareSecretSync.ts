@@ -116,7 +116,7 @@ const getConfigArray = (config: Record<string, unknown>, key: string): string[] 
   return uniq(raw.filter((item): item is string => typeof item === 'string'));
 };
 
-const resolveValue = (
+export const resolveValue = (
   key: string,
   envMap: Record<string, string>,
   envPath: string,

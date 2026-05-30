@@ -24,8 +24,8 @@ const createProxyClient = (): RedisProxyClient => {
       db: Env.getInt('REDIS_DB', 0),
     },
     3,
-    { subsystem: 'cache' }
-  ) as unknown as RedisProxyClient;
+    { subsystem: 'cache', requireDirectForScripts: false }
+  ) as RedisProxyClient;
 };
 
 export const RedisProxyAdapter = Object.freeze({

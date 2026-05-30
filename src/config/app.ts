@@ -246,6 +246,20 @@ const appConfigObj = {
    */
   maxBodySize: readEnvInt('MAX_BODY_SIZE', Env.MAX_BODY_SIZE),
 
+  /**
+   * Error response mode ('auto' | 'html' | 'json')
+   * - auto: automatically detect based on request (default)
+   * - html: always send HTML error pages
+   * - json: always send JSON error responses
+   */
+  errorResponseMode: (() => {
+    const raw = readEnvString('ERROR_RESPONSE_MODE', 'auto');
+    const validModes = ['auto', 'html', 'json'] as const;
+    return validModes.includes(raw as 'auto' | 'html' | 'json')
+      ? (raw as 'auto' | 'html' | 'json')
+      : 'auto';
+  })(),
+
   getSafeEnv,
   detectRuntime,
 } as const;

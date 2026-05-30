@@ -5,6 +5,7 @@
  */
 
 import { securityConfig } from '@config/security';
+import { isNullish, isUndefinedOrNull } from '@helper/index';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import type { Middleware } from '@middleware/MiddlewareStack';
@@ -243,29 +244,62 @@ function applyCors(req: IRequest, res: IResponse, cors?: SecurityOptions['cors']
   const method = req.getMethod();
   const originHeader = req.getHeader('origin');
   const origin = typeof originHeader === 'string' ? originHeader : undefined;
-  const requestedMethodHeader =
-    method === 'OPTIONS' ? req.getHeader('access-control-request-method') : undefined;
-  const requestedMethod =
-    typeof requestedMethodHeader === 'string' ? requestedMethodHeader : undefined;
-  const requestedHeadersHeader =
-    method === 'OPTIONS' ? req.getHeader('access-control-request-headers') : undefined;
-  const requestedHeaders =
-    typeof requestedHeadersHeader === 'string' ? parseHeaderList(requestedHeadersHeader) : [];
-
-  applyCorsHeaders(res, {
-    origin: resolveAllowedOrigin(cors.origin, origin, cors.credentials),
-    methods: resolveAllowedMethods(cors.methods, requestedMethod),
-    allowedHeaders: resolveAllowedHeaders(cors.allowedHeaders, requestedHeaders),
-    exposedHeaders: resolveExposedHeaders(cors.exposedHeaders),
-    credentials: cors.credentials,
-    maxAge: cors.maxAge,
-  });
 
   // Handle Preflight
   if (method === 'OPTIONS') {
+    const requestedMethodHeader = req.getHeader('access-control-request-method');
+    const requestedMethod =
+      typeof requestedMethodHeader === 'string' ? requestedMethodHeader : undefined;
+    const requestedHeadersHeader = req.getHeader('access-control-request-headers');
+    const requestedHeaders =
+      typeof requestedHeadersHeader === 'string' ? parseHeaderList(requestedHeadersHeader) : [];
+
+    // Validate origin first
+    const allowedOrigin = resolveAllowedOrigin(cors.origin, origin, cors.credentials);
+    if (allowedOrigin === undefined) {
+      // Origin not allowed - don't set CORS headers and let request fail
+      return false;
+    }
+
+    // Validate requested method is allowed
+    const allowedMethods = resolveAllowedMethods(cors.methods, requestedMethod);
+    if (allowedMethods.length === 0 || (allowedMethods.length === 1 && allowedMethods[0] === '*')) {
+      // No specific methods configured or wildcard - allow
+    } else if (
+      !isUndefinedOrNull(requestedMethod) &&
+      !isNullish(requestedMethod) &&
+      !allowedMethods.includes(requestedMethod)
+    ) {
+      // Requested method not in allowed list
+      return false;
+    }
+
+    // Apply CORS headers for preflight
+    applyCorsHeaders(res, {
+      origin: allowedOrigin,
+      methods: allowedMethods,
+      allowedHeaders: resolveAllowedHeaders(cors.allowedHeaders, requestedHeaders),
+      exposedHeaders: resolveExposedHeaders(cors.exposedHeaders),
+      credentials: cors.credentials,
+      maxAge: cors.maxAge,
+    });
+
     res.setStatus(204);
     res.send('');
     return true;
+  }
+
+  // Handle actual requests
+  const allowedOrigin = resolveAllowedOrigin(cors.origin, origin, cors.credentials);
+  if (allowedOrigin !== undefined) {
+    applyCorsHeaders(res, {
+      origin: allowedOrigin,
+      methods: resolveAllowedMethods(cors.methods, undefined),
+      allowedHeaders: resolveAllowedHeaders(cors.allowedHeaders, []),
+      exposedHeaders: resolveExposedHeaders(cors.exposedHeaders),
+      credentials: cors.credentials,
+      maxAge: cors.maxAge,
+    });
   }
 
   return false;

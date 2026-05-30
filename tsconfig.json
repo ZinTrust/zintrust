@@ -118,6 +118,7 @@
       "@app/*": ["./app/*"],
       "@routes/*": ["./routes/*"],
       "@core-routes/*": ["./src/routes/*"],
+      "@logging/*": ["./src/config/logging/*"],
       "@microservices/*": ["./src/microservices/*"],
       "@toolkit/*": ["./src/toolkit/*"],
       "@tools/*": ["./src/tools/*"],

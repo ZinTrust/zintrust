@@ -1,4 +1,5 @@
 import { MIME_TYPES } from '@/config/constants';
+import { appConfig } from '@config/app';
 import { Cloudflare } from '@config/cloudflare';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
@@ -176,6 +177,15 @@ export const ErrorPageRenderer = Object.freeze({
   },
 
   shouldSendHtml(request: IRequest): boolean {
+    const mode = appConfig.errorResponseMode;
+
+    // If explicitly set to json, never send HTML
+    if (mode === 'json') return false;
+
+    // If explicitly set to html, always send HTML (when possible)
+    if (mode === 'html') return prefersHtml(request);
+
+    // Auto mode: use the default logic
     return prefersHtml(request) && !prefersJson(request);
   },
 
