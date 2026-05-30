@@ -21,6 +21,7 @@ type DeployCommandOptions = CommandOptions & {
   envPath?: string;
   target?: string;
   syncSecrets?: boolean;
+  all?: boolean;
 };
 
 const runCompose = async (args: string[]): Promise<void> => {
@@ -84,6 +85,7 @@ const syncWranglerSecrets = async (
     configPath: typeof options.config === 'string' ? options.config.trim() : undefined,
     target: typeof options.target === 'string' ? options.target : undefined,
     requireSelection: false,
+    all: options.all === true,
   });
 
   if (result.selectedKeys.length === 0) return;
@@ -162,6 +164,10 @@ const createDeployCommand = (): IBaseCommand => {
       command.option(
         '--target <id>',
         'Cloudflare worker target key from .zintrust.json cloudflare.targets'
+      );
+      command.option(
+        '--all',
+        'Sync both custom env file and process.env (only applies when custom env file is provided)'
       );
       command.option('--no-sync-secrets', 'Skip Cloudflare secret sync before wrangler deploy');
     },

@@ -21,6 +21,10 @@ export interface MigrationConfig {
   dryRun?: boolean;
   interactive?: boolean;
   migrationId?: string;
+  sourceSocketTimeoutMs?: number;
+  sourceWaitTimeoutSeconds?: number;
+  sourceNetReadTimeoutSeconds?: number;
+  sourceNetWriteTimeoutSeconds?: number;
 }
 
 export interface MigrationState {

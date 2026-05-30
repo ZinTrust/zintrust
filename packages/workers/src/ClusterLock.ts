@@ -4,14 +4,11 @@
  * Sealed namespace for immutability
  */
 
-import {
-  Cloudflare,
-  ErrorFactory,
-  Logger,
-  createRedisConnection,
-  generateUuid,
-  type RedisConfig,
-} from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core/cloudflare';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { createRedisConnection, type RedisConfig } from '@zintrust/core/redis';
+import { generateUuid } from '@zintrust/core/utils';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
 

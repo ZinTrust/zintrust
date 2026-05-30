@@ -2,7 +2,7 @@
  * Types for @zintrust/trace
  * Sealed type definitions — no side effects.
  */
-import type { IDatabase } from '@zintrust/core';
+import type { IDatabase } from '@zintrust/core/database';
 
 // ---------------------------------------------------------------------------
 // Entry types used by the trace event stream.
@@ -316,6 +316,8 @@ export interface ITraceWatcherConfig {
   registerMiddleware?: (
     fn: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
   ) => void;
+  /** Optional: schedule a background task (maps to ctx.waitUntil in Workers, normal promise in Node). */
+  scheduleBackgroundTask?: (task: Promise<void>) => void;
 }
 
 export interface ITraceWatcher {

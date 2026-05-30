@@ -5,30 +5,25 @@
  */
 
 import * as ZintrustCoreModule from '@zintrust/core';
+import { Cloudflare, databaseConfig, Env, queueConfig, workersConfig } from '@zintrust/core/config';
+import { useEnsureDbConnected, type IDatabase } from '@zintrust/core/database';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { DatabaseConnectionRegistry, registerDatabasesFromRuntimeConfig } from '@zintrust/core/orm';
+import { JobStateTracker } from '@zintrust/core/queue';
 import {
-  Cloudflare,
   createRedisConnection,
-  databaseConfig,
-  DatabaseConnectionRegistry,
-  Env,
-  ErrorFactory,
-  generateUuid,
   getBullMQSafeQueueName,
+  type RedisConfig,
+} from '@zintrust/core/redis';
+import {
+  generateUuid,
   isFunction,
   isNonEmptyString,
   isObject,
-  JobStateTracker,
-  Logger,
-  NodeSingletons,
-  queueConfig,
-  registerDatabasesFromRuntimeConfig,
-  useEnsureDbConnected,
-  workersConfig,
   ZintrustLang,
-  type IDatabase,
-  type RedisConfig,
-  type WorkerStatus,
-} from '@zintrust/core';
+} from '@zintrust/core/utils';
+import { NodeSingletons, type WorkerStatus } from '@zintrust/core/workers';
 import { Worker, type Job, type WorkerOptions } from 'bullmq';
 import { AutoScaler, type AutoScalerConfig } from './AutoScaler';
 import { CanaryController } from './CanaryController';
@@ -99,7 +94,7 @@ const canUseProjectFileImports = (): boolean =>
   typeof NodeSingletons?.path?.join === 'function';
 
 const getProcessorPackageBridgeGlobal = (): ProcessorPackageBridgeGlobal => {
-  return globalThis as ProcessorPackageBridgeGlobal;
+  return globalThis;
 };
 
 const isValidBridgeExportName = (value: string): boolean => {
@@ -108,7 +103,7 @@ const isValidBridgeExportName = (value: string): boolean => {
 
 const resolveRuntimeBridgeModule = (specifier: string): Record<string, unknown> | null => {
   if (specifier === '@zintrust/core') {
-    return ZintrustCoreModule as Record<string, unknown>;
+    return ZintrustCoreModule;
   }
 
   return null;
@@ -1233,10 +1228,18 @@ const waitForWorkerConnection = async (
         }
 
         // Check Redis connection
-        const client = await worker.client;
-        const pingResult = await client.ping();
-        if (pingResult !== 'PONG') {
-          throw ErrorFactory.createWorkerError('Redis ping failed');
+        const client = (await worker.client) as unknown as {
+          ping?: () => Promise<string> | Promise<unknown>;
+        };
+        const ping = client.ping;
+
+        if (typeof ping !== 'function') {
+          throw ErrorFactory.createWorkerError('Redis ping command is not available');
+        }
+
+        const pingResult = await ping.call(client);
+        if (typeof pingResult === 'string' && pingResult.trim() === '') {
+          throw ErrorFactory.createWorkerError('Redis ping command returned empty response');
         }
 
         // Removed heavy Queue instantiation loop - relying on Redis ping for connectivity check
@@ -1244,7 +1247,7 @@ const waitForWorkerConnection = async (
 
         Logger.debug(`Worker health verification passed for ${name}`, {
           isRunning,
-          pingResult,
+          redisInfoLength: typeof pingResult === 'string' ? pingResult.length : 0,
         });
 
         if (timeoutId) clearTimeout(timeoutId);
@@ -2635,14 +2638,26 @@ const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): 
     'infrastructure.redis'
   );
 
+  const requireDirectForScripts =
+    Env.getBool('REDIS_REQUIRE_DIRECT_FOR_SCRIPTS', true) && Env.getBool('USE_REDIS_PROXY', false);
+  // TODO remove when proxy convert to rpc
+  if (requireDirectForScripts) {
+    return {
+      ...options,
+      connection: {
+        host: redisConfig.host,
+        port: redisConfig.port,
+        db: redisConfig.db,
+        password: redisConfig.password,
+      },
+    };
+  }
+
   return {
     ...options,
-    connection: {
-      host: redisConfig.host,
-      port: redisConfig.port,
-      db: redisConfig.db,
-      password: redisConfig.password,
-    },
+    connection: createRedisConnection(redisConfig, 3, {
+      subsystem: 'worker-queue',
+    } as const),
   };
 };
 
@@ -3143,7 +3158,7 @@ export const WorkerFactory = Object.freeze({
       );
       const errorMessage = typeof error === 'string' ? error : error?.message;
       await store.update(name, {
-        status: status as WorkerCreationStatus,
+        status: status,
         updatedAt: new Date(),
         lastError: errorMessage,
       });

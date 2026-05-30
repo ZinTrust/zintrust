@@ -44,13 +44,12 @@ const createRequest = (): EventEmitter & {
 };
 
 describe('registerStreamingMultipartParser', () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
-  afterEach(async () => {
+  beforeEach(async () => {
     const { MultipartParserRegistry } = await import('@zintrust/core');
     MultipartParserRegistry.clear();
+  });
+
+  afterEach(() => {
     state.driveBusboy = undefined;
     vi.restoreAllMocks();
   });
@@ -101,7 +100,7 @@ describe('registerStreamingMultipartParser', () => {
       })
     );
 
-    await parsed?.files.photo?.[0]?.cleanup();
+    await parsed!.files.photo[0].cleanup();
   });
 
   it('still rejects when the request closes before completion', async () => {

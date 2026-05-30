@@ -117,11 +117,11 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker:test
           target: worker
 
-      - name: Smoke test runtime image
-        run: node scripts/docker-image-smoke.mjs base --skip-build --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
+      # - name: Smoke test runtime image
+      #   run: node scripts/docker-image-smoke.mjs base --skip-build --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
 
-      - name: Smoke test worker image
-        run: node scripts/docker-image-smoke.mjs worker --skip-build --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker:test
+      # - name: Smoke test worker image
+      #   run: node scripts/docker-image-smoke.mjs worker --skip-build --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker:test
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master

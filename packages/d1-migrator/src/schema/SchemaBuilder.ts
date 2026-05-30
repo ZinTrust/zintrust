@@ -3,7 +3,8 @@
  * Builds D1/SQLite compatible schemas from source schemas
  */
 
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import type { ColumnSchema, TableSchema } from '../types';
 import { DataValidator } from '../utils/DataValidator';
 import { TypeConverter } from './TypeConverter';

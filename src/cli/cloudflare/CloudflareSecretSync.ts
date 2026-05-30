@@ -48,6 +48,19 @@ type CloudflareSecretSyncArgs = {
   target?: string;
   bulk?: boolean;
   requireSelection?: boolean;
+  all?: boolean;
+};
+
+type ProcessSecretSyncArgs = {
+  log: CloudflareSecretLog;
+  wranglerEnvs: string[];
+  selectedKeys: string[];
+  envMap: Record<string, string>;
+  dryRun: boolean;
+  configPath: string | undefined;
+  inlineValues: Record<string, string>;
+  envPath: string;
+  all: boolean;
 };
 
 export type CloudflareSecretSyncResult = {
@@ -103,20 +116,35 @@ const getConfigArray = (config: Record<string, unknown>, key: string): string[] 
   return uniq(raw.filter((item): item is string => typeof item === 'string'));
 };
 
-const resolveValue = (key: string, envMap: Record<string, string>): string => {
+export const resolveValue = (
+  key: string,
+  envMap: Record<string, string>,
+  envPath: string,
+  all: boolean = false
+): string => {
   const fromFile = envMap[key];
   const fromProcess = process.env[key];
+  const isCustomEnvFile = envPath !== '.env' && envPath.trim() !== '';
+
+  // If custom env file is provided and all is false, only use values from the custom file
+  if (isCustomEnvFile && !all) {
+    return fromFile ?? '';
+  }
+
+  // Default behavior: fallback to process.env
   return fromFile ?? fromProcess ?? '';
 };
 
 const resolveValueWithOverrides = (
   key: string,
   envMap: Record<string, string>,
-  inlineValues: Record<string, string>
+  inlineValues: Record<string, string>,
+  envPath: string,
+  all: boolean = false
 ): string => {
   const inlineValue = inlineValues[key];
   if (typeof inlineValue === 'string') return inlineValue;
-  return resolveValue(key, envMap);
+  return resolveValue(key, envMap, envPath, all);
 };
 
 const getPutTimeoutMs = (): number => {
@@ -256,7 +284,9 @@ const resolveBulkPayload = (
   wranglerEnv: string,
   selectedKeys: string[],
   envMap: Record<string, string>,
-  inlineValues: Record<string, string>
+  inlineValues: Record<string, string>,
+  envPath: string,
+  all: boolean = false
 ): ResolvedBulkPayload => {
   const payload: Record<string, string> = {};
   const includedKeys: string[] = [];
@@ -264,7 +294,7 @@ const resolveBulkPayload = (
   const wranglerEnvLabel = describeWranglerEnv(wranglerEnv);
 
   for (const key of selectedKeys) {
-    const value = resolveValueWithOverrides(key, envMap, inlineValues);
+    const value = resolveValueWithOverrides(key, envMap, inlineValues, envPath, all);
     if (value.trim() === '') {
       log.warn(`skip ${key} -> ${wranglerEnvLabel}: empty value`);
       skippedEmptyKeys.push(key);
@@ -278,20 +308,23 @@ const resolveBulkPayload = (
   return { payload, includedKeys, skippedEmptyKeys };
 };
 
-const processSecretSync = (
-  log: CloudflareSecretLog,
-  wranglerEnvs: string[],
-  selectedKeys: string[],
-  envMap: Record<string, string>,
-  dryRun: boolean,
-  configPath: string | undefined,
-  inlineValues: Record<string, string>
-): CloudflareSecretSyncProgress => {
+const processSecretSync = (args: ProcessSecretSyncArgs): CloudflareSecretSyncProgress => {
+  const {
+    log,
+    wranglerEnvs,
+    selectedKeys,
+    envMap,
+    dryRun,
+    configPath,
+    inlineValues,
+    envPath,
+    all,
+  } = args;
   const progress = createSyncProgress();
 
   forEachWranglerEnv(wranglerEnvs, (wranglerEnv, wranglerEnvLabel) => {
     for (const key of selectedKeys) {
-      const value = resolveValueWithOverrides(key, envMap, inlineValues);
+      const value = resolveValueWithOverrides(key, envMap, inlineValues, envPath, all);
       if (value.trim() === '') {
         log.warn(`skip ${key} -> ${wranglerEnvLabel}: empty value`);
         progress.skippedEmptyKeys.push(key);
@@ -315,15 +348,18 @@ const processSecretSync = (
   return progress;
 };
 
-const processSecretBulkSync = (
-  log: CloudflareSecretLog,
-  wranglerEnvs: string[],
-  selectedKeys: string[],
-  envMap: Record<string, string>,
-  dryRun: boolean,
-  configPath: string | undefined,
-  inlineValues: Record<string, string>
-): CloudflareSecretSyncProgress => {
+const processSecretBulkSync = (args: ProcessSecretSyncArgs): CloudflareSecretSyncProgress => {
+  const {
+    log,
+    wranglerEnvs,
+    selectedKeys,
+    envMap,
+    dryRun,
+    configPath,
+    inlineValues,
+    envPath,
+    all,
+  } = args;
   const progress = createSyncProgress();
 
   forEachWranglerEnv(wranglerEnvs, (wranglerEnv, wranglerEnvLabel) => {
@@ -331,7 +367,7 @@ const processSecretBulkSync = (
       payload,
       includedKeys,
       skippedEmptyKeys: skippedForEnv,
-    } = resolveBulkPayload(log, wranglerEnv, selectedKeys, envMap, inlineValues);
+    } = resolveBulkPayload(log, wranglerEnv, selectedKeys, envMap, inlineValues, envPath, all);
 
     progress.skippedEmptyKeys.push(...skippedForEnv);
 
@@ -405,6 +441,7 @@ export const syncCloudflareSecrets = async ({
   target,
   bulk = false,
   requireSelection = true,
+  all = false,
 }: CloudflareSecretSyncArgs): Promise<CloudflareSecretSyncResult> => {
   const normalizedConfigPath =
     typeof configPath === 'string' && configPath.trim() !== '' ? configPath.trim() : undefined;
@@ -431,24 +468,28 @@ export const syncCloudflareSecrets = async ({
 
   const envMap = await EnvFile.read({ cwd, path: envPath });
   const syncResult = bulk
-    ? processSecretBulkSync(
+    ? processSecretBulkSync({
         log,
         wranglerEnvs,
         selectedKeys,
         envMap,
         dryRun,
-        normalizedConfigPath,
-        inlineValues
-      )
-    : processSecretSync(
+        configPath: normalizedConfigPath,
+        inlineValues,
+        envPath,
+        all,
+      })
+    : processSecretSync({
         log,
         wranglerEnvs,
         selectedKeys,
         envMap,
         dryRun,
-        normalizedConfigPath,
-        inlineValues
-      );
+        configPath: normalizedConfigPath,
+        inlineValues,
+        envPath,
+        all,
+      });
 
   return {
     ...syncResult,

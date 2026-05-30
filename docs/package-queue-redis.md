@@ -47,6 +47,20 @@ REDIS_PASSWORD=your_password
 REDIS_DB=1
 ```
 
+### Cloudflare Tunnel Configuration
+
+For optimal performance over Cloudflare tunnels, additional configuration options are available:
+
+```bash
+# Cloudflare tunnel-specific options
+REDIS_CONNECT_TIMEOUT=3000
+REDIS_KEEP_ALIVE=5000
+REDIS_ENABLE_OFFLINE_QUEUE=true
+REDIS_MAX_LOADING_RETRY_TIME=5000
+```
+
+See [Redis Cloudflare Tunnel Configuration](./redis-cloudflare-tunnel-config.md) for detailed guidance on tunnel-specific settings.
+
 ## Usage
 
 ```typescript
@@ -479,6 +493,54 @@ Queue.on('custom:event', (data) => {
 ```
 
 ## Performance Optimization
+
+### BullMQ Script Handling with Proxy Mode
+
+ZinTrust's Redis proxy supports BullMQ's Lua script execution with automatic optimization:
+
+**Script Caching:**
+
+- Module-level script storage persists across connections
+- Scripts registered once via `defineCommand`, available to all connections
+- Versioned script names (e.g., `moveToActive:5.77.6`) automatically mapped to base implementations
+
+**SCRIPT LOAD + EVALSHA Optimization:**
+
+- Scripts loaded into Redis cache via `SCRIPT LOAD` command
+- Subsequent executions use `EVALSHA` with SHA instead of full Lua text
+- Reduces network bandwidth and CPU usage significantly
+- Fallback to `EVAL` if SCRIPT LOAD fails
+
+**Environment Control:**
+
+```bash
+# Force TCP for scripts (default, reliable fallback)
+REDIS_REQUIRE_DIRECT_FOR_SCRIPTS=true
+
+# Use proxy with SCRIPT LOAD + EVALSHA optimization
+REDIS_REQUIRE_DIRECT_FOR_SCRIPTS=false
+```
+
+**How It Works:**
+
+1. BullMQ calls `connection.scripts.moveToActive:5.77.6`
+2. Proxy strips version to `moveToActive`
+3. Looks up script in module-level cache
+4. Loads script via `SCRIPT LOAD` into Redis
+5. Executes via `EVALSHA` using SHA for performance
+6. Multiple BullMQ versions can coexist without conflicts
+
+**Configuration:**
+
+```typescript
+// Worker configuration with script mode control
+const worker = new Worker('my-queue', handler, {
+  connection: createRedisConnection(redisConfig, 3, {
+    subsystem: 'worker-queue',
+    requireDirectForScripts: true, // Override env if needed
+  }),
+});
+```
 
 ### Lua Scripts
 

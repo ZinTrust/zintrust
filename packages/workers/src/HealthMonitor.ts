@@ -1,4 +1,5 @@
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import type { Worker } from 'bullmq';
 import { WorkerCreationStatus, WorkerFactory } from './WorkerFactory';
 
@@ -85,11 +86,21 @@ const verifyWorkerHealth = async (worker: Worker): Promise<boolean> => {
   const isRunning = await worker.isRunning();
   if (!isRunning) return false;
 
-  const client = await worker.client;
-  const pingResult = await client.ping();
-  if (pingResult !== 'PONG') {
-    throw ErrorFactory.createWorkerError(`Redis ping failed: ${pingResult}`);
+  const client = (await worker.client) as unknown as {
+    ping?: () => Promise<string> | Promise<unknown>;
+  };
+  const ping = client.ping;
+
+  if (typeof ping !== 'function') {
+    throw ErrorFactory.createWorkerError('Redis ping command is not available');
   }
+
+  const pingResult = await ping.call(client);
+
+  if (typeof pingResult === 'string' && pingResult.trim() === '') {
+    throw ErrorFactory.createWorkerError('Redis ping command returned empty response');
+  }
+
   return true;
 };
 
@@ -337,7 +348,7 @@ const updateConfig = (name: string, monitorConfig: WorkerMonitorConfig): void =>
 const getCurrentHealth = (name: string): HealthCheckResult | null => {
   const state = registry.get(name);
   if (!state || state.history.length === 0) return null;
-  return state.history[state.history.length - 1];
+  return state.history.at(-1) ?? null;
 };
 
 const getHealthHistory = (name: string, limit?: number): HealthCheckResult[] => {

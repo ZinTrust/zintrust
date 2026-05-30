@@ -35,7 +35,7 @@ Use this as a quick rule-of-thumb when choosing `JWT_REVOCATION_DRIVER`:
 ## Using the Auth Guard
 
 ```typescript
-import { Auth } from '@zintrust/core';
+import { Auth } from '@zintrust/core/auth';
 
 // Attempt login
 const token = await Auth.guard('jwt').attempt({ email, password });
@@ -58,7 +58,8 @@ if (await Auth.check()) {
 Use `LoginFlow` when you want a reusable login contract but still need application-owned account lookup and credential verification.
 
 ```ts
-import { Auth, ErrorFactory, LoginFlow } from '@zintrust/core';
+import { Auth, ErrorFactory } from '@zintrust/core';
+import { LoginFlow } from '@zintrust/core/auth';
 
 LoginFlow.registerProvider('password', {
   identify: async ({ email }) => User.where('email', '=', email).first(),
@@ -120,7 +121,7 @@ So route handlers do not need to re-verify JWTs.
 When a mobile app, SSO provider, or third-party identity platform sends your backend a token that ZinTrust did not issue itself, verify it with `JwtVerifier` instead of `JwtManager`.
 
 ```ts
-import { JwtVerifier } from '@zintrust/core';
+import { JwtVerifier } from '@zintrust/core/security';
 
 const payload = await JwtVerifier.verifyWithJwks({
   token: providerToken,

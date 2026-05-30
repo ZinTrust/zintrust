@@ -67,6 +67,15 @@ describe('MemoryDriver', () => {
     expect(await driver.get<string>('p')).toBe('perm');
   });
 
+  it('getRedisClient throws for Memory driver', async () => {
+    const { MemoryDriver } = await import('@cache/drivers/MemoryDriver');
+    const driver = MemoryDriver.create();
+
+    expect(() => driver.getRedisClient()).toThrowError(
+      'getRedisClient() is only supported by Redis cache driver'
+    );
+  });
+
   it('cleanup: restores timers', () => {
     vi.useRealTimers();
     expect(true).toBe(true);

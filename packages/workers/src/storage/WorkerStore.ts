@@ -3,8 +3,8 @@
  * Persistence layer for workers (memory, redis, db)
  */
 
-import type { createRedisConnection } from '@zintrust/core';
-import { type IDatabase } from '@zintrust/core';
+import { type IDatabase } from '@zintrust/core/database';
+import { type createRedisConnection } from '@zintrust/core/redis';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
 
@@ -225,7 +225,7 @@ export const RedisWorkerStore = Object.freeze({
           if (!raw) return;
           const current = deserialize(raw);
           const updated = mergeRecord(current, patch);
-          updates.push(names[index] as string, serialize(updated));
+          updates.push(names[index], serialize(updated));
         });
         if (updates.length === 0) return;
         await client.hset(key, ...updates);
@@ -256,7 +256,7 @@ export const DbWorkerStore = Object.freeze({
         if (options?.limit) query.limit(options.limit);
         if (options?.offset) query.offset(options.offset);
         const rows = await query.get<Record<string, unknown>>();
-        return rows.map((element) => deserializeDbWorker(element));
+        return rows.map((element: Record<string, unknown>) => deserializeDbWorker(element));
       },
       async get(name: string): Promise<WorkerRecord | null> {
         const row = await db.table(table).where('name', '=', name).first<Record<string, unknown>>();

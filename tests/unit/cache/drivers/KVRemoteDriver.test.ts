@@ -186,4 +186,13 @@ describe('KVRemoteDriver', () => {
     await driver.clear();
     expect(globalThis.fetch).toHaveBeenCalledTimes(0);
   });
+
+  it('getRedisClient throws for KVRemote driver', async () => {
+    const KVRemoteDriver = await loadDriver();
+    const driver = KVRemoteDriver.create();
+
+    expect(() => driver.getRedisClient()).toThrowError(
+      'getRedisClient() is only supported by Redis cache driver'
+    );
+  });
 });

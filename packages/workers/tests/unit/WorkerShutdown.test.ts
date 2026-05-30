@@ -12,7 +12,7 @@ vi.mock('../../src/WorkerFactory', () => ({
   },
 }));
 
-vi.mock('@zintrust/core', () => ({
+vi.mock('@zintrust/core/logger', () => ({
   Logger: {
     info: infoMock,
     warn: warnMock,
@@ -37,7 +37,7 @@ describe('WorkerShutdown', () => {
   });
 
   it('falls back when Logger.info is unavailable during shutdown completion', async () => {
-    const { Logger } = await import('@zintrust/core');
+    const { Logger } = await import('@zintrust/core/logger');
     const { WorkerShutdown } = await import('../../src/WorkerShutdown');
 
     infoMock

@@ -42,6 +42,20 @@ REDIS_PASSWORD=your_password
 REDIS_DB=0
 ```
 
+### Cloudflare Tunnel Configuration
+
+For optimal performance over Cloudflare tunnels, additional configuration options are available:
+
+```bash
+# Cloudflare tunnel-specific options
+REDIS_CONNECT_TIMEOUT=3000
+REDIS_KEEP_ALIVE=5000
+REDIS_ENABLE_OFFLINE_QUEUE=true
+REDIS_MAX_LOADING_RETRY_TIME=5000
+```
+
+See [Redis Cloudflare Tunnel Configuration](./redis-cloudflare-tunnel-config.md) for detailed guidance on tunnel-specific settings.
+
 ## Usage
 
 ```typescript
@@ -62,6 +76,14 @@ await Cache.clear();
 // Atomic operations
 await Cache.increment('counter:123');
 await Cache.decrement('counter:123');
+
+// Redis transactions (Redis driver only)
+const redisClient = Cache.getRedisClient();
+const multi = redisClient.multi();
+multi.set('key1', 'value1');
+multi.set('key2', 'value2');
+multi.incr('counter');
+const results = await multi.exec();
 ```
 
 ## Features

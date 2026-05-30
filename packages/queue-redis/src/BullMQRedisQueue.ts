@@ -1,21 +1,19 @@
-import type { BullMQPayload, QueueMessage } from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core/cloudflare';
+import { Env, queueConfig } from '@zintrust/core/config';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { isNullish, isUndefinedOrNull } from '@zintrust/core/helper';
+import { Logger } from '@zintrust/core/logger';
+import type { BullMQPayload, QueueMessage } from '@zintrust/core/queue';
 import {
-  Cloudflare,
   createLockProvider,
-  createRedisConnection,
-  Env,
-  ErrorFactory,
-  generateUuid,
-  getBullMQSafeQueueName,
   getLockProvider,
-  Logger,
-  queueConfig,
   registerLockProvider,
   resolveDeduplicationLockKey,
   resolveLockPrefix,
-  ZintrustLang,
-} from '@zintrust/core';
-import { Queue, type JobsOptions, type QueueOptions } from 'bullmq';
+} from '@zintrust/core/queue';
+import { createRedisConnection, getBullMQSafeQueueName } from '@zintrust/core/redis';
+import { generateUuid, ZintrustLang } from '@zintrust/core/utils';
+import { Queue, type JobsOptions } from 'bullmq';
 import { HttpQueueDriver } from './HttpQueueDriver';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
@@ -92,25 +90,30 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     password?: string;
     database: number;
   } => {
-    const workersHost = Cloudflare.getWorkersVar('WORKERS_REDIS_HOST');
-    const workersPortRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_PORT');
-    const workersPassword = Cloudflare.getWorkersVar('WORKERS_REDIS_PASSWORD');
-    const workersDbRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_QUEUE_DB');
+    let workersHost = Cloudflare.getWorkersVar('WORKERS_REDIS_HOST');
+    let workersPortRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_PORT');
+    let workersPassword = Cloudflare.getWorkersVar('WORKERS_REDIS_PASSWORD');
+    let workersDbRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_QUEUE_DB');
+
+    if (isUndefinedOrNull(workersPassword) || isNullish(workersPassword)) {
+      workersPassword = Env.get('REDIS_PASSWORD', '');
+    }
+    if (isUndefinedOrNull(workersPortRaw) || isNullish(workersPortRaw)) {
+      workersPortRaw = Env.get('REDIS_PORT', '6379');
+    }
+    if (isUndefinedOrNull(workersHost) || isNullish(workersHost)) {
+      workersHost = Env.get('REDIS_HOST', '127.0.0.1');
+    }
+
+    if (isUndefinedOrNull(workersDbRaw) || isNullish(workersDbRaw)) {
+      workersDbRaw = Env.get('REDIS_QUEUE_DB', '0');
+    }
 
     return {
-      host: workersHost !== null && workersHost.trim() !== '' ? workersHost.trim() : Env.REDIS_HOST,
-      port:
-        workersPortRaw !== null && Number.isFinite(Number.parseInt(workersPortRaw, 10))
-          ? Number.parseInt(workersPortRaw, 10)
-          : Env.REDIS_PORT,
-      password:
-        workersPassword !== null && workersPassword.trim() !== ''
-          ? workersPassword
-          : Env.REDIS_PASSWORD,
-      database:
-        workersDbRaw !== null && Number.isFinite(Number.parseInt(workersDbRaw, 10))
-          ? Number.parseInt(workersDbRaw, 10)
-          : Env.getInt('REDIS_QUEUE_DB', 0),
+      host: workersHost,
+      port: Number(workersPortRaw),
+      password: workersPassword,
+      database: Number(workersDbRaw),
     };
   };
 
@@ -324,7 +327,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     const prefix = getBullMQSafeQueueName();
 
     const queue = new Queue(queueName, {
-      connection: connection as QueueOptions['connection'],
+      connection: connection,
       prefix,
       defaultJobOptions: {
         removeOnComplete,

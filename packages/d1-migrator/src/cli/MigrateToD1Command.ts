@@ -3,8 +3,9 @@
  * CLI command for migrating databases to Cloudflare D1
  */
 
-import { ErrorFactory, Logger, WranglerConfig } from '@zintrust/core';
-import { BaseCommand, type CommandOptions } from '@zintrust/core/cli';
+import { BaseCommand, WranglerConfig, type CommandOptions } from '@zintrust/core/cli';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import type { Command } from 'commander';
 import { SchemaBuilder } from '../schema/SchemaBuilder';
 import { SchemaValidator } from '../schema/Validator';
@@ -863,6 +864,25 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
       // Execute data migration
       Logger.info('Starting data migration...');
       const migrationProgress = await DataMigrator.migrateData(config);
+
+      if (migrationProgress.status === 'failed') {
+        const errorDetails = Object.values(migrationProgress.errors).filter(
+          (error): error is string => {
+            return typeof error === 'string' && error.trim().length > 0;
+          }
+        );
+
+        Logger.error(
+          `Migration finished with failures: ${migrationProgress.processedRows} rows migrated`
+        );
+        if (errorDetails.length > 0) {
+          Logger.error(`Migration error details: ${errorDetails.join(' | ')}`);
+        }
+
+        throw ErrorFactory.createValidationError(
+          `Migration failed after migrating ${migrationProgress.processedRows} rows`
+        );
+      }
 
       Logger.info(`Migration completed: ${migrationProgress.processedRows} rows migrated`);
       Logger.info('D1 migration completed successfully');

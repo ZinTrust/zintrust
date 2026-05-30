@@ -1,6 +1,9 @@
-import { createRedisConnection as createCoreRedisConnection } from '@zintrust/core';
+import {
+  createRedisConnection as createCoreRedisConnection,
+  type RedisConfig,
+} from '@zintrust/core/redis';
 
-export type { RedisConfig } from '@zintrust/core';
+export type { RedisConfig };
 
 export const createRedisConnection = (
   ...args: Parameters<typeof createCoreRedisConnection>

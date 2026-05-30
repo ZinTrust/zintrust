@@ -267,6 +267,7 @@ const normalizeOperator = (operator: string): string => operator.trim().toUpperC
 
 const ALLOWED_OPERATORS = new Set([
   '=',
+  '==',
   '!=',
   '<>',
   '<',
@@ -283,6 +284,7 @@ const ALLOWED_OPERATORS = new Set([
   'NOT BETWEEN',
   'IS',
   'IS NOT',
+  'NOT',
 ]);
 
 const assertSafeOperator = (operator: string): string => {
@@ -415,6 +417,75 @@ const buildSelectClause = (columns: string[], dialect?: string): string => {
   return out.join(', ');
 };
 
+const compileInWhereClause = (
+  columnSql: string,
+  operator: string,
+  value: unknown
+): { sql: string; parameters: unknown[] } | null => {
+  if (operator !== 'IN' && operator !== 'NOT IN') return null;
+
+  if (!Array.isArray(value) || value.length === 0) {
+    throw ErrorFactory.createDatabaseError('IN operator requires a non-empty array');
+  }
+
+  return {
+    sql: `${columnSql} ${operator} (${value.map(() => '?').join(', ')})`,
+    parameters: value,
+  };
+};
+
+const compileBetweenWhereClause = (
+  columnSql: string,
+  operator: string,
+  value: unknown
+): { sql: string; parameters: unknown[] } | null => {
+  if (operator !== 'BETWEEN' && operator !== 'NOT BETWEEN') return null;
+
+  if (!Array.isArray(value) || value.length !== 2) {
+    throw ErrorFactory.createDatabaseError('BETWEEN operator requires a 2-item array');
+  }
+
+  return {
+    sql: `${columnSql} ${operator} ? AND ?`,
+    parameters: value,
+  };
+};
+
+const compileNullWhereClause = (
+  columnSql: string,
+  operator: string,
+  value: unknown
+): { sql: string; parameters: unknown[] } | null => {
+  if (value !== null && value !== undefined) return null;
+
+  if (operator === '=' || operator === '==') {
+    return { sql: `${columnSql} IS NULL`, parameters: [] };
+  }
+
+  if (operator === '!=' || operator === '<>' || operator === 'NOT') {
+    return { sql: `${columnSql} IS NOT NULL`, parameters: [] };
+  }
+
+  if (operator === 'IS' || operator === 'IS NOT') {
+    return { sql: `${columnSql} ${operator} NULL`, parameters: [] };
+  }
+
+  return null;
+};
+
+const compileComparisonWhereClause = (
+  columnSql: string,
+  operator: string,
+  value: unknown,
+  expression?: WhereClause['expression'],
+  normalization?: NormalizedTextOptions
+): { sql: string; parameters: unknown[] } => {
+  const finalValue =
+    expression === 'normalized-text' ? normalizeTextComparisonValue(value, normalization) : value;
+
+  return { sql: `${columnSql} ${operator} ?`, parameters: [finalValue] };
+};
+
 const compileSingleWhereClause = (
   clause: WhereClause,
   dialect?: string
@@ -429,41 +500,22 @@ const compileSingleWhereClause = (
       ? buildNormalizedColumnSql(clause.column, dialect, clause.normalization)
       : escapeIdentifier(clause.column, dialect);
 
-  if (operator === 'IN' || operator === 'NOT IN') {
-    if (!Array.isArray(clause.value) || clause.value.length === 0) {
-      throw ErrorFactory.createDatabaseError('IN operator requires a non-empty array');
-    }
-    const values = clause.value as unknown[];
-    return {
-      sql: `${columnSql} ${operator} (${values.map(() => '?').join(', ')})`,
-      parameters: values,
-    };
-  }
+  const inClause = compileInWhereClause(columnSql, operator, clause.value);
+  if (inClause !== null) return inClause;
 
-  if (operator === 'BETWEEN' || operator === 'NOT BETWEEN') {
-    if (!Array.isArray(clause.value) || clause.value.length !== 2) {
-      throw ErrorFactory.createDatabaseError('BETWEEN operator requires a 2-item array');
-    }
-    const range = clause.value as unknown[];
-    return {
-      sql: `${columnSql} ${operator} ? AND ?`,
-      parameters: range,
-    };
-  }
+  const betweenClause = compileBetweenWhereClause(columnSql, operator, clause.value);
+  if (betweenClause !== null) return betweenClause;
 
-  if (operator === 'IS' || operator === 'IS NOT') {
-    if (clause.value === null || clause.value === undefined) {
-      return { sql: `${columnSql} ${operator} NULL`, parameters: [] };
-    }
-    return { sql: `${columnSql} ${operator} ?`, parameters: [clause.value] };
-  }
+  const nullClause = compileNullWhereClause(columnSql, operator, clause.value);
+  if (nullClause !== null) return nullClause;
 
-  const value =
-    clause.expression === 'normalized-text'
-      ? normalizeTextComparisonValue(clause.value, clause.normalization)
-      : clause.value;
-
-  return { sql: `${columnSql} ${operator} ?`, parameters: [value] };
+  return compileComparisonWhereClause(
+    columnSql,
+    operator,
+    clause.value,
+    clause.expression,
+    clause.normalization
+  );
 };
 
 const compileWhereFragments = (

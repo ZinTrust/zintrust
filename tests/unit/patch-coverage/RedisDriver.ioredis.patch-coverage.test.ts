@@ -162,6 +162,9 @@ describe('patch coverage: RedisDriver ioredis branches', () => {
     await expect(driver.clear()).resolves.toBeUndefined();
     await expect(driver.has('k')).resolves.toBe(false);
 
+    // Test getRedisClient() returns the client for ioredis driver
+    expect(driver.getRedisClient()).toBe(client);
+
     expect(loggerError).toHaveBeenCalled();
   });
 });

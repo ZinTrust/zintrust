@@ -1,11 +1,11 @@
+import type { UploadedFile } from '@zintrust/core/http';
 import {
   MultipartParserRegistry,
-  NodeSingletons,
   type MultipartFieldValue,
   type MultipartParseInput,
   type ParsedMultipartData,
-  type UploadedFile,
-} from '@zintrust/core';
+} from '@zintrust/core/http';
+import { NodeSingletons } from '@zintrust/core/workers';
 import Busboy from 'busboy';
 
 export type StreamingMultipartParserOptions = {
@@ -136,7 +136,7 @@ const handleFileUpload = (
     encoding,
     size: 0,
     path: tmpPath,
-    stream: () => NodeSingletons.fs.createReadStream(tmpPath) as unknown as NodeJS.ReadableStream,
+    stream: () => NodeSingletons.fs.createReadStream(tmpPath),
     cleanup: async () => {
       await safeUnlink(tmpPath);
       ctx.createdPaths.delete(tmpPath);

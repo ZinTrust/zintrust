@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.0.0",
+  "version": "2.4.0",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -18,6 +18,10 @@
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js"
     },
+    "./runtime": {
+      "types": "./dist/src/runtime-index.d.ts",
+      "import": "./dist/src/runtime-index.js"
+    },
     "./start": {
       "types": "./dist/src/start.d.ts",
       "import": "./dist/src/start.js"
@@ -27,16 +31,16 @@
       "import": "./dist/src/boot.js"
     },
     "./cli": {
-      "types": "./dist/src/cli.d.ts",
-      "import": "./dist/src/cli.js"
+      "types": "./dist/src/cli-index.d.ts",
+      "import": "./dist/src/cli-index.js"
     },
     "./worker-commands": {
       "types": "./dist/src/worker-commands.d.ts",
       "import": "./dist/src/worker-commands.js"
     },
     "./proxy": {
-      "types": "./dist/src/proxy.d.ts",
-      "import": "./dist/src/proxy.js"
+      "types": "./dist/src/proxy-index.d.ts",
+      "import": "./dist/src/proxy-index.js"
     },
     "./proxy/*": {
       "types": "./dist/src/proxy/*.d.ts",
@@ -54,9 +58,149 @@
       "types": "./dist/src/node.d.ts",
       "import": "./dist/src/node.js"
     },
+    "./seeders": {
+      "types": "./dist/src/seeders-index.d.ts",
+      "import": "./dist/src/seeders-index.js"
+    },
+    "./testing": {
+      "types": "./dist/src/testing-index.d.ts",
+      "import": "./dist/src/testing-index.js"
+    },
+    "./scripts": {
+      "types": "./dist/src/scripts-index.d.ts",
+      "import": "./dist/src/scripts-index.js"
+    },
+    "./tools": {
+      "types": "./dist/src/tools-index.d.ts",
+      "import": "./dist/src/tools-index.js"
+    },
+    "./tools/mail": {
+      "types": "./dist/src/tools-mail-index.d.ts",
+      "import": "./dist/src/tools-mail-index.js"
+    },
+    "./tools/notification": {
+      "types": "./dist/src/tools-notification-index.d.ts",
+      "import": "./dist/src/tools-notification-index.js"
+    },
+    "./tools/storage": {
+      "types": "./dist/src/tools-storage-index.d.ts",
+      "import": "./dist/src/tools-storage-index.js"
+    },
+    "./tools/queue": {
+      "types": "./dist/src/tools-queue-index.d.ts",
+      "import": "./dist/src/tools-queue-index.js"
+    },
+    "./tools/broadcast": {
+      "types": "./dist/src/tools-broadcast-index.d.ts",
+      "import": "./dist/src/tools-broadcast-index.js"
+    },
+    "./tools/http": {
+      "types": "./dist/src/tools-http-index.d.ts",
+      "import": "./dist/src/tools-http-index.js"
+    },
+    "./orm": {
+      "types": "./dist/src/orm-index.d.ts",
+      "import": "./dist/src/orm-index.js"
+    },
+    "./config": {
+      "types": "./dist/src/config-index.d.ts",
+      "import": "./dist/src/config-index.js"
+    },
+    "./security": {
+      "types": "./dist/src/security-index.d.ts",
+      "import": "./dist/src/security-index.js"
+    },
+    "./auth": {
+      "types": "./dist/src/auth-index.d.ts",
+      "import": "./dist/src/auth-index.js"
+    },
+    "./redis": {
+      "types": "./dist/src/redis-index.d.ts",
+      "import": "./dist/src/redis-index.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/src/cloudflare-index.d.ts",
+      "import": "./dist/src/cloudflare-index.js"
+    },
+    "./constants": {
+      "types": "./dist/src/constants-index.d.ts",
+      "import": "./dist/src/constants-index.js"
+    },
+    "./microservices": {
+      "types": "./dist/src/microservices-index.d.ts",
+      "import": "./dist/src/microservices-index.js"
+    },
+    "./middleware": {
+      "types": "./dist/src/middleware-index.d.ts",
+      "import": "./dist/src/middleware-index.js"
+    },
+    "./scheduler": {
+      "types": "./dist/src/scheduler-index.d.ts",
+      "import": "./dist/src/scheduler-index.js"
+    },
+    "./templates": {
+      "types": "./dist/src/templates-index.d.ts",
+      "import": "./dist/src/templates-index.js"
+    },
     "./routes/*": {
       "types": "./dist/routes/*.d.ts",
       "import": "./dist/routes/*.js"
+    },
+    "./errors": {
+      "types": "./dist/src/errors-index.d.ts",
+      "import": "./dist/src/errors-index.js"
+    },
+    "./logger": {
+      "types": "./dist/src/logger-index.d.ts",
+      "import": "./dist/src/logger-index.js"
+    },
+    "./http": {
+      "types": "./dist/src/http-index.d.ts",
+      "import": "./dist/src/http-index.js"
+    },
+    "./database": {
+      "types": "./dist/src/database-index.d.ts",
+      "import": "./dist/src/database-index.js"
+    },
+    "./queue": {
+      "types": "./dist/src/queue-index.d.ts",
+      "import": "./dist/src/queue-index.js"
+    },
+    "./workers": {
+      "types": "./dist/src/workers-index.d.ts",
+      "import": "./dist/src/workers-index.js"
+    },
+    "./utils": {
+      "types": "./dist/src/utils-index.d.ts",
+      "import": "./dist/src/utils-index.js"
+    },
+    "./lang": {
+      "types": "./dist/src/lang-index.d.ts",
+      "import": "./dist/src/lang-index.js"
+    },
+    "./storage": {
+      "types": "./dist/src/storage-index.d.ts",
+      "import": "./dist/src/storage-index.js"
+    },
+    "./storage-index": {
+      "types": "./dist/src/storage-index.d.ts",
+      "import": "./dist/src/storage-index.js"
+    },
+    "./http-index": {
+      "types": "./dist/src/http-index.d.ts",
+      "import": "./dist/src/http-index.js"
+    },
+    "./mail": {
+      "types": "./dist/src/mail-index.d.ts",
+      "import": "./dist/src/mail-index.js"
+    },
+    "./trace": {
+      "types": "./dist/src/trace-index.d.ts",
+      "import": "./dist/src/trace-index.js"
+    },
+    "./socket": {
+      "types": "./dist/src/socket-index.d.ts",
+      "import": "./dist/src/socket-index.js"
     },
     "./package.json": "./package.json"
   },
@@ -217,12 +361,15 @@
   ],
   "author": "ZinTrust Team",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
   "workspaces": [
     "packages/*"
   ],
   "overrides": {
     "ajv": "^8.18.0",
-    "axios": "^1.15.0",
     "@eslint/plugin-kit": "^0.7.1",
     "follow-redirects": "^1.16.0",
     "@tootallnate/once": "3.0.1",
@@ -230,7 +377,6 @@
     "fast-uri": "3.1.2",
     "fast-xml-parser": "5.8.0",
     "protobufjs": "7.5.9",
-    "brace-expansion": "^5.0.5",
     "picomatch": "^4.0.4",
     "cross-spawn": "^7.0.5",
     "glob": "^11.1.0",
@@ -239,6 +385,12 @@
     "vite": "^8.0.5",
     "flatted": "^3.4.2",
     "uuid": "14.0.0",
+    "ioredis": "^5.11.0",
+    "axios": "^1.16.1",
+    "tmp": "^0.2.6",
+    "sonarqube-scanner": {
+      "axios": "^1.16.1"
+    },
     "@actions/github": {
       "undici": "^6.24.0"
     },
@@ -255,20 +407,23 @@
     "braces": "^3.0.3",
     "lodash": "^4.17.21",
     "semver": "^7.6.3",
-    "tmp": "^0.2.4",
     "ws": "^8.20.0",
-    "micromatch": "^4.0.8"
+    "micromatch": "^4.0.8",
+    "brace-expansion": "^5.0.6",
+    "qs": "^6.15.2"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.3.4",
+    "@cloudflare/containers": "^0.3.5",
     "bcryptjs": "^3.0.3",
-    "bullmq": "^5.76.10",
+    "bullmq": "^5.77.6",
     "chalk": "^5.6.2",
-    "commander": "^14.0.3",
-    "inquirer": "^13.4.3",
+    "commander": "^15.0.0",
+    "inquirer": "^14.0.0",
+    "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.22.3",
+    "mysql2": "^3.22.4",
     "pg": "^8.21.0",
+    "redis": "^6.0.0",
     "tsx": "^4.22.3"
   },
   "devDependencies": {
@@ -285,28 +440,28 @@
     "@types/better-sqlite3": "7.6.13",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/mssql": "^12.3.0",
-    "@types/node": "^25.9.0",
+    "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.7",
     "ajv-draft-04": "^1.0.0",
     "better-sqlite3": "^12.10.0",
     "es-module-loader": "^2.3.0",
-    "eslint": "^10.4.0",
+    "eslint": "^10.4.1",
+    "fast-xml-builder": "file:./patches/fast-xml-builder",
     "globals": "^17.6.0",
-    "hot-shots": "^14.3.1",
+    "hot-shots": "^15.0.0",
     "husky": "^9.1.7",
-    "jscpd": "^4.2.3",
+    "jscpd": "^4.2.4",
     "lint-staged": "^17.0.5",
-    "miniflare": "^4.20260518.0",
+    "miniflare": "^4.20260526.0",
     "mongodb": "^7.2.0",
-    "mssql": "^12.5.4",
+    "mssql": "^12.5.5",
     "prom-client": "^15.1.3",
     "sonarqube-scanner": "^4.3.6",
     "tsc-alias": "^1.8.17",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.4",
-    "fast-xml-builder": "file:./patches/fast-xml-builder",
-    "vitest": "^4.1.6",
-    "wrangler": "4.93.0"
+    "typescript-eslint": "^8.60.0",
+    "vitest": "^4.1.7",
+    "wrangler": "4.95.0"
   }
 }

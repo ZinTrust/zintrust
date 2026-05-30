@@ -68,7 +68,7 @@ const createIoredisClient = (params: {
         db,
       },
       3,
-      { subsystem: 'cache' }
+      { subsystem: 'cache', requireDirectForScripts: false }
     ) as unknown as RedisClientLike;
 
     return client !== null && typeof client.get === 'function' ? client : null;
@@ -139,6 +139,10 @@ const createCacheDriverFromIoredisClient = (client: RedisClientLike): CacheDrive
       Logger.error('Redis EXISTS failed', error);
       return false;
     }
+  },
+
+  getRedisClient(): unknown {
+    return client;
   },
 });
 
@@ -359,6 +363,12 @@ const createTcpCacheDriver = (): CacheDriver => {
         Logger.error('Redis EXISTS failed', error);
         return false;
       }
+    },
+
+    getRedisClient(): unknown {
+      throw ErrorFactory.createConfigError(
+        'getRedisClient() is only supported with ioredis driver, not TCP socket driver'
+      );
     },
   };
 };

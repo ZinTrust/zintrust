@@ -9,6 +9,7 @@ import { AuthTag } from '../utils/authTag';
 
 let _storage: ITraceWatcherConfig['storage'] | null = null;
 let _config: ITraceWatcherConfig['config'] | null = null;
+let _scheduleBackgroundTask: ((task: Promise<void>) => void) | null = null;
 
 const bindingsInterpolated = (sql: string, params: unknown[]): string => {
   // Inline params for display only — safe, not for re-execution.
@@ -57,7 +58,7 @@ const emit = (query: string, params: unknown[], duration: number, connection = '
   const tags = AuthTag.append([]);
   if (slow) tags.push('slow');
 
-  _storage
+  const writePromise = _storage
     .writeEntry({
       uuid: crypto.randomUUID(),
       batchId,
@@ -69,17 +70,29 @@ const emit = (query: string, params: unknown[], duration: number, connection = '
       createdAt: TraceContext.now(),
     })
     .catch(() => undefined);
+
+  // Use background task scheduler if available (Workers waitUntil support)
+  if (_scheduleBackgroundTask) {
+    _scheduleBackgroundTask(writePromise);
+  }
+  // Otherwise, the promise is already fire-and-forget with error suppression
 };
 
 export const QueryWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze({
   emit,
 
-  register({ storage, config, db: injectedDb }: ITraceWatcherConfig): () => void {
+  register({
+    storage,
+    config,
+    db: injectedDb,
+    scheduleBackgroundTask,
+  }: ITraceWatcherConfig): () => void {
     if (config.watchers.query === false) return () => undefined;
     if (!injectedDb) return () => undefined; // no db available
 
     _storage = storage;
     _config = config;
+    _scheduleBackgroundTask = scheduleBackgroundTask ?? null;
     const db = injectedDb;
 
     const handler = (query: string, params: unknown[], duration: number): void => {
@@ -95,6 +108,7 @@ export const QueryWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
     return () => {
       _storage = null;
       _config = null;
+      _scheduleBackgroundTask = null;
       (
         db as {
           offAfterQuery?: (h: (sql: string, params: unknown[], duration: number) => void) => void;

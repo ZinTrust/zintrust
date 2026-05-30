@@ -1,4 +1,5 @@
-import { ErrorFactory, RemoteSignedJson } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { RemoteSignedJson } from '@zintrust/core/security';
 import type { ITraceEntry, ITraceStorage } from '../types';
 
 type ProxyTraceStorageSettings = {

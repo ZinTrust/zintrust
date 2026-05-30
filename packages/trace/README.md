@@ -91,6 +91,30 @@ import serviceManifest from './bootstrap/service-manifest';
 ProjectRuntime.set({ serviceManifest });
 ```
 
+#### Cloudflare Workers waitUntil Support
+
+For reliable trace persistence in Cloudflare Workers, set the execution context in your Worker fetch handler:
+
+```ts
+// src/worker.ts or your Worker entrypoint
+import { BackgroundTaskScheduler } from '@zintrust/trace';
+
+export default {
+  async fetch(request, env, ctx) {
+    // Enable reliable trace persistence via ctx.waitUntil()
+    BackgroundTaskScheduler.setExecutionContext(ctx);
+
+    // Initialize and run your ZinTrust app
+    const app = createApp();
+    await app.boot();
+
+    return app.handle(request);
+  },
+};
+```
+
+This ensures trace writes complete reliably even after the HTTP response is sent. Without this, trace writes may be lost in Workers environments. See [docs/WORKER_WAITUNTIL_SUPPORT.md](./docs/WORKER_WAITUNTIL_SUPPORT.md) for details.
+
 Why this is the preferred path:
 
 - The plugin files are the framework-owned opt-in point that ZinTrust already auto-loads during boot.

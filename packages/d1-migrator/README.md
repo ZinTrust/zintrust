@@ -226,6 +226,9 @@ The command supports env-based execution for all CLI settings.
 | Interactive (`--interactive`)                 | `MIGRATE_TO_D1_INTERACTIVE`, `D1_MIGRATOR_INTERACTIVE`                                                                         |
 | Resume (`--resume`)                           | `MIGRATE_TO_D1_RESUME`, `D1_MIGRATOR_RESUME`                                                                                   |
 | Migration ID (`--migration-id`)               | `MIGRATE_TO_D1_MIGRATION_ID`, `D1_MIGRATOR_MIGRATION_ID`                                                                       |
+| Group Small Tables                            | `MIGRATE_TO_D1_GROUP_SMALL_TABLES` (Default: `true`)                                                                           |
+| Max Group Rows                                | `MIGRATE_TO_D1_MAX_GROUP_ROWS` (Default: `50000`)                                                                              |
+| Max Group Size (MB)                           | `MIGRATE_TO_D1_MAX_GROUP_SIZE_MB` (Default: `10`)                                                                              |
 
 If `--source-connection` is not provided, the command automatically composes a URI from `DB_*` values for MySQL/PostgreSQL/SQL Server, and uses `DB_PATH`/`DB_DATABASE` for SQLite. Host fallback prefers `DB_READ_HOSTS`, then `DB_HOSTS`, then `DB_HOST`.
 

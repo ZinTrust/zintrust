@@ -119,6 +119,10 @@ const shutdownWorkersIfNeeded = async (
   signal: string,
   remainingMs: () => number
 ): Promise<void> => {
+  const shutdownWorkers = Env.getBool('SHUTDOWN_WORKER', true);
+  if (!shutdownWorkers) {
+    return;
+  }
   if (
     appConfig.worker !== true ||
     (appConfig.detectRuntime() !== 'nodejs' && appConfig.detectRuntime() !== 'lambda') ||

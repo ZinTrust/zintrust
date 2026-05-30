@@ -1,23 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const createMockedCoreModule = async (publish: ReturnType<typeof vi.fn>) => {
-  const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
-  return {
-    ...actual,
+const installCoreMock = (publish: ReturnType<typeof vi.fn>): void => {
+  vi.doMock('@zintrust/core/config', () => ({
     Env: {
-      ...actual.Env,
       REDIS_PROXY_URL: 'http://127.0.0.1:8791/redis',
       USE_REDIS_PROXY: true,
+      get: (key: string, fallback?: string) => fallback ?? '',
+      getInt: (key: string, fallback?: number) => fallback ?? 0,
     },
+  }));
+  vi.doMock('@zintrust/core/redis', () => ({
     createRedisConnection: vi.fn(() => ({
       connect: async () => undefined,
       publish,
     })),
-  };
-};
-
-const installCoreMock = (publish: ReturnType<typeof vi.fn>): void => {
-  vi.doMock('@zintrust/core', () => createMockedCoreModule(publish));
+  }));
 };
 
 describe('RedisPublishClient', () => {

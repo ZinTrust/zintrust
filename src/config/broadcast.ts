@@ -135,6 +135,17 @@ const getRedisConfig = (): RedisBroadcastDriverConfig => ({
   port: Env.getInt('BROADCAST_REDIS_PORT', Env.getInt('REDIS_PORT', 6379)),
   password: Env.get('BROADCAST_REDIS_PASSWORD', Env.get('REDIS_PASSWORD', '')),
   channelPrefix: Env.get('BROADCAST_CHANNEL_PREFIX', 'broadcast:'),
+  // Cloudflare tunnel-specific ioredis options
+  connectTimeout: Env.getInt('BROADCAST_REDIS_CONNECT_TIMEOUT', Env.REDIS_CONNECT_TIMEOUT),
+  keepAlive: Env.getInt('BROADCAST_REDIS_KEEP_ALIVE', Env.REDIS_KEEP_ALIVE),
+  enableOfflineQueue: Env.getBool(
+    'BROADCAST_REDIS_ENABLE_OFFLINE_QUEUE',
+    Env.REDIS_ENABLE_OFFLINE_QUEUE
+  ),
+  maxLoadingRetryTime: Env.getInt(
+    'BROADCAST_REDIS_MAX_LOADING_RETRY_TIME',
+    Env.REDIS_MAX_LOADING_RETRY_TIME
+  ),
 });
 
 const getRedisHttpsConfig = (): RedisHttpsBroadcastDriverConfig => ({

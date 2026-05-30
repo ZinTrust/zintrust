@@ -1,3 +1,11 @@
+# 2026-05-21
+
+- Reworked `@zintrust/d1-migrator` remote D1 data copy behavior for large MySQL-backed migrations. Remote D1 table migration now runs one table at a time by default instead of level-wide parallel fanout, each table resets its remote batch tuning at the start, remote inserts begin at `1000` rows per statement, and failed remote inserts now retry by halving the statement row count down to `1` before the migrator skips the rest of that table and appends a JSON line to `logs/d1-migration-failed-report.log`.
+
+- Tightened remote D1 SQL statement sizing in `@zintrust/d1-migrator` to stay safely below the Cloudflare D1 `100 KB` statement ceiling. Statement size is now estimated in UTF-8 bytes, per-statement SQL is capped at `95 KB`, and successful remote insert batches can only grow above `1000` rows per statement when the rendered SQL stays comfortably below that gate, up to a maximum of `2000` rows per statement.
+
+- Fixed remote D1 schema batching in `@zintrust/d1-migrator` so generated schema statements are normalized before batching, preventing duplicate semicolons from creating empty SQL statements during Wrangler remote execution.
+
 # 2026-05-15
 
 - Fixed Cloudflare secret sync for the top-level Wrangler Worker. `zin put cloudflare` now treats an omitted `--wg` as the main Worker instead of a fake `worker` environment, uploads to that target with Wrangler's explicit `--env=` sentinel, and warns on empty optional secret values instead of counting them as failed uploads.

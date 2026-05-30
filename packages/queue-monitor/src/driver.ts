@@ -1,7 +1,10 @@
-import { ErrorFactory, getBullMQSafeQueueName } from '@zintrust/core';
+import { Env } from '@zintrust/core/config';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { getBullMQSafeQueueName } from '@zintrust/core/redis';
 import type { ConnectionOptions, Job, JobsOptions } from 'bullmq';
 import { Queue } from 'bullmq';
-import { createRedisConnection, type RedisConfig } from './connection';
+import { createRedisConnection, type RedisConfig } from './connection.js';
 
 export type JobPayload<T = unknown> = T;
 
@@ -23,6 +26,9 @@ export type QueueDriver = {
   enqueue<T>(name: string, payload: T, options?: JobsOptions): Promise<string>;
   getJob(queueName: string, jobId: string): Promise<Job | undefined>;
   getJobCounts(queueName: string): Promise<JobCounts>;
+  getJobCountsMany(
+    queueNames: string[]
+  ): Promise<Array<{ name: string; counts: Record<string, number> }>>;
   getRecentJobs(queueName: string, limit?: number): Promise<Job[]>;
   retryJob(queueName: string, jobId: string, snapshot?: RetrySnapshot): Promise<RetryJobResult>;
   getQueues(): Promise<string[]>;
@@ -43,7 +49,7 @@ async function enrichJobsWithState(jobs: Job[]): Promise<void> {
 }
 
 async function discoverQueuesFromRedis(
-  redis: ReturnType<typeof createRedisConnection>,
+  redis: unknown,
   inMemoryQueues: Map<string, Queue>
 ): Promise<string[]> {
   const found = new Set<string>(Array.from(inMemoryQueues.keys()));
@@ -52,7 +58,13 @@ async function discoverQueuesFromRedis(
     let shouldContinue = true;
     const prefix = getBullMQSafeQueueName();
     const scanAsync = (cur: string): Promise<[string, string[]]> =>
-      redis.scan(cur, 'MATCH', prefix + ':*', 'COUNT', '100');
+      (redis as { scan: (cur: string, ...args: string[]) => Promise<[string, string[]]> }).scan(
+        cur,
+        'MATCH',
+        prefix + ':*',
+        'COUNT',
+        '100'
+      );
 
     while (shouldContinue) {
       // Redis scan must be sequential as it depends on the cursor from previous result
@@ -78,12 +90,26 @@ async function discoverQueuesFromRedis(
 // eslint-disable-next-line max-lines-per-function
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
   const queues = new Map<string, Queue>();
-  const redis = createRedisConnection(config, 3, { subsystem: 'queue-monitor' });
+  const requireDirectForScripts =
+    Env.getBool('REDIS_REQUIRE_DIRECT_FOR_SCRIPTS', true) && Env.getBool('USE_REDIS_PROXY', false);
+  let redis: unknown;
+  // TODO remove when proxy convert to rpc
+  if (requireDirectForScripts) {
+    redis = {
+      host: config.host,
+      port: config.port,
+      db: config.db,
+      password: config.password,
+    };
+  } else {
+    redis = createRedisConnection(config, 3, {
+      subsystem: 'queue-monitor',
+    });
+  }
   const getQueue = (name: string): Queue => {
     if (!queues.has(name)) {
       const prefix = getBullMQSafeQueueName();
-      const connection = createRedisConnection(config, 3, { subsystem: 'queue-monitor' });
-      const queue = new Queue(name, { prefix, connection: connection as ConnectionOptions });
+      const queue = new Queue(name, { prefix, connection: redis as ConnectionOptions });
       queues.set(name, queue);
     }
     const queue = queues.get(name);
@@ -114,6 +140,47 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
   const getJobCounts = async (queueName: string): Promise<JobCounts> => {
     const queue = getQueue(queueName);
     return queue.getJobCounts();
+  };
+
+  const getJobCountsMany = async (
+    queueNames: string[]
+  ): Promise<Array<{ name: string; counts: Record<string, number> }>> => {
+    const uniqueQueueNames = Array.from(
+      new Set(
+        queueNames.filter(
+          (queueName) => typeof queueName === 'string' && queueName.trim().length > 0
+        )
+      )
+    );
+    Logger.info('[queue-monitor] getJobCountsMany start', {
+      requestedCount: queueNames.length,
+      uniqueCount: uniqueQueueNames.length,
+    });
+    const startedAt = Date.now();
+    if (uniqueQueueNames.length === 0) {
+      Logger.info('[queue-monitor] getJobCountsMany complete', {
+        durationMs: Date.now() - startedAt,
+        requestedCount: queueNames.length,
+        uniqueCount: uniqueQueueNames.length,
+        pipelineCount: 0,
+      });
+      return [];
+    }
+
+    const stats = await Promise.all(
+      uniqueQueueNames.map(async (name) => {
+        const counts = await getJobCounts(name);
+        return { name, counts };
+      })
+    );
+
+    Logger.info('[queue-monitor] getJobCountsMany complete', {
+      durationMs: Date.now() - startedAt,
+      requestedCount: queueNames.length,
+      uniqueCount: uniqueQueueNames.length,
+      pipelineCount: uniqueQueueNames.length,
+    });
+    return stats;
   };
 
   const requeueFromSnapshot = async (
@@ -190,6 +257,7 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     enqueue,
     getJob,
     getJobCounts,
+    getJobCountsMany,
     getRecentJobs,
     retryJob,
     getQueues,

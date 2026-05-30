@@ -1,4 +1,5 @@
-import { Logger, NodeSingletons, workersConfig } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
+import { NodeSingletons, workersConfig } from '@zintrust/core/workers';
 import { HealthMonitor } from '../HealthMonitor';
 import { getWorkers } from '../dashboard/workers-api';
 

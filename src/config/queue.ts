@@ -11,7 +11,14 @@ import type { MiddlewaresType } from '@config/middleware';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
 
-import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
+import type {
+  QueueConfigWithDrivers,
+  QueueDriverName,
+  QueueDriversConfig,
+  RabbitMqQueueDriverConfig,
+  RedisQueueDriverConfig,
+  SqsQueueDriverConfig,
+} from '@config/type';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 const StaticMiddlewareKeys = Object.freeze({
@@ -63,6 +70,7 @@ export type QueueConfigOverrides = Partial<{
     middleware: ReadonlyArray<string>;
     autoRefresh: boolean;
     refreshIntervalMs: number;
+    queueDataTimeoutMs: number;
   };
 }>;
 
@@ -98,6 +106,18 @@ const readWorkersFallbackInt = (
   if (raw.trim() === '') return fallback;
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const readWorkersFallbackBool = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback: boolean
+): boolean => {
+  const workerValue = readWorkersEnvString(workersKey);
+  if (workerValue.trim() !== '') {
+    return workerValue === 'true' || workerValue === '1';
+  }
+  return Env.getBool(fallbackKey, fallback);
 };
 
 const parseRedisUrl = (
@@ -143,6 +163,78 @@ const resolveRedisProxyConfig = (): {
   return null;
 };
 
+const createRedisQueueDriver = (): RedisQueueDriverConfig => {
+  const proxyConfig = resolveRedisProxyConfig();
+  return {
+    driver: 'redis' as const,
+    host:
+      proxyConfig?.host ??
+      readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
+    port: proxyConfig?.port ?? readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
+    password:
+      proxyConfig?.password ??
+      readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
+    database:
+      proxyConfig?.database ??
+      readWorkersFallbackInt(
+        'WORKERS_REDIS_QUEUE_DB',
+        'REDIS_QUEUE_DB',
+        ZintrustLang.REDIS_DEFAULT_DB
+      ),
+    // Cloudflare tunnel-specific ioredis options
+    connectTimeout: readWorkersFallbackInt(
+      'WORKERS_REDIS_CONNECT_TIMEOUT',
+      'REDIS_CONNECT_TIMEOUT',
+      Env.REDIS_CONNECT_TIMEOUT
+    ),
+    keepAlive: readWorkersFallbackInt(
+      'WORKERS_REDIS_KEEP_ALIVE',
+      'REDIS_KEEP_ALIVE',
+      Env.REDIS_KEEP_ALIVE
+    ),
+    enableOfflineQueue: readWorkersFallbackBool(
+      'WORKERS_REDIS_ENABLE_OFFLINE_QUEUE',
+      'REDIS_ENABLE_OFFLINE_QUEUE',
+      Env.REDIS_ENABLE_OFFLINE_QUEUE
+    ),
+    maxLoadingRetryTime: readWorkersFallbackInt(
+      'WORKERS_REDIS_MAX_LOADING_RETRY_TIME',
+      'REDIS_MAX_LOADING_RETRY_TIME',
+      Env.REDIS_MAX_LOADING_RETRY_TIME
+    ),
+  };
+};
+
+const createRabbitMqQueueDriver = (): RabbitMqQueueDriverConfig => ({
+  driver: 'rabbitmq' as const,
+  host: readWorkersFallbackString('WORKERS_RABBITMQ_HOST', 'RABBITMQ_HOST', 'localhost'),
+  port: readWorkersFallbackInt('WORKERS_RABBITMQ_PORT', 'RABBITMQ_PORT', 5672),
+  username: readWorkersFallbackString('WORKERS_RABBITMQ_USER', 'RABBITMQ_USER', 'guest'),
+  password: readWorkersFallbackString('WORKERS_RABBITMQ_PASSWORD', 'RABBITMQ_PASSWORD', 'guest'),
+  vhost: readWorkersFallbackString('WORKERS_RABBITMQ_VHOST', 'RABBITMQ_VHOST', '/'),
+  httpGatewayUrl: readWorkersFallbackString(
+    'WORKERS_RABBITMQ_HTTP_GATEWAY_URL',
+    'RABBITMQ_HTTP_GATEWAY_URL'
+  ),
+  httpGatewayToken: readWorkersFallbackString(
+    'WORKERS_RABBITMQ_HTTP_GATEWAY_TOKEN',
+    'RABBITMQ_HTTP_GATEWAY_TOKEN'
+  ),
+  httpGatewayTimeoutMs: readWorkersFallbackInt(
+    'WORKERS_RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS',
+    'RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS',
+    15000
+  ),
+});
+
+const createSqsQueueDriver = (): SqsQueueDriverConfig => ({
+  driver: 'sqs' as const,
+  key: Env.get('AWS_ACCESS_KEY_ID'),
+  secret: Env.get('AWS_SECRET_ACCESS_KEY'),
+  region: Env.AWS_REGION,
+  queueUrl: Env.get('AWS_SQS_QUEUE_URL'),
+});
+
 /**
  * Helper: Create base driver configurations from environment
  */
@@ -159,53 +251,9 @@ export const createBaseDrivers = (): QueueDriversConfig => ({
     table: Env.get('QUEUE_TABLE', 'jobs'),
     connection: Env.get('QUEUE_DB_CONNECTION', 'default'),
   },
-  redis: {
-    driver: 'redis' as const,
-    host:
-      resolveRedisProxyConfig()?.host ??
-      readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
-    port:
-      resolveRedisProxyConfig()?.port ??
-      readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
-    password:
-      resolveRedisProxyConfig()?.password ??
-      readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
-    database:
-      resolveRedisProxyConfig()?.database ??
-      readWorkersFallbackInt(
-        'WORKERS_REDIS_QUEUE_DB',
-        'REDIS_QUEUE_DB',
-        ZintrustLang.REDIS_DEFAULT_DB
-      ),
-  },
-  rabbitmq: {
-    driver: 'rabbitmq' as const,
-    host: readWorkersFallbackString('WORKERS_RABBITMQ_HOST', 'RABBITMQ_HOST', 'localhost'),
-    port: readWorkersFallbackInt('WORKERS_RABBITMQ_PORT', 'RABBITMQ_PORT', 5672),
-    username: readWorkersFallbackString('WORKERS_RABBITMQ_USER', 'RABBITMQ_USER', 'guest'),
-    password: readWorkersFallbackString('WORKERS_RABBITMQ_PASSWORD', 'RABBITMQ_PASSWORD', 'guest'),
-    vhost: readWorkersFallbackString('WORKERS_RABBITMQ_VHOST', 'RABBITMQ_VHOST', '/'),
-    httpGatewayUrl: readWorkersFallbackString(
-      'WORKERS_RABBITMQ_HTTP_GATEWAY_URL',
-      'RABBITMQ_HTTP_GATEWAY_URL'
-    ),
-    httpGatewayToken: readWorkersFallbackString(
-      'WORKERS_RABBITMQ_HTTP_GATEWAY_TOKEN',
-      'RABBITMQ_HTTP_GATEWAY_TOKEN'
-    ),
-    httpGatewayTimeoutMs: readWorkersFallbackInt(
-      'WORKERS_RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS',
-      'RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS',
-      15000
-    ),
-  },
-  sqs: {
-    driver: 'sqs' as const,
-    key: Env.get('AWS_ACCESS_KEY_ID'),
-    secret: Env.get('AWS_SECRET_ACCESS_KEY'),
-    region: Env.AWS_REGION,
-    queueUrl: Env.get('AWS_SQS_QUEUE_URL'),
-  },
+  redis: createRedisQueueDriver(),
+  rabbitmq: createRabbitMqQueueDriver(),
+  sqs: createSqsQueueDriver(),
 });
 
 /**
@@ -217,6 +265,7 @@ const createBaseMonitor = (): {
   middleware: ReadonlyArray<string>;
   autoRefresh: boolean;
   refreshIntervalMs: number;
+  queueDataTimeoutMs: number;
 } => {
   const enabled = Env.getBool('QUEUE_MONITOR_ENABLED', false);
   const basePath = Env.get('QUEUE_MONITOR_BASE_PATH', '/queue-monitor');
@@ -251,6 +300,7 @@ const createBaseMonitor = (): {
     middleware,
     autoRefresh: Env.getBool('QUEUE_MONITOR_AUTO_REFRESH', true),
     refreshIntervalMs: Env.getInt('QUEUE_MONITOR_REFRESH_MS', 5000),
+    queueDataTimeoutMs: Env.getInt('QUEUE_DATA_TIMEOUT_MS', 10000),
   };
 };
 
@@ -266,6 +316,7 @@ const createQueueConfig = (): {
     middleware: ReadonlyArray<string>;
     autoRefresh: boolean;
     refreshIntervalMs: number;
+    queueDataTimeoutMs: number;
   };
 } => {
   const overrides: QueueConfigOverrides =
@@ -349,10 +400,7 @@ const ensureQueueConfig = (): QueueConfig => {
   cached = createQueueConfig();
 
   try {
-    Object.defineProperties(
-      proxyTarget as unknown as object,
-      Object.getOwnPropertyDescriptors(cached)
-    );
+    Object.defineProperties(proxyTarget, Object.getOwnPropertyDescriptors(cached));
   } catch {
     // best-effort
   }
@@ -366,10 +414,10 @@ export const queueConfig: QueueConfig = new Proxy(proxyTarget, {
   },
   ownKeys() {
     ensureQueueConfig();
-    return Reflect.ownKeys(proxyTarget as unknown as object);
+    return Reflect.ownKeys(proxyTarget);
   },
   getOwnPropertyDescriptor(_target, prop) {
     ensureQueueConfig();
-    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+    return Object.getOwnPropertyDescriptor(proxyTarget, prop);
   },
 });

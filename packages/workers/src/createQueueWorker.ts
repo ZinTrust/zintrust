@@ -1,6 +1,8 @@
-import type { BullMQPayload, QueueMessage } from '@zintrust/core';
-import * as Core from '@zintrust/core';
-import { Env, Logger, Queue } from '@zintrust/core';
+import { Env } from '@zintrust/core/config';
+import { Logger } from '@zintrust/core/logger';
+import type { BullMQPayload, QueueMessage } from '@zintrust/core/queue';
+import { JobHeartbeatStore, JobStateTracker, Queue, TimeoutManager } from '@zintrust/core/queue';
+import { SystemTraceBridge } from '@zintrust/core/trace';
 import { recordQueueMonitorJob } from './queueMonitorHistory';
 
 type QueueApi = Readonly<{
@@ -16,38 +18,6 @@ const TypedQueue = Queue as QueueApi;
 
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 30000;
-
-const getJobStateTracker = (): unknown => {
-  try {
-    return (Core as Record<string, unknown>)['JobStateTracker'];
-  } catch {
-    return undefined;
-  }
-};
-
-const getJobHeartbeatStore = (): unknown => {
-  try {
-    return (Core as Record<string, unknown>)['JobHeartbeatStore'];
-  } catch {
-    return undefined;
-  }
-};
-
-const getTimeoutManager = (): unknown => {
-  try {
-    return (Core as Record<string, unknown>)['TimeoutManager'];
-  } catch {
-    return undefined;
-  }
-};
-
-const getSystemTraceBridge = (): unknown => {
-  try {
-    return (Core as Record<string, unknown>)['SystemTraceBridge'];
-  } catch {
-    return undefined;
-  }
-};
 
 const getEnvInt = (key: string, fallback: number): number => {
   const getter = (Env as { getInt?: (name: string, defaultValue: number) => number }).getInt;
@@ -65,8 +35,7 @@ const getEnvInt = (key: string, fallback: number): number => {
 };
 
 const resolveQueueJobTimeoutMs = (): number => {
-  const timeoutManager = getTimeoutManager();
-  const tm = (timeoutManager ?? {}) as { getQueueJobTimeoutMs?: () => number };
+  const tm = (TimeoutManager ?? {}) as { getQueueJobTimeoutMs?: () => number };
   if (typeof tm.getQueueJobTimeoutMs === 'function') {
     return tm.getQueueJobTimeoutMs();
   }
@@ -78,8 +47,7 @@ const runWithTimeout = async <T>(
   timeoutMs: number,
   operationName: string
 ): Promise<T> => {
-  const timeoutManager = getTimeoutManager();
-  const tm = (timeoutManager ?? {}) as {
+  const tm = (TimeoutManager ?? {}) as {
     withTimeout?: <R>(
       op: () => Promise<R>,
       t: number,
@@ -94,8 +62,7 @@ const runWithTimeout = async <T>(
 };
 
 const isTimeoutError = (error: unknown): boolean => {
-  const timeoutManager = getTimeoutManager();
-  const tm = (timeoutManager ?? {}) as { isTimeoutError?: (value: unknown) => boolean };
+  const tm = (TimeoutManager ?? {}) as { isTimeoutError?: (value: unknown) => boolean };
   if (typeof tm.isTimeoutError === 'function') {
     return tm.isTimeoutError(error);
   }
@@ -230,15 +197,15 @@ const getWorkerInstanceId = (): string | undefined => {
 };
 
 const getTrackerApi = (): TrackerApi => {
-  return (getJobStateTracker() ?? {}) as TrackerApi;
+  return (JobStateTracker ?? {}) as TrackerApi;
 };
 
 const getHeartbeatStoreApi = (): HeartbeatStoreApi => {
-  return (getJobHeartbeatStore() ?? {}) as HeartbeatStoreApi;
+  return (JobHeartbeatStore ?? {}) as HeartbeatStoreApi;
 };
 
 const emitJobProcessed = (name: string): void => {
-  const bridge = (getSystemTraceBridge() ?? {}) as {
+  const bridge = (SystemTraceBridge ?? {}) as {
     emitJobProcessed?: (jobName: string) => void;
   };
 
@@ -246,7 +213,7 @@ const emitJobProcessed = (name: string): void => {
 };
 
 const emitJobFailed = (name: string, error: Error): void => {
-  const bridge = (getSystemTraceBridge() ?? {}) as {
+  const bridge = (SystemTraceBridge ?? {}) as {
     emitJobFailed?: (jobName: string, failure: Error) => void;
   };
 

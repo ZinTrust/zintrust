@@ -27,6 +27,11 @@ export { TraceContentRedaction } from './storage/TraceContentRedaction';
 export { TraceContext } from './context';
 
 // ---------------------------------------------------------------------------
+// Runtime
+// ---------------------------------------------------------------------------
+export { BackgroundTaskScheduler } from './runtime/BackgroundTaskScheduler';
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 export { registerTraceDashboard, registerTraceRoutes } from './dashboard/routes';

@@ -67,3 +67,71 @@ Plain functions and frozen function-objects also map cleanly to microservice arc
 - Replace inheritance with composition: build features by combining small modules.
 - Keep state explicit: pass state/dependencies in, return data out.
 - Seal public APIs: export `Object.freeze({ ... })` so consumers rely on stable surfaces.
+
+## Bundle Pruning & Subpath Exports
+
+ZinTrust supports bundle pruning through subpath exports, allowing production Workers to import only the code they need.
+
+### Available Subpaths
+
+**Runtime-only entrypoint (leanest):**
+
+- `@zintrust/core/runtime` - Core HTTP, routing, validation, ORM primitives, and runtime detection. Excludes CLI, tools, security, auth, and other optional domains.
+
+**Feature-specific subpaths:**
+
+- `@zintrust/core/security` - CSRF, JWT, encryption, hashing, sanitization, XSS protection
+- `@zintrust/core/auth` - Auth service and LoginFlow
+- `@zintrust/core/redis` - Redis key management and BullMQ-safe queue names
+- `@zintrust/core/config` - Configuration helpers and config objects
+- `@zintrust/core/orm` - Database adapters and ORM functionality
+- `@zintrust/core/tools/*` - Service integrations (mail, notification, storage, queue, broadcast, http)
+- `@zintrust/core/proxy` - Proxy integrations (D1, KV, email)
+- `@zintrust/core/cli` - CLI utilities and commands
+- `@zintrust/core/seeders` - Database seeding utilities
+- `@zintrust/core/testing` - Test helpers
+- `@zintrust/core/scripts` - Script utilities
+- `@zintrust/core/templates` - Template generators
+
+**Full compatibility entrypoint:**
+
+- `@zintrust/core` - Root export with all features (for backward compatibility)
+
+### Bundle Size Impact
+
+Workers that only need HTTP routing and basic ORM can use `@zintrust/core/runtime` and skip:
+
+- ~2.1M from CLI utilities
+- ~1.3M from tools
+- ~596K from ORM adapters
+- ~528K from proxy
+- ~528K from config domains
+- ~340K from templates
+- ~200-300K from security/auth/redis (when not needed)
+
+### Usage Example
+
+```typescript
+// For production Workers (minimal bundle)
+import { Router, Request, Response } from '@zintrust/core/runtime';
+
+// For apps needing auth
+import { Auth } from '@zintrust/core/auth';
+import { JwtManager } from '@zintrust/core/security';
+
+// For apps using Redis
+import { RedisKeys } from '@zintrust/core/redis';
+
+// For full compatibility (existing apps)
+import { Router, Auth, JwtManager } from '@zintrust/core';
+```
+
+### Package Subpaths
+
+**@zintrust/queue-monitor:**
+
+- `@zintrust/queue-monitor/runtime` - Runtime-only monitoring (excludes dashboard UI)
+- `@zintrust/queue-monitor/driver` - BullMQ driver
+- `@zintrust/queue-monitor/metrics` - Metrics collection
+- `@zintrust/queue-monitor/dashboard` - Dashboard UI
+- `@zintrust/queue-monitor` - Full package (backward compatible)

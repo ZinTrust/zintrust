@@ -1,4 +1,5 @@
-import { Logger, type IRequest, type IResponse } from '@zintrust/core';
+import type { IRequest, IResponse } from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
 
 export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
 

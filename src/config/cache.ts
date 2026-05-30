@@ -6,7 +6,7 @@
 
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
-import type { CacheConfigInput, CacheDriverConfig } from '@config/type';
+import type { CacheConfigInput, CacheDriverConfig, RedisCacheDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
@@ -68,6 +68,86 @@ const readWorkersFallbackInt = (
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const readWorkersFallbackBool = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback: boolean
+): boolean => {
+  const workerValue = readWorkersEnvString(workersKey);
+  if (workerValue.trim() !== '') {
+    return workerValue === 'true' || workerValue === '1';
+  }
+  return Env.getBool(fallbackKey, fallback);
+};
+
+const createRedisCacheDriver = (): RedisCacheDriverConfig => ({
+  driver: 'redis' as const,
+  host: readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
+  port: readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
+  password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD', ''),
+  database: readWorkersFallbackInt(
+    'WORKERS_REDIS_CACHE_DB',
+    'REDIS_CACHE_DB',
+    Env.getInt('REDIS_DB', 0)
+  ),
+  ttl: Env.getInt('CACHE_REDIS_TTL', 3600),
+  // Cloudflare tunnel-specific ioredis options
+  connectTimeout: readWorkersFallbackInt(
+    'WORKERS_REDIS_CONNECT_TIMEOUT',
+    'REDIS_CONNECT_TIMEOUT',
+    Env.REDIS_CONNECT_TIMEOUT
+  ),
+  keepAlive: readWorkersFallbackInt(
+    'WORKERS_REDIS_KEEP_ALIVE',
+    'REDIS_KEEP_ALIVE',
+    Env.REDIS_KEEP_ALIVE
+  ),
+  enableOfflineQueue: readWorkersFallbackBool(
+    'WORKERS_REDIS_ENABLE_OFFLINE_QUEUE',
+    'REDIS_ENABLE_OFFLINE_QUEUE',
+    Env.REDIS_ENABLE_OFFLINE_QUEUE
+  ),
+  maxLoadingRetryTime: readWorkersFallbackInt(
+    'WORKERS_REDIS_MAX_LOADING_RETRY_TIME',
+    'REDIS_MAX_LOADING_RETRY_TIME',
+    Env.REDIS_MAX_LOADING_RETRY_TIME
+  ),
+});
+
+const createBaseCacheDrivers = (): CacheConfigInput['drivers'] => ({
+  memory: {
+    driver: 'memory' as const,
+    ttl: Env.getInt('CACHE_MEMORY_TTL', 3600),
+  },
+  redis: createRedisCacheDriver(),
+  mongodb: {
+    driver: 'mongodb' as const,
+    uri: Env.get('MONGO_URI'),
+    db: Env.get('MONGO_DB', 'zintrust_cache'),
+    ttl: Env.getInt('CACHE_MONGO_TTL', 3600),
+  },
+  kv: {
+    driver: 'kv' as const,
+    ttl: Env.getInt('CACHE_KV_TTL', 3600),
+  },
+  'kv-remote': {
+    driver: 'kv-remote' as const,
+    ttl: Env.getInt('CACHE_KV_TTL', 3600),
+  },
+});
+
+const resolveDefaultCacheDriver = (): string => {
+  const envConnection = Env.get('CACHE_CONNECTION', '').trim();
+
+  const envDriver =
+    typeof (Env as unknown as { CACHE_DRIVER?: unknown }).CACHE_DRIVER === 'string'
+      ? String((Env as unknown as { CACHE_DRIVER?: unknown }).CACHE_DRIVER)
+      : Env.get('CACHE_DRIVER', 'memory');
+
+  const selected = envConnection.length > 0 ? envConnection : String(envDriver ?? 'memory');
+  return selected.trim().toLowerCase();
+};
+
 const createCacheConfig = (): {
   default: string;
   drivers: CacheConfigInput['drivers'];
@@ -75,50 +155,8 @@ const createCacheConfig = (): {
   keyPrefix: string;
   ttl: number;
 } => {
-  const baseDefault = (() => {
-    const envConnection = Env.get('CACHE_CONNECTION', '').trim();
-
-    const envDriver =
-      typeof (Env as unknown as { CACHE_DRIVER?: unknown }).CACHE_DRIVER === 'string'
-        ? String((Env as unknown as { CACHE_DRIVER?: unknown }).CACHE_DRIVER)
-        : Env.get('CACHE_DRIVER', 'memory');
-
-    const selected = envConnection.length > 0 ? envConnection : String(envDriver ?? 'memory');
-    return selected.trim().toLowerCase();
-  })();
-
-  const baseDrivers = {
-    memory: {
-      driver: 'memory' as const,
-      ttl: Env.getInt('CACHE_MEMORY_TTL', 3600),
-    },
-    redis: {
-      driver: 'redis' as const,
-      host: readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
-      port: readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
-      password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD', ''),
-      database: readWorkersFallbackInt(
-        'WORKERS_REDIS_CACHE_DB',
-        'REDIS_CACHE_DB',
-        Env.getInt('REDIS_DB', 0)
-      ),
-      ttl: Env.getInt('CACHE_REDIS_TTL', 3600),
-    },
-    mongodb: {
-      driver: 'mongodb' as const,
-      uri: Env.get('MONGO_URI'),
-      db: Env.get('MONGO_DB', 'zintrust_cache'),
-      ttl: Env.getInt('CACHE_MONGO_TTL', 3600),
-    },
-    kv: {
-      driver: 'kv' as const,
-      ttl: Env.getInt('CACHE_KV_TTL', 3600),
-    },
-    'kv-remote': {
-      driver: 'kv-remote' as const,
-      ttl: Env.getInt('CACHE_KV_TTL', 3600),
-    },
-  } satisfies CacheConfigInput['drivers'];
+  const baseDefault = resolveDefaultCacheDriver();
+  const baseDrivers = createBaseCacheDrivers();
 
   const overrides: CacheConfigOverrides =
     StartupConfigFileRegistry.get<CacheConfigOverrides>(StartupConfigFile.Cache) ?? {};
@@ -183,10 +221,7 @@ const ensureCacheConfig = (): CacheConfig => {
   cached = createCacheConfig();
 
   try {
-    Object.defineProperties(
-      proxyTarget as unknown as object,
-      Object.getOwnPropertyDescriptors(cached)
-    );
+    Object.defineProperties(proxyTarget, Object.getOwnPropertyDescriptors(cached));
   } catch {
     // best-effort
   }
@@ -200,10 +235,10 @@ export const cacheConfig: CacheConfig = new Proxy(proxyTarget, {
   },
   ownKeys() {
     ensureCacheConfig();
-    return Reflect.ownKeys(proxyTarget as unknown as object);
+    return Reflect.ownKeys(proxyTarget);
   },
   getOwnPropertyDescriptor(_target, prop) {
     ensureCacheConfig();
-    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+    return Object.getOwnPropertyDescriptor(proxyTarget, prop);
   },
 });

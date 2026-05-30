@@ -1,7 +1,7 @@
 /**
  * LogWatcher — captures Logger output via Logger.addSink().
  */
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 import { TraceContext } from '../context';
 import type { ITraceWatcher, ITraceWatcherConfig, LogContent } from '../types';
 import { EntryType } from '../types';
@@ -76,7 +76,7 @@ const shouldSkipTraceInfrastructureLog = (
 };
 
 export const LogWatcher: ITraceWatcher = Object.freeze({
-  register({ storage, config }: ITraceWatcherConfig): () => void {
+  register({ storage, config, scheduleBackgroundTask }: ITraceWatcherConfig): () => void {
     if (config.watchers.log === false) return () => undefined;
 
     const minPriority = LEVEL_PRIORITY[config.logMinLevel] ?? 1;
@@ -101,7 +101,7 @@ export const LogWatcher: ITraceWatcher = Object.freeze({
           hostname: TraceContext.getHostname(),
         };
 
-        storage
+        const writePromise = storage
           .writeEntry({
             uuid: crypto.randomUUID(),
             batchId: TraceContext.getBatchId(),
@@ -112,6 +112,12 @@ export const LogWatcher: ITraceWatcher = Object.freeze({
             createdAt: TraceContext.now(),
           })
           .catch(() => undefined);
+
+        // Use background task scheduler if available (Workers waitUntil support)
+        if (scheduleBackgroundTask) {
+          scheduleBackgroundTask(writePromise);
+        }
+        // Otherwise, the promise is already fire-and-forget with error suppression
       }
     );
 

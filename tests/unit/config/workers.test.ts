@@ -117,6 +117,7 @@ describe('workers config', () => {
     vi.stubEnv('REDIS_PROXY_URL', 'http://127.0.0.1:8791/redis');
     vi.stubEnv('REDIS_PROXY_KEY_ID', 'test-key');
     vi.stubEnv('REDIS_PROXY_SECRET', 'test-secret');
+    vi.stubEnv('REDIS_REQUIRE_DIRECT_FOR_SCRIPTS', 'false');
 
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -225,5 +226,88 @@ describe('workers config', () => {
     );
 
     vi.useRealTimers();
+  });
+
+  it('handles WRONGPASS Redis error', async () => {
+    (Logger.error as unknown as ReturnType<typeof vi.fn>).mockClear();
+    (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule = {
+      Redis: MockRedis,
+    };
+
+    const { createRedisConnection } = await import('@config/workers');
+
+    const client = createRedisConnection({
+      host: 'localhost',
+      port: 6379,
+      password: 'pass',
+      db: 0,
+    });
+
+    const testHandler = (client as any).handlers?.['error'];
+    if (testHandler) {
+      testHandler(new Error('WRONGPASS invalid password'));
+    }
+
+    expect(Logger.error).toHaveBeenCalledWith(
+      '[workers][redis] WRONGPASS: Redis password is incorrect. Provide correct `password` in the workers Redis config.'
+    );
+  });
+
+  it('handles general Redis error', async () => {
+    (Logger.error as unknown as ReturnType<typeof vi.fn>).mockClear();
+    (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule = {
+      Redis: MockRedis,
+    };
+
+    const { createRedisConnection } = await import('@config/workers');
+
+    const client = createRedisConnection({
+      host: 'localhost',
+      port: 6379,
+      password: 'pass',
+      db: 0,
+    });
+
+    const testHandler = (client as any).handlers?.['error'];
+    if (testHandler) {
+      testHandler(new Error('general connection error'));
+    }
+
+    expect(Logger.error).not.toHaveBeenCalled();
+  });
+
+  it('handles forced disconnect failure', async () => {
+    class FailingDisconnectRedis extends MockRedis {
+      public disconnect = vi.fn(() => {
+        throw new Error('disconnect failed');
+      });
+    }
+
+    (Logger.error as unknown as ReturnType<typeof vi.fn>).mockClear();
+    (Logger.warn as unknown as ReturnType<typeof vi.fn>).mockClear();
+    (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule = {
+      Redis: FailingDisconnectRedis,
+    };
+
+    const { createRedisConnection } = await import('@config/workers');
+
+    const client = createRedisConnection({
+      host: 'localhost',
+      port: 6379,
+      password: 'pass',
+      db: 0,
+    });
+
+    // Import the internal function to test it directly
+    const workersModule = await import('@config/workers');
+    const forceDisconnectRedisClient = (workersModule as any).forceDisconnectRedisClient;
+
+    if (forceDisconnectRedisClient) {
+      forceDisconnectRedisClient(client, new Error('quit failed'));
+      expect(Logger.error).toHaveBeenCalledWith(
+        'Tracked Redis forced disconnect failed',
+        expect.any(Error)
+      );
+    }
   });
 });

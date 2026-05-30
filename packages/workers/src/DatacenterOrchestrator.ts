@@ -4,7 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import { ClusterLock } from './ClusterLock';
 
 export type DatacenterRegion = {

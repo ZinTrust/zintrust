@@ -1,10 +1,11 @@
-import { ErrorFactory } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { warnSpy } = vi.hoisted(() => ({ warnSpy: vi.fn() }));
 
-vi.mock('@zintrust/core', async () => {
-  const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
+vi.mock('@zintrust/core/logger', async () => {
+  const actual =
+    await vi.importActual<typeof import('@zintrust/core/logger')>('@zintrust/core/logger');
 
   return {
     ...actual,

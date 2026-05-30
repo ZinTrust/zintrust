@@ -21,6 +21,7 @@
  */
 import { TraceConfig } from './config';
 import { TraceContext } from './context';
+import { BackgroundTaskScheduler } from './runtime/BackgroundTaskScheduler';
 import { ProxyTraceStorage, TraceServiceTag, TraceStorage } from './storage';
 import { TraceContentBudget } from './storage/TraceContentBudget';
 import { TraceContentRedaction } from './storage/TraceContentRedaction';
@@ -530,7 +531,7 @@ const createTraceWatcherArgs = async (
   core: CoreApi,
   Env: TraceEnvApi,
   config: ReturnType<typeof TraceConfig.merge>
-): Promise<Pick<ITraceWatcherConfig, 'storage' | 'config' | 'db'>> => {
+): Promise<Pick<ITraceWatcherConfig, 'storage' | 'config' | 'db' | 'scheduleBackgroundTask'>> => {
   const resolvedConnectionName = resolveTraceConnectionName(Env, config.connection);
   const resolvedObservedConnectionName = resolveObservedConnectionName(
     Env,
@@ -587,7 +588,14 @@ const createTraceWatcherArgs = async (
     }
   );
 
-  return { storage, config, db: observedDb };
+  return {
+    storage,
+    config,
+    db: observedDb,
+    scheduleBackgroundTask: (task: Promise<void>): void => {
+      BackgroundTaskScheduler.schedule(task);
+    },
+  };
 };
 
 const registerTraceWatchers = async (

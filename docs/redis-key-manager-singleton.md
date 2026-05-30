@@ -16,7 +16,7 @@ The `RedisKeyManager` has been refactored to use a singleton pattern for managin
 ### Modern Approach (Recommended)
 
 ```typescript
-import { RedisKeys } from '@zintrust/core';
+import { RedisKeys } from '@zintrust/core/redis';
 
 // Worker metrics keys
 const metricsKey = RedisKeys.createMetricsKey('emailWorker', 'processed', 'hourly');
@@ -46,7 +46,7 @@ import {
   createBullMQKey,
   METRICS_PREFIX,
   HEALTH_PREFIX,
-} from '@zintrust/core';
+} from '@zintrust/core/redis';
 
 // These still work but are deprecated
 const workerKey = createWorkerKey('emailWorker');
@@ -125,7 +125,7 @@ public get metricsPrefix(): string {
 For testing purposes, you can reset all cached keys:
 
 ```typescript
-import { RedisKeys } from '@zintrust/core';
+import { RedisKeys } from '@zintrust/core/redis';
 
 // In test teardown
 afterEach(() => {
@@ -140,7 +140,7 @@ afterEach(() => {
 **Before:**
 
 ```typescript
-import { createWorkerKey, METRICS_PREFIX } from '@zintrust/core';
+import { createWorkerKey, METRICS_PREFIX } from '@zintrust/core/redis';
 
 const key = createWorkerKey('myWorker');
 const prefix = METRICS_PREFIX;
@@ -149,7 +149,7 @@ const prefix = METRICS_PREFIX;
 **After:**
 
 ```typescript
-import { RedisKeys } from '@zintrust/core';
+import { RedisKeys } from '@zintrust/core/redis';
 
 const key = RedisKeys.createWorkerKey('myWorker');
 const prefix = RedisKeys.metricsPrefix;
@@ -167,7 +167,7 @@ const key = `${METRICS_PREFIX}${workerName}:${metricType}:${granularity}`;
 **After:**
 
 ```typescript
-import { RedisKeys } from '@zintrust/core';
+import { RedisKeys } from '@zintrust/core/redis';
 
 const key = RedisKeys.createMetricsKey(workerName, metricType, granularity);
 ```

@@ -6,6 +6,21 @@ import * as path from 'node:path';
 
 import { getWorkerDetails, getWorkers } from '../../src/dashboard/workers-api';
 
+const queueMonitorState = vi.hoisted(() => ({
+  failSnapshot: false,
+}));
+
+vi.mock('@zintrust/queue-monitor', () => ({
+  QueueMonitor: {
+    create: () => ({
+      getSnapshot: () =>
+        queueMonitorState.failSnapshot
+          ? Promise.reject(new Error('Queue monitor unavailable'))
+          : Promise.resolve({ queues: [] }),
+    }),
+  },
+}));
+
 vi.unmock('@zintrust/workers');
 const workersModule = await import('@zintrust/workers');
 const WorkerFactory = workersModule.WorkerFactory as unknown as {
@@ -56,6 +71,9 @@ const writeWorkerModule = (
 
 describe('file-backed worker discovery', () => {
   afterEach(async () => {
+    vi.useRealTimers();
+    queueMonitorState.failSnapshot = false;
+
     if (originalProjectRoot === undefined) {
       delete process.env['ZINTRUST_PROJECT_ROOT'];
     } else {
@@ -113,9 +131,29 @@ describe('file-backed worker discovery', () => {
       expect(list.workers).toHaveLength(1);
       expect(list.workers[0]?.name).toBe('digest-worker');
       expect(list.workers[0]?.driver).toBe('memory');
-      expect(list.workers[0]?.details?.configuration.queueName).toBe('digest-queue');
-      expect(details.details?.configuration.processorSpec).toBe('app/Workers/DigestWorker.js');
-      expect(details.details?.configuration.version).toBe('2.3.4');
+      expect(list.workers[0]?.details?.configuration['queueName']).toBe('digest-queue');
+      expect(details.details?.configuration['processorSpec']).toBe('app/Workers/DigestWorker.js');
+      expect(details.details?.configuration['version']).toBe('2.3.4');
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves configured queue driver when queue statistics fail', async () => {
+    const projectRoot = createTempProjectRoot();
+    try {
+      queueMonitorState.failSnapshot = true;
+      process.env['ZINTRUST_PROJECT_ROOT'] = projectRoot;
+      process.env['WORKER_PERSISTENCE_DRIVER'] = 'memory';
+      process.env['QUEUE_DRIVER'] = 'redis';
+      writeWorkerModule(projectRoot);
+
+      const list = await getWorkers({ page: 1, limit: 20, includeDetails: false });
+
+      expect(list.queueData.driver).toBe('redis');
+      expect(list.queueData.totalQueues).toBe(0);
+      expect(list.queueData.totalJobs).toBe(0);
+      expect(list.workers).toHaveLength(1);
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
     }

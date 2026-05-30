@@ -18,8 +18,7 @@ export type ResolvedEnvState = {
 };
 
 // Cache process check once at module load time
-const processLike: ProcessLike | undefined =
-  typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
+const processLike: ProcessLike | undefined = typeof process === 'undefined' ? undefined : process;
 
 let externalEnvSource: EnvSource | null = null;
 const DIRECT_ENV_SOURCE = 'direct-env';
@@ -432,6 +431,7 @@ export const Env = Object.freeze({
     'REDIS_PROXY_SIGNING_WINDOW_MS',
     getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
   ),
+  REDIS_REQUIRE_DIRECT_FOR_SCRIPTS: getBool('REDIS_REQUIRE_DIRECT_FOR_SCRIPTS', true),
   USE_REDIS_PROXY: getBool('USE_REDIS_PROXY', false),
 
   SMTP_PROXY_URL: get('SMTP_PROXY_URL', ''),
@@ -457,10 +457,7 @@ export const Env = Object.freeze({
   MAIL_CLOUDFLARE_PROXY_URL: get('MAIL_CLOUDFLARE_PROXY_URL', ''),
   MAIL_CLOUDFLARE_PROXY_KEY_ID: get('MAIL_CLOUDFLARE_PROXY_KEY_ID', PROXY_KEY_ID_FALLBACK),
   MAIL_CLOUDFLARE_PROXY_SECRET: get('MAIL_CLOUDFLARE_PROXY_SECRET', PROXY_SECRET_FALLBACK),
-  MAIL_CLOUDFLARE_PROXY_TIMEOUT_MS: getInt(
-    'MAIL_CLOUDFLARE_PROXY_TIMEOUT_MS',
-    ZT_PROXY_TIMEOUT_MS
-  ),
+  MAIL_CLOUDFLARE_PROXY_TIMEOUT_MS: getInt('MAIL_CLOUDFLARE_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
   MAIL_HOST: get('MAIL_HOST', ''),
   MAIL_PORT: getInt('MAIL_PORT', 587),
   MAIL_USERNAME: get('MAIL_USERNAME', ''),
@@ -516,6 +513,11 @@ export const Env = Object.freeze({
   REDIS_PASSWORD: get('REDIS_PASSWORD', ''),
   REDIS_DB: getInt('REDIS_DB', 0),
   REDIS_URL: get('REDIS_URL', ''),
+  // Cloudflare tunnel-specific ioredis options
+  REDIS_CONNECT_TIMEOUT: getInt('REDIS_CONNECT_TIMEOUT', 7000),
+  REDIS_KEEP_ALIVE: getInt('REDIS_KEEP_ALIVE', 5000),
+  REDIS_ENABLE_OFFLINE_QUEUE: getBool('REDIS_ENABLE_OFFLINE_QUEUE', true),
+  REDIS_MAX_LOADING_RETRY_TIME: getInt('REDIS_MAX_LOADING_RETRY_TIME', 5000),
   MONGO_URI: get('MONGO_URI'),
   MONGO_DB: get('MONGO_DB', 'zintrust_cache'),
 
@@ -599,7 +601,7 @@ export const Env = Object.freeze({
   // Logging
   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
   LOG_FORMAT: get('LOG_FORMAT', 'text'),
-  LOG_CHANNEL: get('LOG_CHANNEL', ''),
+  LOG_CHANNEL: get('LOG_CHANNEL', 'console'),
   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
   LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', true),
   LOG_TO_FILE: getBool('LOG_TO_FILE', false),

@@ -16,52 +16,15 @@ export { SignedRequest } from '@security/SignedRequest';
 
 export { Server } from '@boot/Server';
 export { ServiceContainer } from '@container/ServiceContainer';
-export { createPaginator, getNextPageUrl, getPrevPageUrl, Paginator } from '@database/Paginator';
+export { Paginator, createPaginator, getNextPageUrl, getPrevPageUrl } from '@database/Paginator';
 export type {
   CreatePaginatorInput,
   PaginationLinks,
   PaginationQuery,
   Paginator as PaginatorType,
 } from '@database/Paginator';
-export { Controller } from '@http/Controller';
-export { FileUpload } from '@http/FileUpload';
-export type { FileUploadOptions, IFileUploadHandler, UploadedFile } from '@http/FileUpload';
-export { Kernel } from '@http/Kernel';
-export { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
-export { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
-export { BodyParsers } from '@http/parsers/BodyParsers';
-export { MultipartParser } from '@http/parsers/MultipartParser';
-export { MultipartParserRegistry } from '@http/parsers/MultipartParserRegistry';
-export type {
-  MultipartFieldValue,
-  MultipartParseInput,
-  MultipartParserProvider,
-  ParsedMultipartData,
-} from '@http/parsers/MultipartParserRegistry';
-export { Request } from '@http/Request';
-export type { IRequest, ValidatedRequest } from '@http/Request';
-export { RequestContext } from '@http/RequestContext';
-export { Response } from '@http/Response';
-export type { IResponse } from '@http/Response';
-export {
-  getValidatedBody,
-  getValidatedHeaders,
-  getValidatedParams,
-  getValidatedQuery,
-  hasValidatedBody,
-  requireValidatedBody,
-  ValidationHelper,
-} from '@http/ValidationHelper';
-export { BulletproofAuthMiddleware } from '@middleware/BulletproofAuthMiddleware';
-export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
-export { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
-export { LoggingMiddleware } from '@middleware/LoggingMiddleware';
-export { MiddlewareStack } from '@middleware/MiddlewareStack';
-export type { Middleware } from '@middleware/MiddlewareStack';
-export { RateLimiter } from '@middleware/RateLimiter';
-export { SecurityMiddleware } from '@middleware/SecurityMiddleware';
-export { SessionMiddleware } from '@middleware/SessionMiddleware';
-export { ValidationMiddleware } from '@middleware/ValidationMiddleware';
+
+// HTTP primitives - re-exported from runtime
 export { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 export { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
@@ -72,8 +35,49 @@ export { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
-export type { InsertResult, IQueryBuilder, PaginationOptions } from '@orm/QueryBuilder';
+export type { IQueryBuilder, InsertResult, PaginationOptions } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
+export {
+  BodyParsers,
+  BulletproofAuthMiddleware,
+  Controller,
+  CsrfMiddleware,
+  ErrorHandlerMiddleware,
+  FileUpload,
+  Kernel,
+  LoggingMiddleware,
+  MiddlewareStack,
+  MultipartParser,
+  RateLimiter,
+  Request,
+  RequestContext,
+  Response,
+  SecurityMiddleware,
+  SessionMiddleware,
+  ValidationHelper,
+  ValidationMiddleware,
+  bodyParsingMiddleware,
+  fileUploadMiddleware,
+  getValidatedBody,
+  getValidatedHeaders,
+  getValidatedParams,
+  getValidatedQuery,
+  hasValidatedBody,
+  requireValidatedBody,
+} from '@zintrust/core/runtime';
+export type {
+  FileUploadOptions,
+  IFileUploadHandler,
+  IRequest,
+  IResponse,
+  Middleware,
+  MultipartFieldValue,
+  MultipartParseInput,
+  MultipartParserProvider,
+  ParsedMultipartData,
+  UploadedFile,
+  ValidatedRequest,
+} from '@zintrust/core/runtime';
 
 // Time Utilities
 export { DateTime } from '@time/DateTime';
@@ -89,19 +93,21 @@ export { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
 export type { OpenApiGeneratorOptions } from '@/openapi/OpenApiGenerator';
 export { Router } from '@core-routes/Router';
 export type { IRouter } from '@core-routes/Router';
-export { normalizeRouteMeta, RouteRegistry } from '@core-routes/RouteRegistry';
+export { RouteRegistry, normalizeRouteMeta } from '@core-routes/RouteRegistry';
 export type { RouteMeta, RouteMetaInput, RouteRegistration } from '@core-routes/RouteRegistry';
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 
-// Common
+// Common - re-exported from runtime
 export {
+  ContextLoader,
+  RemoteSignedJson,
+  Utilities,
+  delay,
+  ensureDirSafe,
   generateSecureJobId,
   generateUuid,
   getString,
-  Utilities,
-  type UtilitiesType,
-} from '@/common/utility';
-export { ContextLoader } from '@common/ContextLoader';
+} from '@zintrust/core/runtime';
 export type {
   ContextLoaderBatchHandler,
   ContextLoaderBatchKey,
@@ -111,13 +117,12 @@ export type {
   ContextLoaderMode,
   ContextLoaderPlan,
   ContextLoaderResolver,
-} from '@common/ContextLoader';
-export { delay, ensureDirSafe } from '@common/index';
-export { RemoteSignedJson } from '@common/RemoteSignedJson';
-export type { RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
+  RemoteSignedJsonSettings,
+  UtilitiesType,
+} from '@zintrust/core/runtime';
 
 // Collections
-export { collect, Collection } from '@/collections/index';
+export { Collection, collect } from '@/collections/index';
 export type { ICollection, PrimitiveKey } from '@/collections/index';
 
 // HTTP Client
@@ -217,7 +222,7 @@ export type {
   PasswordResetTokenBrokerType,
   PasswordResetTokenRecord,
 } from '@security/PasswordResetTokenBroker';
-export { createSanitizer, Sanitizer, type SanitizerType } from '@security/Sanitizer';
+export { Sanitizer, createSanitizer, type SanitizerType } from '@security/Sanitizer';
 export { TokenRevocation } from '@security/TokenRevocation';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
@@ -227,10 +232,10 @@ export { ErrorFactory } from '@exceptions/ZintrustError';
 
 // Runtime services
 export {
-  detectCloudflareWorkers,
-  detectRuntimePlatform,
   RUNTIME_PLATFORM,
   RuntimeServices,
+  detectCloudflareWorkers,
+  detectRuntimePlatform,
   type RuntimeCrypto,
   type RuntimeEnvReader,
   type RuntimeFs,
@@ -302,8 +307,7 @@ export type { MicroservicesConfig } from '@config/microservices';
 // Microservices
 export { MicroserviceBootstrap } from '@microservices/MicroserviceBootstrap';
 export type { IMicroserviceBootstrap, ServiceConfig } from '@microservices/MicroserviceBootstrap';
-export { MicroserviceManager } from '@microservices/MicroserviceManager';
-export type { IMicroserviceManager, MicroserviceConfig } from '@microservices/MicroserviceManager';
+// MicroserviceManager and ProjectRuntime moved to @zintrust/core/runtime
 export { RequestTracingMiddleware } from '@microservices/RequestTracingMiddleware';
 export { ServiceAuthMiddleware } from '@microservices/ServiceAuthMiddleware';
 export { HealthCheckHandler, ServiceHealthMonitor } from '@microservices/ServiceHealthMonitor';
@@ -318,9 +322,8 @@ export {
   normalizeServiceManifest,
 } from '@microservices/ServiceManifest';
 export type { ProjectRuntimeModule, ServiceManifestEntry } from '@microservices/ServiceManifest';
-export { ProjectRuntime } from '@runtime/ProjectRuntime';
 
-export { clearMiddlewareConfigCache, middlewareConfig, MiddlewareKeys } from '@config/middleware';
+export { MiddlewareKeys, clearMiddlewareConfigCache, middlewareConfig } from '@config/middleware';
 export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 
@@ -348,10 +351,10 @@ export { FeatureFlags } from '@config/features';
 
 export { Cloudflare } from '@config/cloudflare';
 export {
-  getDatabaseCredentials,
-  getJwtSecrets,
   SECRETS,
   SecretsManager,
+  getDatabaseCredentials,
+  getJwtSecrets,
 } from '@config/SecretsManager';
 export type { DatabaseCredentials, JwtSecrets } from '@config/SecretsManager';
 export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type';
@@ -423,6 +426,7 @@ export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/Broadcas
 // forcing resolution of `@zintrust/workers` for consumers that don't use it.
 
 // Storage (for file management and signed URLs)
+export { MultipartParserRegistry } from '@http/parsers/MultipartParserRegistry';
 export { Storage } from '@tools/storage/index';
 export { LocalSignedUrl } from '@tools/storage/LocalSignedUrl';
 export { StorageDriverRegistry } from '@tools/storage/StorageDriverRegistry';
@@ -537,17 +541,18 @@ export { ZintrustLang } from '@lang/lang';
 
 // Workers config
 export { createRedisConnection, workersConfig } from '@config/workers';
+export type { RedisTransportOptions } from '@tools/redis/RedisTransport';
 
 export type { RouteOptions } from '@core-routes/Router';
 
 // Redis config key - Singleton exports
 export {
+  RedisKeys,
   createRedisKey,
   extractOriginalKey,
   getBullMQSafeQueueName,
   getPrefix,
   isAppKey,
-  RedisKeys,
   type RedisKeyType,
 } from '@tools/redis/RedisKeyManager';
 

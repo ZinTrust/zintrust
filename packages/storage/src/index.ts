@@ -3,7 +3,7 @@ export type {
   MultipartParseInput,
   MultipartParserProvider,
   ParsedMultipartData,
-} from '@zintrust/core';
+} from '@zintrust/core/http';
 
 export {
   registerStreamingMultipartParser,

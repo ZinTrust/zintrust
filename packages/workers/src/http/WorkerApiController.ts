@@ -3,8 +3,8 @@
  * HTTP handlers for worker management API
  */
 
-import type { IRequest, IResponse } from '@zintrust/core';
-import { Logger } from '@zintrust/core';
+import type { IRequest, IResponse } from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
 import type {
   GetWorkersQuery,
   WorkerDriver,
@@ -13,7 +13,7 @@ import type {
   WorkerStatus,
 } from '../dashboard/types';
 import { getWorkerDetails, getWorkers } from '../dashboard/workers-api';
-import { getParam } from '../helper';
+import { getParam, maskInfrastructurePasswords } from '../helper';
 import { WorkerFactory } from '../WorkerFactory';
 
 /**
@@ -116,7 +116,28 @@ export const listWorkers = async (req: IRequest, res: IResponse): Promise<void> 
     };
 
     const result = await getWorkers(queryParams);
-    res.json(result);
+
+    // Mask passwords in infrastructure data for all workers
+    const maskedWorkers = result.workers.map((worker) => {
+      const maskedWorker = { ...worker };
+      if (maskedWorker.details?.configuration) {
+        maskedWorker.details = {
+          ...maskedWorker.details,
+          configuration: {
+            ...maskedWorker.details.configuration,
+            infrastructure: maskInfrastructurePasswords(
+              maskedWorker.details.configuration['infrastructure'] as Record<string, unknown> | null
+            ),
+          },
+        };
+      }
+      return maskedWorker;
+    });
+
+    res.json({
+      ...result,
+      workers: maskedWorkers,
+    });
   } catch (error) {
     Logger.error('Error fetching workers:', error);
     res.status(500).json({
@@ -138,6 +159,8 @@ export const getWorkerDetailsHandler = async (req: IRequest, res: IResponse): Pr
     }
     const driver = getQueryParam(req.getQuery?.() || {}, 'driver');
     const details = await getWorkerDetails(name, driver);
+
+    // Password masking is already applied in buildWorkerConfiguration
     res.json(details);
   } catch (error) {
     if (error instanceof Error && error.message.includes('not found')) {
@@ -239,6 +262,7 @@ const getWorkerJsonHandler = async (req: IRequest, res: IResponse): Promise<void
       });
     }
 
+    // Mask passwords in infrastructure data (already applied in buildWorkerConfiguration)
     return res.json({
       success: true,
       data: worker,
@@ -279,9 +303,17 @@ const getWorkerDriverDataHandler = async (req: IRequest, res: IResponse): Promis
       });
     }
 
+    // Mask passwords in infrastructure data
+    const maskedData = {
+      ...persistedData,
+      infrastructure: maskInfrastructurePasswords(
+        persistedData['infrastructure'] as Record<string, unknown> | null
+      ),
+    };
+
     return res.json({
       success: true,
-      data: persistedData,
+      data: maskedData,
     });
   } catch (error) {
     Logger.error('Failed to get worker driver data', error);
@@ -337,6 +369,7 @@ const updateWorkerJsonHandler = async (req: IRequest, res: IResponse): Promise<v
     // In a real implementation, this would update the worker in the database
     const updatedWorker = { ...existingWorker, ...workerData };
 
+    // Password masking is already applied in buildWorkerConfiguration via getWorkerDetails
     return res.json({
       success: true,
       data: updatedWorker,

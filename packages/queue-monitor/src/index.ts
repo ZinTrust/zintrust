@@ -1,25 +1,35 @@
+import { Env, queueConfig } from '@zintrust/core/config';
 import {
-  Env,
-  isNonEmptyString,
-  Logger,
-  queueConfig,
-  resolveLockPrefix,
   Router,
-  ShutdownTrace,
   type IRequest,
   type IResponse,
   type IRouter,
   type RouteOptions,
-} from '@zintrust/core';
-import { createRedisConnection, type RedisConfig } from './connection';
-import { getDashboardHtml } from './dashboard-ui';
-import { createBullMQDriver, type QueueDriver, type RetrySnapshot } from './driver';
-import { createMetrics, type Metrics } from './metrics';
-import { getRecentJobsForSelection, QueueMonitoringStream } from './QueueMonitoringService';
+} from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
+import { resolveLockPrefix } from '@zintrust/core/queue';
+import { isNonEmptyString } from '@zintrust/core/utils';
+import { ShutdownTrace } from '@zintrust/core/workers';
+import { createRedisConnection, type RedisConfig } from './connection.js';
+import { getDashboardHtml } from './dashboard-ui.js';
+import {
+  createBullMQDriver as createQueueDriver,
+  type QueueDriver,
+  type RetrySnapshot,
+} from './driver.js';
+import { createMetrics, type Metrics } from './metrics.js';
+import { getRecentJobsForSelection, QueueMonitoringStream } from './QueueMonitoringService.js';
+export {
+  getRecentJobsForQueue,
+  getRecentJobsForSelection,
+  QueueMonitoringService,
+  QueueMonitoringStream,
+} from './QueueMonitoringService.js';
 
-export type { JobPayload } from './driver';
-export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics';
-export { createWorker as createQueueWorker, type QueueWorker } from './worker';
+export { createBullMQDriver } from './driver.js';
+export type { JobPayload, QueueDriver } from './driver.js';
+export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics.js';
+export { createWorker as createQueueWorker, type QueueWorker } from './worker.js';
 
 export type QueueMonitorConfig = {
   enabled?: boolean;
@@ -398,19 +408,39 @@ function createGetSnapshot(
     | undefined
 ) {
   return async (): Promise<QueueMonitorSnapshot> => {
-    const [discoveredQueues, persistedQueues] = await Promise.all([
-      driver.getQueues(),
-      resolveKnownQueues(knownQueues),
-    ]);
+    const persistedQueues = await resolveKnownQueues(knownQueues);
+    const shouldDiscoverQueues = persistedQueues.length === 0;
+    const discoveredQueues = shouldDiscoverQueues ? await driver.getQueues() : [];
     const queues = Array.from(new Set([...persistedQueues, ...discoveredQueues])).sort(
       (left, right) => left.localeCompare(right)
     );
-    const stats = await Promise.all(
-      queues.map(async (name) => {
-        const counts = await driver.getJobCounts(name);
-        return { name, counts: counts as unknown as QueueCounts };
-      })
-    );
+    Logger.info('[queue-monitor] snapshot queue list resolved', {
+      discoveredCount: discoveredQueues.length,
+      persistedCount: persistedQueues.length,
+      totalQueues: queues.length,
+      usedRedisDiscovery: shouldDiscoverQueues,
+      skippedRedisDiscovery: !shouldDiscoverQueues,
+      hasBatchCounts: typeof driver.getJobCountsMany === 'function',
+    });
+    const batchStartedAt = Date.now();
+    const stats =
+      typeof driver.getJobCountsMany === 'function'
+        ? (await driver.getJobCountsMany(queues)).map((item) => ({
+            name: item.name,
+            counts: item.counts as unknown as QueueCounts,
+          }))
+        : await Promise.all(
+            queues.map(async (name) => {
+              const counts = await driver.getJobCounts(name);
+              return { name, counts: counts as unknown as QueueCounts };
+            })
+          );
+    Logger.info('[queue-monitor] snapshot queue counts resolved', {
+      durationMs: Date.now() - batchStartedAt,
+      totalQueues: queues.length,
+      returnedQueues: stats.length,
+      usedBatchCounts: typeof driver.getJobCountsMany === 'function',
+    });
 
     return {
       status: 'ok',
@@ -523,7 +553,7 @@ function registerJobsApi(
     router,
     `${settings.basePath}/api/jobs/:queue`,
     async (req: IRequest, res: IResponse) => {
-      await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
+      await handleJobsEndpoint(req, res, metrics, driver);
     },
     routeOptions
   );
@@ -562,7 +592,7 @@ function registerRetryApi(
     router,
     `${settings.basePath}/api/retry/:queue/:jobId`,
     async (req: IRequest, res: IResponse) => {
-      await handleRetryEndpoint(req as RequestWithParams, res, driver, metrics);
+      await handleRetryEndpoint(req, res, driver, metrics);
     },
     routeOptions
   );
@@ -605,7 +635,7 @@ export const QueueMonitor = Object.freeze({
       };
     }
 
-    const driver = createBullMQDriver(redisConfig);
+    const driver = createQueueDriver(redisConfig);
     const metrics = createMetrics(redisConfig);
     const startedAt = new Date().toISOString();
     ShutdownTrace.logHandles('queue-monitor.create', {
@@ -640,8 +670,6 @@ export const QueueMonitor = Object.freeze({
 });
 
 export default QueueMonitor;
-
-export { createBullMQDriver } from './driver';
 
 /**
  * Package version and build metadata

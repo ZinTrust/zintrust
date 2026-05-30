@@ -4,7 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, generateUuid } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { generateUuid } from '@zintrust/core/utils';
 import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerMetrics, type MetricPoint, type MetricType } from './WorkerMetrics';
 
@@ -293,7 +295,7 @@ export const AnomalyDetection = Object.freeze({
           severity: selectSeverity(zScore),
           possibleCauses: buildPossibleCauses(metric),
           recommendations: buildRecommendations(metric),
-        } as IAnomaly;
+        };
       })
     );
 

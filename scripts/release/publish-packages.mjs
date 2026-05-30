@@ -274,6 +274,7 @@ async function assertCoreShimHasRequiredExports() {
       'export declare const WorkerCommands: any;',
       'export declare const OptionalCliCommandRegistry: any;',
       'export type CliCommandProvider = any;',
+      'export declare const LocalD1Resolver: {',
     ],
     'proxy.d.ts': [
       'export declare const ErrorHandler: any;',
@@ -282,6 +283,54 @@ async function assertCoreShimHasRequiredExports() {
       'export declare const WorkerSigning: {',
       'verifyNonceKv: (...args: any[]) => Promise<boolean>;',
       'verifySignedRequest: (...args: any[]) => Promise<any>;',
+      'export declare const ZintrustEmailProxy: any;',
+    ],
+    'runtime.d.ts': [
+      'export declare const NodeSingletons: {',
+      'export declare const Logger: any;',
+      'export declare const SocketFeature: any;',
+    ],
+    'errors.d.ts': ['export declare const ErrorFactory: any;'],
+    'logger.d.ts': ['export declare const Logger: any;'],
+    'utils.d.ts': ['export declare function generateUuid(): string;'],
+    'config.d.ts': [
+      'export declare const appConfig: any;',
+      'export declare const FeatureFlags: any;',
+    ],
+    'http.d.ts': [
+      'export declare const Router: any;',
+      'export type UploadedFile = any;',
+      'export declare const MultipartParserRegistry: any;',
+    ],
+    'queue.d.ts': [
+      'export declare const Queue: QueueApi;',
+      'export declare function resolveLockPrefix(): string;',
+      'export declare const RedisKeys: any;',
+    ],
+    'workers.d.ts': ['export declare const workersConfig: any;'],
+    'trace.d.ts': ['export declare const ShutdownTrace: {'],
+    'cloudflare.d.ts': ['export declare const Cloudflare: any;'],
+    'redis.d.ts': ['export declare function createRedisConnection(...args: any[]): {'],
+    'mail.d.ts': ['export declare const MailDriverRegistry: any;'],
+    'database.d.ts': [
+      'export declare const DatabaseAdapterRegistry: any;',
+      'export type DbQueryBuilder = {',
+      'export declare const BaseAdapter: {',
+      'export declare const QueryBuilder: any;',
+      'export declare const SQLiteAdapter: any;',
+      'export declare function useDatabase(...args: any[]): IDatabase;',
+      'export declare const MigrationSchema: any;',
+      'export type Blueprint = any;',
+    ],
+    'orm.d.ts': ['export declare const Model: any;'],
+    'storage.d.ts': [
+      'export declare const StorageDriverRegistry: any;',
+      'export declare const S3Driver: any;',
+    ],
+    'security.d.ts': [
+      'export declare const SignedRequest: any;',
+      'export declare const RemoteSignedJson: {',
+      'export declare const SignedRequest: any;',
     ],
   };
 
@@ -674,6 +723,10 @@ async function createCoreShim(coreVersion) {
         types: './index.d.ts',
         import: './index.js',
       },
+      './runtime': {
+        types: './runtime.d.ts',
+        import: './runtime.js',
+      },
       './cli': {
         types: './cli.d.ts',
         import: './cli.js',
@@ -681,6 +734,66 @@ async function createCoreShim(coreVersion) {
       './proxy': {
         types: './proxy.d.ts',
         import: './proxy.js',
+      },
+      './errors': {
+        types: './errors.d.ts',
+        import: './errors.js',
+      },
+      './logger': {
+        types: './logger.d.ts',
+        import: './logger.js',
+      },
+      './utils': {
+        types: './utils.d.ts',
+        import: './utils.js',
+      },
+      './config': {
+        types: './config.d.ts',
+        import: './config.js',
+      },
+      './http': {
+        types: './http.d.ts',
+        import: './http.js',
+      },
+      './queue': {
+        types: './queue.d.ts',
+        import: './queue.js',
+      },
+      './workers': {
+        types: './workers.d.ts',
+        import: './workers.js',
+      },
+      './trace': {
+        types: './trace.d.ts',
+        import: './trace.js',
+      },
+      './cloudflare': {
+        types: './cloudflare.d.ts',
+        import: './cloudflare.js',
+      },
+      './redis': {
+        types: './redis.d.ts',
+        import: './redis.js',
+      },
+      './mail': {
+        types: './mail.d.ts',
+        import: './mail.js',
+      },
+      './database': {
+        types: './database.d.ts',
+        import: './database.js',
+      },
+      './orm': {
+        types: './orm.d.ts',
+        import: './orm.js',
+      },
+      './security': {
+        types: './security.d.ts',
+        import: './security.js',
+      },
+      './storage': {
+        types: './storage.d.ts',
+        import: './storage.js',
       },
       './package.json': './package.json',
     },
@@ -887,6 +1000,110 @@ export type Blueprint = any;
 `;
   await fs.writeFile(path.join(shimDir, 'index.d.ts'), dts);
 
+  const runtimeDts = `
+export declare const NodeSingletons: {
+  fs: any;
+  path: any;
+  os: any;
+  url: any;
+  module: any;
+  process: any;
+  EventEmitter: any;
+  randomBytes: (size: number) => any;
+  createHash: (algorithm: string) => any;
+  [key: string]: any;
+};
+export declare const Logger: any;
+export declare const SocketFeature: any;
+export type SocketAuthorizationContext = any;
+export type SocketAuthorizationDecision = any;
+export type SocketAuthorizer = any;
+export type SocketAuthorizerHandler = any;
+export type SocketFeatureSettings = any;
+export type SocketNodeUpgradeInput = any;
+export type SocketPublishDecision = any;
+export type SocketPublishPolicy = any;
+export type SocketPublishPolicyHandler = any;
+export type SocketRouteRegistrar = any;
+export type SocketRuntime = any;
+export type SocketRuntimeDiagnostics = any;
+export type SocketWorkerContext = any;
+`;
+  await fs.writeFile(path.join(shimDir, 'runtime.d.ts'), runtimeDts);
+
+  const runtimeJs = `
+export const NodeSingletons = {
+  fs: {},
+  path: {},
+  os: {},
+  url: {
+    pathToFileURL() {
+      return { href: '' };
+    },
+    fileURLToPath() {
+      return '';
+    },
+  },
+  module: {
+    createRequire() {
+      return () => undefined;
+    },
+  },
+  process: {
+    cwd() {
+      return '';
+    },
+  },
+  EventEmitter: class {
+    on() {
+      return this;
+    }
+    off() {
+      return this;
+    }
+    emit() {
+      return false;
+    }
+    listenerCount() {
+      return 0;
+    }
+    setMaxListeners() {
+      return this;
+    }
+  },
+  randomBytes() {
+    return { toString() { return ''; } };
+  },
+  createCipheriv() {
+    return { update() { return ''; }, final() { return ''; } };
+  },
+  createDecipheriv() {
+    return { update() { return ''; }, final() { return ''; } };
+  },
+  pbkdf2Sync() {
+    return '';
+  },
+  createHash() {
+    return { update() { return this; }, digest() { return ''; } };
+  },
+};
+export const Logger = {};
+export const SocketFeature = {
+  getSettings() {
+    return {
+      enabled: false,
+      transport: 'auto',
+      path: '/app',
+      appId: 'local',
+      appKey: '',
+      secret: '',
+      activityTimeout: 120,
+    };
+  },
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'runtime.js'), runtimeJs);
+
   const cliDts = `
 export declare const BaseCommand: any;
 export type CommandOptions = Record<string, unknown>;
@@ -896,6 +1113,12 @@ export declare const EXIT_CODES: any;
 export declare const WorkerCommands: any;
 export declare const OptionalCliCommandRegistry: any;
 export type CliCommandProvider = any;
+export declare const LocalD1Resolver: {
+  resolveD1Binding: (...args: any[]) => any;
+  resolveLocalD1SqlitePath: (...args: any[]) => Promise<string>;
+};
+export declare const WranglerD1: any;
+export declare const WranglerConfig: any;
 `;
   await fs.writeFile(path.join(shimDir, 'cli.d.ts'), cliDts);
 
@@ -907,8 +1130,173 @@ export declare const WorkerSigning: {
   verifyNonceKv: (...args: any[]) => Promise<boolean>;
   verifySignedRequest: (...args: any[]) => Promise<any>;
 };
+export declare const ZintrustEmailProxy: any;
 `;
   await fs.writeFile(path.join(shimDir, 'proxy.d.ts'), proxyDts);
+
+  const errorsDts = `
+export declare const ErrorFactory: any;
+export declare const ZintrustError: any;
+export declare const CliError: any;
+export declare const ConfigError: any;
+export declare const ValidationError: any;
+`;
+  await fs.writeFile(path.join(shimDir, 'errors.d.ts'), errorsDts);
+
+  const loggerDts = `
+export declare const Logger: any;
+export declare function info(...args: any[]): void;
+export declare function error(...args: any[]): void;
+export declare function warn(...args: any[]): void;
+export declare function debug(...args: any[]): void;
+`;
+  await fs.writeFile(path.join(shimDir, 'logger.d.ts'), loggerDts);
+
+  const utilsDts = `
+export declare function generateUuid(): string;
+export declare function generateSecureJobId(): string;
+export declare function delay(ms: number): Promise<void>;
+export declare function ensureDirSafe(path: string): Promise<void>;
+export declare function resolveLockPrefix(): string;
+export declare function getBullMQSafeQueueName(name?: string): string;
+export declare function getValidatedBody<T = unknown>(...args: any[]): T | undefined;
+export declare function isArray(value: unknown): value is unknown[];
+export declare function isFunction(value: unknown): value is (...args: any[]) => any;
+export declare function isNonEmptyString(value: unknown): value is string;
+export declare function isObject(value: unknown): value is Record<string, unknown>;
+export declare const Broadcast: any;
+export declare const ZintrustLang: any;
+`;
+  await fs.writeFile(path.join(shimDir, 'utils.d.ts'), utilsDts);
+
+  const configDts = `
+export declare const appConfig: any;
+export declare const broadcastConfig: any;
+export declare const databaseConfig: any;
+export declare const middlewareConfig: any;
+export declare const queueConfig: any;
+export declare const workersConfig: any;
+export declare const Env: any;
+export type RedisConfig = any;
+export type WorkerAutoScalingConfig = any;
+export type WorkerComplianceConfig = any;
+export type WorkerConfig = any;
+export type WorkerCostConfig = any;
+export type WorkerObservabilityConfig = any;
+export type WorkersConfigOverrides = any;
+export type WorkersGlobalConfig = any;
+export type WorkerStatus = any;
+export type WorkerVersioningConfig = any;
+export declare const Cloudflare: any;
+export declare const FeatureFlags: any;
+`;
+  await fs.writeFile(path.join(shimDir, 'config.d.ts'), configDts);
+
+  const httpDts = `
+export type IRouter = any;
+export type IRequest = any;
+export type IResponse = any;
+export type RouteOptions = any;
+export declare const Router: any;
+export declare const RequestValidator: any;
+export declare function getValidatedBody<T = unknown>(...args: any[]): T | undefined;
+export type AssetsBinding = any;
+export declare const MIME_TYPES: any;
+export type UploadedFile = any;
+export type MultipartFieldValue = any;
+export type MultipartParseInput = any;
+export type MultipartParserProvider = any;
+export type ParsedMultipartData = any;
+export declare const MultipartParserRegistry: any;
+`;
+  await fs.writeFile(path.join(shimDir, 'http.d.ts'), httpDts);
+
+  const queueDts = `
+export type QueueMessage<T = unknown> = any;
+export type BullMQPayload = any;
+export type QueueApi = {
+  dequeue<T = unknown>(...args: any[]): Promise<QueueMessage<T> | null>;
+  [key: string]: any;
+};
+export declare const Queue: QueueApi;
+export declare const RedisQueue: any;
+export declare function resolveDeduplicationLockKey(queueName: string, deduplicationId: string): string;
+export declare const JobHeartbeatStore: any;
+export declare const JobStateTracker: any;
+export declare const TimeoutManager: any;
+export declare function resolveLockPrefix(): string;
+export declare const RedisKeys: any;
+export declare function createLockProvider(...args: any[]): any;
+export declare function getLockProvider(...args: any[]): any;
+export declare function registerLockProvider(...args: any[]): any;
+`;
+  await fs.writeFile(path.join(shimDir, 'queue.d.ts'), queueDts);
+
+  const workersDts = `
+export type WorkerConfig = any;
+export type WorkerAutoScalingConfig = any;
+export type WorkerComplianceConfig = any;
+export type WorkerCostConfig = any;
+export type WorkerObservabilityConfig = any;
+export type WorkerStatus = any;
+export type WorkerVersioningConfig = any;
+export type WorkersConfigOverrides = any;
+export type WorkersGlobalConfig = any;
+export declare const workersConfig: any;
+export declare const ShutdownTrace: {
+  log: (...args: any[]) => void;
+  logHandles: (...args: any[]) => void;
+  logBullMQWorker: (...args: any[]) => void;
+};
+export declare const NodeSingletons: {
+  fs: any;
+  path: any;
+  os: any;
+  url: any;
+  module: any;
+  process: any;
+  EventEmitter: any;
+  randomBytes: (size: number) => any;
+  createHash: (algorithm: string) => any;
+  [key: string]: any;
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'workers.d.ts'), workersDts);
+
+  const traceDts = `
+export declare const ShutdownTrace: {
+  log: (...args: any[]) => void;
+  logHandles: (...args: any[]) => void;
+  logBullMQWorker: (...args: any[]) => void;
+};
+export declare const SystemTraceBridge: any;
+`;
+  await fs.writeFile(path.join(shimDir, 'trace.d.ts'), traceDts);
+
+  const cloudflareDts = `
+export declare const Cloudflare: any;
+export declare const LocalD1Resolver: {
+  resolveD1Binding: (...args: any[]) => any;
+  resolveLocalD1SqlitePath: (...args: any[]) => Promise<string>;
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'cloudflare.d.ts'), cloudflareDts);
+
+  const redisDts = `
+export type RedisConfig = any;
+export declare const RedisKeys: any;
+export declare function createRedisConnection(...args: any[]): {
+  hgetall: (...args: any[]) => Promise<Record<string, string>>;
+  hget: (...args: any[]) => Promise<string | null>;
+  hset: (...args: any[]) => Promise<any>;
+  hmget: (...args: any[]) => Promise<Array<string | null>>;
+  hdel: (...args: any[]) => Promise<any>;
+  disconnect: () => void;
+  [key: string]: any;
+};
+export declare function getBullMQSafeQueueName(name?: string): string;
+`;
+  await fs.writeFile(path.join(shimDir, 'redis.d.ts'), redisDts);
 
   const js = `
 export const Logger = {};
@@ -1279,6 +1667,16 @@ export const OptionalCliCommandRegistry = {
     return [];
   },
 };
+export const LocalD1Resolver = {
+  resolveD1Binding() {
+    return {};
+  },
+  async resolveLocalD1SqlitePath() {
+    return '';
+  },
+};
+export const WranglerD1 = {};
+export const WranglerConfig = {};
 `;
   await fs.writeFile(path.join(shimDir, 'cli.js'), cliJs);
 
@@ -1323,8 +1721,529 @@ export const WorkerSigning = {
     return { ok: true };
   },
 };
+export const ZintrustEmailProxy = {};
 `;
   await fs.writeFile(path.join(shimDir, 'proxy.js'), proxyJs);
+
+  const errorsJs = `
+export const ErrorFactory = {
+  createConfigError(message) {
+    return new Error(message);
+  },
+  createValidationError(message) {
+    return new Error(message);
+  },
+  createCliError(message) {
+    return new Error(message);
+  },
+};
+export const ZintrustError = class extends Error {};
+export const CliError = class extends Error {};
+export const ConfigError = class extends Error {};
+export const ValidationError = class extends Error {};
+`;
+  await fs.writeFile(path.join(shimDir, 'errors.js'), errorsJs);
+
+  const loggerJs = `
+export const Logger = {
+  info(...args) {
+    console.log(...args);
+  },
+  error(...args) {
+    console.error(...args);
+  },
+  warn(...args) {
+    console.warn(...args);
+  },
+  debug(...args) {
+    console.debug(...args);
+  },
+};
+export function info(...args) {
+  Logger.info(...args);
+}
+export function error(...args) {
+  Logger.error(...args);
+}
+export function warn(...args) {
+  Logger.warn(...args);
+}
+export function debug(...args) {
+  Logger.debug(...args);
+}
+`;
+  await fs.writeFile(path.join(shimDir, 'logger.js'), loggerJs);
+
+  const utilsJs = `
+export function generateUuid() {
+  return '00000000-0000-0000-0000-000000000000';
+}
+export function generateSecureJobId() {
+  return 'job_00000000';
+}
+export async function delay(_ms) {
+  return undefined;
+}
+export async function ensureDirSafe(_path) {
+  return undefined;
+}
+export function resolveLockPrefix() {
+  return '';
+}
+export function getBullMQSafeQueueName(name = '') {
+  return name;
+}
+export function getValidatedBody() {
+  return undefined;
+}
+export function isArray(value) {
+  return Array.isArray(value);
+}
+export function isFunction(value) {
+  return typeof value === 'function';
+}
+export function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+export function isObject(value) {
+  return value !== null && typeof value === 'object';
+}
+export const Broadcast = {};
+export const ZintrustLang = {};
+`;
+  await fs.writeFile(path.join(shimDir, 'utils.js'), utilsJs);
+
+  const configJs = `
+export const appConfig = {};
+export const broadcastConfig = {
+  socket: {
+    authorize: undefined,
+    publish: undefined,
+    authMiddleware: [],
+    allowAuthRouteOverride: false,
+  },
+};
+export const databaseConfig = {};
+export const middlewareConfig = {
+  route: {},
+};
+export const queueConfig = {};
+export const workersConfig = {};
+export const Env = {};
+export const Cloudflare = {};
+export const FeatureFlags = {};
+`;
+  await fs.writeFile(path.join(shimDir, 'config.js'), configJs);
+
+  const httpJs = `
+export const Router = {};
+export const RequestValidator = {};
+export function getValidatedBody() {
+  return undefined;
+}
+export const MIME_TYPES = {};
+export const MultipartParserRegistry = {};
+`;
+  await fs.writeFile(path.join(shimDir, 'http.js'), httpJs);
+
+  const queueJs = `
+export const Queue = {
+  async dequeue() {
+    return null;
+  },
+};
+export const RedisQueue = {};
+export function resolveDeduplicationLockKey(queueName, deduplicationId) {
+  return 'queue:' + String(queueName) + ':' + String(deduplicationId);
+}
+export const JobHeartbeatStore = {};
+export const JobStateTracker = {};
+export const TimeoutManager = {};
+export function resolveLockPrefix() {
+  return '';
+}
+export const RedisKeys = {};
+export function createLockProvider() {
+  return {};
+}
+export function getLockProvider() {
+  return {};
+}
+export function registerLockProvider() {
+  return undefined;
+}
+`;
+  await fs.writeFile(path.join(shimDir, 'queue.js'), queueJs);
+
+  const workersJs = `
+export const workersConfig = {};
+export const ShutdownTrace = {
+  log() {},
+  logHandles() {},
+  logBullMQWorker() {},
+};
+export const NodeSingletons = {
+  fs: {},
+  path: {},
+  os: {},
+  url: {
+    pathToFileURL() {
+      return { href: '' };
+    },
+    fileURLToPath() {
+      return '';
+    },
+  },
+  module: {
+    createRequire() {
+      return () => undefined;
+    },
+  },
+  process: {
+    cwd() {
+      return '';
+    },
+  },
+  EventEmitter: class {
+    on() {
+      return this;
+    }
+    off() {
+      return this;
+    }
+    emit() {
+      return false;
+    }
+    listenerCount() {
+      return 0;
+    }
+    setMaxListeners() {
+      return this;
+    }
+  },
+  randomBytes() {
+    return { toString() { return ''; } };
+  },
+  createCipheriv() {
+    return { update() { return ''; }, final() { return ''; } };
+  },
+  createDecipheriv() {
+    return { update() { return ''; }, final() { return ''; } };
+  },
+  pbkdf2Sync() {
+    return '';
+  },
+  createHash() {
+    return { update() { return this; }, digest() { return ''; } };
+  },
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'workers.js'), workersJs);
+
+  const traceJs = `
+export const ShutdownTrace = {
+  log() {},
+  logHandles() {},
+  logBullMQWorker() {},
+};
+export const SystemTraceBridge = {};
+`;
+  await fs.writeFile(path.join(shimDir, 'trace.js'), traceJs);
+
+  const cloudflareJs = `
+export const Cloudflare = {};
+export const LocalD1Resolver = {
+  resolveD1Binding() {
+    return {};
+  },
+  async resolveLocalD1SqlitePath() {
+    return '';
+  },
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'cloudflare.js'), cloudflareJs);
+
+  const redisJs = `
+export const RedisKeys = {};
+export function createRedisConnection() {
+  return {
+    async hgetall() {
+      return {};
+    },
+    async hget() {
+      return null;
+    },
+    async hset() {
+      return undefined;
+    },
+    async hmget() {
+      return [];
+    },
+    async hdel() {
+      return undefined;
+    },
+    disconnect() {},
+  };
+}
+export function getBullMQSafeQueueName(name = '') {
+  return name;
+}
+`;
+  await fs.writeFile(path.join(shimDir, 'redis.js'), redisJs);
+
+  const mailDts = `
+export declare const MailDriverRegistry: any;
+export declare const SmtpDriver: any;
+export declare const SendGridDriver: any;
+export declare const MailgunDriver: any;
+export declare const Notification: any;
+export type MailgunConfig = any;
+export type MailgunMessage = any;
+export type MailgunResult = any;
+export type SendGridConfig = any;
+export type SendGridMailAddress = any;
+export type SendGridMailAttachment = any;
+export type SendGridMailMessage = any;
+export type SendGridSendResult = any;
+export type SmtpDriverConfig = any;
+`;
+  await fs.writeFile(path.join(shimDir, 'mail.d.ts'), mailDts);
+
+  const mailJs = `
+export const MailDriverRegistry = {};
+export const SmtpDriver = {};
+export const SendGridDriver = {};
+export const MailgunDriver = {};
+export const Notification = {};
+`;
+  await fs.writeFile(path.join(shimDir, 'mail.js'), mailJs);
+
+  const databaseDts = `
+export declare const DatabaseAdapterRegistry: any;
+export declare const DatabaseConnectionRegistry: any;
+export type IDatabase = {
+  connect: (...args: any[]) => Promise<void>;
+  disconnect: (...args: any[]) => Promise<void>;
+  isConnected: (...args: any[]) => boolean;
+  query: (...args: any[]) => Promise<any[]>;
+  queryOne: (...args: any[]) => Promise<any>;
+  execute: (...args: any[]) => Promise<any>;
+  table: (...args: any[]) => DbQueryBuilder;
+};
+export type DbQueryBuilder = {
+  limit(...args: any[]): DbQueryBuilder;
+  offset(...args: any[]): DbQueryBuilder;
+  where(...args: any[]): DbQueryBuilder;
+  whereIn(...args: any[]): DbQueryBuilder;
+  get<T = unknown>(): Promise<T[]>;
+  first<T = unknown>(): Promise<T | undefined>;
+  insert(...args: any[]): Promise<any>;
+  update(...args: any[]): Promise<any>;
+  delete(...args: any[]): Promise<any>;
+};
+export declare function useEnsureDbConnected(...args: any[]): any;
+export declare function useDatabase(...args: any[]): IDatabase;
+export declare const BaseAdapter: {
+  normalizeReadValue: (value: unknown) => unknown;
+  normalizeRow: (row: Record<string, unknown>) => Record<string, unknown>;
+  normalizeRows: (rows: Record<string, unknown>[]) => Record<string, unknown>[];
+  normalizeQueryResult: <T extends { rows: Record<string, unknown>[] }>(result: T) => T;
+};
+export declare const QueryBuilder: any;
+export declare const SQLiteAdapter: any;
+export type DatabaseConfig = any;
+export type IDatabaseAdapter = any;
+export type QueryResult = any;
+export declare const MigrationSchema: any;
+export type Blueprint = any;
+`;
+  await fs.writeFile(path.join(shimDir, 'database.d.ts'), databaseDts);
+
+  const databaseJs = `
+export const DatabaseAdapterRegistry = {};
+export const DatabaseConnectionRegistry = {};
+export function useDatabase() {
+  return {
+    async connect() {},
+    async disconnect() {},
+    isConnected() {
+      return true;
+    },
+    async query() {
+      return [];
+    },
+    async queryOne() {
+      return undefined;
+    },
+    async execute() {
+      return undefined;
+    },
+    table() {
+      return {
+        limit() {
+          return this;
+        },
+        offset() {
+          return this;
+        },
+        where() {
+          return this;
+        },
+        whereIn() {
+          return this;
+        },
+        async get() {
+          return [];
+        },
+        async first() {
+          return undefined;
+        },
+        async insert() {
+          return undefined;
+        },
+        async update() {
+          return undefined;
+        },
+        async delete() {
+          return undefined;
+        },
+      };
+    },
+  };
+}
+export function useEnsureDbConnected() {
+  return undefined;
+}
+export function useDatabase() {
+  return {
+    async connect() {},
+    async disconnect() {},
+    isConnected() {
+      return true;
+    },
+    async query() {
+      return [];
+    },
+    async queryOne() {
+      return undefined;
+    },
+    async execute() {
+      return undefined;
+    },
+    table() {
+      return {
+        limit() {
+          return this;
+        },
+        offset() {
+          return this;
+        },
+        where() {
+          return this;
+        },
+        whereIn() {
+          return this;
+        },
+        async get() {
+          return [];
+        },
+        async first() {
+          return undefined;
+        },
+        async insert() {
+          return undefined;
+        },
+        async update() {
+          return undefined;
+        },
+        async delete() {
+          return undefined;
+        },
+      };
+    },
+  };
+}
+export const BaseAdapter = {
+  normalizeReadValue(value) {
+    if (typeof value !== 'string') return value;
+    return value.trim().toLowerCase() === 'null' ? null : value;
+  },
+  normalizeRow(row) {
+    return Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key, BaseAdapter.normalizeReadValue(value)])
+    );
+  },
+  normalizeRows(rows) {
+    return rows.map((row) => BaseAdapter.normalizeRow(row));
+  },
+  normalizeQueryResult(result) {
+    return {
+      ...result,
+      rows: BaseAdapter.normalizeRows(result.rows),
+    };
+  },
+};
+export const QueryBuilder = {};
+export const SQLiteAdapter = {};
+export const MigrationSchema = {};
+export const Blueprint = {};
+`;
+  await fs.writeFile(path.join(shimDir, 'database.js'), databaseJs);
+
+  const ormDts = `
+export declare const Model: any;
+export type Blueprint = any;
+export declare const DatabaseConnectionRegistry: any;
+export declare function registerDatabasesFromRuntimeConfig(...args: any[]): any;
+`;
+  await fs.writeFile(path.join(shimDir, 'orm.d.ts'), ormDts);
+
+  const ormJs = `
+export const Model = {};
+export const DatabaseConnectionRegistry = {};
+export function registerDatabasesFromRuntimeConfig() {
+  return undefined;
+}
+`;
+  await fs.writeFile(path.join(shimDir, 'orm.js'), ormJs);
+
+  const securityDts = `
+export declare const SignedRequest: any;
+export type RemoteSignedJsonSettings = any;
+export declare const RemoteSignedJson: {
+  request<T>(settings: RemoteSignedJsonSettings, path: string, payload: Record<string, unknown>): Promise<T>;
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'security.d.ts'), securityDts);
+
+  const securityJs = `
+export const SignedRequest = {};
+export const RemoteSignedJson = {
+  async request<T>(settings: any, path: string, payload: Record<string, unknown>): Promise<T> {
+    return {} as T;
+  },
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'security.js'), securityJs);
+
+  const storageDts = `
+export declare const StorageDriverRegistry: any;
+export type S3Config = any;
+export type R2Config = any;
+export type GcsConfig = any;
+export declare const S3Driver: any;
+export declare const R2Driver: any;
+export declare const GcsDriver: any;
+`;
+  await fs.writeFile(path.join(shimDir, 'storage.d.ts'), storageDts);
+
+  const storageJs = `
+export const StorageDriverRegistry = {};
+export const S3Driver = {};
+export const R2Driver = {};
+export const GcsDriver = {};
+`;
+  await fs.writeFile(path.join(shimDir, 'storage.js'), storageJs);
 }
 
 async function main() {

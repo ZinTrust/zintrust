@@ -1,4 +1,4 @@
-import type { IDatabase } from '@zintrust/core';
+import type { IDatabase } from '@zintrust/core/database';
 
 type TraceErrorFactory = {
   createConfigError?(message: string, details?: unknown): Error;

@@ -3,7 +3,7 @@
  * Ensures the 'driver' query parameter is valid if present.
  */
 
-import type { IRequest, IResponse } from '@zintrust/core';
+import type { IRequest, IResponse } from '@zintrust/core/http';
 
 export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
 

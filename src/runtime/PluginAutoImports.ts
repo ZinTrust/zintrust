@@ -192,20 +192,67 @@ const importFromLocalFallback = async (
   }
 };
 
+const importFromFileContents = async (
+  filePath: string,
+  specifier: string
+): Promise<SingleImportStatus> => {
+  try {
+    const raw = await readFile(filePath, 'utf-8');
+    const fileSpecifiers = extractImportSpecifiers(raw);
+
+    if (fileSpecifiers.length === 0) {
+      return 'missing';
+    }
+
+    const summary = await importSpecifiers(
+      fileSpecifiers.map((importSpecifier) => ({ filePath, specifier: importSpecifier }))
+    );
+
+    if (summary.loaded > 0) {
+      Logger.debug('[plugins] Loaded auto-import specifiers from file contents', {
+        specifier,
+        filePath,
+        loadedCount: summary.loaded,
+      });
+      return 'loaded';
+    }
+
+    if (summary.missing > 0 && summary.failed === 0) {
+      return 'missing';
+    }
+
+    return 'failed';
+  } catch (error) {
+    return getMissingPackageStatus(error, specifier);
+  }
+};
+
 const importSingleSpecifier = async (entry: ImportSpecifier): Promise<SingleImportStatus> => {
   const target = entry.specifier.startsWith('.')
     ? resolveRelativeSpecifier(entry)
     : entry.specifier;
 
-  try {
-    await import(target);
-    Logger.debug('[plugins] Loaded auto-import specifier', { specifier: entry.specifier });
-    return 'loaded';
-  } catch (error) {
-    const fallback = resolveLocalPackageSpecifier(entry.specifier);
-    if (fallback !== null) return importFromLocalFallback(entry.specifier, fallback);
-    return getMissingPackageStatus(error, entry.specifier);
+  if (target.endsWith('.ts')) {
+    const sourceLoad = await importFromFileContents(entry.filePath, entry.specifier);
+    if (sourceLoad !== 'failed') {
+      return sourceLoad;
+    }
+  } else {
+    try {
+      await import(target);
+      Logger.debug('[plugins] Loaded auto-import specifier', { specifier: entry.specifier });
+      return 'loaded';
+    } catch (error) {
+      const fallback = resolveLocalPackageSpecifier(entry.specifier);
+      if (fallback !== null) return importFromLocalFallback(entry.specifier, fallback);
+      return getMissingPackageStatus(error, entry.specifier);
+    }
   }
+
+  const fallback = resolveLocalPackageSpecifier(entry.specifier);
+  if (fallback !== null) return importFromLocalFallback(entry.specifier, fallback);
+
+  return 'failed';
 };
 
 const importSpecifiers = async (specifiers: Iterable<ImportSpecifier>): Promise<ImportSummary> => {
@@ -286,10 +333,24 @@ export const PluginAutoImports = Object.freeze({
     }
 
     const tryImportCandidate = async (candidate: string): Promise<ImportResult> => {
+      if (candidate.endsWith('.ts')) {
+        const fallbackResult = await this.tryImportFromFileContents([candidate]);
+        if (fallbackResult.ok) {
+          return { ok: true, loadedPath: candidate };
+        }
+
+        return {
+          ok: false,
+          loadedPath: candidate,
+          reason: fallbackResult.reason,
+          errorMessage: fallbackResult.errorMessage,
+        };
+      }
+
       try {
         const url = pathToFileURL(candidate).href;
         await import(url);
-        return { ok: true, loadedPath: candidate } as ImportResult;
+        return { ok: true, loadedPath: candidate };
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         return {
@@ -297,7 +358,7 @@ export const PluginAutoImports = Object.freeze({
           loadedPath: candidate,
           reason: 'import-failed',
           errorMessage,
-        } as ImportResult;
+        };
       }
     };
 
@@ -333,7 +394,7 @@ export const PluginAutoImports = Object.freeze({
       const fallbackResult = await this.tryImportFromFileContents(existingCandidates);
       if (fallbackResult.ok) return fallbackResult;
 
-      return failed as ImportResult;
+      return failed;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { ok: false, reason: 'import-failed', errorMessage };

@@ -2,7 +2,7 @@
  * Migration: WidenTraceCreatedAtForSql
  * Ensures SQL engines that treat INTEGER as 32-bit can store millisecond timestamps.
  */
-import { MigrationSchema, type IDatabase } from '@zintrust/core';
+import { MigrationSchema, type IDatabase } from '@zintrust/core/database';
 
 export interface Migration {
   up(db: IDatabase): Promise<void>;

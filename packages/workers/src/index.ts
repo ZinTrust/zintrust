@@ -45,14 +45,15 @@ export type {
   WorkerPersistenceConfig,
 } from './WorkerFactory';
 export {
+  WorkerInit,
   buildFileBackedAutoStartTasks,
   selectAutoStartNames,
   selectAutoStartTasks,
-  WorkerInit,
 } from './WorkerInit';
 export { WorkerShutdown } from './WorkerShutdown';
 
 // HTTP Controllers & Routes
+export { getWorkerDetails, getWorkers, toggleAutoStart } from './dashboard/workers-api';
 export { WorkerController } from './http/WorkerController';
 export { registerWorkerRoutes } from './routes/workers';
 
@@ -71,11 +72,11 @@ export type {
   WorkerConfig,
   WorkerCostConfig,
   WorkerObservabilityConfig,
-  WorkersConfigOverrides,
-  WorkersGlobalConfig,
   WorkerStatus,
   WorkerVersioningConfig,
-} from '@zintrust/core';
+  WorkersConfigOverrides,
+  WorkersGlobalConfig,
+} from '@zintrust/core/config';
 
 // Re-export bullmq types for type compatibility
 export type { Job, Worker, WorkerOptions } from 'bullmq';

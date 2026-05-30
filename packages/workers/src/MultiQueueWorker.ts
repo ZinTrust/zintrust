@@ -4,7 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, ShutdownTrace } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { ShutdownTrace } from '@zintrust/core/workers';
 import { Worker, type Job, type WorkerOptions } from 'bullmq';
 import { PriorityQueue } from './PriorityQueue';
 

@@ -1,6 +1,6 @@
-export { SQLiteAdapter } from '@zintrust/core';
+export { SQLiteAdapter } from '@zintrust/core/database';
 
-export type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
+export type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core/database';
 
 /**
  * Package version and build metadata

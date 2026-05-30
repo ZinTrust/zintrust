@@ -5,7 +5,9 @@
  */
 
 import type { Span, SpanOptions, Tracer } from '@opentelemetry/api';
-import { ErrorFactory, Logger, generateUuid } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
+import { generateUuid } from '@zintrust/core/utils';
 import type { Counter, Gauge, Histogram, Registry, Summary } from 'prom-client';
 
 export type ObservabilityConfig = {

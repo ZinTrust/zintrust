@@ -34,23 +34,38 @@ const testState = vi.hoisted(() => {
   };
 });
 
-vi.mock('@zintrust/core', () => ({
+vi.mock('@zintrust/core/config', () => ({
   Env: { get: vi.fn((_key: string, fallback?: string) => fallback ?? '') },
+  queueConfig: {
+    monitor: { basePath: '/api', middleware: [] },
+    drivers: {
+      redis: { host: 'localhost', port: 6379, password: '', database: 0 },
+    },
+  },
+}));
+
+vi.mock('@zintrust/core/utils', () => ({
   isArray: Array.isArray,
   isNonEmptyString: (value: unknown) => typeof value === 'string' && value.trim().length > 0,
+}));
+
+vi.mock('@zintrust/core/logger', () => ({
   Logger: { warn: vi.fn(), debug: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@zintrust/core/workers', () => ({
   ShutdownTrace: {
     log: vi.fn(),
     logHandles: vi.fn(),
     logBullMQWorker: vi.fn(),
   },
-  queueConfig: {
-    monitor: {},
-    drivers: {
-      redis: { host: 'localhost', port: 6379, password: '', database: 0 },
-    },
-  },
+}));
+
+vi.mock('@zintrust/core/queue', () => ({
   resolveLockPrefix: vi.fn(() => 'zintrust'),
+}));
+
+vi.mock('@core-routes/Router', () => ({
   Router: {
     get: testState.routerGet,
     post: testState.routerPost,
@@ -90,8 +105,6 @@ function createJsonResponse(): JsonResponse {
   const result = { statusCode: 200, payload: undefined as unknown };
 
   return {
-    statusCode: result.statusCode,
-    payload: result.payload,
     res: {
       status(code: number) {
         result.statusCode = code;
@@ -148,10 +161,10 @@ describe('queue-monitor retry API', () => {
     testState.currentDriver.retryJob = vi.fn(async () => ({
       ok: false as const,
       status: 'missing' as const,
-    }));
+    })) as never;
 
     const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
-    monitor.registerRoutes({} as never);
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
     const handler = getRetryHandler();
     expect(handler).toBeTypeOf('function');
 
@@ -187,7 +200,7 @@ describe('queue-monitor retry API', () => {
     }));
 
     const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
-    monitor.registerRoutes({} as never);
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
     const handler = getRetryHandler();
     expect(handler).toBeTypeOf('function');
 
@@ -219,7 +232,7 @@ describe('queue-monitor retry API', () => {
     }));
 
     const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
-    monitor.registerRoutes({} as never);
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
     const handler = getRetryHandler();
     expect(handler).toBeTypeOf('function');
 
@@ -243,7 +256,7 @@ describe('queue-monitor retry API', () => {
     }));
 
     const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
-    monitor.registerRoutes({} as never);
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
     const handler = getRetryHandler();
     expect(handler).toBeTypeOf('function');
 

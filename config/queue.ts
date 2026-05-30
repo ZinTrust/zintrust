@@ -86,5 +86,6 @@ export default {
       .filter((m: string) => m.length > 0) as ReadonlyArray<string>,
     autoRefresh: Env.getBool('QUEUE_MONITOR_AUTO_REFRESH', true),
     refreshIntervalMs: Env.getInt('QUEUE_MONITOR_REFRESH_MS', 5000),
+    queueDataTimeoutMs: Env.getInt('QUEUE_DATA_TIMEOUT_MS', 10000),
   },
 } satisfies QueueConfigOverrides;

@@ -5,7 +5,7 @@
  * Use with Queue.dequeue() in a background process or cron job.
  */
 
-import { Notification } from '@zintrust/core';
+import { Notification } from '@zintrust/core/mail';
 import { createQueueWorker } from './createQueueWorker';
 
 type NotificationJob = {

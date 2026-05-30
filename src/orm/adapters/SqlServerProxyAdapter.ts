@@ -50,6 +50,7 @@ const buildProxySettings = (): ProxySettings => {
     secretKey: 'SQLSERVER_PROXY_SECRET',
     timeoutKey: 'SQLSERVER_PROXY_TIMEOUT_MS',
     sharedTimeoutKey: 'ZT_PROXY_TIMEOUT_MS',
+    customHeadersPrefix: 'SQLSERVER',
   });
 };
 

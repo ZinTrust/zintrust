@@ -1,5 +1,5 @@
-// @ts-ignore - config templates are excluded from the main TS project in this repo
-import { Env, type StorageConfigOverrides } from '@zintrust/core';
+import { Env } from '@config/env';
+import { type StorageConfigOverrides } from '@config/storage';
 
 /**
  * Storage Configuration (default override)

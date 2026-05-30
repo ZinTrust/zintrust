@@ -1,4 +1,4 @@
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 import type { WorkerData } from '../../dashboard';
 import { getWorkers } from '../../dashboard/workers-api';
 import { HealthMonitor } from '../../HealthMonitor';

@@ -210,4 +210,16 @@ describe('MongoDriver', () => {
     );
     await expect(driver.has('present')).resolves.toBe(true);
   });
+
+  it('getRedisClient throws for Mongo driver', async () => {
+    mongoUri = 'https://example.com';
+    mongoDb = 'db1';
+
+    const { MongoDriver } = await import('@cache/drivers/MongoDriver');
+    const driver = MongoDriver.create();
+
+    expect(() => driver.getRedisClient()).toThrowError(
+      'getRedisClient() is only supported by Redis cache driver'
+    );
+  });
 });

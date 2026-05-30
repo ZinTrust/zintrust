@@ -1,7 +1,10 @@
-import { Env, ErrorFactory, Logger } from '@zintrust/core';
+import { Env, queueConfig } from '@zintrust/core/config';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
 import { WorkerRegistry } from '../WorkerRegistry';
+import { maskInfrastructurePasswords } from '../helper';
 import type { WorkerRecord } from '../storage/WorkerStore';
 import type {
   GetWorkersQuery,
@@ -96,16 +99,12 @@ async function fetchPersistenceWithTimeout(
 }
 
 async function fetchQueueDataSafe(): Promise<QueueData> {
-  const defaultData: QueueData = {
-    driver: 'memory',
-    totalQueues: 0,
-    totalJobs: 0,
-    processingJobs: 0,
-    failedJobs: 0,
-  };
+  const defaultData = buildEmptyQueueData(resolveConfiguredQueueDriver());
 
   try {
-    return await withTimeout(getQueueData(), 3000, 'Queue data timeout');
+    const timeoutMs =
+      queueConfig.monitor?.queueDataTimeoutMs ?? Env.getInt('QUEUE_DATA_TIMEOUT_MS', 10000);
+    return await withTimeout(getQueueData(), timeoutMs, 'Queue data timeout');
   } catch (err) {
     Logger.warn('[getWorkers] Queue data fetch failed or timed out', err);
     return defaultData;
@@ -392,6 +391,24 @@ const normalizeDriver = (driver: string): WorkerDriver => {
   return 'memory';
 };
 
+const normalizeQueueDriver = (driver: string): WorkerDriver => {
+  return normalizeDriver(driver);
+};
+
+const resolveConfiguredQueueDriver = (): WorkerDriver => {
+  return normalizeQueueDriver(Env.get('QUEUE_DRIVER', 'redis'));
+};
+
+const buildEmptyQueueData = (driver: WorkerDriver): QueueData => {
+  return {
+    driver,
+    totalQueues: 0,
+    totalJobs: 0,
+    processingJobs: 0,
+    failedJobs: 0,
+  };
+};
+
 const getAvailableDriversFromDrivers = (drivers: WorkerDriver[]): WorkerDriver[] => {
   const uniqueDrivers = new Set(drivers);
   return Array.from(uniqueDrivers);
@@ -451,7 +468,7 @@ const buildWorkerFromRaw = (workerData: RawWorkerData, driver: WorkerDriver): Wo
     autoStart: workerData.autoStart || false,
     activeStatus: workerData.activeStatus ?? true,
     details: workerData.details || {
-      configuration: {} as WorkerConfiguration,
+      configuration: {},
       health: {} as WorkerHealth,
       metrics: {} as WorkerMetrics,
       recentLogs: [],
@@ -577,7 +594,7 @@ function applySorting(
 }
 
 async function getQueueData(): Promise<QueueData> {
-  const queueDriver = Env.get('QUEUE_DRIVER', 'redis');
+  const queueDriver = resolveConfiguredQueueDriver();
 
   try {
     // Get queue statistics based on QUEUE_DRIVER
@@ -586,14 +603,12 @@ async function getQueueData(): Promise<QueueData> {
         return await getRedisQueueData();
       case 'database':
         return await getDatabaseQueueData();
-      case 'db':
-        return await getDatabaseQueueData();
       default:
         return await getMemoryQueueData();
     }
   } catch (error) {
     Logger.error('Error fetching queue data:', error);
-    return await getMemoryQueueData();
+    return buildEmptyQueueData(queueDriver);
   }
 }
 
@@ -601,9 +616,9 @@ async function getRedisQueueData(): Promise<QueueData> {
   try {
     // Use existing queue monitor infrastructure
     const { QueueMonitor } = await import('@zintrust/queue-monitor');
-    const { queueConfig } = await import('@zintrust/core');
+    const { queueConfig: FreshQeueConfig } = await import('@zintrust/core/config');
 
-    const redisConfig = queueConfig.drivers.redis;
+    const redisConfig = FreshQeueConfig.drivers.redis;
     if (redisConfig?.driver !== 'redis') {
       throw ErrorFactory.createConfigError('Redis driver not configured');
     }
@@ -717,13 +732,7 @@ async function getMemoryQueueData(): Promise<QueueData> {
   // access the actual queue registry from the queue system
   // Since memory queues don't persist, we return basic info
   // In a real implementation, you'd track active memory queues
-  return {
-    driver: 'memory',
-    totalQueues: 0, // Memory queues are not persisted
-    totalJobs: 0,
-    processingJobs: 0,
-    failedJobs: 0,
-  };
+  return buildEmptyQueueData('memory');
 }
 
 const createWorkerMetricRequests = (
@@ -904,7 +913,7 @@ function buildWorkerConfiguration(
     activeStatus: persisted.activeStatus ?? true,
     version: persisted.version ?? worker.version,
     features: persisted.features ?? null,
-    infrastructure: persisted.infrastructure ?? null,
+    infrastructure: maskInfrastructurePasswords(persisted.infrastructure),
     datacenter: persisted.datacenter ?? null,
   };
 }

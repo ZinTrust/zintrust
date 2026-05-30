@@ -66,6 +66,23 @@ describe('KVDriver', () => {
     await expect(driver.has('exists')).resolves.toBe(true);
   });
 
+  it('getRedisClient throws for KV driver', async () => {
+    const kv: KvMock = {
+      get: vi.fn(async () => null),
+      put: vi.fn(async () => undefined),
+      delete: vi.fn(async () => undefined),
+    };
+
+    (globalThis as unknown as Record<string, unknown>)['env'] = { CACHE: kv };
+
+    const { KVDriver } = await import('@cache/drivers/KVDriver');
+    const driver = KVDriver.create();
+
+    expect(() => driver.getRedisClient()).toThrowError(
+      'getRedisClient() is only supported by Redis cache driver'
+    );
+  });
+
   it('applies minimum TTL of 60 seconds', async () => {
     const kv: KvMock = {
       get: vi.fn(async () => null),

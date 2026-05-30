@@ -5,7 +5,7 @@ export type DashboardUiOptions = {
   appName?: string;
 };
 
-import { BrandFavicon } from './BrandFavicon';
+import { BrandFavicon } from './BrandFavicon.js';
 
 const resolveAppName = (appName?: string): string => {
   return typeof appName === 'string' && appName.trim() !== '' ? appName.trim() : 'ZinTrust';

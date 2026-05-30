@@ -33,6 +33,12 @@ export interface CacheDriver {
    * Dispose of resources (optional cleanup method)
    */
   dispose?(): Promise<void>;
+
+  /**
+   * Get the underlying Redis client for advanced operations like transactions
+   * Only supported by Redis driver, throws error for other drivers
+   */
+  getRedisClient?(): unknown;
 }
 
 // Runtime marker to make this type-only module coverable in V8 coverage.

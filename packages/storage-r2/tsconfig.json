@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "ES2022",
     "lib": ["es2023"],
-    "baseUrl": ".",
+    "types": ["node"],
     "ignoreDeprecations": "6.0",
     "moduleResolution": "bundler",
     "rootDir": "./src",

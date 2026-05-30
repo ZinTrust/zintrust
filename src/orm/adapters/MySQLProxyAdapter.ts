@@ -48,6 +48,7 @@ const buildProxySettings = (): ProxySettings => {
     sharedKeyIdKey: 'ZT_PROXY_KEY_ID',
     sharedSecretKey: 'ZT_PROXY_SECRET',
     sharedTimeoutKey: 'ZT_PROXY_TIMEOUT_MS',
+    customHeadersPrefix: 'MYSQL',
   });
 };
 

@@ -1,33 +1,20 @@
-type Registry = {
-  register: (driverName: string, entry: { driver: unknown; normalize?: unknown }) => void;
+import { S3Driver, StorageDriverRegistry } from '@zintrust/core/storage';
+
+type StorageDriverEntry = {
+  driver: unknown;
+  normalize?: (raw: Record<string, unknown>) => Record<string, unknown>;
 };
 
-export async function registerS3StorageDriver(registry: Registry): Promise<void> {
-  const core = (await importCore()) as unknown as {
-    S3Driver?: unknown;
-  };
+type Registry = {
+  register: (driverName: string, entry: StorageDriverEntry) => void;
+};
 
-  if (core.S3Driver === undefined) return;
+export function registerS3StorageDriver(registry: Registry): void {
+  if (S3Driver === undefined) return;
 
-  registry.register('s3', { driver: core.S3Driver });
+  registry.register('s3', { driver: S3Driver });
 }
 
-const importCore = async (): Promise<unknown> => {
-  try {
-    return await import('@zintrust/core');
-  } catch {
-    try {
-      return await import('@zintrust/core');
-    } catch {
-      return {};
-    }
-  }
-};
-
-const core = (await importCore()) as unknown as {
-  StorageDriverRegistry?: Registry;
-};
-
-if (core.StorageDriverRegistry !== undefined) {
-  await registerS3StorageDriver(core.StorageDriverRegistry);
+if (typeof StorageDriverRegistry !== 'undefined') {
+  registerS3StorageDriver(StorageDriverRegistry);
 }

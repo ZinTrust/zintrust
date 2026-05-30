@@ -14,8 +14,8 @@ vi.mock('@zintrust/queue-monitor', () => ({
   createMetrics: vi.fn(() => queueMonitorMetricsMock),
 }));
 
-vi.mock('@zintrust/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@zintrust/core')>();
+vi.mock('@zintrust/core/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/config')>();
   return {
     ...actual,
     appConfig: {
@@ -24,22 +24,48 @@ vi.mock('@zintrust/core', async (importOriginal) => {
     workersConfig: {
       intervalMs: 5000,
     },
+    queueConfig: {
+      drivers: {},
+      monitor: {
+        enabled: false,
+      },
+    },
     Env: {
       SSE_HEARTBEAT_INTERVAL: 15000,
     },
-    Logger: {
-      info: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-    },
+  };
+});
+
+vi.mock('@zintrust/core/logger', () => ({
+  Logger: {
+    info: vi.fn(),
+    debug: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+vi.mock('@zintrust/core/queue', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/queue')>();
+  return {
+    ...actual,
     JobStateTracker: {
       started: vi.fn().mockResolvedValue(undefined),
       completed: vi.fn().mockResolvedValue(undefined),
       failed: vi.fn().mockResolvedValue(undefined),
     },
     Queue: queueMock,
+    TimeoutManager: undefined,
+  };
+});
+
+vi.mock('@zintrust/core/workers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/workers')>();
+  return {
+    ...actual,
+    workersConfig: {
+      intervalMs: 5000,
+    },
     NodeSingletons: {
-      ...actual.NodeSingletons,
       os: {
         cpus: () => [{ model: 'test', speed: 2400 }],
         totalmem: () => 8 * 1024 * 1024 * 1024,
@@ -59,6 +85,13 @@ vi.mock('@zintrust/core', async (importOriginal) => {
       pbkdf2Sync: vi.fn(),
       randomBytes: vi.fn(() => Buffer.from('test')),
     },
+  };
+});
+
+vi.mock('@zintrust/core/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/utils')>();
+  return {
+    ...actual,
     generateUuid: vi.fn(() => 'test-uuid'),
   };
 });
@@ -67,7 +100,7 @@ vi.unmock('@zintrust/workers');
 
 describe('createQueueWorker coverage', () => {
   it('processes one item using maxItems loop', async () => {
-    const { Queue } = await import('@zintrust/core');
+    const { Queue } = await import('@zintrust/core/queue');
     const queueDequeueMock = Queue.dequeue as any;
     queueDequeueMock
       .mockResolvedValueOnce({ id: '1', payload: { ok: true }, attempts: 0 })

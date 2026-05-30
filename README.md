@@ -265,6 +265,30 @@ import { handler } from '@functions/lambda';
 import { usersService } from '@services/ecommerce/users';
 ```
 
+### Bundle-Optimized Imports
+
+For production builds, import only what you need from `@zintrust/core` subpaths to reduce bundle size:
+
+```typescript
+// Cloudflare runtime helpers (Workers-specific)
+import { Cloudflare } from '@zintrust/core/cloudflare';
+
+// HTTP headers and MIME types
+import { HTTP_HEADERS, MIME_TYPES } from '@zintrust/core/constants';
+
+// Microservice management (optional, not all projects need this)
+import { MicroserviceManager } from '@zintrust/core/microservices';
+
+// Runtime-only entrypoint (excludes CLI, seeders, test helpers)
+import { ProjectRuntime } from '@zintrust/core/runtime';
+
+// Other available subpaths
+import { Model } from '@zintrust/core/orm';
+import { Auth } from '@zintrust/core/auth';
+import { RedisKeyManager } from '@zintrust/core/redis';
+import { JwtManager, JwtSessions } from '@zintrust/core/security';
+```
+
 ## Architecture
 
 ZinTrust is built on proven architectural patterns for modern backend development:

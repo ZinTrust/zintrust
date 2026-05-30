@@ -6,6 +6,7 @@
 import type { CacheDriver } from '@cache/CacheDriver';
 import { Cloudflare } from '@config/cloudflare';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 /**
  * Create a new KV driver instance
@@ -51,6 +52,12 @@ const create = (): CacheDriver => {
       if (kv === null) return false;
       const value = await kv.get(key);
       return value !== null;
+    },
+
+    getRedisClient(): unknown {
+      throw ErrorFactory.createConfigError(
+        'getRedisClient() is only supported by Redis cache driver, not KV driver'
+      );
     },
   };
 };

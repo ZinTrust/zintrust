@@ -17,6 +17,7 @@ type DeployContainersProxyOptions = CommandOptions & {
   envPath?: string;
   target?: string;
   syncSecrets?: boolean;
+  all?: boolean;
 };
 
 const DEFAULT_CONFIG = 'wrangler.containers-proxy.jsonc';
@@ -54,6 +55,7 @@ const syncDeploySecrets = async (
     configPath: config,
     target: typeof options.target === 'string' ? options.target : undefined,
     requireSelection: false,
+    all: options.all === true,
   });
 
   if (result.selectedKeys.length === 0) return;
@@ -92,6 +94,10 @@ export const DeployContainersProxyCommand = Object.freeze({
         command.option(
           '--target <id>',
           'Cloudflare worker target key from .zintrust.json cloudflare.targets'
+        );
+        command.option(
+          '--all',
+          'Sync both custom env file and process.env (only applies when custom env file is provided)'
         );
         command.option('--no-sync-secrets', 'Skip Cloudflare secret sync before wrangler deploy');
       },

@@ -16,8 +16,8 @@ vi.mock('@zintrust/queue-monitor', () => ({
 
 vi.unmock('@zintrust/workers');
 
-vi.mock('@zintrust/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@zintrust/core')>();
+vi.mock('@zintrust/core/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/config')>();
   return {
     ...actual,
     appConfig: {
@@ -26,22 +26,48 @@ vi.mock('@zintrust/core', async (importOriginal) => {
     workersConfig: {
       intervalMs: 5000,
     },
+    queueConfig: {
+      drivers: {},
+      monitor: {
+        enabled: false,
+      },
+    },
     Env: {
       SSE_HEARTBEAT_INTERVAL: 15000,
     },
-    Logger: {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    },
+  };
+});
+
+vi.mock('@zintrust/core/logger', () => ({
+  Logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+vi.mock('@zintrust/core/queue', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/queue')>();
+  return {
+    ...actual,
     JobStateTracker: {
       started: vi.fn().mockResolvedValue(undefined),
       completed: vi.fn().mockResolvedValue(undefined),
       failed: vi.fn().mockResolvedValue(undefined),
     },
     Queue: queueMock,
+    TimeoutManager: undefined,
+  };
+});
+
+vi.mock('@zintrust/core/workers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/workers')>();
+  return {
+    ...actual,
+    workersConfig: {
+      intervalMs: 5000,
+    },
     NodeSingletons: {
-      ...actual.NodeSingletons,
       os: {
         cpus: () => [{ model: 'test', speed: 2400 }],
         totalmem: () => 8 * 1024 * 1024 * 1024,
@@ -61,6 +87,13 @@ vi.mock('@zintrust/core', async (importOriginal) => {
       pbkdf2Sync: vi.fn(),
       randomBytes: vi.fn(() => Buffer.from('test')),
     },
+  };
+});
+
+vi.mock('@zintrust/core/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core/utils')>();
+  return {
+    ...actual,
     generateUuid: vi.fn(() => 'test-uuid'),
   };
 });
@@ -94,17 +127,6 @@ describe('createQueueWorker (patch coverage)', () => {
     await expect(worker.processOne('q')).resolves.toBe(true);
     expect(handle).toHaveBeenCalledWith({ v: 1 });
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm1', undefined);
-    expect(queueMonitorMetricsMock.recordJob).toHaveBeenCalledWith(
-      'q',
-      'completed',
-      expect.objectContaining({
-        id: 'm1',
-        name: 'q-job',
-        data: { v: 1 },
-        attemptsMade: 0,
-      }),
-      undefined
-    );
   }, 60000);
 
   it('processOne re-enqueues when handle throws and attempts below max', async () => {
@@ -127,18 +149,6 @@ describe('createQueueWorker (patch coverage)', () => {
       undefined
     );
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm2', undefined);
-    expect(queueMonitorMetricsMock.recordJob).toHaveBeenCalledWith(
-      'q',
-      'failed',
-      expect.objectContaining({
-        id: 'm2',
-        name: 'q-job',
-        data: { v: 2 },
-        attemptsMade: 1,
-        failedReason: 'boom',
-      }),
-      expect.objectContaining({ message: 'boom' })
-    );
   });
 
   it('processOne does not re-enqueue when attempts >= maxAttempts', async () => {

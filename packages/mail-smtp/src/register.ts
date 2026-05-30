@@ -1,4 +1,4 @@
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 
 type Registry = {
   register: (

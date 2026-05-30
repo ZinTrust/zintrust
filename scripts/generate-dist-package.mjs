@@ -123,49 +123,22 @@ const distPackage = {
   type: 'module',
   main: 'src/index.js',
   types: 'src/index.d.ts',
-  exports: {
-    '.': {
-      types: './src/index.d.ts',
-      import: './src/index.js',
-    },
-    './start': {
-      types: './src/start.d.ts',
-      import: './src/start.js',
-    },
-    './boot': {
-      types: './src/boot.d.ts',
-      import: './src/boot.js',
-    },
-    './cli': {
-      types: './src/cli.d.ts',
-      import: './src/cli.js',
-    },
-    './worker-commands': {
-      types: './src/worker-commands.d.ts',
-      import: './src/worker-commands.js',
-    },
-    './proxy': {
-      types: './src/proxy.d.ts',
-      import: './src/proxy.js',
-    },
-    './proxy/*': {
-      types: './src/proxy/*.d.ts',
-      import: './src/proxy/*.js',
-    },
-    './collections': {
-      types: './src/collections/index.d.ts',
-      import: './src/collections/index.js',
-    },
-    './helper': {
-      types: './src/helper/index.d.ts',
-      import: './src/helper/index.js',
-    },
-    './node': {
-      types: './src/node.d.ts',
-      import: './src/node.js',
-    },
-    './package.json': './package.json',
-  },
+  exports: Object.fromEntries(
+    Object.entries(rootPackage.exports).map(([key, value]) => {
+      if (typeof value === 'string') {
+        return [key, value.replace('./dist/', './')];
+      }
+      if (typeof value === 'object' && value !== null) {
+        const transformed = {};
+        for (const [subKey, subValue] of Object.entries(value)) {
+          transformed[subKey] =
+            typeof subValue === 'string' ? subValue.replace('./dist/', './') : subValue;
+        }
+        return [key, transformed];
+      }
+      return [key, value];
+    })
+  ),
   dependencies: pinWorkspaceDependencyVersions(rootPackage.dependencies, workspacePackageVersions),
   overrides: rootPackage.overrides,
   bin: {

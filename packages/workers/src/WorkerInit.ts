@@ -8,7 +8,9 @@
  * - Ensures graceful startup and shutdown
  */
 
-import { Env, isObject, Logger } from '@zintrust/core';
+import { Env } from '@zintrust/core/config';
+import { Logger } from '@zintrust/core/logger';
+import { isObject } from '@zintrust/core/utils';
 import { ResourceMonitor } from './ResourceMonitor';
 import type { WorkerPersistenceConfig } from './WorkerFactory';
 import { WorkerFactory } from './WorkerFactory';

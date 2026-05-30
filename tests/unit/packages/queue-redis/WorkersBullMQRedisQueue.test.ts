@@ -30,36 +30,28 @@ vi.mock('bullmq', () => {
   return { Queue };
 });
 
-vi.mock('@zintrust/core', async () => {
-  const actual = await vi.importActual<typeof import('@zintrust/core')>('@zintrust/core');
+vi.mock('@zintrust/core/cloudflare', () => ({
+  Cloudflare: {
+    getWorkersEnv: vi.fn(() => null),
+    isCloudflareSocketsEnabled: vi.fn(() => true),
+    getWorkersVar: vi.fn(() => null),
+  },
+}));
 
-  return {
-    ...actual,
-    Cloudflare: {
-      ...actual.Cloudflare,
-      getWorkersEnv: vi.fn(() => null),
-      isCloudflareSocketsEnabled: vi.fn(() => true),
-    },
-    createRedisConnection: vi.fn(() => {
-      const proxyUrl = actual.Env.get('REDIS_PROXY_URL', '').trim();
-      const httpProxyEnabled = actual.Env.getBool('QUEUE_HTTP_PROXY_ENABLED', false);
+vi.mock('@zintrust/core/redis', () => ({
+  createRedisConnection: vi.fn(() => {
+    return {
+      status: 'ready',
+      once: vi.fn(),
+      off: vi.fn(),
+      quit: redisState.quit,
+      disconnect: redisState.disconnect,
+    };
+  }),
+  getBullMQSafeQueueName: vi.fn((name: string) => name),
+}));
 
-      if (proxyUrl.length > 0 && httpProxyEnabled === false) {
-        throw new Error('mocked direct BullMQ connection rejected REDIS proxy transport');
-      }
-
-      return {
-        status: 'ready',
-        once: vi.fn(),
-        off: vi.fn(),
-        quit: redisState.quit,
-        disconnect: redisState.disconnect,
-      };
-    }),
-  };
-});
-
-import { Env } from '@zintrust/core';
+import { Env } from '@zintrust/core/config';
 import { BullMQRedisQueue } from '../../../../packages/queue-redis/src/BullMQRedisQueue';
 
 describe('BullMQ Redis queue (Workers)', () => {

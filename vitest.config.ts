@@ -1,6 +1,10 @@
 import { codecovVitePlugin } from '@codecov/vite-plugin';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const COVERAGE_STRICT = process.env.COVERAGE_STRICT === 'true';
 const COVERAGE_REPORTS_DIRECTORY = process.env.ZINTRUST_COVERAGE_REPORTS_DIR?.trim() || 'coverage';
@@ -36,9 +40,52 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@zintrust/core/node': path.resolve(__dirname, './src/node.ts'),
-      '@zintrust/core/proxy': path.resolve(__dirname, './src/proxy.ts'),
+      '@zintrust/core/runtime': path.resolve(__dirname, './src/runtime-index.ts'),
+      '@zintrust/core/proxy': path.resolve(__dirname, './src/proxy-index.ts'),
       '@zintrust/core/start': path.resolve(__dirname, './src/start.ts'),
-      '@zintrust/core/cli': path.resolve(__dirname, './src/cli.ts'),
+      '@zintrust/core/boot': path.resolve(__dirname, './src/boot.ts'),
+      '@zintrust/core/cli': path.resolve(__dirname, './src/cli-index.ts'),
+      '@zintrust/core/config': path.resolve(__dirname, './src/config-index.ts'),
+      '@zintrust/core/orm': path.resolve(__dirname, './src/orm-index.ts'),
+      '@zintrust/core/security': path.resolve(__dirname, './src/security-index.ts'),
+      '@zintrust/core/auth': path.resolve(__dirname, './src/auth-index.ts'),
+      '@zintrust/core/redis': path.resolve(__dirname, './src/redis-index.ts'),
+      '@zintrust/core/cloudflare': path.resolve(__dirname, './src/cloudflare-index.ts'),
+      '@zintrust/core/constants': path.resolve(__dirname, './src/constants-index.ts'),
+      '@zintrust/core/microservices': path.resolve(__dirname, './src/microservices-index.ts'),
+      '@zintrust/core/middleware': path.resolve(__dirname, './src/middleware-index.ts'),
+      '@zintrust/core/scheduler': path.resolve(__dirname, './src/scheduler-index.ts'),
+      '@zintrust/core/seeders': path.resolve(__dirname, './src/seeders-index.ts'),
+      '@zintrust/core/testing': path.resolve(__dirname, './src/testing-index.ts'),
+      '@zintrust/core/scripts': path.resolve(__dirname, './src/scripts-index.ts'),
+      '@zintrust/core/templates': path.resolve(__dirname, './src/templates-index.ts'),
+      '@zintrust/core/tools': path.resolve(__dirname, './src/tools-index.ts'),
+      '@zintrust/core/tools/mail': path.resolve(__dirname, './src/tools-mail-index.ts'),
+      '@zintrust/core/tools/notification': path.resolve(
+        __dirname,
+        './src/tools-notification-index.ts'
+      ),
+      '@zintrust/core/tools/storage': path.resolve(__dirname, './src/tools-storage-index.ts'),
+      '@zintrust/core/tools/queue': path.resolve(__dirname, './src/tools-queue-index.ts'),
+      '@zintrust/core/tools/broadcast': path.resolve(__dirname, './src/tools-broadcast-index.ts'),
+      '@zintrust/core/tools/http': path.resolve(__dirname, './src/tools-http-index.ts'),
+      '@zintrust/core/errors': path.resolve(__dirname, './src/errors-index.ts'),
+      '@zintrust/core/logger': path.resolve(__dirname, './src/logger-index.ts'),
+      '@zintrust/core/http': path.resolve(__dirname, './src/http-index.ts'),
+      '@zintrust/core/database': path.resolve(__dirname, './src/database-index.ts'),
+      '@zintrust/core/queue': path.resolve(__dirname, './src/queue-index.ts'),
+      '@zintrust/core/workers': path.resolve(__dirname, './src/workers-index.ts'),
+      '@zintrust/core/utils': path.resolve(__dirname, './src/utils-index.ts'),
+      '@zintrust/core/lang': path.resolve(__dirname, './src/lang-index.ts'),
+      '@zintrust/core/storage': path.resolve(__dirname, './src/storage-index.ts'),
+      '@zintrust/core/mail': path.resolve(__dirname, './src/mail-index.ts'),
+      '@zintrust/core/trace': path.resolve(__dirname, './src/trace-index.ts'),
+      '@zintrust/core/helper': path.resolve(__dirname, './src/helper/index.ts'),
+      '@zintrust/core/worker-commands': path.resolve(__dirname, './src/worker-commands.ts'),
+      '@zintrust/core/collections': path.resolve(__dirname, './src/collections/index.ts'),
+      '@zintrust/core/storage-index': path.resolve(__dirname, './src/storage-index.ts'),
+      '@zintrust/core/http-index': path.resolve(__dirname, './src/http-index.ts'),
+      '@zintrust/core/socket': path.resolve(__dirname, './src/socket-index.ts'),
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@zintrust/client-rds-data': path.resolve(
         __dirname,
@@ -51,6 +98,22 @@ export default defineConfig({
       '@zintrust/db-sqlite': path.resolve(__dirname, './packages/db-sqlite/src/index.ts'),
       '@zintrust/db-sqlserver': path.resolve(__dirname, './packages/db-sqlserver/src/index.ts'),
       '@zintrust/queue-monitor': path.resolve(__dirname, './packages/queue-monitor/src/index.ts'),
+      '@zintrust/queue-monitor/runtime': path.resolve(
+        __dirname,
+        './packages/queue-monitor/src/runtime-index.ts'
+      ),
+      '@zintrust/queue-monitor/driver': path.resolve(
+        __dirname,
+        './packages/queue-monitor/src/driver-index.ts'
+      ),
+      '@zintrust/queue-monitor/metrics': path.resolve(
+        __dirname,
+        './packages/queue-monitor/src/metrics-index.ts'
+      ),
+      '@zintrust/queue-monitor/dashboard': path.resolve(
+        __dirname,
+        './packages/queue-monitor/src/dashboard-index.ts'
+      ),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
       '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
       '@zintrust/socket': path.resolve(__dirname, './packages/socket/src/index.ts'),
@@ -58,6 +121,46 @@ export default defineConfig({
       '@zintrust/trace': path.resolve(__dirname, './packages/trace/src/index.ts'),
       '@zintrust/trace/ui': path.resolve(__dirname, './packages/trace/src/ui.ts'),
       '@zintrust/trace/register': path.resolve(__dirname, './packages/trace/src/register.ts'),
+      'packages/storage-s3/src/register': path.resolve(
+        __dirname,
+        './packages/storage-s3/src/register.ts'
+      ),
+      'packages/storage-r2/src/register': path.resolve(
+        __dirname,
+        './packages/storage-r2/src/register.ts'
+      ),
+      'packages/storage-gcs/src/register': path.resolve(
+        __dirname,
+        './packages/storage-gcs/src/register.ts'
+      ),
+      'packages/storage/src/register': path.resolve(
+        __dirname,
+        './packages/storage/src/register.ts'
+      ),
+      'packages/storage/src/registerStreamingMultipartParser': path.resolve(
+        __dirname,
+        './packages/storage/src/registerStreamingMultipartParser.ts'
+      ),
+      'packages/cache-mongodb/src/register': path.resolve(
+        __dirname,
+        './packages/cache-mongodb/src/register.ts'
+      ),
+      'packages/queue-redis/src/register': path.resolve(
+        __dirname,
+        './packages/queue-redis/src/register.ts'
+      ),
+      'packages/mail-smtp/src/register': path.resolve(
+        __dirname,
+        './packages/mail-smtp/src/register.ts'
+      ),
+      'packages/mail-sendgrid/src/register': path.resolve(
+        __dirname,
+        './packages/mail-sendgrid/src/register.ts'
+      ),
+      'packages/mail-mailgun/src/register': path.resolve(
+        __dirname,
+        './packages/mail-mailgun/src/register.ts'
+      ),
       '@cli': path.resolve(__dirname, './src/cli'),
       '@registry': path.resolve(__dirname, './src/boot/registry'),
       '@boot': path.resolve(__dirname, './src/boot'),
@@ -72,6 +175,8 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, './src/utils'),
       '@workers': path.resolve(__dirname, './src/workers'),
       '@middleware': path.resolve(__dirname, './src/middleware'),
+      '@zintrust/core/proxy/*': path.resolve(__dirname, './src/proxy/*.ts'),
+      '@zintrust/core/routes/*': path.resolve(__dirname, './src/routes/*.ts'),
       '@container': path.resolve(__dirname, './src/container'),
       '@migrations': path.resolve(__dirname, './src/migrations'),
       '@http': path.resolve(__dirname, './src/http'),
@@ -100,6 +205,7 @@ export default defineConfig({
       '@tools': path.resolve(__dirname, './src/tools'),
       '@toolkit': path.resolve(__dirname, './src/toolkit'),
       '@mail': path.resolve(__dirname, './src/tools/mail'),
+      '@logging': path.resolve(__dirname, './src/config/logging'),
       '@notification': path.resolve(__dirname, './src/tools/notification'),
       '@templates': path.resolve(__dirname, './src/tools/templates'),
       '@auth': path.resolve(__dirname, './src/auth'),
@@ -122,6 +228,8 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts', 'packages/**/*.test.ts'],
     setupFiles: ['tests/vitest.setup.ts'],
+    fileParallelism: false,
+    maxWorkers: 1,
     hookTimeout: IS_COVERAGE_RUN ? 60000 : 30000,
     coverage: {
       provider: 'v8',

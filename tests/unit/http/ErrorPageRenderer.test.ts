@@ -6,6 +6,12 @@ vi.mock('@node-singletons/fs', () => ({
   readFileSync: vi.fn(),
 }));
 
+vi.mock('@config/app', () => ({
+  appConfig: {
+    errorResponseMode: 'auto',
+  },
+}));
+
 describe('ErrorPageRenderer', () => {
   const makeReq = (path: string, accept: unknown): IRequest => {
     return {
@@ -79,5 +85,43 @@ describe('ErrorPageRenderer', () => {
 
     expect(html).toContain('500');
     expect(html).toContain('oops');
+  });
+
+  describe('ERROR_RESPONSE_MODE', () => {
+    it('shouldSendHtml respects json mode - always returns false', async () => {
+      const { appConfig } = await import('@config/app');
+      vi.spyOn(appConfig, 'errorResponseMode', 'get').mockReturnValue('json');
+
+      const { ErrorPageRenderer } = await import('@http/error-pages/ErrorPageRenderer');
+      const req = makeReq('/docs', 'text/html,application/xhtml+xml');
+      expect(ErrorPageRenderer.shouldSendHtml(req)).toBe(false);
+    });
+
+    it('shouldSendHtml respects html mode - returns true for browser requests', async () => {
+      const { appConfig } = await import('@config/app');
+      vi.spyOn(appConfig, 'errorResponseMode', 'get').mockReturnValue('html');
+
+      const { ErrorPageRenderer } = await import('@http/error-pages/ErrorPageRenderer');
+      const req = makeReq('/docs', 'text/html,application/xhtml+xml');
+      expect(ErrorPageRenderer.shouldSendHtml(req)).toBe(true);
+    });
+
+    it('shouldSendHtml respects html mode - returns false for api paths', async () => {
+      const { appConfig } = await import('@config/app');
+      vi.spyOn(appConfig, 'errorResponseMode', 'get').mockReturnValue('html');
+
+      const { ErrorPageRenderer } = await import('@http/error-pages/ErrorPageRenderer');
+      const req = makeReq('/api/tasks', 'text/html');
+      expect(ErrorPageRenderer.shouldSendHtml(req)).toBe(false);
+    });
+
+    it('shouldSendHtml respects auto mode - uses default logic', async () => {
+      const { appConfig } = await import('@config/app');
+      vi.spyOn(appConfig, 'errorResponseMode', 'get').mockReturnValue('auto');
+
+      const { ErrorPageRenderer } = await import('@http/error-pages/ErrorPageRenderer');
+      const req = makeReq('/docs', 'text/html,application/xhtml+xml');
+      expect(ErrorPageRenderer.shouldSendHtml(req)).toBe(true);
+    });
   });
 });

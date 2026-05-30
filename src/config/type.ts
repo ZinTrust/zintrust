@@ -140,6 +140,11 @@ export type RedisQueueDriverConfig = {
   port: number;
   password?: string;
   database: number;
+  // Cloudflare tunnel-specific ioredis options
+  connectTimeout?: number;
+  keepAlive?: number;
+  enableOfflineQueue?: boolean;
+  maxLoadingRetryTime?: number;
 };
 
 export type RabbitMqQueueDriverConfig = {
@@ -412,6 +417,11 @@ export type RedisCacheDriverConfig = {
   password?: string;
   database?: number;
   ttl: number;
+  // Cloudflare tunnel-specific ioredis options
+  connectTimeout?: number;
+  keepAlive?: number;
+  enableOfflineQueue?: boolean;
+  maxLoadingRetryTime?: number;
 };
 
 export type MongoCacheDriverConfig = {
@@ -472,6 +482,11 @@ export type RedisBroadcastDriverConfig = {
   password: string;
   channelPrefix: string;
   database?: number;
+  // Cloudflare tunnel-specific ioredis options
+  connectTimeout?: number;
+  keepAlive?: number;
+  enableOfflineQueue?: boolean;
+  maxLoadingRetryTime?: number;
 };
 
 export type RedisHttpsBroadcastDriverConfig = {
@@ -654,6 +669,11 @@ export type RedisConfig = {
   port: number;
   db: number;
   password?: string;
+  // Cloudflare tunnel-specific ioredis options
+  connectTimeout?: number;
+  keepAlive?: number;
+  enableOfflineQueue?: boolean;
+  maxLoadingRetryTime?: number;
 };
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';

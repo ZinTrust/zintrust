@@ -3,7 +3,7 @@
  * Integrity checks and validation for migrated data
  */
 
-import { Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
 import type { DataValidationResult } from '../types';
 
 /**

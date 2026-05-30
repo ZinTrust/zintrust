@@ -48,4 +48,10 @@ describe('Cache Config', () => {
     const defaultAlias = cacheConfig.getDriver('default');
     expect(defaultAlias.driver).toBe(driver.driver);
   });
+
+  it('resolves default driver to memory when CACHE_DRIVER is not set', () => {
+    const fakeConfig: any = { default: 'memory', drivers: cacheConfig.drivers };
+    const driver = cacheConfig.getDriver.call(fakeConfig as any);
+    expect(driver.driver).toBe('memory');
+  });
 });

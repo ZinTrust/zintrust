@@ -134,6 +134,22 @@ export default defineConfig(
     },
   },
   {
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@zintrust/core',
+              message:
+                'Do not import directly from @zintrust/core. Use a narrow subpath such as @zintrust/core/runtime, @zintrust/core/auth, @zintrust/core/tools/mail, or @zintrust/core/tools/broadcast.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     plugins: {
       zintrust: {
         rules: {

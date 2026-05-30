@@ -1,11 +1,8 @@
-import {
-  BaseAdapter,
-  Cloudflare,
-  ErrorFactory,
-  FeatureFlags,
-  Logger,
-  QueryBuilder,
-} from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core/cloudflare';
+import { FeatureFlags } from '@zintrust/core/config';
+import { BaseAdapter, QueryBuilder } from '@zintrust/core/database';
+import { ErrorFactory } from '@zintrust/core/errors';
+import { Logger } from '@zintrust/core/logger';
 import { CREATE_MIGRATIONS_TABLE_SQL, MYSQL_PLACEHOLDER, MYSQL_TYPE } from './common.js';
 
 export type DatabaseConfig = {
@@ -20,6 +17,13 @@ export type DatabaseConfig = {
   logging?: boolean;
   ssl?: boolean;
   socketTimeoutMs?: number;
+  connectTimeoutMs?: number;
+  acquireTimeoutMs?: number;
+  enableKeepAlive?: boolean;
+  keepAliveInitialDelayMs?: number;
+  waitTimeoutSeconds?: number;
+  netReadTimeoutSeconds?: number;
+  netWriteTimeoutSeconds?: number;
   readHosts?: string[];
 };
 
@@ -106,6 +110,11 @@ type CreateWorkersPoolOptions = {
   password: string;
   tlsEnabled: boolean;
   timeoutMs: number;
+  connectTimeoutMs: number;
+  acquireTimeoutMs: number;
+  enableKeepAlive: boolean;
+  keepAliveInitialDelayMs: number;
+  sessionVariables: Record<string, number>;
 };
 
 const createWorkersPool = async ({
@@ -117,6 +126,11 @@ const createWorkersPool = async ({
   password,
   tlsEnabled,
   timeoutMs,
+  connectTimeoutMs,
+  acquireTimeoutMs,
+  enableKeepAlive,
+  keepAliveInitialDelayMs,
+  sessionVariables,
 }: CreateWorkersPoolOptions): Promise<MySqlPool> => {
   if (!Cloudflare.isCloudflareSocketsEnabled()) {
     throw ErrorFactory.createConfigError(
@@ -135,19 +149,44 @@ const createWorkersPool = async ({
     connectionLimit: 10,
     namedPlaceholders: false,
     disableEval: true,
+    connectTimeout: connectTimeoutMs,
+    acquireTimeout: acquireTimeoutMs,
+    enableKeepAlive,
+    keepAliveInitialDelay: keepAliveInitialDelayMs,
+    sessionVariables,
     stream: () => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
   });
 };
 
-const createNodePool = (
-  mysql: MySqlModule,
-  host: string,
-  port: number,
-  database: string,
-  user: string,
-  password: string,
-  nodeMysqlSslConfig: false | Record<string, unknown>
-): MySqlPool => {
+type CreateNodePoolOptions = {
+  mysql: MySqlModule;
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  nodeMysqlSslConfig: false | Record<string, unknown>;
+  connectTimeoutMs: number;
+  acquireTimeoutMs: number;
+  enableKeepAlive: boolean;
+  keepAliveInitialDelayMs: number;
+  sessionVariables: Record<string, number>;
+};
+
+const createNodePool = ({
+  mysql,
+  host,
+  port,
+  database,
+  user,
+  password,
+  nodeMysqlSslConfig,
+  connectTimeoutMs,
+  acquireTimeoutMs,
+  enableKeepAlive,
+  keepAliveInitialDelayMs,
+  sessionVariables,
+}: CreateNodePoolOptions): MySqlPool => {
   return mysql.createPool({
     host,
     port,
@@ -158,6 +197,11 @@ const createNodePool = (
     waitForConnections: true,
     connectionLimit: 10,
     namedPlaceholders: false,
+    connectTimeout: connectTimeoutMs,
+    acquireTimeout: acquireTimeoutMs,
+    enableKeepAlive,
+    keepAliveInitialDelay: keepAliveInitialDelayMs,
+    sessionVariables,
   });
 };
 
@@ -295,6 +339,14 @@ function normalizeQueryResult(raw: unknown): QueryResult {
   return { rows: [], rowCount: 0 };
 }
 
+const getSessionVariables = (config: DatabaseConfig): Record<string, number> => {
+  const sessionVariables: Record<string, number> = {};
+  sessionVariables.wait_timeout = config.waitTimeoutSeconds ?? 28800;
+  sessionVariables.net_read_timeout = config.netReadTimeoutSeconds ?? 120;
+  sessionVariables.net_write_timeout = config.netWriteTimeoutSeconds ?? 120;
+  return sessionVariables;
+};
+
 async function connect(state: AdapterState, config: DatabaseConfig): Promise<void> {
   if (state.connected) return;
 
@@ -305,6 +357,11 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
     const tlsEnabled = Boolean((config as { ssl?: boolean }).ssl);
     const nodeMysqlSslConfig = getNodeMysqlSslConfig(tlsEnabled);
     const timeoutMs = getSocketTimeoutMs(config);
+    const connectTimeoutMs = config.connectTimeoutMs ?? Math.max(timeoutMs, 60000);
+    const acquireTimeoutMs = config.acquireTimeoutMs ?? Math.max(timeoutMs, 60000);
+    const enableKeepAlive = config.enableKeepAlive ?? true;
+    const keepAliveInitialDelayMs = config.keepAliveInitialDelayMs ?? 0;
+    const sessionVariables = getSessionVariables(config);
     if (isWorkersRuntime) {
       state.pool = await createWorkersPool({
         mysql,
@@ -315,9 +372,27 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
         password,
         tlsEnabled,
         timeoutMs,
+        connectTimeoutMs,
+        acquireTimeoutMs,
+        enableKeepAlive,
+        keepAliveInitialDelayMs,
+        sessionVariables,
       });
     } else {
-      state.pool = createNodePool(mysql, host, port, database, user, password, nodeMysqlSslConfig);
+      state.pool = createNodePool({
+        mysql,
+        host,
+        port,
+        database,
+        user,
+        password,
+        nodeMysqlSslConfig,
+        connectTimeoutMs,
+        acquireTimeoutMs,
+        enableKeepAlive,
+        keepAliveInitialDelayMs,
+        sessionVariables,
+      });
     }
 
     // Probe.

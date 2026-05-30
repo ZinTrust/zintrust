@@ -1,6 +1,7 @@
 import { resolveNpmPath } from '@common/index';
 import { appConfig } from '@config/app';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 
 import type { IBaseCommand } from '@cli/BaseCommand';
@@ -14,18 +15,35 @@ type ApplyOptions = {
 type ExecuteSqlOptions = {
   dbName: string;
   isLocal: boolean;
-  sql: string;
+  sql?: string;
+  file?: string;
   cmd?: IBaseCommand;
+};
+
+const createWranglerLogMessage = (args: string[]): string => {
+  const command = (args[0] as string | undefined) ?? 'wrangler';
+  const resource = (args[1] as string | undefined) ?? 'command';
+  const action = (args[2] as string | undefined) ?? 'run';
+  const target = (args[3] as string | undefined) ?? 'unknown';
+  let mode = 'default';
+
+  if (args.includes('--local')) {
+    mode = 'local';
+  } else if (args.includes('--remote')) {
+    mode = 'remote';
+  }
+
+  return `[WranglerD1] Executing ${command} ${resource} ${action} for ${target} (${mode})`;
 };
 
 const runWrangler = (args: string[], cmd?: IBaseCommand): string => {
   const npmPath = resolveNpmPath();
-  const printable = `npm exec --yes -- wrangler ${args.join(' ')}`;
+  const logMessage = createWranglerLogMessage(args);
 
   if (cmd) {
-    cmd.debug(`Executing: ${printable}`);
+    cmd.debug(logMessage);
   } else {
-    Logger.debug(`[WranglerD1] Executing: ${printable}`);
+    Logger.debug(logMessage);
   }
 
   return execFileSync(npmPath, ['exec', '--yes', '--', 'wrangler', ...args], {
@@ -42,15 +60,18 @@ export const WranglerD1 = Object.freeze({
   },
 
   executeSql(opts: ExecuteSqlOptions): string {
-    const args = [
-      'd1',
-      'execute',
-      opts.dbName,
-      opts.isLocal ? '--local' : '--remote',
-      '--json',
-      '--command',
-      opts.sql,
-    ];
+    const args = ['d1', 'execute', opts.dbName, opts.isLocal ? '--local' : '--remote', '--json'];
+
+    if (typeof opts.file === 'string') {
+      args.push('--file', opts.file);
+    } else if (typeof opts.sql === 'string') {
+      args.push('--command', opts.sql);
+    } else {
+      throw ErrorFactory.createValidationError(
+        'Must provide either sql command or file for D1 execution'
+      );
+    }
+
     return runWrangler(args, opts.cmd);
   },
 });

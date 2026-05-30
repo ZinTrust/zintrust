@@ -1,5 +1,5 @@
-export { S3Driver } from '@zintrust/core';
-export type { S3Config } from '@zintrust/core';
+export { S3Driver } from '@zintrust/core/storage';
+export type { S3Config } from '@zintrust/core/storage';
 
 /**
  * Package version and build metadata

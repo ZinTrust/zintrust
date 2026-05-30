@@ -1,5 +1,5 @@
-export { GcsDriver } from '@zintrust/core';
-export type { GcsConfig } from '@zintrust/core';
+export { GcsDriver } from '@zintrust/core/storage';
+export type { GcsConfig } from '@zintrust/core/storage';
 
 /**
  * Package version and build metadata

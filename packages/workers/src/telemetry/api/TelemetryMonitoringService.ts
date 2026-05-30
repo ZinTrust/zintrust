@@ -1,5 +1,6 @@
-import type { IResponse } from '@zintrust/core';
-import { Logger, NodeSingletons } from '@zintrust/core';
+import type { IResponse } from '@zintrust/core/http';
+import { Logger } from '@zintrust/core/logger';
+import { NodeSingletons } from '@zintrust/core/workers';
 import type { createSnapshotBuilder, TelemetrySettings } from './TelemetryAPI';
 
 export type TelemetrySnapshotData = {

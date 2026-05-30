@@ -21,11 +21,16 @@ function list(): string[] {
   return Array.from(registry.keys()).sort((a, b) => a.localeCompare(b));
 }
 
+function clear(): void {
+  registry.clear();
+}
+
 export const StorageDriverRegistry = Object.freeze({
   register,
   get,
   has,
   list,
+  clear,
 });
 
 export default StorageDriverRegistry;

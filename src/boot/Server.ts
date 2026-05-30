@@ -15,10 +15,10 @@ import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { Response } from '@http/Response';
-import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 import * as http from '@node-singletons/http';
 import type { Socket } from '@node-singletons/net';
 import type { IApplication } from '@registry/type';
+import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 
 export interface IServer {
   listen(): Promise<void>;
@@ -132,7 +132,7 @@ const handleUpgrade = async (
       rejectUpgrade(socket, 426, 'Upgrade Required');
     }
   } catch (error) {
-    Logger.warn('Socket upgrade failed', error as Error);
+    Logger.warn('Socket upgrade failed', error);
     rejectUpgrade(socket, 500, 'Internal Server Error');
   }
 };

@@ -5,7 +5,8 @@
  * Use with Queue.dequeue() in a background process or cron job.
  */
 
-import { Broadcast, isArray, isNonEmptyString, Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core/logger';
+import { Broadcast, isArray, isNonEmptyString } from '@zintrust/core/utils';
 import { createQueueWorker } from './createQueueWorker';
 
 type BroadcastJob = {
