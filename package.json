@@ -387,6 +387,7 @@
     "uuid": "14.0.0",
     "ioredis": "^5.11.0",
     "axios": "^1.16.1",
+    "tmp": "^0.2.6",
     "sonarqube-scanner": {
       "axios": "^1.16.1"
     },
