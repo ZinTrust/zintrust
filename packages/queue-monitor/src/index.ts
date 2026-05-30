@@ -414,14 +414,18 @@ function createGetSnapshot(
     const queues = Array.from(new Set([...persistedQueues, ...discoveredQueues])).sort(
       (left, right) => left.localeCompare(right)
     );
-    Logger.info('[queue-monitor] snapshot queue list resolved', {
-      discoveredCount: discoveredQueues.length,
-      persistedCount: persistedQueues.length,
-      totalQueues: queues.length,
-      usedRedisDiscovery: shouldDiscoverQueues,
-      skippedRedisDiscovery: !shouldDiscoverQueues,
-      hasBatchCounts: typeof driver.getJobCountsMany === 'function',
-    });
+
+    const QUEUE_MONITOR_LOGGING_ENABLED = Env.getBool('QUEUE_MONITOR_LOGGING_ENABLED', false);
+    if (QUEUE_MONITOR_LOGGING_ENABLED) {
+      Logger.info('[queue-monitor] snapshot queue list resolved', {
+        discoveredCount: discoveredQueues.length,
+        persistedCount: persistedQueues.length,
+        totalQueues: queues.length,
+        usedRedisDiscovery: shouldDiscoverQueues,
+        skippedRedisDiscovery: !shouldDiscoverQueues,
+        hasBatchCounts: typeof driver.getJobCountsMany === 'function',
+      });
+    }
     const batchStartedAt = Date.now();
     const stats =
       typeof driver.getJobCountsMany === 'function'
@@ -435,12 +439,14 @@ function createGetSnapshot(
               return { name, counts: counts as unknown as QueueCounts };
             })
           );
-    Logger.info('[queue-monitor] snapshot queue counts resolved', {
-      durationMs: Date.now() - batchStartedAt,
-      totalQueues: queues.length,
-      returnedQueues: stats.length,
-      usedBatchCounts: typeof driver.getJobCountsMany === 'function',
-    });
+    if (QUEUE_MONITOR_LOGGING_ENABLED) {
+      Logger.info('[queue-monitor] snapshot queue counts resolved', {
+        durationMs: Date.now() - batchStartedAt,
+        totalQueues: queues.length,
+        returnedQueues: stats.length,
+        usedBatchCounts: typeof driver.getJobCountsMany === 'function',
+      });
+    }
 
     return {
       status: 'ok',

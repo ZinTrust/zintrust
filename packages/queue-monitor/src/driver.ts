@@ -152,18 +152,23 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
         )
       )
     );
-    Logger.info('[queue-monitor] getJobCountsMany start', {
-      requestedCount: queueNames.length,
-      uniqueCount: uniqueQueueNames.length,
-    });
-    const startedAt = Date.now();
-    if (uniqueQueueNames.length === 0) {
-      Logger.info('[queue-monitor] getJobCountsMany complete', {
-        durationMs: Date.now() - startedAt,
+    const QUEUE_MONITOR_LOGGING_ENABLED = Env.getBool('QUEUE_MONITOR_LOGGING_ENABLED', false);
+    if (QUEUE_MONITOR_LOGGING_ENABLED) {
+      Logger.info('[queue-monitor] getJobCountsMany start', {
         requestedCount: queueNames.length,
         uniqueCount: uniqueQueueNames.length,
-        pipelineCount: 0,
       });
+    }
+    const startedAt = Date.now();
+    if (uniqueQueueNames.length === 0) {
+      if (QUEUE_MONITOR_LOGGING_ENABLED) {
+        Logger.info('[queue-monitor] getJobCountsMany complete', {
+          durationMs: Date.now() - startedAt,
+          requestedCount: queueNames.length,
+          uniqueCount: uniqueQueueNames.length,
+          pipelineCount: 0,
+        });
+      }
       return [];
     }
 
@@ -174,12 +179,14 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
       })
     );
 
-    Logger.info('[queue-monitor] getJobCountsMany complete', {
-      durationMs: Date.now() - startedAt,
-      requestedCount: queueNames.length,
-      uniqueCount: uniqueQueueNames.length,
-      pipelineCount: uniqueQueueNames.length,
-    });
+    if (QUEUE_MONITOR_LOGGING_ENABLED) {
+      Logger.info('[queue-monitor] getJobCountsMany complete', {
+        durationMs: Date.now() - startedAt,
+        requestedCount: queueNames.length,
+        uniqueCount: uniqueQueueNames.length,
+        pipelineCount: uniqueQueueNames.length,
+      });
+    }
     return stats;
   };
 
