@@ -41,20 +41,20 @@ npm --prefix packages/redis-rpc run build
 
 The server and client read these variables:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `REDIS_RPC_URL` | empty | Full client base URL, for example `https://queues.example.com`. |
-| `REDIS_RPC_HOST` | `127.0.0.1` | Server listen host and client host fallback. |
-| `REDIS_RPC_PORT` | `8794` | Server listen port and client port fallback. |
-| `REDIS_RPC_SECRET` | `REDIS_PROXY_SECRET` or `APP_KEY` | Shared secret sent as `x-redis-rpc-secret`. |
-| `REDIS_RPC_REDIS_HOST` | `REDIS_HOST` or `127.0.0.1` | Redis host used by the RPC backend. |
-| `REDIS_RPC_REDIS_PORT` | `REDIS_PORT` or `6379` | Redis port used by the RPC backend. |
-| `REDIS_RPC_REDIS_PASSWORD` | `REDIS_PASSWORD` | Redis password used by the RPC backend. |
-| `REDIS_RPC_REDIS_DB` | `REDIS_QUEUE_DB`, `REDIS_DB`, or `0` | Redis database used for queue operations. |
-| `REDIS_RPC_BULLMQ_PREFIX` | `BULLMQ_PREFIX` or `bull` | BullMQ key prefix used by the backend. |
-| `REDIS_RPC_TIMEOUT_MS` | `30000` | Client-side timeout used by integrations. |
-| `REDIS_RPC_RETRY_MAX` | `2` | Client-side retry count used by integrations. |
-| `REDIS_RPC_RETRY_DELAY_MS` | `500` | Client-side retry delay used by integrations. |
+| Variable                   | Default                              | Purpose                                                         |
+| -------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| `REDIS_RPC_URL`            | empty                                | Full client base URL, for example `https://queues.example.com`. |
+| `REDIS_RPC_HOST`           | `127.0.0.1`                          | Server listen host and client host fallback.                    |
+| `REDIS_RPC_PORT`           | `8794`                               | Server listen port and client port fallback.                    |
+| `REDIS_RPC_SECRET`         | `REDIS_PROXY_SECRET` or `APP_KEY`    | Shared secret sent as `x-redis-rpc-secret`.                     |
+| `REDIS_RPC_REDIS_HOST`     | `REDIS_HOST` or `127.0.0.1`          | Redis host used by the RPC backend.                             |
+| `REDIS_RPC_REDIS_PORT`     | `REDIS_PORT` or `6379`               | Redis port used by the RPC backend.                             |
+| `REDIS_RPC_REDIS_PASSWORD` | `REDIS_PASSWORD`                     | Redis password used by the RPC backend.                         |
+| `REDIS_RPC_REDIS_DB`       | `REDIS_QUEUE_DB`, `REDIS_DB`, or `0` | Redis database used for queue operations.                       |
+| `REDIS_RPC_BULLMQ_PREFIX`  | `BULLMQ_PREFIX` or `bull`            | BullMQ key prefix used by the backend.                          |
+| `REDIS_RPC_TIMEOUT_MS`     | `30000`                              | Client-side timeout used by integrations.                       |
+| `REDIS_RPC_RETRY_MAX`      | `2`                                  | Client-side retry count used by integrations.                   |
+| `REDIS_RPC_RETRY_DELAY_MS` | `500`                                | Client-side retry delay used by integrations.                   |
 
 Set both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` to make supported ZinTrust packages select Redis RPC automatically. `USE_REDIS_PROXY=true` by itself does not enable Redis RPC; it only says the process is allowed to use a Redis proxy transport.
 
@@ -191,8 +191,26 @@ Supported methods:
 
 - `ping`
 - `call`
+- `pipeline`
+- `multi`
 
 Use raw Redis calls sparingly. Prefer queue and monitor methods because they preserve the BullMQ abstraction and keep Redis command details out of callers.
+
+`call` accepts either positional args (`{ "args": ["SET", "key", "value", "EX", 60] }`) or a `command` plus args. Object-style option arguments are expanded for Redis clients, so cache calls such as `set(key, value, { EX: 60 })` work through RPC. `pipeline` and `multi` accept a `commands` array:
+
+```json
+{
+  "service": "redis",
+  "method": "multi",
+  "payload": {
+    "commands": [
+      { "command": "SET", "args": ["key1", "value1"] },
+      { "command": "INCRBY", "args": ["counter", 1] }
+    ],
+    "transaction": true
+  }
+}
+```
 
 ## Custom services
 
@@ -213,7 +231,8 @@ await listenRedisRpcServer({ backend, port: 8794 });
 
 - `@zintrust/queue-redis` routes `enqueue`, `dequeue`, `ack`, `length`, and `drain` through Redis RPC only when `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` is configured.
 - `@zintrust/queue-monitor` reads snapshots, job counts, recent jobs, and retry operations through Redis RPC in the same explicit mode.
-- Core Redis transport uses Redis RPC for raw Redis commands when both flags are set, so cache and lock code can use Redis RPC without the older Redis HTTP proxy.
+- Core Redis transport uses Redis RPC for raw Redis commands when both flags are set, so cache and lock code can use Redis RPC without the older Redis HTTP proxy. When `USE_REDIS_PROXY=true` but `REDIS_RPC_URL` is empty, core Redis transport falls back to the legacy Redis HTTP proxy.
+- `@zintrust/cache-redis` supports Redis RPC for the documented cache surface: `get`, `set`, `delete`, `clear`, `has`, `increment`, `decrement`, `getRedisClient().pipeline()`, and `getRedisClient().multi()`.
 - Core env scaffolding includes the `REDIS_RPC_*` variables so generated projects can opt in without hand-editing config types.
 - The existing queue HTTP gateway remains available for signed `/api/_sys/queue/rpc` traffic; when the queue driver is in Redis RPC mode, that gateway delegates to Redis RPC-backed queue operations.
 

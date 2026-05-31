@@ -57,6 +57,13 @@ const PULL_WORKER_TOKEN = 'pull-worker';
 
 type EventLogEntry = Readonly<{ event: string; payload: unknown; at: number }>;
 type WorkerEntry = Readonly<{ queueName: string; worker: Worker }>;
+type RedisCommandArg = string | number | Buffer;
+type RedisCommandEntry = Readonly<{ command?: unknown; args?: unknown[] }>;
+type RedisCommandPipeline = {
+  exec: () => Promise<Array<[Error | null, unknown]>>;
+  call?: (command: string, ...args: unknown[]) => RedisCommandPipeline;
+  [key: string]: unknown;
+};
 
 type BackendState = {
   prefix: string;
@@ -95,6 +102,53 @@ const asArgs = (payload: RpcPayload): unknown[] => (isArray(payload.args) ? payl
 
 const firstDefined = (...values: unknown[]): unknown =>
   values.find((value) => !isUndefinedOrNull(value));
+
+const redisCommandArgs = (values: unknown[]): RedisCommandArg[] =>
+  values.flatMap((value) => {
+    if (!isRecord(value)) return [Buffer.isBuffer(value) ? value : String(value)];
+    return Object.entries(value).flatMap(([key, entry]) => {
+      if (typeof entry !== 'boolean') return [key, String(entry)];
+      return entry ? [key] : [];
+    });
+  });
+
+const redisPipelineCommands = (payload: RpcPayload): RedisCommandEntry[] => {
+  const commands = payload.commands;
+  if (!isArray(commands)) {
+    throw createRpcValidationError('commands must be an array');
+  }
+  return commands.map((command) => {
+    if (!isRecord(command)) {
+      throw createRpcValidationError('commands entries must be objects');
+    }
+    return command;
+  });
+};
+
+const queuePipelineCommand = (
+  pipeline: RedisCommandPipeline,
+  command: string,
+  args: unknown[]
+): void => {
+  const lower = command.toLowerCase();
+  const candidate = pipeline[lower];
+  if (typeof candidate === 'function') {
+    (candidate as (...input: unknown[]) => RedisCommandPipeline).apply(pipeline, args);
+    return;
+  }
+
+  if (typeof pipeline.call === 'function') {
+    pipeline.call(command, ...args);
+    return;
+  }
+
+  throw createRpcValidationError(`Unsupported redis command: ${command}`);
+};
+
+const serializePipelineResults = (
+  results: Array<[Error | null, unknown]>
+): Array<[string | null, unknown]> =>
+  results.map(([error, result]) => [error === null ? null : error.message, result]);
 
 const queueNameFromPayload = (payload: RpcPayload): string => {
   return requireString(firstDefined(payload.queueName, payload.queue, payload.target), 'queueName');
@@ -583,10 +637,24 @@ const dispatchRedis = async (
     if (method === 'call') {
       const command = requireString(firstDefined(args[0], payload.command), 'command');
       const rawCommandArgs = args.length > 0 ? args.slice(1) : asArgs(payload);
-      const commandArgs = rawCommandArgs.map((value) =>
-        Buffer.isBuffer(value) ? value : String(value)
-      );
+      const commandArgs = redisCommandArgs(rawCommandArgs);
       return await connection.call(command, ...commandArgs);
+    }
+    if (method === 'pipeline' || method === 'multi') {
+      const commands = redisPipelineCommands(payload);
+      const transaction = boolFrom(firstDefined(payload.transaction, method === 'multi'), false);
+      const pipeline = (transaction
+        ? connection.multi()
+        : connection.pipeline()) as unknown as RedisCommandPipeline;
+      for (const entry of commands) {
+        const command = requireString(entry.command, 'command');
+        queuePipelineCommand(
+          pipeline,
+          command,
+          redisCommandArgs(isArray(entry.args) ? entry.args : [])
+        );
+      }
+      return serializePipelineResults(await pipeline.exec());
     }
     throw createRpcValidationError(`Unsupported redis method: ${method}`);
   } finally {

@@ -18,6 +18,8 @@ type RedisClientLike = {
   del: (...keys: string[]) => Promise<unknown>;
   flushdb: () => Promise<unknown>;
   exists: (...keys: string[]) => Promise<number>;
+  incrby?: (key: string, amount: number) => Promise<number>;
+  decrby?: (key: string, amount: number) => Promise<number>;
 };
 
 type SocketListener = (...args: unknown[]) => void;
@@ -86,6 +88,8 @@ const createIoredisClient = (params: {
   }
 };
 
+// Redis driver objects keep each cache operation together for parity across transports.
+// eslint-disable-next-line max-lines-per-function
 const createCacheDriverFromIoredisClient = (client: RedisClientLike): CacheDriver => ({
   async get<T>(key: string): Promise<T | null> {
     try {
@@ -138,6 +142,40 @@ const createCacheDriverFromIoredisClient = (client: RedisClientLike): CacheDrive
     } catch (error) {
       Logger.error('Redis EXISTS failed', error);
       return false;
+    }
+  },
+
+  async increment(key: string, amount = 1): Promise<number> {
+    try {
+      const prefixedKey = RedisKeys.createCacheKey(key);
+      if (typeof client.incrby === 'function') {
+        return await client.incrby(prefixedKey, amount);
+      }
+
+      const current = Number((await client.get(prefixedKey)) ?? 0);
+      const next = current + amount;
+      await client.set(prefixedKey, String(next));
+      return next;
+    } catch (error) {
+      Logger.error('Redis INCRBY failed', error);
+      return 0;
+    }
+  },
+
+  async decrement(key: string, amount = 1): Promise<number> {
+    try {
+      const prefixedKey = RedisKeys.createCacheKey(key);
+      if (typeof client.decrby === 'function') {
+        return await client.decrby(prefixedKey, amount);
+      }
+
+      const current = Number((await client.get(prefixedKey)) ?? 0);
+      const next = current - amount;
+      await client.set(prefixedKey, String(next));
+      return next;
+    } catch (error) {
+      Logger.error('Redis DECRBY failed', error);
+      return 0;
     }
   },
 
@@ -298,6 +336,8 @@ const createTcpSendCommand = (params: {
   };
 };
 
+// TCP fallback mirrors the same Redis cache method table without an external client.
+// eslint-disable-next-line max-lines-per-function
 const createTcpCacheDriver = (): CacheDriver => {
   const host = Env.REDIS_HOST;
   const port = Env.REDIS_PORT;
@@ -362,6 +402,30 @@ const createTcpCacheDriver = (): CacheDriver => {
       } catch (error) {
         Logger.error('Redis EXISTS failed', error);
         return false;
+      }
+    },
+
+    async increment(key: string, amount = 1): Promise<number> {
+      try {
+        const prefixedKey = RedisKeys.createCacheKey(key);
+        const response = await sendCommand(`INCRBY ${prefixedKey} ${amount}\r\n`);
+        const value = Number.parseInt(response.replace(':', '').trim(), 10);
+        return Number.isFinite(value) ? value : 0;
+      } catch (error) {
+        Logger.error('Redis INCRBY failed', error);
+        return 0;
+      }
+    },
+
+    async decrement(key: string, amount = 1): Promise<number> {
+      try {
+        const prefixedKey = RedisKeys.createCacheKey(key);
+        const response = await sendCommand(`DECRBY ${prefixedKey} ${amount}\r\n`);
+        const value = Number.parseInt(response.replace(':', '').trim(), 10);
+        return Number.isFinite(value) ? value : 0;
+      } catch (error) {
+        Logger.error('Redis DECRBY failed', error);
+        return 0;
       }
     },
 

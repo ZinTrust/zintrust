@@ -30,6 +30,16 @@ export interface CacheDriver {
   has(key: string): Promise<boolean>;
 
   /**
+   * Atomically increment a numeric cache value when the driver supports it.
+   */
+  increment?(key: string, amount?: number): Promise<number>;
+
+  /**
+   * Atomically decrement a numeric cache value when the driver supports it.
+   */
+  decrement?(key: string, amount?: number): Promise<number>;
+
+  /**
    * Dispose of resources (optional cleanup method)
    */
   dispose?(): Promise<void>;

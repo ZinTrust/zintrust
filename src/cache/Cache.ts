@@ -198,6 +198,32 @@ const has = async (key: string): Promise<boolean> => {
   return exists;
 };
 
+const increment = async (key: string, amount = 1): Promise<number> => {
+  const prefixedKey = autoPrefixKey(key);
+  const driver = getDriverInstance();
+  if (typeof driver.increment === 'function') {
+    return driver.increment(prefixedKey, amount);
+  }
+
+  const current = Number((await driver.get<number>(prefixedKey)) ?? 0);
+  const next = current + amount;
+  await driver.set(prefixedKey, next);
+  return next;
+};
+
+const decrement = async (key: string, amount = 1): Promise<number> => {
+  const prefixedKey = autoPrefixKey(key);
+  const driver = getDriverInstance();
+  if (typeof driver.decrement === 'function') {
+    return driver.decrement(prefixedKey, amount);
+  }
+
+  const current = Number((await driver.get<number>(prefixedKey)) ?? 0);
+  const next = current - amount;
+  await driver.set(prefixedKey, next);
+  return next;
+};
+
 /**
  * Get the underlying driver instance
  */
@@ -211,9 +237,13 @@ type CacheStore = Readonly<{
   delete: (key: string) => Promise<void>;
   clear: () => Promise<void>;
   has: (key: string) => Promise<boolean>;
+  increment: (key: string, amount?: number) => Promise<number>;
+  decrement: (key: string, amount?: number) => Promise<number>;
   getDriver: () => CacheDriver;
 }>;
 
+// Store factories expose a compact per-store facade with traced operations.
+// eslint-disable-next-line max-lines-per-function
 const store = (name?: string): CacheStore => {
   const getFromStore = async <T>(key: string): Promise<T | null> => {
     const prefixedKey = autoPrefixKey(key);
@@ -287,6 +317,32 @@ const store = (name?: string): CacheStore => {
     return exists;
   };
 
+  const incrementInStore = async (key: string, amount = 1): Promise<number> => {
+    const prefixedKey = autoPrefixKey(key);
+    const driver = getDriverInstance(name);
+    if (typeof driver.increment === 'function') {
+      return driver.increment(prefixedKey, amount);
+    }
+
+    const current = Number((await driver.get<number>(prefixedKey)) ?? 0);
+    const next = current + amount;
+    await driver.set(prefixedKey, next);
+    return next;
+  };
+
+  const decrementInStore = async (key: string, amount = 1): Promise<number> => {
+    const prefixedKey = autoPrefixKey(key);
+    const driver = getDriverInstance(name);
+    if (typeof driver.decrement === 'function') {
+      return driver.decrement(prefixedKey, amount);
+    }
+
+    const current = Number((await driver.get<number>(prefixedKey)) ?? 0);
+    const next = current - amount;
+    await driver.set(prefixedKey, next);
+    return next;
+  };
+
   const getStoreDriver = (): CacheDriver => {
     return getDriverInstance(name);
   };
@@ -297,6 +353,8 @@ const store = (name?: string): CacheStore => {
     delete: delFromStore,
     clear: clearStore,
     has: hasInStore,
+    increment: incrementInStore,
+    decrement: decrementInStore,
     getDriver: getStoreDriver,
   });
 };
@@ -322,6 +380,8 @@ export const Cache = Object.freeze({
   delete: del,
   clear,
   has,
+  increment,
+  decrement,
   getDriver,
   getRedisClient,
   store,

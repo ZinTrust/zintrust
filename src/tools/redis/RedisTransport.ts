@@ -41,6 +41,10 @@ type RedisProxyConnection = {
     exec: () => Promise<Array<[Error | null, unknown]>>;
     [key: string]: unknown;
   };
+  multi: () => {
+    exec: () => Promise<Array<[Error | null, unknown]>>;
+    [key: string]: unknown;
+  };
   scanStream: (options?: { match?: string; count?: number }) => {
     on: (event: string, handler: (...args: unknown[]) => void) => unknown;
     once: (event: string, handler: (...args: unknown[]) => void) => unknown;
@@ -185,10 +189,10 @@ const requestProxyCommand = async <T>(
   return parsed.result;
 };
 
-const requestRpcCommand = async <T>(
+const requestRpcMethod = async <T>(
   settings: RpcSettings,
-  command: string,
-  args: unknown[]
+  method: string,
+  payload: Record<string, unknown>
 ): Promise<T> => {
   if (settings.baseUrl.trim() === '') {
     throw ErrorFactory.createConfigError(
@@ -199,8 +203,8 @@ const requestRpcCommand = async <T>(
   const url = new URL('/rpc', settings.baseUrl);
   const body = JSON.stringify({
     service: 'redis',
-    method: 'call',
-    payload: { args: [command, ...args] },
+    method,
+    payload,
   });
   const signal =
     typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
@@ -211,7 +215,9 @@ const requestRpcCommand = async <T>(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(settings.secret ? { 'x-redis-rpc-secret': settings.secret } : {}),
+      ...(settings.secret !== undefined && settings.secret.trim() !== ''
+        ? { 'x-redis-rpc-secret': settings.secret }
+        : {}),
     },
     body,
     signal,
@@ -223,13 +229,39 @@ const requestRpcCommand = async <T>(
     error?: { message?: string; details?: unknown };
   };
   if (!response.ok || parsed.ok !== true) {
+    const errorMessage = parsed.error?.message;
     throw ErrorFactory.createTryCatchError(
-      parsed.error?.message || `Redis RPC request failed (${response.status})`,
+      typeof errorMessage === 'string' && errorMessage.trim() !== ''
+        ? errorMessage
+        : `Redis RPC request failed (${response.status})`,
       parsed.error?.details
     );
   }
 
   return parsed.result as T;
+};
+
+const requestRpcCommand = async <T>(
+  settings: RpcSettings,
+  command: string,
+  args: unknown[]
+): Promise<T> => requestRpcMethod<T>(settings, 'call', { args: [command, ...args] });
+
+const requestRpcPipeline = async (
+  settings: RpcSettings,
+  commands: Array<{ command: string; args: unknown[] }>,
+  transaction: boolean
+): Promise<Array<[Error | null, unknown]>> => {
+  const results = await requestRpcMethod<Array<[string | null, unknown]>>(
+    settings,
+    transaction ? 'multi' : 'pipeline',
+    { commands, transaction }
+  );
+
+  return results.map(([error, result]) => [
+    error === null ? null : ErrorFactory.createTryCatchError(error),
+    result,
+  ]);
 };
 
 const requestRedisCommand = async <T>(
@@ -347,7 +379,8 @@ const createScanStream = (
 
 const createPipeline = (
   settings: ProxySettings | RpcSettings,
-  mode: Exclude<RedisTransportMode, 'direct'>
+  mode: Exclude<RedisTransportMode, 'direct'>,
+  transaction = false
 ): {
   exec: () => Promise<Array<[Error | null, unknown]>>;
   [key: string]: unknown;
@@ -356,6 +389,10 @@ const createPipeline = (
 
   const target = {
     async exec(): Promise<Array<[Error | null, unknown]>> {
+      if (mode === 'rpc') {
+        return requestRpcPipeline(settings as RpcSettings, commands, transaction);
+      }
+
       const results: Array<[Error | null, unknown]> = [];
       for (const entry of commands) {
         try {
@@ -401,7 +438,9 @@ export const createRedisProxyConnection = (
   const mode = resolveRedisTransportMode();
   const settings = mode === 'rpc' ? resolveRpcSettings() : resolveProxySettings();
   if (mode === 'direct') {
-    throw ErrorFactory.createConfigError('Redis proxy connection requested while direct mode is active.');
+    throw ErrorFactory.createConfigError(
+      'Redis proxy connection requested while direct mode is active.'
+    );
   }
   logTransportSelection(mode, config, options);
 
@@ -425,6 +464,7 @@ export const createRedisProxyConnection = (
       return requestRedisCommand(mode, settings, command, args);
     },
     pipeline: () => createPipeline(settings, mode),
+    multi: () => createPipeline(settings, mode, true),
     scanStream: (scanOptions?: { match?: string; count?: number }) =>
       createScanStream(settings, mode, scanOptions),
   };

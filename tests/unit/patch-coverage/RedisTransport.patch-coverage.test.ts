@@ -13,6 +13,12 @@ const createJsonResponse = (result: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json' },
   });
 
+const createRpcJsonResponse = (result: unknown, status = 200): Response =>
+  new Response(JSON.stringify({ ok: status >= 200 && status < 300, result, error: null }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+
 const mockLogger = (info = vi.fn(), error = vi.fn(), debug = vi.fn()): void => {
   vi.doMock('@config/logger', () => ({ Logger: { info, error, debug } }));
 };
@@ -164,7 +170,7 @@ describe('patch coverage: RedisTransport', () => {
 
     expect(await client.connect()).toBeUndefined();
     expect(await client.call('get', 'alpha')).toBe('value-1');
-    expect(await client.get('beta')).toBe('value-2');
+    expect(await client['get']('beta')).toBe('value-2');
     expect(await client.quit()).toBe('OK');
     // Skip strict object equality for client methods due to ioredis implementation differences
     expect(client.on('ready', () => undefined)).toBeDefined();
@@ -216,7 +222,7 @@ describe('patch coverage: RedisTransport', () => {
     const client = createRedisProxyConnection(redisConfig, { subsystem: 'queue' });
 
     const pipeline = client.pipeline();
-    pipeline.set('a', '1').get('a');
+    pipeline['set']('a', '1').get('a');
     const results = await pipeline.exec();
 
     expect(results[0]).toEqual([null, 'OK']);
@@ -252,12 +258,102 @@ describe('patch coverage: RedisTransport', () => {
     const { createRedisProxyConnection } = await import('@/tools/redis/RedisTransport');
     const client = createRedisProxyConnection(redisConfig, { subsystem: 'cache' });
 
-    await client.set('a', '1');
+    await client['set']('a', '1');
 
     // Verify custom headers are included in the request
     expect(fetchMock).toHaveBeenCalled();
     const [_, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = options?.headers as Record<string, string>;
     expect(headers).toBeDefined();
+  });
+
+  it('prefers redis-rpc over the legacy proxy and batches multi commands through RPC', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(createRpcJsonResponse('OK'))
+      .mockResolvedValueOnce(
+        createRpcJsonResponse([
+          [null, 'OK'],
+          [null, '1'],
+        ])
+      )
+      .mockResolvedValueOnce(
+        createRpcJsonResponse([
+          [null, 'OK'],
+          [null, 2],
+        ])
+      );
+
+    vi.stubGlobal('fetch', fetchMock);
+    mockLogger(vi.fn());
+    mockEnv({
+      USE_REDIS_PROXY: true,
+      REDIS_RPC_URL: 'https://redis-rpc.example.com/base',
+      REDIS_RPC_SECRET: 'rpc-secret',
+      REDIS_RPC_TIMEOUT_MS: 1500,
+      REDIS_PROXY_URL: 'http://legacy-proxy.local/base',
+      REDIS_PROXY_HOST: 'legacy-proxy.local',
+      REDIS_PROXY_PORT: 8787,
+      REDIS_PROXY_KEY_ID: '',
+      REDIS_PROXY_SECRET: '',
+      REDIS_PROXY_TIMEOUT_MS: 1500,
+    });
+    mockSignedRequest();
+
+    const { createRedisProxyConnection, resolveRedisTransportMode } =
+      await import('@/tools/redis/RedisTransport');
+
+    expect(resolveRedisTransportMode()).toBe('rpc');
+
+    const client = createRedisProxyConnection(redisConfig, { subsystem: 'cache' });
+    await expect(client['set']('cache:key', 'value', 'EX', 30)).resolves.toBe('OK');
+
+    const pipeline = client.pipeline();
+    pipeline['set']('counter', '1').get('counter');
+    await expect(pipeline.exec()).resolves.toEqual([
+      [null, 'OK'],
+      [null, '1'],
+    ]);
+
+    const multi = client.multi();
+    multi['set']('counter', '2').incrby('counter', 1);
+    await expect(multi.exec()).resolves.toEqual([
+      [null, 'OK'],
+      [null, 2],
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [commandUrl, commandRequest] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [, pipelineRequest] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [, multiRequest] = fetchMock.mock.calls[2] as [string, RequestInit];
+
+    expect(commandUrl).toBe('https://redis-rpc.example.com/rpc');
+    expect(commandRequest.headers).toMatchObject({ 'x-redis-rpc-secret': 'rpc-secret' });
+    expect(JSON.parse(String(commandRequest.body))).toMatchObject({
+      service: 'redis',
+      method: 'call',
+      payload: { args: ['SET', 'cache:key', 'value', 'EX', 30] },
+    });
+    expect(JSON.parse(String(pipelineRequest.body))).toMatchObject({
+      service: 'redis',
+      method: 'pipeline',
+      payload: {
+        commands: [
+          { command: 'SET', args: ['counter', '1'] },
+          { command: 'GET', args: ['counter'] },
+        ],
+      },
+    });
+    expect(JSON.parse(String(multiRequest.body))).toMatchObject({
+      service: 'redis',
+      method: 'multi',
+      payload: {
+        transaction: true,
+        commands: [
+          { command: 'SET', args: ['counter', '2'] },
+          { command: 'INCRBY', args: ['counter', 1] },
+        ],
+      },
+    });
   });
 });
