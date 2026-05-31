@@ -36,6 +36,7 @@ type RedisProxyConnection = {
   once: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
   off: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
   removeListener: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
+  duplicate: () => RedisProxyConnection;
   call: (command: string, ...args: unknown[]) => Promise<unknown>;
   pipeline: () => {
     exec: () => Promise<Array<[Error | null, unknown]>>;
@@ -463,6 +464,7 @@ export const createRedisProxyConnection = (
     call: async (command: string, ...args: unknown[]): Promise<unknown> => {
       return requestRedisCommand(mode, settings, command, args);
     },
+    duplicate: (): RedisProxyConnection => createRedisProxyConnection(config, options),
     pipeline: () => createPipeline(settings, mode),
     multi: () => createPipeline(settings, mode, true),
     scanStream: (scanOptions?: { match?: string; count?: number }) =>

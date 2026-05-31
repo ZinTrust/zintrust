@@ -49,7 +49,7 @@ const createServiceProxy = <TService extends object>(
   target?: string
 ): TService => {
   return new Proxy(Object.create(null), {
-    get(_receiver, property) {
+    get(_receiver, property): unknown {
       if (typeof property !== 'string') return undefined;
       return (...args: unknown[]) => client.call(service, property, { target, args });
     },

@@ -38,7 +38,7 @@ export const createRedisRpcServer = (options: Record<string, unknown> = {}): Red
       if (request.method !== 'POST' || url.pathname !== '/rpc') {
         throw createRpcNotFoundError('Unknown Redis RPC route');
       }
-      if (settings.secret && request.headers['x-redis-rpc-secret'] !== settings.secret) {
+      if (!settings.secret || request.headers['x-redis-rpc-secret'] !== settings.secret) {
         throw createRpcUnauthorizedError('Invalid Redis RPC secret');
       }
       const bodyText = await readBody(request);

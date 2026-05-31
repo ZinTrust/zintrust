@@ -642,7 +642,7 @@ const dispatchRedis = async (
     }
     if (method === 'pipeline' || method === 'multi') {
       const commands = redisPipelineCommands(payload);
-      const transaction = boolFrom(firstDefined(payload.transaction, method === 'multi'), false);
+      const transaction = method === 'multi' || boolFrom(payload.transaction, false);
       const pipeline = (transaction
         ? connection.multi()
         : connection.pipeline()) as unknown as RedisCommandPipeline;
