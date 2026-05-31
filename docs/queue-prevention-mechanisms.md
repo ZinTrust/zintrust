@@ -5,8 +5,8 @@ To prevent infinite loops and runaway job duplication in the queue recovery syst
 ## 1. Strict Idempotency & Job ID Preservation (Implemented)
 
 - **Mechanism:** Ensure that every job has a deterministic `jobId` or `uniqueId` that persists across recovery attempts.
-- **Benefit:** Prevents `HttpQueueDriver` from generating new UUIDs when a request fails, stopping the multiplication of identical jobs.
-- **Status:** Fixed in `JobRecoveryDaemon.ts` and `HttpQueueDriver.ts`.
+- **Benefit:** Prevents the queue driver from generating new UUIDs when a request fails, stopping the multiplication of identical jobs.
+- **Status:** Fixed in `JobRecoveryDaemon.ts` and `RedisRpcQueueDriver.ts`.
 
 ## 2. Progressive Backoff with Attempt Tracking (Implemented)
 
@@ -22,7 +22,7 @@ To prevent infinite loops and runaway job duplication in the queue recovery syst
 
 ## 4. Circuit Breaker Pattern
 
-- **Mechanism:** If `HttpQueueDriver` detects a high failure rate (e.g., > 10% of requests failing/timing out), immediately stop all recovery attempts for a cool-down period.
+- **Mechanism:** If the queue driver detects a high failure rate (e.g., > 10% of requests failing/timing out), immediately stop all recovery attempts for a cool-down period.
 - **Benefit:** Prevents flooding the logs and the database with `pending_recovery` transitions during a partial outage.
 
 ## 5. Transition Velocity Guard (Debounce)

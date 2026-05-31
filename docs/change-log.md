@@ -1,3 +1,19 @@
+# 2026-05-31
+
+- Added `@zintrust/redis-rpc` — a new backend-owned RPC server that bridges Cloudflare Workers and other TCP-less runtimes to Redis and BullMQ over HTTP. Start it with `zin redis-rpc` or `zin s redis-rpc`. It activates automatically in queue, cache, and worker subsystems when both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are set, replacing the older Redis HTTP command proxy for queue-aware workloads.
+
+- Added `@zintrust/queue-redis` `RedisRpcQueueDriver` which routes `enqueue`, `dequeue`, `ack`, `length`, and `drain` calls through the Redis RPC server when `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` is configured. The driver retries with configurable `REDIS_RPC_RETRY_MAX` and `REDIS_RPC_RETRY_DELAY_MS`, and marks jobs as pending-recovery on persistent failure.
+
+- Extended `@zintrust/cache-redis` with atomic `increment(key, amount)` and `decrement(key, amount)` methods. When using `ioredis` directly the operations map to `INCRBY`/`DECRBY`; in proxy and RPC modes they are emulated with read-modify-write semantics.
+
+- Extended the Redis RPC backend (`packages/redis-rpc/backend.ts`) with `pipeline` and `multi` dispatch so callers can batch arbitrary Redis commands atomically over RPC. The `multi` path always uses `MULTI/EXEC` semantics regardless of `payload.transaction`.
+
+- Replaced the legacy Redis proxy connection's removed `duplicate()` method on `RedisProxyConnection` to maintain the BullMQ `IRedisClient` contract. The proxy now delegates `duplicate()` back to `createRedisProxyConnection` instead of returning an RPC command function.
+
+- Fixed `redis-rpc` server auth to fail-closed when no secret is configured: the auth guard now rejects every request unless `REDIS_RPC_SECRET`, `REDIS_PROXY_SECRET`, or `APP_KEY` is explicitly set.
+
+- Updated `queue-prevention-mechanisms.md` and `cache.md` documentation to reflect the Redis RPC driver replacing `HttpQueueDriver`, and to document the new cache increment/decrement API.
+
 # 2026-05-21
 
 - Reworked `@zintrust/d1-migrator` remote D1 data copy behavior for large MySQL-backed migrations. Remote D1 table migration now runs one table at a time by default instead of level-wide parallel fanout, each table resets its remote batch tuning at the start, remote inserts begin at `1000` rows per statement, and failed remote inserts now retry by halving the statement row count down to `1` before the migrator skips the rest of that table and appends a JSON line to `logs/d1-migration-failed-report.log`.

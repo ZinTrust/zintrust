@@ -36,6 +36,10 @@ await cache.delete('user:1');
 
 // Clear all items (if supported by driver)
 await cache.clear();
+
+// Atomic increment / decrement (Redis driver uses INCRBY/DECRBY; other drivers emulate)
+const views = await cache.increment('page:views', 1);   // returns new value
+const credits = await cache.decrement('user:credits', 5);
 ```
 
 ## Supported Drivers

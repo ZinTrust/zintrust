@@ -20,6 +20,7 @@
 - `zin templates`: List/render built-in markdown templates
 - `zin routes` (alias: `zin route:list`): List all registered routes (table/JSON)
 - `zin queue:recovery`: Run queue recovery once, start reliability orchestrator, or inspect/recover specific tracked jobs
+- `zin redis-rpc` (aliases: `zin start redis-rpc`, `zin s redis-rpc`): Start the Redis RPC server (bridges Cloudflare Workers and other TCP-less runtimes to Redis/BullMQ over HTTP). Requires `@zintrust/redis-rpc` to be installed.
 - `zin schedule:list`: List registered schedules (core + `app/Schedules`)
 - `zin schedule:run`: Run a single schedule once (by name)
 - `zin schedule:start`: Start the schedules daemon (Node/Fargate) and block until shutdown
