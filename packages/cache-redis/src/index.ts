@@ -176,7 +176,7 @@ const createWorkersCacheDriver = (config: RedisCacheConfig): CacheDriver => {
         db: config.database ?? 0,
       },
       3,
-      { subsystem: 'cache', requireDirectForScripts: false }
+      { subsystem: 'cache' }
     );
 
     if (!connected && typeof client.connect === 'function') {

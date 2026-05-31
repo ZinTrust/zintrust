@@ -14,7 +14,6 @@ import {
 import { createRedisConnection, getBullMQSafeQueueName } from '@zintrust/core/redis';
 import { generateUuid, ZintrustLang } from '@zintrust/core/utils';
 import { Queue, type JobsOptions } from 'bullmq';
-import { HttpQueueDriver } from './HttpQueueDriver';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
 
@@ -35,24 +34,6 @@ interface IBullMQRedisQueue extends IQueueDriver {
 
 type DeduplicationReleaseAfter = Exclude<BullMQPayload['deduplication'], undefined>['releaseAfter'];
 
-export const shouldUseHttpProxyDriver = (): boolean => {
-  if (directModeDepth > 0) return false;
-  const isCloudFlareWorkers = Cloudflare.getWorkersEnv() !== null;
-  const isProxy = isCloudFlareWorkers || Env.getBool('QUEUE_HTTP_PROXY_ENABLED', false);
-  return isProxy;
-};
-
-let directModeDepth = 0;
-
-export const runWithDirectQueueDriver = async <T>(fn: () => Promise<T>): Promise<T> => {
-  directModeDepth += 1;
-  try {
-    return await fn();
-  } finally {
-    directModeDepth = Math.max(0, directModeDepth - 1);
-  }
-};
-
 /**
  * BullMQ Redis Queue Driver
  *
@@ -65,24 +46,6 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   let lockProviderCache: ReturnType<typeof createLockProvider> | null = null;
   const PULL_WORKER_TOKEN = 'pull-worker';
   const SHARED_CONNECTION_SHUTDOWN_TIMEOUT_MS = 100;
-
-  const isRedisProxyEnabled = (): boolean => {
-    return Env.USE_REDIS_PROXY === true || Env.get('REDIS_PROXY_URL', '').trim() !== '';
-  };
-
-  const assertProxyAndWorkersCompatibility = (isWorkersRuntime: boolean): void => {
-    if (isRedisProxyEnabled() && shouldUseHttpProxyDriver() === false) {
-      throw ErrorFactory.createConfigError(
-        'BullMQ Redis driver does not support REDIS proxy transport directly. Enable QUEUE_HTTP_PROXY_ENABLED=true for queue proxy mode, or disable REDIS proxy mode for direct BullMQ access.'
-      );
-    }
-
-    if (isWorkersRuntime && Cloudflare.isCloudflareSocketsEnabled() === false) {
-      throw ErrorFactory.createConfigError(
-        'BullMQ Redis driver requires ENABLE_CLOUDFLARE_SOCKETS=true in Cloudflare Workers. To use HTTP queue proxy mode, set QUEUE_HTTP_PROXY_ENABLED=true and QUEUE_HTTP_PROXY_URL.'
-      );
-    }
-  };
 
   const resolveQueueRedisConfig = (): {
     host: string;
@@ -126,14 +89,13 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       (redisConfig.host === 'localhost' || redisConfig.host === '127.0.0.1')
     ) {
       throw ErrorFactory.createConfigError(
-        'Redis host cannot be localhost in Cloudflare Workers. Use a public Redis host, or enable queue HTTP proxy mode with QUEUE_HTTP_PROXY_ENABLED=true and QUEUE_HTTP_PROXY_URL.'
+        'Redis host cannot be localhost in Cloudflare Workers. Use a public Redis host.'
       );
     }
   };
 
   const createSharedBullMqConnection = (): RedisConnection => {
     const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
-    assertProxyAndWorkersCompatibility(isWorkersRuntime);
 
     const redisConfig = resolveQueueRedisConfig();
     assertWorkersHostIsReachable(isWorkersRuntime, redisConfig);
@@ -285,12 +247,6 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   };
 
   const getQueue = (queueName: string): Queue => {
-    if (shouldUseHttpProxyDriver()) {
-      throw ErrorFactory.createConfigError(
-        'BullMQ queue instance is not available when QUEUE_HTTP_PROXY mode is active.'
-      );
-    }
-
     // Check if queue exists in cache
     if (queues.has(queueName)) {
       const existingQueue = queues.get(queueName);
@@ -583,10 +539,6 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     getQueueNames,
 
     async enqueue(queue: string, payload: BullMQPayload): Promise<string> {
-      if (shouldUseHttpProxyDriver()) {
-        return HttpQueueDriver.enqueue(queue, payload);
-      }
-
       let requestedJobId: string | number | undefined;
 
       try {
@@ -629,10 +581,6 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     },
 
     async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
-      if (shouldUseHttpProxyDriver()) {
-        return HttpQueueDriver.dequeue<T>(queue);
-      }
-
       try {
         const q = getQueue(queue);
 
@@ -665,11 +613,6 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     },
 
     async ack(queue: string, id: string): Promise<void> {
-      if (shouldUseHttpProxyDriver()) {
-        await HttpQueueDriver.ack(queue, id);
-        return;
-      }
-
       try {
         const q = getQueue(queue);
         const job = await q.getJob(id);
@@ -686,10 +629,6 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     },
 
     async length(queue: string): Promise<number> {
-      if (shouldUseHttpProxyDriver()) {
-        return HttpQueueDriver.length(queue);
-      }
-
       try {
         const q = getQueue(queue);
         const counts = await q.getJobCounts();
@@ -705,11 +644,6 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     },
 
     async drain(queue: string): Promise<void> {
-      if (shouldUseHttpProxyDriver()) {
-        await HttpQueueDriver.drain(queue);
-        return;
-      }
-
       try {
         const q = getQueue(queue);
         await q.drain();

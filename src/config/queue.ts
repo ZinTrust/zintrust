@@ -120,67 +120,17 @@ const readWorkersFallbackBool = (
   return Env.getBool(fallbackKey, fallback);
 };
 
-const parseRedisUrl = (
-  rawUrl: string
-): { host: string; port: number; password?: string; database?: number } | null => {
-  try {
-    const url = new URL(rawUrl);
-    if (url.protocol !== 'redis:' && url.protocol !== 'rediss:') return null;
-    const host = url.hostname;
-    const port = url.port ? Number.parseInt(url.port, 10) : 6379;
-    const password = url.password ? decodeURIComponent(url.password) : undefined;
-    const db = url.pathname ? Number.parseInt(url.pathname.replace('/', ''), 10) : undefined;
-    return { host, port, password, database: Number.isFinite(db ?? Number.NaN) ? db : undefined };
-  } catch {
-    return null;
-  }
-};
-
-const resolveRedisProxyConfig = (): {
-  host: string;
-  port: number;
-  password?: string;
-  database?: number;
-} | null => {
-  const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
-  if (!isWorkersRuntime) {
-    return null;
-  }
-
-  const proxyUrl = Env.get('REDIS_PROXY_URL', '').trim();
-  const parsed = proxyUrl ? parseRedisUrl(proxyUrl) : null;
-  if (parsed) return parsed;
-
-  if (Env.getBool('USE_REDIS_PROXY', false)) {
-    return {
-      host: Env.get('REDIS_PROXY_HOST', ''),
-      port: Env.getInt('REDIS_PROXY_PORT', 6379),
-      password: Env.get('REDIS_PASSWORD', ''),
-      database: Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
-    };
-  }
-
-  return null;
-};
-
 const createRedisQueueDriver = (): RedisQueueDriverConfig => {
-  const proxyConfig = resolveRedisProxyConfig();
   return {
     driver: 'redis' as const,
-    host:
-      proxyConfig?.host ??
-      readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
-    port: proxyConfig?.port ?? readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
-    password:
-      proxyConfig?.password ??
-      readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
-    database:
-      proxyConfig?.database ??
-      readWorkersFallbackInt(
-        'WORKERS_REDIS_QUEUE_DB',
-        'REDIS_QUEUE_DB',
-        ZintrustLang.REDIS_DEFAULT_DB
-      ),
+    host: readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
+    port: readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
+    password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
+    database: readWorkersFallbackInt(
+      'WORKERS_REDIS_QUEUE_DB',
+      'REDIS_QUEUE_DB',
+      ZintrustLang.REDIS_DEFAULT_DB
+    ),
     // Cloudflare tunnel-specific ioredis options
     connectTimeout: readWorkersFallbackInt(
       'WORKERS_REDIS_CONNECT_TIMEOUT',

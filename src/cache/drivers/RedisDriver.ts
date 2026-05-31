@@ -68,7 +68,7 @@ const createIoredisClient = (params: {
         db,
       },
       3,
-      { subsystem: 'cache', requireDirectForScripts: false }
+      { subsystem: 'cache' }
     ) as unknown as RedisClientLike;
 
     return client !== null && typeof client.get === 'function' ? client : null;

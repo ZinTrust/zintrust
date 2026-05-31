@@ -2638,21 +2638,6 @@ const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): 
     'infrastructure.redis'
   );
 
-  const requireDirectForScripts =
-    Env.getBool('REDIS_REQUIRE_DIRECT_FOR_SCRIPTS', true) && Env.getBool('USE_REDIS_PROXY', false);
-  // TODO remove when proxy convert to rpc
-  if (requireDirectForScripts) {
-    return {
-      ...options,
-      connection: {
-        host: redisConfig.host,
-        port: redisConfig.port,
-        db: redisConfig.db,
-        password: redisConfig.password,
-      },
-    };
-  }
-
   return {
     ...options,
     connection: createRedisConnection(redisConfig, 3, {

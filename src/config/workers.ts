@@ -403,12 +403,16 @@ const resolveEffectiveRedisConfig = (
   return config;
 };
 
+const BULLMQ_SUBSYSTEMS = new Set(['queue-bullmq', 'queue-monitor', 'worker-queue']);
+
 export const createRedisConnection = (
   config: RedisConfig,
   maxRetries = 3,
   options?: RedisTransportOptions
 ): IORedis => {
-  const mode = ensureRedisTransportMode(config, options);
+  const subsystem = options?.subsystem ?? '';
+  const skipProxy = BULLMQ_SUBSYSTEMS.has(subsystem);
+  const mode = skipProxy ? 'direct' : ensureRedisTransportMode(config, options);
   if (mode === 'proxy') {
     return createRedisProxyConnection(config, options) as unknown as IORedis;
   }

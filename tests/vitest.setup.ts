@@ -218,15 +218,6 @@ vi.mock('packages/cache-redis/src/index', () => ({
     }),
   },
 }));
-vi.mock('packages/queue-redis/src/HttpQueueDriver', () => ({
-  HttpQueueDriver: {
-    enqueue: async () => 'mock-job-id',
-    dequeue: async () => null,
-    ack: async () => true,
-    length: async () => 0,
-    drain: async () => 0,
-  },
-}));
 
 // Don't mock these packages - they need to be real for adapter registration tests
 vi.unmock('packages/queue-redis/src/register');

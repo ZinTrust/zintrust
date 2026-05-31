@@ -90,22 +90,9 @@ async function discoverQueuesFromRedis(
 // eslint-disable-next-line max-lines-per-function
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
   const queues = new Map<string, Queue>();
-  const requireDirectForScripts =
-    Env.getBool('REDIS_REQUIRE_DIRECT_FOR_SCRIPTS', true) && Env.getBool('USE_REDIS_PROXY', false);
-  let redis: unknown;
-  // TODO remove when proxy convert to rpc
-  if (requireDirectForScripts) {
-    redis = {
-      host: config.host,
-      port: config.port,
-      db: config.db,
-      password: config.password,
-    };
-  } else {
-    redis = createRedisConnection(config, 3, {
-      subsystem: 'queue-monitor',
-    });
-  }
+  const redis = createRedisConnection(config, 3, {
+    subsystem: 'queue-monitor',
+  });
   const getQueue = (name: string): Queue => {
     if (!queues.has(name)) {
       const prefix = getBullMQSafeQueueName();
