@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cache-redis",
-  "version": "2.1.4",
+  "version": "2.4.0",
   "description": "Redis cache driver for ZinTrust.",
   "private": false,
   "type": "module",
