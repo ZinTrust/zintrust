@@ -6,7 +6,6 @@ import {
   Queue,
   QueueEvents,
   Worker,
-  type ConnectionOptions,
   type Job,
   type JobType,
   type ObliterateOpts,
@@ -228,7 +227,7 @@ const createConnection = (state: BackendState, extra: RedisOptions = {}): Redis 
 };
 
 const queueOptions = (state: BackendState): QueueOptions => ({
-  connection: createConnection(state) as unknown as ConnectionOptions,
+  connection: createConnection(state) as unknown as QueueOptions['connection'],
   prefix: state.prefix,
 });
 
@@ -543,7 +542,7 @@ const dispatchWorker = async (
         return { workerName, queueName, status: 'already-running' };
       const options = isRecord(args[2]) ? args[2] : payload;
       const worker = new Worker(queueName, createProcessor(options.processor), {
-        connection: createConnection(state) as unknown as ConnectionOptions,
+        connection: createConnection(state) as unknown as QueueOptions['connection'],
         prefix: state.prefix,
         concurrency: numberFrom(options.concurrency, 1),
       });
