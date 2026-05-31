@@ -270,6 +270,79 @@
     },
 
     // --------------------------------------------------------------------------
+    // ZEDGI ENVIRONMENT
+    // --------------------------------------------------------------------------
+    // TCP-to-HTTP proxy control plane for edge/serverless developers
+    "zedgi": {
+      "name": "zedgi-api",
+      "main": "./zedgi/packages/api/index.ts",
+      "compatibility_date": "2026-03-12",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": true,
+      "minify": true,
+
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 0.1,
+      },
+
+      "vars": {
+        "BASE_URL": "https://api.zedgi.app",
+        "ZEDGI_PROXY_URL": "https://proxy.zedgi.app",
+        "NODE_ENV": "production",
+      },
+
+      "d1_databases": [
+        {
+          "binding": "ZEDGI_DB",
+          "database_name": "zedgi-db",
+          // Provision with: wrangler d1 create zedgi-db --env zedgi
+          "database_id": "REPLACE_WITH_ZEDGI_DB_ID",
+          "migrations_dir": "zedgi/packages/api/db/migrations",
+        },
+      ],
+
+      "kv_namespaces": [
+        {
+          "binding": "ZEDGI_KV",
+          // Provision with: wrangler kv namespace create ZEDGI_KV --env zedgi
+          "id": "REPLACE_WITH_ZEDGI_KV_ID",
+        },
+      ],
+
+      "triggers": {
+        "crons": [
+          "0 1 * * *",   // Nightly billing deduction (01:00 UTC)
+          "* * * * *",   // Health probe every minute
+        ],
+      },
+
+      // Secrets required (set via: wrangler secret put <NAME> --env zedgi):
+      //   ZEDGI_MASTER_KEY     - 64-char hex AES-256 key for credential encryption
+      //   ZEDGI_JWT_SECRET     - Bridge JWT signing secret (shared with Mac Mini proxy)
+      //   STRIPE_SECRET_KEY    - Stripe secret key
+      //   STRIPE_WEBHOOK_SECRET - Stripe webhook signing secret
+      //   GITHUB_CLIENT_ID     - GitHub OAuth app client ID
+      //   GITHUB_CLIENT_SECRET - GitHub OAuth app client secret
+      //   GOOGLE_CLIENT_ID     - Google OAuth client ID
+      //   GOOGLE_CLIENT_SECRET - Google OAuth client secret
+      //   COOKIE_SECRET        - Session cookie signing secret
+
+      "routes": [
+        {
+          "pattern": "api.zedgi.app",
+          "custom_domain": true,
+        },
+        // Per-dev subdomain routing: *.zedgi.app → same Worker
+        {
+          "pattern": "*.zedgi.app/*",
+          "custom_domain": false,
+          "zone_name": "zedgi.app",
+        },
+      ],
+    },
+
+    // --------------------------------------------------------------------------
     // KV PROXY ENVIRONMENT
     // --------------------------------------------------------------------------
     // Dedicated proxy worker for handling KV (Key-Value) store operations

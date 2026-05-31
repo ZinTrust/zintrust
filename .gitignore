@@ -120,3 +120,5 @@ zupago-app2/
 final_result.txt
 exts/zintrust-vscode-extensions.md
 .npmrc
+
+rpc-system/

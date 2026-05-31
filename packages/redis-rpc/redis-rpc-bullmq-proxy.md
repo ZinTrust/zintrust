@@ -62,6 +62,43 @@ The client exposes:
 - `redis(method, payload)`
 - `service(service, target?)`
 
+### Custom request headers
+
+The client can inject extra HTTP headers into every outgoing RPC request. Two ways to supply them:
+
+**1. Environment variables** — same convention as all other ZinTrust proxies:
+
+```
+REDIS_RPC_PROXY_HEADERS_{HEADER_NAME}=value
+```
+
+Underscores in `HEADER_NAME` become hyphens. The headers are read once at client construction and sent on every request.
+
+| Variable | Header sent |
+| --- | --- |
+| `REDIS_RPC_PROXY_HEADERS_X_Tenant_Id=abc` | `x-tenant-id: abc` |
+| `REDIS_RPC_PROXY_HEADERS_Authorization=Bearer t` | `authorization: Bearer t` |
+| `REDIS_RPC_PROXY_HEADERS_X_Trace_Id=xyz` | `x-trace-id: xyz` |
+
+**2. Programmatic** — passed directly to `createRedisRpcClient`:
+
+```ts
+const client = createRedisRpcClient({
+  baseUrl: process.env.REDIS_RPC_URL,
+  secret: process.env.REDIS_RPC_SECRET,
+  headers: { 'x-tenant-id': 'abc', 'x-trace-id': '123' },
+});
+```
+
+Both sources are merged: env-sourced headers are the baseline, `options.headers` wins on collision. `x-redis-rpc-secret` is always set first and cannot be overwritten by either source.
+
+To inspect the headers auto-detected from env:
+
+```ts
+import { rpcClientHeaders } from '@zintrust/redis-rpc';
+console.log(rpcClientHeaders()); // { 'x-tenant-id': 'abc', ... } or undefined
+```
+
 ### Dynamic service proxy forwarding
 
 `createRedisRpcService(service, options)` creates a proxy that forwards method calls as RPC requests.
@@ -130,6 +167,10 @@ The BullMQ prefix comes from:
 - `REDIS_RPC_BULLMQ_PREFIX`
 - fallback `BULLMQ_PREFIX`
 - default `bull`
+
+Custom HTTP headers injected into every client request:
+
+- `REDIS_RPC_PROXY_HEADERS_{HEADER_NAME}` — underscores in `HEADER_NAME` become hyphens (see [Custom request headers](#custom-request-headers))
 
 ### Run locally
 

@@ -58,6 +58,8 @@ export type CreateRedisRpcBackendOptions = Partial<RedisRpcServerOptions> & Read
 export type RedisRpcClientOptions = Partial<RedisRpcServerOptions> & Readonly<{
   baseUrl?: string;
   secret?: string;
+  /** Extra HTTP headers merged into every request (same pattern as redis-proxy customHeaders). */
+  headers?: Record<string, string>;
 }>;
 
 export type RedisRpcClient = Readonly<{

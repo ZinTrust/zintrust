@@ -2,7 +2,7 @@ import { ErrorFactory, isUndefinedOrNull } from '@zintrust/core/runtime';
 import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
-import { rpcServerOptions } from './env';
+import { rpcClientHeaders, rpcServerOptions } from './env';
 import type { RedisRpcClient, RedisRpcClientOptions, RpcPayload } from './types';
 
 type RequestJsonResult = Readonly<{
@@ -60,6 +60,8 @@ export const createRedisRpcClient = (options: RedisRpcClientOptions = {}): Redis
   const settings = rpcServerOptions();
   const baseUrl = options.baseUrl || `http://${settings.host}:${settings.port}`;
   const secret = options.secret ?? settings.secret;
+  // Env-sourced headers are the baseline; options.headers merges on top (wins on collision).
+  const resolvedHeaders: Record<string, string> = { ...rpcClientHeaders(), ...options.headers };
 
   const client: RedisRpcClient = Object.freeze({
     call: async <T = unknown>(service: string, method: string, payload: RpcPayload = {}): Promise<T> => {
@@ -74,6 +76,7 @@ export const createRedisRpcClient = (options: RedisRpcClientOptions = {}): Redis
         'content-type': 'application/json',
         connection: 'close',
         ...(secret ? { 'x-redis-rpc-secret': secret } : {}),
+        ...resolvedHeaders,
       });
       const parsed = response.body;
       if (!response.ok || parsed.ok !== true) {

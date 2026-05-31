@@ -366,7 +366,8 @@
     "tag": "next"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "zedgi/packages/*"
   ],
   "overrides": {
     "ajv": "^8.18.0",

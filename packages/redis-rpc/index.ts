@@ -1,5 +1,6 @@
 export { createRedisRpcServer, listenRedisRpcServer } from './server';
 export { createRedisRpcClient } from './client';
+export { rpcClientHeaders, rpcServerOptions, redisConnectionOptions } from './env';
 export {
   createBullMqRpcQueue,
   createWorkerRpcRuntime,

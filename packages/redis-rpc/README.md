@@ -56,6 +56,43 @@ The server and client read these variables:
 | `REDIS_RPC_RETRY_MAX`      | `2`                                  | Client-side retry count used by integrations.                   |
 | `REDIS_RPC_RETRY_DELAY_MS` | `500`                                | Client-side retry delay used by integrations.                   |
 
+### Custom request headers
+
+The client supports injecting extra HTTP headers into every outgoing RPC request. This uses the same environment-variable convention as all other ZinTrust proxy adapters (`REDIS_PROXY_HEADERS_*` for the redis-proxy, `MYSQL_PROXY_HEADERS_*` for MySQL, and so on).
+
+**Pattern:** `REDIS_RPC_PROXY_HEADERS_{HEADER_NAME}=value`
+
+Underscores in `HEADER_NAME` are converted to hyphens to form the actual header name.
+
+| Environment variable | HTTP header sent |
+| --- | --- |
+| `REDIS_RPC_PROXY_HEADERS_X_Tenant_Id=abc` | `x-tenant-id: abc` |
+| `REDIS_RPC_PROXY_HEADERS_Authorization=Bearer t` | `authorization: Bearer t` |
+| `REDIS_RPC_PROXY_HEADERS_X_Trace_Id=xyz` | `x-trace-id: xyz` |
+| `REDIS_RPC_PROXY_HEADERS_X_Custom_Header=foo` | `x-custom-header: foo` |
+
+These headers are read once when `createRedisRpcClient()` is called and are sent on every request. They are merged after `x-redis-rpc-secret`, so they cannot accidentally overwrite authentication.
+
+You can also pass headers directly in code. Programmatic headers take priority over env-sourced ones when a key collides:
+
+```ts
+const client = createRedisRpcClient({
+  baseUrl: process.env.REDIS_RPC_URL,
+  secret: process.env.REDIS_RPC_SECRET,
+  headers: {
+    'x-tenant-id': 'abc',
+    'x-trace-id': '123',
+  },
+});
+```
+
+Both sources are combined: `{ ...rpcClientHeaders(), ...options.headers }`. To inspect what headers were auto-detected from env, call the exported helper directly:
+
+```ts
+import { rpcClientHeaders } from '@zintrust/redis-rpc';
+console.log(rpcClientHeaders()); // { 'x-tenant-id': 'abc', ... } or undefined
+```
+
 Set both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` to make supported ZinTrust packages select Redis RPC automatically. `USE_REDIS_PROXY=true` by itself does not enable Redis RPC; it only says the process is allowed to use a Redis proxy transport.
 
 ## Running the server
