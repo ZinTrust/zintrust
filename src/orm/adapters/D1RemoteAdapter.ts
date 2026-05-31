@@ -9,7 +9,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
-import { isRecord } from '@orm/adapters/SqlProxyAdapterUtils';
+import { isRecord, parseCustomHeadersFromEnv } from '@orm/adapters/SqlProxyAdapterUtils';
 import { createStatementId } from '@orm/adapters/SqlProxyRegistryMode';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
@@ -90,6 +90,7 @@ const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSet
     secret: settings.secret,
     timeoutMs: settings.timeoutMs,
     signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
+    customHeaders: parseCustomHeadersFromEnv('D1_REMOTE'),
     missingUrlMessage: 'D1 remote proxy URL is missing (D1_REMOTE_URL)',
     missingCredentialsMessage: `D1 remote signing credentials are missing (${['D1_REMOTE', 'KEY_ID'].join('_')} / ${['D1_REMOTE', 'SECRET'].join('_')}). Fallbacks: APP_NAME and ${['APP', 'KEY'].join('_')}.`,
     messages: {

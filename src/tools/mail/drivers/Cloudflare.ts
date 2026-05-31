@@ -2,6 +2,7 @@ import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteS
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { parseCustomHeadersFromEnv } from '@orm/adapters/SqlProxyAdapterUtils';
 
 import { buildRfc2822Message, type MailAddress, type MailMessage } from '@tools/mail/MailMessage';
 
@@ -74,6 +75,7 @@ const createRemoteConfig = (): RemoteSignedJsonSettings => {
     secret: Env.get('MAIL_CLOUDFLARE_PROXY_SECRET', ''),
     timeoutMs,
     signaturePathPrefixToStrip: resolveSigningPrefix(baseUrl),
+    customHeaders: parseCustomHeadersFromEnv('MAIL_CLOUDFLARE_PROXY'),
     missingUrlMessage: 'Cloudflare mail proxy URL is missing (MAIL_CLOUDFLARE_PROXY_URL)',
     missingCredentialsMessage: createMissingMailProxyCredentialsMessage(),
     messages: {

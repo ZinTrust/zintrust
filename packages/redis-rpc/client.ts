@@ -1,0 +1,92 @@
+import { ErrorFactory, isUndefinedOrNull } from '@zintrust/core/runtime';
+import { randomUUID } from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
+import { rpcServerOptions } from './env';
+import type { RedisRpcClient, RedisRpcClientOptions, RpcPayload } from './types';
+
+type RequestJsonResult = Readonly<{
+  statusCode: number;
+  ok: boolean;
+  body: Record<string, unknown>;
+}>;
+
+const requestJson = (url: URL, body: string, headers: Record<string, string>): Promise<RequestJsonResult> => {
+  return new Promise((resolve, reject) => {
+    const transport = url.protocol === 'https:' ? https : http;
+    const request = transport.request(url, {
+      method: 'POST',
+      agent: false,
+      headers: {
+        ...headers,
+        'content-length': String(Buffer.byteLength(body)),
+      },
+    }, (response) => {
+      const chunks: string[] = [];
+      response.setEncoding('utf8');
+      response.on('data', (chunk: string) => chunks.push(chunk));
+      response.on('end', () => {
+        const text = chunks.join('');
+        try {
+          resolve({
+            statusCode: response.statusCode || 0,
+            ok: (response.statusCode || 0) >= 200 && (response.statusCode || 0) < 300,
+            body: isUndefinedOrNull(text.trim()) ? {} : JSON.parse(text),
+          });
+        } catch (error) {
+          reject(ErrorFactory.createTryCatchError('Redis RPC response parse failed', { error }));
+        }
+      });
+    });
+    request.on('error', (error) => reject(ErrorFactory.createConnectionError('Redis RPC request failed', { error })));
+    request.end(body);
+  });
+};
+
+const createServiceProxy = <TService extends object>(client: RedisRpcClient, service: string, target?: string): TService => {
+  return new Proxy(Object.create(null), {
+    get(_receiver, property) {
+      if (typeof property !== 'string') return undefined;
+      return (...args: unknown[]) => client.call(service, property, { target, args });
+    },
+  }) as TService;
+};
+
+export const createRedisRpcClient = (options: RedisRpcClientOptions = {}): RedisRpcClient => {
+  const settings = rpcServerOptions();
+  const baseUrl = options.baseUrl || `http://${settings.host}:${settings.port}`;
+  const secret = options.secret ?? settings.secret;
+
+  const client: RedisRpcClient = Object.freeze({
+    call: async <T = unknown>(service: string, method: string, payload: RpcPayload = {}): Promise<T> => {
+      const url = new URL('/rpc', baseUrl);
+      const body = JSON.stringify({
+        requestId: randomUUID(),
+        service,
+        method,
+        payload,
+      });
+      const response = await requestJson(url, body, {
+        'content-type': 'application/json',
+        connection: 'close',
+        ...(secret ? { 'x-redis-rpc-secret': secret } : {}),
+      });
+      const parsed = response.body;
+      if (!response.ok || parsed.ok !== true) {
+        const error = parsed.error as { message?: string; code?: string; details?: unknown } | undefined;
+        throw ErrorFactory.createTryCatchError(error?.message || `Redis RPC failed (${response.statusCode})`, {
+          code: error?.code,
+          details: error?.details,
+        });
+      }
+      return parsed.result as T;
+    },
+    queue: (method, payload = {}) => client.call('queue', method, payload),
+    worker: (method, payload = {}) => client.call('worker', method, payload),
+    monitor: (method, payload = {}) => client.call('queue-monitor', method, payload),
+    redis: (method, payload = {}) => client.call('redis', method, payload),
+    service: (service, target) => createServiceProxy(client, service, target),
+  });
+
+  return client;
+};
