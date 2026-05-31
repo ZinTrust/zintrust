@@ -4,9 +4,15 @@
  */
 
 import { type IDatabase } from '@zintrust/core/database';
-import { type createRedisConnection } from '@zintrust/core/redis';
 
-type RedisConnection = ReturnType<typeof createRedisConnection>;
+type RedisConnection = {
+  hgetall(key: string): Promise<Record<string, string>>;
+  hget(key: string, field: string): Promise<string | null>;
+  hset(key: string, ...args: (string | Buffer | number)[]): Promise<unknown>;
+  hmget(key: string, ...fields: string[]): Promise<Array<string | null>>;
+  hdel(key: string, ...fields: string[]): Promise<unknown>;
+  disconnect(): void;
+};
 
 export type WorkerRecord = {
   name: string;

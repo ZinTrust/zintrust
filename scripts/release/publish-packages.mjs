@@ -288,6 +288,7 @@ async function assertCoreShimHasRequiredExports() {
     'runtime.d.ts': [
       'export declare const NodeSingletons: {',
       'export declare const Logger: any;',
+      'export declare const ErrorFactory: any;',
       'export declare const SocketFeature: any;',
     ],
     'errors.d.ts': ['export declare const ErrorFactory: any;'],
@@ -310,7 +311,7 @@ async function assertCoreShimHasRequiredExports() {
     'workers.d.ts': ['export declare const workersConfig: any;'],
     'trace.d.ts': ['export declare const ShutdownTrace: {'],
     'cloudflare.d.ts': ['export declare const Cloudflare: any;'],
-    'redis.d.ts': ['export declare function createRedisConnection(...args: any[]): {'],
+    'redis.d.ts': ['export declare function createRedisConnection(...args: any[]): any;'],
     'mail.d.ts': ['export declare const MailDriverRegistry: any;'],
     'database.d.ts': [
       'export declare const DatabaseAdapterRegistry: any;',
@@ -791,6 +792,10 @@ async function createCoreShim(coreVersion) {
         types: './security.d.ts',
         import: './security.js',
       },
+      './helper': {
+        types: './helper.d.ts',
+        import: './helper.js',
+      },
       './storage': {
         types: './storage.d.ts',
         import: './storage.js',
@@ -1014,6 +1019,8 @@ export declare const NodeSingletons: {
   [key: string]: any;
 };
 export declare const Logger: any;
+export declare const ErrorFactory: any;
+export declare function isUndefinedOrNull(value: unknown): boolean;
 export declare const SocketFeature: any;
 export type SocketAuthorizationContext = any;
 export type SocketAuthorizationDecision = any;
@@ -1088,6 +1095,8 @@ export const NodeSingletons = {
   },
 };
 export const Logger = {};
+export const ErrorFactory = {};
+export function isUndefinedOrNull(value) { return value === null || value === undefined || value === ''; }
 export const SocketFeature = {
   getSettings() {
     return {
@@ -1284,16 +1293,9 @@ export declare const LocalD1Resolver: {
 
   const redisDts = `
 export type RedisConfig = any;
+export type RedisTransportOptions = any;
 export declare const RedisKeys: any;
-export declare function createRedisConnection(...args: any[]): {
-  hgetall: (...args: any[]) => Promise<Record<string, string>>;
-  hget: (...args: any[]) => Promise<string | null>;
-  hset: (...args: any[]) => Promise<any>;
-  hmget: (...args: any[]) => Promise<Array<string | null>>;
-  hdel: (...args: any[]) => Promise<any>;
-  disconnect: () => void;
-  [key: string]: any;
-};
+export declare function createRedisConnection(...args: any[]): any;
 export declare function getBullMQSafeQueueName(name?: string): string;
 `;
   await fs.writeFile(path.join(shimDir, 'redis.d.ts'), redisDts);
@@ -2209,6 +2211,7 @@ export function registerDatabasesFromRuntimeConfig() {
 
   const securityDts = `
 export declare const SignedRequest: any;
+export declare const Sanitizer: any;
 export type RemoteSignedJsonSettings = any;
 export declare const RemoteSignedJson: {
   request<T>(settings: RemoteSignedJsonSettings, path: string, payload: Record<string, unknown>): Promise<T>;
@@ -2218,13 +2221,34 @@ export declare const RemoteSignedJson: {
 
   const securityJs = `
 export const SignedRequest = {};
+export const Sanitizer = {};
 export const RemoteSignedJson = {
-  async request<T>(settings: any, path: string, payload: Record<string, unknown>): Promise<T> {
-    return {} as T;
+  async request(settings, path, payload) {
+    return {};
   },
 };
 `;
   await fs.writeFile(path.join(shimDir, 'security.js'), securityJs);
+
+  const helperDts = `
+export declare function isArray(value: unknown): value is unknown[];
+export declare function isObject(value: unknown): value is Record<string, unknown>;
+export declare function isNonEmptyString(value: unknown): value is string;
+export declare function isUndefinedOrNull(value: unknown): boolean;
+export declare function isNull(value: unknown): boolean;
+export declare function isUndefined(value: unknown): boolean;
+`;
+  await fs.writeFile(path.join(shimDir, 'helper.d.ts'), helperDts);
+
+  const helperJs = `
+export function isArray(value) { return Array.isArray(value); }
+export function isObject(value) { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+export function isNonEmptyString(value) { return typeof value === 'string' && value.trim().length > 0; }
+export function isNull(value) { return value === null || value === '' || value === 'null'; }
+export function isUndefined(value) { return value === undefined; }
+export function isUndefinedOrNull(value) { return isUndefined(value) || isNull(value); }
+`;
+  await fs.writeFile(path.join(shimDir, 'helper.js'), helperJs);
 
   const storageDts = `
 export declare const StorageDriverRegistry: any;

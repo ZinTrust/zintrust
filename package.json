@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -418,7 +418,7 @@
     "bullmq": "^5.77.6",
     "chalk": "^5.6.2",
     "commander": "^15.0.0",
-    "inquirer": "^14.0.0",
+    "inquirer": "^14.0.1",
     "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.22.4",
@@ -452,7 +452,7 @@
     "hot-shots": "^15.0.0",
     "husky": "^9.1.7",
     "jscpd": "^4.2.4",
-    "lint-staged": "^17.0.5",
+    "lint-staged": "^17.0.7",
     "miniflare": "^4.20260526.0",
     "mongodb": "^7.2.0",
     "mssql": "^12.5.5",
