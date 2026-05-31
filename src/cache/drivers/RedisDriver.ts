@@ -379,7 +379,9 @@ const createTcpCacheDriver = (): CacheDriver => {
 const create = (): CacheDriver => {
   const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
   const wantsProxy =
-    Env.USE_REDIS_PROXY === true || (Env.get('REDIS_PROXY_URL', '') || '').trim() !== '';
+    Env.USE_REDIS_PROXY === true &&
+    ((Env.get('REDIS_PROXY_URL', '') || '').trim() !== '' ||
+      (Env.get('REDIS_RPC_URL', '') || '').trim() !== '');
   const ioredisDriver = createIoredisCacheDriver({ isWorkersRuntime, wantsProxy });
   return ioredisDriver ?? createTcpCacheDriver();
 };

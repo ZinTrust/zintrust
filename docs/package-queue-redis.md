@@ -5,12 +5,20 @@ description: Redis adapter for ZinTrust's queue system
 
 # Redis Queue Adapter
 
-The `@zintrust/queue-redis` package provides a Redis driver for ZinTrust's queue system, enabling high-performance message queuing using Redis's data structures.
+The `@zintrust/queue-redis` package provides the Redis/BullMQ queue driver for ZinTrust. It can connect directly to Redis in Node.js, or route queue operations through [`@zintrust/redis-rpc`](https://www.npmjs.com/package/@zintrust/redis-rpc) when the caller runs in Cloudflare Workers or another runtime without direct Redis TCP access.
 
 ## Installation
 
 ```bash
 zin add  @zintrust/queue-redis
+```
+
+For Cloudflare Workers producers, also install Redis RPC in the backend project that owns Redis:
+
+```bash
+npm install @zintrust/redis-rpc
+USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
 ```
 
 ## Configuration
@@ -494,53 +502,26 @@ Queue.on('custom:event', (data) => {
 
 ## Performance Optimization
 
-### BullMQ Script Handling with Proxy Mode
+### Redis RPC for Cloudflare Workers
 
-ZinTrust's Redis proxy supports BullMQ's Lua script execution with automatic optimization:
+Redis RPC replaces the old BullMQ-over-command-proxy approach for queue workloads. BullMQ and its Lua scripts run on the Redis RPC server, not inside the Worker isolate. The Worker sends queue intent such as `add`, `dequeue`, `ack`, `length`, and `drain`.
 
-**Script Caching:**
-
-- Module-level script storage persists across connections
-- Scripts registered once via `defineCommand`, available to all connections
-- Versioned script names (e.g., `moveToActive:5.77.6`) automatically mapped to base implementations
-
-**SCRIPT LOAD + EVALSHA Optimization:**
-
-- Scripts loaded into Redis cache via `SCRIPT LOAD` command
-- Subsequent executions use `EVALSHA` with SHA instead of full Lua text
-- Reduces network bandwidth and CPU usage significantly
-- Fallback to `EVAL` if SCRIPT LOAD fails
-
-**Environment Control:**
+Redis RPC is selected only when both variables are present:
 
 ```bash
-# Force TCP for scripts (default, reliable fallback)
-REDIS_REQUIRE_DIRECT_FOR_SCRIPTS=true
-
-# Use proxy with SCRIPT LOAD + EVALSHA optimization
-REDIS_REQUIRE_DIRECT_FOR_SCRIPTS=false
+USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
 ```
 
-**How It Works:**
+Start the backend RPC server:
 
-1. BullMQ calls `connection.scripts.moveToActive:5.77.6`
-2. Proxy strips version to `moveToActive`
-3. Looks up script in module-level cache
-4. Loads script via `SCRIPT LOAD` into Redis
-5. Executes via `EVALSHA` using SHA for performance
-6. Multiple BullMQ versions can coexist without conflicts
-
-**Configuration:**
-
-```typescript
-// Worker configuration with script mode control
-const worker = new Worker('my-queue', handler, {
-  connection: createRedisConnection(redisConfig, 3, {
-    subsystem: 'worker-queue',
-    requireDirectForScripts: true, // Override env if needed
-  }),
-});
+```bash
+zin redis-rpc
+# or
+zin s redis-rpc
 ```
+
+Keep using the older Redis HTTP proxy only for simple command-level cache operations when you do not need BullMQ semantics.
 
 ### Lua Scripts
 

@@ -14,6 +14,7 @@ import {
 import { createRedisConnection, getBullMQSafeQueueName } from '@zintrust/core/redis';
 import { generateUuid, ZintrustLang } from '@zintrust/core/utils';
 import { Queue, type JobsOptions } from 'bullmq';
+import { RedisRpcQueueDriver, shouldUseRedisRpcQueueDriver } from './RedisRpcQueueDriver';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
 
@@ -539,6 +540,10 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     getQueueNames,
 
     async enqueue(queue: string, payload: BullMQPayload): Promise<string> {
+      if (shouldUseRedisRpcQueueDriver()) {
+        return RedisRpcQueueDriver.enqueue(queue, payload);
+      }
+
       let requestedJobId: string | number | undefined;
 
       try {
@@ -581,6 +586,10 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     },
 
     async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
+      if (shouldUseRedisRpcQueueDriver()) {
+        return RedisRpcQueueDriver.dequeue<T>(queue);
+      }
+
       try {
         const q = getQueue(queue);
 
@@ -613,6 +622,11 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     },
 
     async ack(queue: string, id: string): Promise<void> {
+      if (shouldUseRedisRpcQueueDriver()) {
+        await RedisRpcQueueDriver.ack(queue, id);
+        return;
+      }
+
       try {
         const q = getQueue(queue);
         const job = await q.getJob(id);
@@ -629,6 +643,10 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     },
 
     async length(queue: string): Promise<number> {
+      if (shouldUseRedisRpcQueueDriver()) {
+        return RedisRpcQueueDriver.length(queue);
+      }
+
       try {
         const q = getQueue(queue);
         const counts = await q.getJobCounts();
@@ -644,6 +662,11 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     },
 
     async drain(queue: string): Promise<void> {
+      if (shouldUseRedisRpcQueueDriver()) {
+        await RedisRpcQueueDriver.drain(queue);
+        return;
+      }
+
       try {
         const q = getQueue(queue);
         await q.drain();

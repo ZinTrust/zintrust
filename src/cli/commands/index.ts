@@ -25,6 +25,7 @@ export { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 export { PrepareCommand } from '@cli/commands/PrepareCommand';
 export { QueueCommand } from '@cli/commands/QueueCommand';
 export { QueueRecoveryCommand } from '@cli/commands/QueueRecoveryCommand';
+export { RedisRpcCommand } from '@cli/commands/RedisRpcCommand';
 export { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 export { RoutesCommand } from '@cli/commands/RoutesCommand';
 export { SecretsCommand } from '@cli/commands/SecretsCommand';

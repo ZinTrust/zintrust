@@ -259,7 +259,7 @@ const createNodeCacheDriver = (config: RedisCacheConfig): CacheDriver => {
 };
 
 const shouldUseProxy = (): boolean => {
-  return Env.REDIS_PROXY_URL.trim() !== '' || Env.USE_REDIS_PROXY === true;
+  return Env.USE_REDIS_PROXY === true;
 };
 
 export const RedisCacheDriver = Object.freeze({
@@ -271,7 +271,7 @@ export const RedisCacheDriver = Object.freeze({
 
     if (isWorkers && Cloudflare.isCloudflareSocketsEnabled() === false) {
       throw ErrorFactory.createConfigError(
-        'Redis cache driver requires ENABLE_CLOUDFLARE_SOCKETS=true in Cloudflare Workers.'
+        'Redis cache driver in Cloudflare Workers requires USE_REDIS_PROXY=true with REDIS_RPC_URL/REDIS_PROXY_URL, or ENABLE_CLOUDFLARE_SOCKETS=true.'
       );
     }
 

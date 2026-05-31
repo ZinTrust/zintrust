@@ -24,7 +24,9 @@ const json = (response: http.ServerResponse, status: number, payload: unknown): 
 
 export const createRedisRpcServer = (options: Record<string, unknown> = {}): RedisRpcServerInstance => {
   const settings = { ...rpcServerOptions(), ...options };
-  const backend = isObject(options.backend) ? options.backend as ReturnType<typeof createRedisRpcBackend> : createRedisRpcBackend(settings);
+  const backend = isObject(options.backend)
+    ? options.backend as ReturnType<typeof createRedisRpcBackend>
+    : createRedisRpcBackend(settings);
 
   const server = http.createServer(async (request, response) => {
     try {

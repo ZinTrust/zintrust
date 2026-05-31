@@ -313,8 +313,7 @@ const validateRedisConfig = (
     );
   }
 
-  const shouldUseProxy =
-    Env.USE_REDIS_PROXY === true || (Env.get('REDIS_PROXY_URL', '') || '').trim() !== '';
+  const shouldUseProxy = Env.USE_REDIS_PROXY === true;
 
   if (!shouldUseProxy && isWorkersRuntime && Cloudflare.isCloudflareSocketsEnabled() === false) {
     throw ErrorFactory.createConfigError(
@@ -405,18 +404,11 @@ const resolveEffectiveRedisConfig = (
 
 const BULLMQ_SUBSYSTEMS = new Set(['queue-bullmq', 'queue-monitor', 'worker-queue']);
 
-export const createRedisConnection = (
+const createDirectRedisConnection = (
   config: RedisConfig,
-  maxRetries = 3,
-  options?: RedisTransportOptions
+  maxRetries: number,
+  options: RedisTransportOptions | undefined
 ): IORedis => {
-  const subsystem = options?.subsystem ?? '';
-  const skipProxy = BULLMQ_SUBSYSTEMS.has(subsystem);
-  const mode = skipProxy ? 'direct' : ensureRedisTransportMode(config, options);
-  if (mode === 'proxy') {
-    return createRedisProxyConnection(config, options) as unknown as IORedis;
-  }
-
   const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
   const proxySettings = getProxySettings();
   const effectiveConfig = resolveEffectiveRedisConfig(config, isWorkersRuntime, proxySettings);
@@ -461,6 +453,21 @@ export const createRedisConnection = (
   setupRedisErrorHandler(client);
 
   return trackRedisConnection(client, cacheKey);
+};
+
+export const createRedisConnection = (
+  config: RedisConfig,
+  maxRetries = 3,
+  options?: RedisTransportOptions
+): IORedis => {
+  const subsystem = options?.subsystem ?? '';
+  const skipProxy = BULLMQ_SUBSYSTEMS.has(subsystem);
+  const mode = skipProxy ? 'direct' : ensureRedisTransportMode(config, options);
+  if (mode === 'proxy' || mode === 'rpc') {
+    return createRedisProxyConnection(config, options) as unknown as IORedis;
+  }
+
+  return createDirectRedisConnection(config, maxRetries, options);
 };
 
 export const shutdownRedisConnections = async (): Promise<void> => {

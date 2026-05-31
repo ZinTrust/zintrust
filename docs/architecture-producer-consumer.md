@@ -7,13 +7,14 @@ ZinTrust employs a **Split Architecture** deployment model when running on serve
 ```mermaid
 graph TD
     User[User / Client] -->|HTTP Request| Edge[Cloudflare Workers Edge]
-    Edge -->|Queue.add| Redis[(Redis Proxy/Cluster)]
-    Redis -->|Process Job| Container[Container / Fargate / VPS]
-    Container -->|Store Result| DB[(Database)]
+    Edge -->|Queue.add / monitor reads| RPC[Redis RPC]
+    RPC -->|BullMQ + Redis| Redis[(Redis)]
+    RPC -->|Process Job| Consumer[Node.js worker process]
+    Consumer -->|Store Result| DB[(Database)]
 ```
 
 - **Producer (Edge)**: Runs on Cloudflare Workers. Handles ephemeral HTTP requests, enqueues background jobs, and returns fast responses.
-- **Consumer (Origin)**: Runs in a persisted container (Docker/Node.js). Maintains persistent connections to Redis, processes jobs, handling long-running tasks.
+- **Consumer (Origin)**: Runs in a Node.js runtime that can maintain persistent Redis/BullMQ connections. This can be Docker, a VM, Fargate, a process manager, or the `zin redis-rpc` server. It does not have to be a Cloudflare Container.
 
 ## Why Split?
 
@@ -36,6 +37,7 @@ RUNTIME_MODE=cloudflare-workers
 WORKER_ENABLED=false
 QUEUE_ENABLED=true
 USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
 ```
 
 ### Consumer (Container)
@@ -50,6 +52,17 @@ QUEUE_ENABLED=true
 ```
 
 For Docker container stacks, keep `DOCKER_WORKER` unset (or `false`) by default.
+
+## Redis RPC
+
+Install [`@zintrust/redis-rpc`](https://www.npmjs.com/package/@zintrust/redis-rpc) in the backend project that owns Redis credentials:
+
+```bash
+npm install @zintrust/redis-rpc
+zin redis-rpc
+```
+
+Redis RPC becomes active in callers only when both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are set. That explicit two-variable gate prevents accidental proxy selection during local direct-Redis development.
 
 ## Local Development
 

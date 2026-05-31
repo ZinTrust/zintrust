@@ -16,9 +16,16 @@ npm i @zintrust/queue-redis
 import '@zintrust/queue-redis/register';
 ```
 
-Then set `QUEUE_DRIVER=redis` and configure `REDIS_URL`.
+Then set `QUEUE_DRIVER=redis` and configure your Redis connection.
 
-For Cloudflare Workers, set `ENABLE_CLOUDFLARE_SOCKETS=true` and use a TCP-accessible Redis endpoint.
+For Cloudflare Workers or any runtime without Redis TCP access, run Redis RPC from a Node.js backend and configure the Worker with both flags:
+
+```bash
+USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
+```
+
+Start the backend with `zin redis-rpc` or `zin s redis-rpc`. See [`@zintrust/redis-rpc`](https://www.npmjs.com/package/@zintrust/redis-rpc).
 
 ## When to use
 

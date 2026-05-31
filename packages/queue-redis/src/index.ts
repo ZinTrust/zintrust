@@ -1,4 +1,6 @@
 export { BullMQRedisQueue } from './BullMQRedisQueue';
+export { QueueHttpGateway } from './QueueHttpGateway';
+export { RedisRpcQueueDriver, shouldUseRedisRpcQueueDriver } from './RedisRpcQueueDriver';
 export {
   createRedisPublishClient,
   resetPublishClient,

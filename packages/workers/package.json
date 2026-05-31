@@ -46,13 +46,17 @@
   "peerDependencies": {
     "@zintrust/core": "*",
     "@zintrust/queue-monitor": "*",
-    "@zintrust/queue-redis": "*"
+    "@zintrust/queue-redis": "*",
+    "@zintrust/redis-rpc": "*"
   },
   "peerDependenciesMeta": {
     "@zintrust/queue-monitor": {
       "optional": true
     },
     "@zintrust/queue-redis": {
+      "optional": true
+    },
+    "@zintrust/redis-rpc": {
       "optional": true
     }
   },

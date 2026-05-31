@@ -43,7 +43,11 @@ const requestJson = (url: URL, body: string, headers: Record<string, string>): P
   });
 };
 
-const createServiceProxy = <TService extends object>(client: RedisRpcClient, service: string, target?: string): TService => {
+const createServiceProxy = <TService extends object>(
+  client: RedisRpcClient,
+  service: string,
+  target?: string
+): TService => {
   return new Proxy(Object.create(null), {
     get(_receiver, property) {
       if (typeof property !== 'string') return undefined;

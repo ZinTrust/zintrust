@@ -79,7 +79,7 @@ REDIS_PASSWORD=your-password
 - The Redis queue driver now uses **BullMQ** for enterprise-grade job processing with auto-scaling, circuit breaker, dead letter queue, and advanced monitoring.
 - Configure via standard Redis environment variables (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_QUEUE_DB`).
 - You can register the driver with `Queue.register('redis', RedisDriver)` and then call `Queue.enqueue('my-queue', payload, 'redis')`.
-- For Cloudflare Workers, set `ENABLE_CLOUDFLARE_SOCKETS=true` and use a TCP-accessible Redis endpoint.
+- For Cloudflare Workers, prefer Redis RPC unless you intentionally use Workers TCP sockets. Set both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` so the Worker calls a Node.js Redis RPC backend instead of opening direct Redis/BullMQ connections.
 
 ### Architecture: Producer vs Consumer (Cloudflare)
 
@@ -89,35 +89,31 @@ If you deploy your API to Cloudflare Workers, **you cannot run Queue Consumers (
 Split your deployment into two services:
 
 1.  **Producer (Cloudflare Worker)**: Handles API requests, validates inputs, and **enqueues** jobs to Redis.
-2.  **Consumer (Container/Node.js)**: A separate Node.js service (e.g. Docker, Railway, Fly.io, EC2) that connects to the _same_ Redis instance, **consumes** jobs, and processes them.
+2.  **Consumer (Node.js backend)**: A separate service (for example Docker, Railway, Fly.io, EC2, or a process manager) that connects to the same Redis instance, consumes jobs, and processes them.
 
 See [Architecture: Producer-Consumer Model](./architecture-producer-consumer.md) for setup details.
 
-### Queue HTTP Gateway (Cloudflare without Redis TCP)
+### Redis RPC (Cloudflare without Redis TCP)
 
-When Cloudflare Workers cannot open Redis TCP sockets in your environment, ZinTrust can proxy queue commands over HTTP to a Docker/Node API that runs `BullMQRedisQueue` locally.
+When Cloudflare Workers cannot open Redis TCP sockets in your environment, ZinTrust can proxy queue commands over HTTP to [`@zintrust/redis-rpc`](https://www.npmjs.com/package/@zintrust/redis-rpc). The Worker sends queue intent over HTTP; Redis, BullMQ, and Lua scripts run in the backend process.
 
-Producer-side env (Cloudflare/serverless):
-
-```bash
-QUEUE_HTTP_PROXY_ENABLED=true
-QUEUE_HTTP_PROXY_URL=http://your-docker-api:7772
-QUEUE_HTTP_PROXY_PATH=/api/_sys/queue/rpc
-QUEUE_HTTP_PROXY_KEY_ID=your-key-id
-QUEUE_HTTP_PROXY_KEY=your-secret
-```
-
-Gateway-side env (Docker/Node API):
+Worker-side env:
 
 ```bash
-QUEUE_HTTP_PROXY_GATEWAY_ENABLED=true
-QUEUE_HTTP_PROXY_KEY_ID=your-key-id
-QUEUE_HTTP_PROXY_KEY=your-secret
-QUEUE_HTTP_PROXY_MAX_SKEW_MS=60000
-QUEUE_HTTP_PROXY_NONCE_TTL_MS=120000
+QUEUE_DRIVER=redis
+USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
+REDIS_RPC_SECRET=change-me
 ```
 
-Manual request samples are available in [requests/queue-http-gateway.http](../requests/queue-http-gateway.http).
+Backend:
+
+```bash
+npm i @zintrust/redis-rpc
+zin redis-rpc
+```
+
+The older queue HTTP gateway remains available for custom deployments, but Redis RPC is the maintained queue-aware path for ZinTrust packages.
 
 ### BullMQ Environment Variables
 

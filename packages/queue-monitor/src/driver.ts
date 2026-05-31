@@ -35,6 +35,99 @@ export type QueueDriver = {
   close(): Promise<void>;
 };
 
+type RedisRpcClient = {
+  queue: <T = unknown>(method: string, payload?: Record<string, unknown>) => Promise<T>;
+  monitor: <T = unknown>(method: string, payload?: Record<string, unknown>) => Promise<T>;
+};
+
+type RedisRpcModule = {
+  createRedisRpcClient: (options?: { baseUrl?: string; secret?: string }) => RedisRpcClient;
+};
+
+const REDIS_RPC_PACKAGE = '@zintrust/redis-rpc';
+
+const shouldUseRedisRpcMonitorDriver = (): boolean =>
+  Env.USE_REDIS_PROXY === true && Env.get('REDIS_RPC_URL', '').trim() !== '';
+
+const resolveRpcBaseUrl = (): string => {
+  const configured = Env.get('REDIS_RPC_URL', '').trim();
+  if (configured.length > 0) return configured;
+  const host = Env.get('REDIS_RPC_HOST', '127.0.0.1').trim() || '127.0.0.1';
+  const port = Env.getInt('REDIS_RPC_PORT', 8794);
+  return `http://${host}:${port}`;
+};
+
+const createRpcClient = async (): Promise<RedisRpcClient> => {
+  try {
+    const mod = (await import(REDIS_RPC_PACKAGE)) as unknown as RedisRpcModule;
+    return mod.createRedisRpcClient({
+      baseUrl: resolveRpcBaseUrl(),
+      secret: Env.get('REDIS_RPC_SECRET', Env.get('REDIS_PROXY_SECRET', Env.APP_KEY)),
+    });
+  } catch (error) {
+    throw ErrorFactory.createConfigError(
+      '@zintrust/redis-rpc is required when USE_REDIS_PROXY=true and REDIS_RPC_URL is configured',
+      error
+    );
+  }
+};
+
+const createRedisRpcDriver = (): QueueDriver => {
+  const enqueue = async <T>(name: string, payload: T, options?: JobsOptions): Promise<string> => {
+    const client = await createRpcClient();
+    const result = await client.queue<{ id?: string | number }>('add', {
+      target: name,
+      args: ['default', payload, options ?? {}],
+    });
+    if (result.id === undefined || result.id === null) {
+      throw ErrorFactory.createTryCatchError(`Queue job id missing for ${name}`);
+    }
+    return String(result.id);
+  };
+
+  return Object.freeze({
+    enqueue,
+    async getJob(queueName: string, jobId: string): Promise<Job | undefined> {
+      const client = await createRpcClient();
+      return (await client.queue('getJob', { target: queueName, args: [jobId] })) as
+        | Job
+        | undefined;
+    },
+    async getJobCounts(queueName: string): Promise<JobCounts> {
+      const client = await createRpcClient();
+      return client.queue('getJobCounts', { target: queueName });
+    },
+    async getJobCountsMany(
+      queueNames: string[]
+    ): Promise<Array<{ name: string; counts: Record<string, number> }>> {
+      const client = await createRpcClient();
+      const snapshot = await client.monitor<{ queues?: Array<{ name: string; counts: JobCounts }> }>(
+        'getSnapshot',
+        { args: [queueNames] }
+      );
+      return snapshot.queues ?? [];
+    },
+    async getRecentJobs(queueName: string, limit = 100): Promise<Job[]> {
+      const client = await createRpcClient();
+      return (await client.monitor('getRecentJobsForQueue', {
+        args: [queueName, limit],
+      })) as Job[];
+    },
+    async retryJob(queueName: string, jobId: string): Promise<RetryJobResult> {
+      const client = await createRpcClient();
+      return client.queue('retryJob', { target: queueName, args: [jobId] });
+    },
+    async getQueues(): Promise<string[]> {
+      const client = await createRpcClient();
+      const snapshot = await client.monitor<{ queues?: Array<{ name: string }> }>('getSnapshot');
+      return (snapshot.queues ?? []).map((queue) => queue.name);
+    },
+    async close(): Promise<void> {
+      await Promise.resolve();
+    },
+  });
+};
+
 async function enrichJobsWithState(jobs: Job[]): Promise<void> {
   await Promise.all(
     jobs.map(async (job) => {
@@ -89,6 +182,8 @@ async function discoverQueuesFromRedis(
 
 // eslint-disable-next-line max-lines-per-function
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
+  if (shouldUseRedisRpcMonitorDriver()) return createRedisRpcDriver();
+
   const queues = new Map<string, Queue>();
   const redis = createRedisConnection(config, 3, {
     subsystem: 'queue-monitor',

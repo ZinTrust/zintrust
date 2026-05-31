@@ -12,8 +12,10 @@ type RedisProxyClient = {
 };
 
 const createProxyClient = (): RedisProxyClient => {
-  if (Env.REDIS_PROXY_URL.trim() === '' && Env.USE_REDIS_PROXY !== true) {
-    throw ErrorFactory.createConfigError('Redis proxy URL is missing (REDIS_PROXY_URL)');
+  if (Env.USE_REDIS_PROXY !== true) {
+    throw ErrorFactory.createConfigError(
+      'Redis proxy transport requires USE_REDIS_PROXY=true. Add REDIS_RPC_URL for Redis RPC or REDIS_PROXY_URL/REDIS_PROXY_HOST for the legacy Redis HTTP proxy.'
+    );
   }
 
   return createRedisConnection(

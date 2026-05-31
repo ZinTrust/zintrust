@@ -1,60 +1,238 @@
-# Redis RPC BullMQ Proxy
+# @zintrust/redis-rpc
 
-This folder is a backend-owned replacement path for the current command-level Redis proxy. The client side should send raw intent:
+`@zintrust/redis-rpc` provides an HTTP RPC boundary for Redis-backed BullMQ operations. It is designed for runtimes that cannot safely create direct Redis or BullMQ connections, such as Cloudflare Workers, queue dashboards, remote worker controllers, and thin application processes.
 
-```json
-{
-  "service": "queue",
-  "method": "getJob",
-  "payload": {
-    "queueName": "payments",
-    "jobId": "123"
-  }
-}
-```
+Instead of asking every package to emulate Redis commands or BullMQ Lua scripts, the caller sends a typed intent to a backend-owned RPC server. The RPC server owns the real Redis connection, BullMQ queues, queue events, and worker instances.
 
-The backend owns the real BullMQ operation against Redis. Frontend, Worker, schedule, queue monitor, and worker dashboard code should not emulate BullMQ internals when `USE_REDIS_PROXY=true`.
+## When to use it
 
-## Run Locally
+Use Redis RPC when:
 
-The scripts load `.env` by default and use `REDIS_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, and `REDIS_QUEUE_DB`.
+- `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are both configured.
+- Queue producers run in an environment where direct TCP Redis is unavailable.
+- Queue monitor or worker dashboard code needs queue state without constructing local BullMQ clients.
+- You want a single backend process to own Redis credentials and BullMQ execution details.
+
+Use direct BullMQ/Redis when your process can safely connect to Redis and does not need a proxy boundary.
+
+## Package layout
+
+- `server.ts` starts the HTTP RPC server and exposes `/health` and `/rpc`.
+- `backend.ts` implements the default services for queues, workers, queue monitor reads, and raw Redis calls.
+- `client.ts` is the low-level HTTP client.
+- `adapters.ts` contains convenience wrappers used by `@zintrust/queue-redis`, `@zintrust/queue-monitor`, and worker tooling.
+- `env.ts` reads runtime configuration from `.env` and `process.env`.
+- `types.ts` contains the public request, client, backend, and server types.
+- `test-bullmq.mjs` is an end-to-end smoke test against a real Redis instance.
+
+## Installation
 
 ```bash
-tsx redis-rpc/server.ts
+npm install @zintrust/redis-rpc
 ```
 
-Health:
+For monorepo development this package is built like the other ZinTrust packages:
+
+```bash
+npm --prefix packages/redis-rpc run build
+```
+
+## Configuration
+
+The server and client read these variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `REDIS_RPC_URL` | empty | Full client base URL, for example `https://queues.example.com`. |
+| `REDIS_RPC_HOST` | `127.0.0.1` | Server listen host and client host fallback. |
+| `REDIS_RPC_PORT` | `8794` | Server listen port and client port fallback. |
+| `REDIS_RPC_SECRET` | `REDIS_PROXY_SECRET` or `APP_KEY` | Shared secret sent as `x-redis-rpc-secret`. |
+| `REDIS_RPC_REDIS_HOST` | `REDIS_HOST` or `127.0.0.1` | Redis host used by the RPC backend. |
+| `REDIS_RPC_REDIS_PORT` | `REDIS_PORT` or `6379` | Redis port used by the RPC backend. |
+| `REDIS_RPC_REDIS_PASSWORD` | `REDIS_PASSWORD` | Redis password used by the RPC backend. |
+| `REDIS_RPC_REDIS_DB` | `REDIS_QUEUE_DB`, `REDIS_DB`, or `0` | Redis database used for queue operations. |
+| `REDIS_RPC_BULLMQ_PREFIX` | `BULLMQ_PREFIX` or `bull` | BullMQ key prefix used by the backend. |
+| `REDIS_RPC_TIMEOUT_MS` | `30000` | Client-side timeout used by integrations. |
+| `REDIS_RPC_RETRY_MAX` | `2` | Client-side retry count used by integrations. |
+| `REDIS_RPC_RETRY_DELAY_MS` | `500` | Client-side retry delay used by integrations. |
+
+Set both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` to make supported ZinTrust packages select Redis RPC automatically. `USE_REDIS_PROXY=true` by itself does not enable Redis RPC; it only says the process is allowed to use a Redis proxy transport.
+
+## Running the server
+
+From the repository:
+
+```bash
+tsx packages/redis-rpc/server.ts
+```
+
+From a ZinTrust project with `@zintrust/redis-rpc` installed:
+
+```bash
+zin redis-rpc
+# or
+zin s redis-rpc
+```
+
+CLI overrides:
+
+```bash
+zin redis-rpc --host 0.0.0.0 --port 8794 --redis-host 127.0.0.1 --redis-db 1
+```
+
+Health check:
 
 ```bash
 curl http://127.0.0.1:8794/health
 ```
 
-Run the BullMQ RPC smoke suite:
+Example RPC request:
 
 ```bash
-npm run redis-rpc:test
+curl -X POST http://127.0.0.1:8794/rpc \
+  -H 'content-type: application/json' \
+  -H "x-redis-rpc-secret: $REDIS_RPC_SECRET" \
+  -d '{
+    "requestId": "example-1",
+    "service": "queue",
+    "method": "add",
+    "payload": {
+      "target": "emails",
+      "args": ["send", {"to":"dev@example.com"}, {"attempts":3}]
+    }
+  }'
 ```
 
-The test starts the RPC server, checks Redis `PING`, adds delayed and normal jobs, starts backend-owned BullMQ workers, verifies completed and failed job states, checks queue monitor snapshots/recent jobs, removes jobs, drains, cleans, and obliterates the temporary queue.
+## Client usage
 
-## Adapter Layer
+```ts
+import { createRedisRpcClient } from '@zintrust/redis-rpc';
 
-`adapters.ts` exposes thin client-side wrappers for the shape `@zintrust/queue-redis`, `@zintrust/workers`, and `@zintrust/queue-monitor` need when `USE_REDIS_PROXY=true`:
+const client = createRedisRpcClient({
+  baseUrl: process.env.REDIS_RPC_URL,
+  secret: process.env.REDIS_RPC_SECRET,
+});
 
-- `createBullMqRpcQueue(queueName, options)` maps queue calls such as `add`, `getJob`, `getJobs`, and `getJobCounts` into queue RPC requests with the original method arguments preserved under `payload.args`.
-- `createWorkerRpcRuntime(options)` maps `startWorker`, `stopWorker`, and `list` into backend-owned worker RPC requests.
-- `createQueueMonitorRpcDriver(options)` maps snapshot, event, and recent-job reads into queue-monitor RPC requests.
-- `createRedisRpcService(service, options)` creates a dynamic proxy, so `proxy.add(data, config)` becomes `{ service, method: "add", payload: { target, args: [data, config] } }`.
+const job = await client.queue('add', {
+  target: 'emails',
+  args: ['send', { to: 'dev@example.com' }, { attempts: 3 }],
+});
 
-These adapters do not run BullMQ locally. They only pass intent to `/rpc`; the backend owns the Redis and BullMQ work.
+const counts = await client.queue('getJobCounts', { target: 'emails' });
+```
 
-## Supported RPC Services
+## Adapter usage
 
-- `queue`: `add`, `getJob`, `getJobs`, `getJobCounts`, `count`, `pause`, `resume`, `drain`, `clean`, `removeJob`, `retryJob`, `promoteJob`, `obliterate`, `closeQueue`
-- `worker`: `startWorker`, `stopWorker`, `list`
-- `queue-monitor`: `getSnapshot`, `getEvents`, `getRecentJobsForQueue`
-- `redis`: `ping`, `call`
+```ts
+import {
+  createBullMqRpcQueue,
+  createQueueMonitorRpcDriver,
+  createWorkerRpcRuntime,
+} from '@zintrust/redis-rpc/adapters';
 
-Custom services can be registered with `backend.registerService(name, handler)` for backend-local extensions that are not part of the default service list.
+const queue = createBullMqRpcQueue('emails');
+await queue.add('send', { to: 'dev@example.com' }, { attempts: 3 });
 
-`REDIS_RPC_SECRET` protects `/rpc`; it falls back to `REDIS_PROXY_SECRET` or `APP_KEY` for local testing.
+const monitor = createQueueMonitorRpcDriver();
+const snapshot = await monitor.getSnapshot(['emails']);
+
+const workers = createWorkerRpcRuntime();
+await workers.startWorker('emails', 'emails-worker', { processor: 'echo' });
+```
+
+## Built-in services
+
+### `queue`
+
+Supported methods:
+
+- `add` / `enqueue`
+- `dequeue`
+- `ack`
+- `get` / `getJob`
+- `getJobs`
+- `getJobCounts` / `counts`
+- `count` / `length`
+- `pause`
+- `resume`
+- `drain`
+- `clean`
+- `removeJob`
+- `retryJob`
+- `promoteJob`
+- `obliterate`
+- `closeQueue`
+
+Queue requests identify the queue with `payload.target`, `payload.queueName`, or `payload.queue`.
+
+### `worker`
+
+Supported methods:
+
+- `startWorker`
+- `stopWorker`
+- `list`
+
+The default backend processors are intentionally small (`echo`, `sum`, and `fail`) so smoke tests and simple remote workers can run without loading application code. Register custom backend services or extend the backend process when production worker processors need application-specific behavior.
+
+### `queue-monitor`
+
+Supported methods:
+
+- `getSnapshot`
+- `getEvents`
+- `getRecentJobsForQueue`
+
+`@zintrust/queue-monitor` uses this service automatically when both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are configured.
+
+### `redis`
+
+Supported methods:
+
+- `ping`
+- `call`
+
+Use raw Redis calls sparingly. Prefer queue and monitor methods because they preserve the BullMQ abstraction and keep Redis command details out of callers.
+
+## Custom services
+
+```ts
+import { createRedisRpcBackend, listenRedisRpcServer } from '@zintrust/redis-rpc/server';
+
+const backend = createRedisRpcBackend();
+
+backend.registerService('reports', async ({ method, payload }) => {
+  if (method !== 'refresh') throw new Error(`Unsupported reports method: ${method}`);
+  return { accepted: true, reportId: payload.reportId };
+});
+
+await listenRedisRpcServer({ backend, port: 8794 });
+```
+
+## ZinTrust integrations
+
+- `@zintrust/queue-redis` routes `enqueue`, `dequeue`, `ack`, `length`, and `drain` through Redis RPC only when `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` is configured.
+- `@zintrust/queue-monitor` reads snapshots, job counts, recent jobs, and retry operations through Redis RPC in the same explicit mode.
+- Core Redis transport uses Redis RPC for raw Redis commands when both flags are set, so cache and lock code can use Redis RPC without the older Redis HTTP proxy.
+- Core env scaffolding includes the `REDIS_RPC_*` variables so generated projects can opt in without hand-editing config types.
+- The existing queue HTTP gateway remains available for signed `/api/_sys/queue/rpc` traffic; when the queue driver is in Redis RPC mode, that gateway delegates to Redis RPC-backed queue operations.
+
+## Verification
+
+Run the focused checks:
+
+```bash
+npm --prefix packages/redis-rpc run type-check
+npm --prefix packages/redis-rpc run build
+npm --prefix packages/queue-redis run build
+npm --prefix packages/queue-monitor run build
+npm --prefix packages/workers run build
+```
+
+Run the BullMQ smoke test when a Redis instance is available:
+
+```bash
+npm --prefix packages/redis-rpc run test
+```
+
+The smoke test starts the RPC server, verifies Redis `PING`, adds normal and delayed jobs, starts backend-owned workers, checks completed and failed job states, reads queue monitor snapshots, removes jobs, drains, cleans, and obliterates the temporary queue.

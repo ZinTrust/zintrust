@@ -66,7 +66,10 @@ export type RedisRpcClient = Readonly<{
   worker: <T = unknown>(method: string, payload?: RpcPayload) => Promise<T>;
   monitor: <T = unknown>(method: string, payload?: RpcPayload) => Promise<T>;
   redis: <T = unknown>(method: string, payload?: RpcPayload) => Promise<T>;
-  service: <TService extends object = Record<string, (...args: unknown[]) => Promise<unknown>>>(service: string, target?: string) => TService;
+  service: <TService extends object = Record<string, (...args: unknown[]) => Promise<unknown>>>(
+    service: string,
+    target?: string
+  ) => TService;
 }>;
 
 export type RedisRpcServerInstance = Readonly<{

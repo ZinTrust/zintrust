@@ -32,6 +32,19 @@ Then set your cache driver config (see docs for the full set of env vars):
 CACHE_DRIVER=redis
 ```
 
+## Cloudflare Workers
+
+When the app runs in Cloudflare Workers or another runtime without Redis TCP access, use Redis RPC:
+
+```bash
+npm i @zintrust/redis-rpc
+
+USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
+```
+
+Run the backend with `zin redis-rpc` or `zin s redis-rpc`. The Redis cache driver will send `get`, `set`, `del`, `exists`, and `flushdb` through the core Redis RPC transport. The older Redis HTTP proxy remains available for simple command forwarding through `REDIS_PROXY_URL`.
+
 ## Docs
 
 - https://zintrust.com/cache

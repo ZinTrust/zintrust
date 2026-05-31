@@ -42,6 +42,9 @@ const readEnvBool = (key: string, defaultValue: boolean = false): boolean => {
     return anyEnv.getBool(key, defaultValue);
   }
 
+  const directValue = (Env as Record<string, unknown>)[key];
+  if (typeof directValue === 'boolean') return directValue;
+
   const raw = readEnvString(key, '');
   if (raw === '') return defaultValue;
   return raw.toLowerCase() === 'true' || raw === '1';

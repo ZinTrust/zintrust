@@ -2,15 +2,58 @@ import { ErrorFactory } from '@zintrust/core/errors';
 import { isArray, isNonEmptyString, isObject, isUndefinedOrNull } from '@zintrust/core/helper';
 import { Logger } from '@zintrust/core/logger';
 import { Sanitizer } from '@zintrust/core/security';
-import { Queue, QueueEvents, Worker, type Job, type JobType, type ObliterateOpts, type QueueOptions } from 'bullmq';
+import {
+  Queue,
+  QueueEvents,
+  Worker,
+  type Job,
+  type JobType,
+  type ObliterateOpts,
+  type QueueOptions,
+} from 'bullmq';
 import IORedis, { type Redis, type RedisOptions } from 'ioredis';
 import { redisConnectionOptions, rpcServerOptions } from './env';
 import { createRpcValidationError } from './errors';
-import type { CreateRedisRpcBackendOptions, RedisRpcBackend, RedisRpcServiceHandler, RpcPayload } from './types';
+import type {
+  CreateRedisRpcBackendOptions,
+  RedisRpcBackend,
+  RedisRpcServiceHandler,
+  RpcPayload,
+} from './types';
 
-const DEFAULT_JOB_STATES: JobType[] = ['waiting', 'active', 'completed', 'failed', 'delayed', 'paused', 'prioritized', 'waiting-children'];
-const CLEAN_JOB_TYPES = new Set(['completed', 'failed', 'active', 'delayed', 'prioritized', 'waiting', 'paused', 'wait']);
-const EVENT_NAMES = ['added', 'waiting', 'active', 'completed', 'failed', 'delayed', 'removed', 'drained', 'paused', 'resumed'] as const;
+const DEFAULT_JOB_STATES: JobType[] = [
+  'waiting',
+  'active',
+  'completed',
+  'failed',
+  'delayed',
+  'paused',
+  'prioritized',
+  'waiting-children',
+];
+const CLEAN_JOB_TYPES = new Set([
+  'completed',
+  'failed',
+  'active',
+  'delayed',
+  'prioritized',
+  'waiting',
+  'paused',
+  'wait',
+]);
+const EVENT_NAMES = [
+  'added',
+  'waiting',
+  'active',
+  'completed',
+  'failed',
+  'delayed',
+  'removed',
+  'drained',
+  'paused',
+  'resumed',
+] as const;
+const PULL_WORKER_TOKEN = 'pull-worker';
 
 type EventLogEntry = Readonly<{ event: string; payload: unknown; at: number }>;
 type WorkerEntry = Readonly<{ queueName: string; worker: Worker }>;
@@ -26,7 +69,8 @@ type BackendState = {
   services: Map<string, RedisRpcServiceHandler>;
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value) && !isArray(value);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  isObject(value) && !isArray(value);
 
 const sanitizeKey = (value: string): string => {
   const sanitized = Sanitizer.keyLike(value);
@@ -49,7 +93,8 @@ const requireString = (value: unknown, name: string): string => {
 
 const asArgs = (payload: RpcPayload): unknown[] => (isArray(payload.args) ? payload.args : []);
 
-const firstDefined = (...values: unknown[]): unknown => values.find((value) => !isUndefinedOrNull(value));
+const firstDefined = (...values: unknown[]): unknown =>
+  values.find((value) => !isUndefinedOrNull(value));
 
 const queueNameFromPayload = (payload: RpcPayload): string => {
   return requireString(firstDefined(payload.queueName, payload.queue, payload.target), 'queueName');
@@ -60,7 +105,8 @@ const numberFrom = (value: unknown, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const boolFrom = (value: unknown, fallback = false): boolean => (typeof value === 'boolean' ? value : fallback);
+const boolFrom = (value: unknown, fallback = false): boolean =>
+  typeof value === 'boolean' ? value : fallback;
 
 const normalizeStates = (value: unknown): JobType[] => {
   if (!isArray(value)) {
@@ -76,7 +122,11 @@ const withTimeout = async <T>(operation: () => Promise<T>, timeoutMs = 5000): Pr
     return await Promise.race([
       operation(),
       new Promise<T>((_, reject) => {
-        timeout = setTimeout(() => reject(ErrorFactory.createTryCatchError('Redis RPC close timed out')), timeoutMs);
+        timeout = globalThis.setTimeout(
+          () => reject(ErrorFactory.createTryCatchError('Redis RPC close timed out')),
+          timeoutMs
+        );
+        timeout.unref?.();
       }),
     ]);
   } finally {
@@ -84,7 +134,9 @@ const withTimeout = async <T>(operation: () => Promise<T>, timeoutMs = 5000): Pr
   }
 };
 
-const serializeJob = async (job: Job | undefined | null): Promise<Record<string, unknown> | null> => {
+const serializeJob = async (
+  job: Job | undefined | null
+): Promise<Record<string, unknown> | null> => {
   if (!job) return null;
   let state: string | undefined;
   try {
@@ -94,7 +146,7 @@ const serializeJob = async (job: Job | undefined | null): Promise<Record<string,
   }
 
   return {
-    id: isUndefinedOrNull(job.id)  ? undefined : String(job.id),
+    id: isUndefinedOrNull(job.id) ? undefined : String(job.id),
     name: job.name,
     queueName: job.queueName,
     data: job.data,
@@ -151,7 +203,11 @@ const getQueueEvents = (state: BackendState, queueName: unknown): QueueEvents =>
   return events;
 };
 
-const getJob = async (state: BackendState, queueName: unknown, jobId: unknown): Promise<Job | undefined | null> => {
+const getJob = async (
+  state: BackendState,
+  queueName: unknown,
+  jobId: unknown
+): Promise<Job | undefined | null> => {
   const queue = getQueue(state, queueName);
   return queue.getJob(requireString(jobId, 'jobId'));
 };
@@ -177,24 +233,38 @@ const addJob = async (state: BackendState, payload: RpcPayload): Promise<unknown
   return serializeJob(await queue.add(name, data, opts));
 };
 
-const getQueueJob = async (state: BackendState, queueName: string, payload: RpcPayload): Promise<unknown> => {
+const getQueueJob = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const args = asArgs(payload);
-  return serializeJob(await getJob(state, queueName, firstDefined(args[0], payload.jobId, payload.id)));
+  return serializeJob(
+    await getJob(state, queueName, firstDefined(args[0], payload.jobId, payload.id))
+  );
 };
 
-const listQueueJobs = async (state: BackendState, queueName: string, payload: RpcPayload): Promise<unknown> => {
+const listQueueJobs = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const args = asArgs(payload);
   const queue = getQueue(state, queueName);
   const jobs = await queue.getJobs(
     normalizeStates(firstDefined(args[0], payload.states)),
     numberFrom(firstDefined(args[1], payload.start), 0),
     numberFrom(firstDefined(args[2], payload.end), 99),
-    boolFrom(firstDefined(args[3], payload.asc), false),
+    boolFrom(firstDefined(args[3], payload.asc), false)
   );
   return Promise.all(jobs.map((job) => serializeJob(job)));
 };
 
-const getQueueJobCounts = async (state: BackendState, queueName: string, payload: RpcPayload): Promise<unknown> => {
+const getQueueJobCounts = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const args = asArgs(payload);
   const queue = getQueue(state, queueName);
 
@@ -220,22 +290,65 @@ const closeQueue = async (state: BackendState, queueName: string): Promise<boole
 const getObliterateOptions = (payload: RpcPayload): ObliterateOpts => {
   const args = asArgs(payload);
   const options = args[0];
-  return isRecord(options) ? options  : { force: payload.force !== false };
+  return isRecord(options) ? options : { force: payload.force !== false };
 };
 
-const getQueueJobById = async (state: BackendState, queueName: string, payload: RpcPayload): Promise<Job | undefined | null> => {
+const getQueueJobById = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<Job | undefined | null> => {
   const args = asArgs(payload);
   return getJob(state, queueName, firstDefined(args[0], payload.jobId, payload.id));
 };
 
-const removeQueueJob = async (state: BackendState, queueName: string, payload: RpcPayload): Promise<boolean> => {
+const dequeueQueueJob = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<unknown> => {
+  const queue = getQueue(state, queueName);
+  const jobs = await queue.getJobs(['waiting'], 0, 0);
+  const job = jobs[0];
+  if (!job) return undefined;
+
+  const visibilityTimeoutMs = numberFrom(payload.visibilityTimeoutMs, 30_000);
+  await job.moveToDelayed(Date.now() + Math.max(1, visibilityTimeoutMs), PULL_WORKER_TOKEN);
+
+  return {
+    id: isUndefinedOrNull(job.id) ? undefined : String(job.id),
+    payload: job.data,
+    attempts: job.attemptsMade || 0,
+  };
+};
+
+const ackQueueJob = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<boolean> => {
+  const job = await getQueueJobById(state, queueName, payload);
+  if (!job) return false;
+  await job.moveToCompleted('acknowledged', PULL_WORKER_TOKEN, false);
+  return true;
+};
+
+const removeQueueJob = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<boolean> => {
   const job = await getQueueJobById(state, queueName, payload);
   if (!job) return false;
   await job.remove();
   return true;
 };
 
-const retryQueueJob = async (state: BackendState, queueName: string, payload: RpcPayload): Promise<unknown> => {
+const retryQueueJob = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const args = asArgs(payload);
   const job = await getQueueJobById(state, queueName, payload);
   if (!job) return { ok: false, status: 'missing' };
@@ -243,14 +356,23 @@ const retryQueueJob = async (state: BackendState, queueName: string, payload: Rp
   return { ok: true, status: 'retried' };
 };
 
-const promoteQueueJob = async (state: BackendState, queueName: string, payload: RpcPayload): Promise<unknown> => {
+const promoteQueueJob = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const job = await getQueueJobById(state, queueName, payload);
   if (!job) return { ok: false, status: 'missing' };
   await job.promote();
   return { ok: true, status: 'promoted' };
 };
 
-const dispatchQueue = async (state: BackendState, method: string, payload: RpcPayload): Promise<unknown> => {
+/* eslint-disable complexity */
+const dispatchQueue = async (
+  state: BackendState,
+  method: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const queueName = queueNameFromPayload(payload);
 
   switch (method) {
@@ -268,6 +390,10 @@ const dispatchQueue = async (state: BackendState, method: string, payload: RpcPa
     case 'count':
     case 'length':
       return getQueue(state, queueName).count();
+    case 'dequeue':
+      return dequeueQueueJob(state, queueName, payload);
+    case 'ack':
+      return ackQueueJob(state, queueName, payload);
     case 'pause':
       await getQueue(state, queueName).pause();
       return true;
@@ -275,7 +401,9 @@ const dispatchQueue = async (state: BackendState, method: string, payload: RpcPa
       await getQueue(state, queueName).resume();
       return true;
     case 'drain':
-      await getQueue(state, queueName).drain(Boolean(firstDefined(asArgs(payload)[0], payload.delayed)));
+      await getQueue(state, queueName).drain(
+        Boolean(firstDefined(asArgs(payload)[0], payload.delayed))
+      );
       return true;
     case 'obliterate':
       await getQueue(state, queueName).obliterate(getObliterateOptions(payload));
@@ -286,7 +414,15 @@ const dispatchQueue = async (state: BackendState, method: string, payload: RpcPa
       return getQueue(state, queueName).clean(
         numberFrom(firstDefined(args[0], payload.grace), 0),
         numberFrom(firstDefined(args[1], payload.limit), 1000),
-        (CLEAN_JOB_TYPES.has(cleanType) ? cleanType : 'completed') as 'completed' | 'failed' | 'active' | 'delayed' | 'prioritized' | 'waiting' | 'paused' | 'wait',
+        (CLEAN_JOB_TYPES.has(cleanType) ? cleanType : 'completed') as
+          | 'completed'
+          | 'failed'
+          | 'active'
+          | 'delayed'
+          | 'prioritized'
+          | 'waiting'
+          | 'paused'
+          | 'wait'
       );
     }
     case 'removeJob':
@@ -301,20 +437,28 @@ const dispatchQueue = async (state: BackendState, method: string, payload: RpcPa
       throw createRpcValidationError(`Unsupported queue method: ${method}`);
   }
 };
+/* eslint-enable complexity */
 
 const createProcessor = (kind: unknown) => {
   switch (kind) {
     case 'echo':
     case undefined:
     case null:
-      return async (job: Job) => ({ echo: job.data, jobId: job.id, name: job.name });
+      return async (
+        job: Job
+      ): Promise<{
+        echo: typeof job.data;
+        jobId: string | undefined;
+        name: string;
+      }> => ({ echo: job.data, jobId: job.id, name: job.name });
     case 'sum':
-      return async (job: Job) => {
-        const values = isArray((job.data as { values?: unknown[] })?.values) ? (job.data as { values: unknown[] }).values : [];
+      return async (job: Job): Promise<number> => {
+        const data = job.data as { values?: unknown[] };
+        const values = isArray(data.values) ? data.values : [];
         return values.reduce<number>((total, value) => total + Number(value || 0), 0);
       };
     case 'fail':
-      return async () => {
+      return async (): Promise<never> => {
         throw ErrorFactory.createWorkerError('redis-rpc test processor failure');
       };
     default:
@@ -322,14 +466,26 @@ const createProcessor = (kind: unknown) => {
   }
 };
 
-const dispatchWorker = async (state: BackendState, method: string, payload: RpcPayload): Promise<unknown> => {
+const dispatchWorker = async (
+  state: BackendState,
+  method: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const args = asArgs(payload);
   switch (method) {
     case 'start':
     case 'startWorker': {
-      const queueName = requireString(firstDefined(args[0], payload.queueName, payload.queue), 'queueName');
-      const workerName = requireString(firstDefined(args[1], payload.workerName, payload.name, `${queueName}:${String(payload.processor || 'echo')}`), 'workerName');
-      if (state.workers.has(workerName)) return { workerName, queueName, status: 'already-running' };
+      const queueName = requireString(
+        firstDefined(args[0], payload.queueName, payload.queue),
+        'queueName'
+      );
+      const defaultWorkerName = `${queueName}:${String(payload.processor || 'echo')}`;
+      const workerName = requireString(
+        firstDefined(args[1], payload.workerName, payload.name, defaultWorkerName),
+        'workerName'
+      );
+      if (state.workers.has(workerName))
+        return { workerName, queueName, status: 'already-running' };
       const options = isRecord(args[2]) ? args[2] : payload;
       const worker = new Worker(queueName, createProcessor(options.processor), {
         connection: createConnection(state),
@@ -342,7 +498,10 @@ const dispatchWorker = async (state: BackendState, method: string, payload: RpcP
     }
     case 'stop':
     case 'stopWorker': {
-      const workerName = requireString(firstDefined(args[0], payload.workerName, payload.name), 'workerName');
+      const workerName = requireString(
+        firstDefined(args[0], payload.workerName, payload.name),
+        'workerName'
+      );
       const entry = state.workers.get(workerName);
       if (!entry) return false;
       await entry.worker.close(true);
@@ -350,36 +509,54 @@ const dispatchWorker = async (state: BackendState, method: string, payload: RpcP
       return true;
     }
     case 'list':
-      return Array.from(state.workers.entries()).map(([workerName, entry]) => ({ workerName, queueName: entry.queueName }));
+      return Array.from(state.workers.entries()).map(([workerName, entry]) => ({
+        workerName,
+        queueName: entry.queueName,
+      }));
     default:
       throw createRpcValidationError(`Unsupported worker method: ${method}`);
   }
 };
 
-const dispatchMonitor = async (state: BackendState, method: string, payload: RpcPayload): Promise<unknown> => {
+const dispatchMonitor = async (
+  state: BackendState,
+  method: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const args = asArgs(payload);
   switch (method) {
     case 'snapshot':
     case 'getSnapshot': {
-      const queueNames = isArray(args[0])
-        ? args[0]
-        : isArray(payload.queueNames)
-          ? payload.queueNames
-          : Array.from(state.queues.keys());
-      const queues = await Promise.all(queueNames.map(async (name) => {
-        const queueName = requireString(name, 'queueName');
-        return { name: queueName, counts: await getQueue(state, queueName).getJobCounts() };
-      }));
+      let queueNames: unknown[];
+      if (isArray(args[0])) {
+        queueNames = args[0];
+      } else if (isArray(payload.queueNames)) {
+        queueNames = payload.queueNames;
+      } else {
+        queueNames = Array.from(state.queues.keys());
+      }
+      const queues = await Promise.all(
+        queueNames.map(async (name) => {
+          const queueName = requireString(name, 'queueName');
+          return { name: queueName, counts: await getQueue(state, queueName).getJobCounts() };
+        })
+      );
       return { status: 'ok', startedAt: new Date().toISOString(), queues };
     }
     case 'events':
     case 'getEvents': {
-      const queueName = requireString(firstDefined(args[0], payload.queueName, payload.queue), 'queueName');
+      const queueName = requireString(
+        firstDefined(args[0], payload.queueName, payload.queue),
+        'queueName'
+      );
       getQueueEvents(state, queueName);
       return state.eventLogs.get(queueName) ?? [];
     }
-    case 'getRecentJobsForQueue':
-      { const queueName = requireString(firstDefined(args[0], payload.queueName, payload.queue), 'queueName');
+    case 'getRecentJobsForQueue': {
+      const queueName = requireString(
+        firstDefined(args[0], payload.queueName, payload.queue),
+        'queueName'
+      );
       return dispatchQueue(state, 'getJobs', {
         ...payload,
         args: [],
@@ -387,13 +564,18 @@ const dispatchMonitor = async (state: BackendState, method: string, payload: Rpc
         states: DEFAULT_JOB_STATES,
         start: 0,
         end: firstDefined(args[1], payload.limit, 99),
-      }); }
+      });
+    }
     default:
       throw createRpcValidationError(`Unsupported queue-monitor method: ${method}`);
   }
 };
 
-const dispatchRedis = async (state: BackendState, method: string, payload: RpcPayload): Promise<unknown> => {
+const dispatchRedis = async (
+  state: BackendState,
+  method: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const args = asArgs(payload);
   const connection = createConnection(state, { maxRetriesPerRequest: 1 });
   try {
@@ -401,7 +583,9 @@ const dispatchRedis = async (state: BackendState, method: string, payload: RpcPa
     if (method === 'call') {
       const command = requireString(firstDefined(args[0], payload.command), 'command');
       const rawCommandArgs = args.length > 0 ? args.slice(1) : asArgs(payload);
-      const commandArgs = rawCommandArgs.map((value) => Buffer.isBuffer(value) ? value : String(value));
+      const commandArgs = rawCommandArgs.map((value) =>
+        Buffer.isBuffer(value) ? value : String(value)
+      );
       return await connection.call(command, ...commandArgs);
     }
     throw createRpcValidationError(`Unsupported redis method: ${method}`);
@@ -410,7 +594,13 @@ const dispatchRedis = async (state: BackendState, method: string, payload: RpcPa
   }
 };
 
-const dispatchCustom = async (backend: RedisRpcBackend, state: BackendState, service: string, method: string, payload: RpcPayload): Promise<unknown> => {
+const dispatchCustom = async (
+  backend: RedisRpcBackend,
+  state: BackendState,
+  service: string,
+  method: string,
+  payload: RpcPayload
+): Promise<unknown> => {
   const handler = state.services.get(service);
   if (!handler) {
     throw createRpcValidationError(`Unsupported Redis RPC service: ${service}`);
@@ -419,27 +609,33 @@ const dispatchCustom = async (backend: RedisRpcBackend, state: BackendState, ser
 };
 
 const closeBackend = async (state: BackendState): Promise<void> => {
-  await Promise.allSettled(Array.from(state.workers.values()).map(async ({ worker }) => {
-    try {
-      await withTimeout(() => worker.close(true));
-    } catch {
-      await worker.disconnect();
-    }
-  }));
-  await Promise.allSettled(Array.from(state.queueEvents.values()).map(async (events) => {
-    try {
-      await withTimeout(() => events.close());
-    } catch {
-      await events.disconnect();
-    }
-  }));
-  await Promise.allSettled(Array.from(state.queues.values()).map(async (queue) => {
-    try {
-      await withTimeout(() => queue.close());
-    } catch {
-      await queue.disconnect();
-    }
-  }));
+  await Promise.allSettled(
+    Array.from(state.workers.values()).map(async ({ worker }) => {
+      try {
+        await withTimeout(() => worker.close(true));
+      } catch {
+        await worker.disconnect();
+      }
+    })
+  );
+  await Promise.allSettled(
+    Array.from(state.queueEvents.values()).map(async (events) => {
+      try {
+        await withTimeout(() => events.close());
+      } catch {
+        await events.disconnect();
+      }
+    })
+  );
+  await Promise.allSettled(
+    Array.from(state.queues.values()).map(async (queue) => {
+      try {
+        await withTimeout(() => queue.close());
+      } catch {
+        await queue.disconnect();
+      }
+    })
+  );
   for (const connection of state.connections) {
     connection.disconnect();
   }
@@ -450,11 +646,13 @@ const closeBackend = async (state: BackendState): Promise<void> => {
   state.connections.clear();
 };
 
-export const createRedisRpcBackend = (options: CreateRedisRpcBackendOptions = {}): RedisRpcBackend => {
+export const createRedisRpcBackend = (
+  options: CreateRedisRpcBackendOptions = {}
+): RedisRpcBackend => {
   const serverOptions = rpcServerOptions();
   const state: BackendState = {
     prefix: options.prefix || serverOptions.prefix,
-    connectionOptions: (options.redis || redisConnectionOptions()) ,
+    connectionOptions: options.redis || redisConnectionOptions(),
     queues: new Map(),
     queueEvents: new Map(),
     workers: new Map(),
@@ -470,9 +668,11 @@ export const createRedisRpcBackend = (options: CreateRedisRpcBackendOptions = {}
       const normalizedMethod = requireString(method, 'method');
       const body = requireRecord(payload, 'payload');
 
-      if (normalizedService === 'queue' || normalizedService === 'bullmq') return dispatchQueue(state, normalizedMethod, body);
+      if (normalizedService === 'queue' || normalizedService === 'bullmq')
+        return dispatchQueue(state, normalizedMethod, body);
       if (normalizedService === 'worker') return dispatchWorker(state, normalizedMethod, body);
-      if (normalizedService === 'queue-monitor') return dispatchMonitor(state, normalizedMethod, body);
+      if (normalizedService === 'queue-monitor')
+        return dispatchMonitor(state, normalizedMethod, body);
       if (normalizedService === 'redis') return dispatchRedis(state, normalizedMethod, body);
       return dispatchCustom(backend, state, normalizedService, normalizedMethod, body);
     },

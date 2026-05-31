@@ -1,11 +1,19 @@
 # Queue Monitor
 
-The `@zintrust/queue-monitor` package provides a robust monitoring dashboard and metric collection system for your background jobs, powered by BullMQ and Redis.
+The `@zintrust/queue-monitor` package provides a queue dashboard and metrics API for ZinTrust background jobs. In Node.js it can read BullMQ directly. In Cloudflare Workers or other runtimes without Redis TCP access, it can read through [`@zintrust/redis-rpc`](https://www.npmjs.com/package/@zintrust/redis-rpc).
 
 ## Installation
 
 ```bash
 zin add @zintrust/queue-monitor
+```
+
+For Redis RPC mode:
+
+```bash
+npm install @zintrust/redis-rpc
+USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
 ```
 
 ## When to use
@@ -34,6 +42,10 @@ The queue monitor and Redis queue driver use BullMQ with these customizable sett
 ```bash
 BULLMQ_REMOVE_ON_COMPLETE=500 BULLMQ_DEFAULT_ATTEMPTS=2
 ```
+
+## Cloudflare Workers
+
+Do not create direct BullMQ or `ioredis` clients in Cloudflare Workers. Configure both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` so the monitor driver calls Redis RPC for snapshots, counts, recent jobs, and retry operations. The Redis RPC server owns the BullMQ clients and can be started with `zin redis-rpc` or `zin s redis-rpc`.
 
 **Production:**
 

@@ -1,8 +1,8 @@
-# Redis RPC BullMQ Proxy
+# Redis RPC BullMQ Integration
 
-`redis-rpc/` is the backend-owned replacement for the current command-level Redis proxy. When `USE_REDIS_PROXY=true`, frontend, worker, schedule, queue-monitor, and dashboard code should send raw intent to the backend RPC server instead of constructing local BullMQ clients or emulating BullMQ Redis scripts.
+Redis RPC is the backend-owned HTTP boundary for ZinTrust Redis and BullMQ workloads. Redis RPC becomes active in callers only when both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are configured. Edge, serverless, scheduler, queue-monitor, dashboard, cache, and lock code can then send intent to the backend RPC server instead of constructing local BullMQ clients or emulating BullMQ Redis scripts.
 
-The current implementation is TypeScript end-to-end:
+The package is TypeScript end-to-end:
 
 - `redis-rpc/backend.ts` exposes `createRedisRpcBackend(...)`
 - `redis-rpc/client.ts` exposes `createRedisRpcClient(...)`

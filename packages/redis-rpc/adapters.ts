@@ -4,6 +4,8 @@ import type { RedisRpcClient, RedisRpcClientOptions } from './types';
 type QueueRpcMethods = Readonly<{
   add: (name: string, data?: unknown, opts?: Record<string, unknown>) => Promise<unknown>;
   enqueue: (name: string, data?: unknown, opts?: Record<string, unknown>) => Promise<unknown>;
+  dequeue: (visibilityTimeoutMs?: number) => Promise<unknown>;
+  ack: (jobId: string) => Promise<unknown>;
   get: (data?: Record<string, unknown>) => Promise<unknown>;
   getJob: (jobId: string) => Promise<unknown>;
   getJobs: (states?: string[], start?: number, end?: number, asc?: boolean) => Promise<unknown>;
@@ -33,15 +35,24 @@ type QueueMonitorRpcMethods = Readonly<{
   getRecentJobsForQueue: (queueName: string, limit?: number) => Promise<unknown>;
 }>;
 
-const resolveClient = (options: RedisRpcClientOptions & { client?: RedisRpcClient } = {}): RedisRpcClient => {
+type AdapterOptions = RedisRpcClientOptions & { client?: RedisRpcClient };
+type ServiceAdapterOptions = AdapterOptions & { target?: string };
+
+const resolveClient = (options: AdapterOptions = {}): RedisRpcClient => {
   return options.client || createRedisRpcClient(options);
 };
 
-export const createBullMqRpcQueue = (queueName: string, options: RedisRpcClientOptions & { client?: RedisRpcClient } = {}): QueueRpcMethods => {
+export const createBullMqRpcQueue = (
+  queueName: string,
+  options: AdapterOptions = {}
+): QueueRpcMethods => {
   const client = resolveClient(options);
   return Object.freeze({
     add: (...args) => client.queue('add', { target: queueName, args }),
     enqueue: (...args) => client.queue('add', { target: queueName, args }),
+    dequeue: (visibilityTimeoutMs) =>
+      client.queue('dequeue', { target: queueName, visibilityTimeoutMs }),
+    ack: (...args) => client.queue('ack', { target: queueName, args }),
     get: (data = {}) => client.queue('getJob', { target: queueName, ...data }),
     getJob: (...args) => client.queue('getJob', { target: queueName, args }),
     getJobs: (...args) => client.queue('getJobs', { target: queueName, args }),
@@ -60,7 +71,7 @@ export const createBullMqRpcQueue = (queueName: string, options: RedisRpcClientO
   });
 };
 
-export const createWorkerRpcRuntime = (options: RedisRpcClientOptions & { client?: RedisRpcClient } = {}): WorkerRpcMethods => {
+export const createWorkerRpcRuntime = (options: AdapterOptions = {}): WorkerRpcMethods => {
   const client = resolveClient(options);
   return Object.freeze({
     startWorker: (...args) => client.worker('startWorker', { args }),
@@ -69,7 +80,9 @@ export const createWorkerRpcRuntime = (options: RedisRpcClientOptions & { client
   });
 };
 
-export const createQueueMonitorRpcDriver = (options: RedisRpcClientOptions & { client?: RedisRpcClient } = {}): QueueMonitorRpcMethods => {
+export const createQueueMonitorRpcDriver = (
+  options: AdapterOptions = {}
+): QueueMonitorRpcMethods => {
   const client = resolveClient(options);
   return Object.freeze({
     getSnapshot: (...args) => client.monitor('getSnapshot', { args }),
@@ -78,7 +91,10 @@ export const createQueueMonitorRpcDriver = (options: RedisRpcClientOptions & { c
   });
 };
 
-export const createRedisRpcService = <TService extends object>(service: string, options: RedisRpcClientOptions & { client?: RedisRpcClient; target?: string } = {}): TService => {
+export const createRedisRpcService = <TService extends object>(
+  service: string,
+  options: ServiceAdapterOptions = {}
+): TService => {
   const client = resolveClient(options);
   return client.service<TService>(service, options.target);
 };

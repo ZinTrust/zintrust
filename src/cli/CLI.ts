@@ -55,6 +55,7 @@ import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
 import { QueueRecoveryCommand } from '@cli/commands/QueueRecoveryCommand';
 import { RedisProxyCommand } from '@cli/commands/RedisProxyCommand';
+import { RedisRpcCommand } from '@cli/commands/RedisRpcCommand';
 import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { ScheduleListCommand } from '@cli/commands/ScheduleListCommand';
@@ -162,6 +163,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     MongoDBProxyCommand.create(),
     SqlServerProxyCommand.create(),
     RedisProxyCommand.create(),
+    RedisRpcCommand.create(),
     SmtpProxyCommand.create(),
     ...OptionalCliCommandRegistry.list(),
   ];
