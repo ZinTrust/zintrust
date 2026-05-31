@@ -36,7 +36,6 @@ type RedisProxyConnection = {
   once: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
   off: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
   removeListener: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
-  duplicate: () => RedisProxyConnection;
   call: (command: string, ...args: unknown[]) => Promise<unknown>;
   pipeline: () => {
     exec: () => Promise<Array<[Error | null, unknown]>>;
@@ -71,6 +70,24 @@ const readEnvBool = (key: string, fallback = false): boolean => {
 
   const value = (Env as Record<string, unknown>)[key];
   return typeof value === 'boolean' ? value : fallback;
+};
+
+const readEnvInt = (key: string, fallback: number): number => {
+  if (typeof Env.getInt === 'function') {
+    return Env.getInt(key, fallback);
+  }
+
+  const value = (Env as Record<string, unknown>)[key];
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  }
+
+  return fallback;
 };
 
 const resolveSigningPrefix = (baseUrl: string): string | undefined => {
@@ -125,8 +142,11 @@ const isRedisRpcEnabled = (): boolean =>
 
 const resolveRpcSettings = (): RpcSettings => ({
   baseUrl: readEnvString('REDIS_RPC_URL', '').trim(),
-  secret: readEnvString('REDIS_RPC_SECRET', readEnvString('REDIS_PROXY_SECRET', Env.APP_KEY)),
-  timeoutMs: Env.REDIS_RPC_TIMEOUT_MS,
+  secret: readEnvString(
+    'REDIS_RPC_SECRET',
+    readEnvString('REDIS_PROXY_SECRET', readEnvString('APP_KEY', ''))
+  ),
+  timeoutMs: readEnvInt('REDIS_RPC_TIMEOUT_MS', 30000),
 });
 
 const buildHeaders = async (
@@ -391,7 +411,7 @@ const createPipeline = (
   const target = {
     async exec(): Promise<Array<[Error | null, unknown]>> {
       if (mode === 'rpc') {
-        return requestRpcPipeline(settings as RpcSettings, commands, transaction);
+        return requestRpcPipeline(settings, commands, transaction);
       }
 
       const results: Array<[Error | null, unknown]> = [];
@@ -464,7 +484,6 @@ export const createRedisProxyConnection = (
     call: async (command: string, ...args: unknown[]): Promise<unknown> => {
       return requestRedisCommand(mode, settings, command, args);
     },
-    duplicate: (): RedisProxyConnection => createRedisProxyConnection(config, options),
     pipeline: () => createPipeline(settings, mode),
     multi: () => createPipeline(settings, mode, true),
     scanStream: (scanOptions?: { match?: string; count?: number }) =>

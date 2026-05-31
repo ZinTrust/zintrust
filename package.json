@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -205,10 +205,10 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "zintrust": "./bin/zintrust.ts",
-    "zin": "./bin/zin.ts",
-    "z": "./bin/z.ts",
-    "zt": "./bin/zt.ts"
+    "zintrust": "./dist/bin/zintrust.js",
+    "zin": "./dist/bin/zin.js",
+    "z": "./dist/bin/z.js",
+    "zt": "./dist/bin/zt.js"
   },
   "files": [
     "bin",
@@ -321,7 +321,7 @@
     "postinstall": "node -e \"process.exit(0)\"",
     "check-up": "npx npm-check-updates -u && npm install --no-audit --no-fund",
     "check-up:check": "npx npm-check-updates",
-    "pub": "npm run release:update-deps && npm run core:build:dist && npm publish ./dist --access public",
+    "pub": "npm run core:build:dist && npm publish ./dist --access public",
     "pub:ci": "npm run release:update-deps && npm run core:build:dist && npm publish ./dist --access public",
     "push:docker": "npm run docker:push --",
     "rebuild:bcrypt": "npm rebuild bcrypt",
@@ -424,7 +424,7 @@
     "mysql2": "^3.22.4",
     "pg": "^8.21.0",
     "redis": "^6.0.0",
-    "tsx": "^4.22.3"
+    "tsx": "^4.22.4"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "^2.0.1",
