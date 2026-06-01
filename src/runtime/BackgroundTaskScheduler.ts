@@ -25,9 +25,9 @@ const isCloudflareRuntime = (): boolean => {
   }
 
   return (
-    typeof (globalRef as { caches?: unknown }).caches !== 'undefined' ||
+    (globalRef as { caches?: unknown }).caches !== undefined ||
     typeof (globalRef as { WebSocketPair?: unknown }).WebSocketPair === 'function' ||
-    typeof (globalRef as { CF?: unknown }).CF !== 'undefined'
+    (globalRef as { CF?: unknown }).CF !== undefined
   );
 };
 

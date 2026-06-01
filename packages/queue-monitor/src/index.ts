@@ -56,6 +56,18 @@ export type QueueCounts = {
   paused: number;
 };
 
+const emptyQueueCounts = (): QueueCounts => ({
+  waiting: 0,
+  active: 0,
+  completed: 0,
+  failed: 0,
+  delayed: 0,
+  paused: 0,
+});
+
+const emptyQueueStats = (queues: ReadonlyArray<string>): QueueMonitorSnapshot['queues'] =>
+  queues.map((name) => ({ name, counts: emptyQueueCounts() }));
+
 export type QueueMonitorSnapshot = {
   status: 'ok';
   startedAt: string;
@@ -416,7 +428,10 @@ function createGetSnapshot(
 ) {
   return async (): Promise<QueueMonitorSnapshot> => {
     const persistedQueues = await resolveKnownQueues(knownQueues).catch((error) => {
-      Logger.warn('[queue-monitor] Known queue resolution failed; using no configured queues', error);
+      Logger.warn(
+        '[queue-monitor] Known queue resolution failed; using no configured queues',
+        error
+      );
       return [];
     });
     const shouldDiscoverQueues = persistedQueues.length === 0;
@@ -456,8 +471,11 @@ function createGetSnapshot(
               })
             );
       } catch (error) {
-        Logger.warn('[queue-monitor] Queue count lookup failed; returning empty snapshot', error);
-        return [];
+        Logger.warn(
+          '[queue-monitor] Queue count lookup failed; returning known queues with empty counts',
+          error
+        );
+        return emptyQueueStats(queues) as unknown as QueueMonitorSnapshot['queues'];
       }
     })();
     if (QUEUE_MONITOR_LOGGING_ENABLED) {

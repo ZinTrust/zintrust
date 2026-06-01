@@ -38,6 +38,7 @@ import { Observability, type ObservabilityConfig } from './Observability';
 import { PluginManager } from './PluginManager';
 import { PriorityQueue } from './PriorityQueue';
 import { ResourceMonitor } from './ResourceMonitor';
+import { SLAMonitor } from './SLAMonitor';
 import { WorkerMetrics } from './WorkerMetrics';
 import { WorkerRegistry, type WorkerInstance as RegistryWorkerInstance } from './WorkerRegistry';
 import { WorkerVersioning } from './WorkerVersioning';
@@ -2558,6 +2559,21 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
   };
 };
 
+const assertSlaAllowsWorkerRequest = async (workerName: string): Promise<void> => {
+  const gate = await SLAMonitor.canSendWorkerRequest(workerName);
+  if (gate.allowed) return;
+
+  throw ErrorFactory.createConfigError(
+    `Worker "${workerName}" blocked because SLA status is not compliant`,
+    {
+      kind: 'worker_sla_blocked',
+      workerName,
+      reason: gate.reason,
+      status: gate.status?.status,
+    }
+  );
+};
+
 const buildDefaultAutoScalerConfig = (): AutoScalerConfig => ({
   enabled: workersConfig.autoScaling.enabled,
   checkInterval: workersConfig.autoScaling.interval,
@@ -3022,6 +3038,10 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createWorkerError(`Worker "${name}" already exists`);
     }
 
+    if (autoStart) {
+      await assertSlaAllowsWorkerRequest(name);
+    }
+
     // Resolve the correct store for this worker configuration
     const store = await getStoreForWorker(config);
 
@@ -3439,6 +3459,8 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
     }
 
+    await assertSlaAllowsWorkerRequest(name);
+
     const version = instance.config.version ?? '1.0.0';
     await WorkerRegistry.start(name, version);
 
@@ -3512,6 +3534,8 @@ export const WorkerFactory = Object.freeze({
     if (record.activeStatus === false) {
       throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
     }
+
+    await assertSlaAllowsWorkerRequest(name);
 
     let processor: WorkerFactoryConfig['processor'];
     try {

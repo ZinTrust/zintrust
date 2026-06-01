@@ -10,6 +10,29 @@ export type JobPayload<T = unknown> = T;
 
 export type JobCounts = Record<string, number>;
 
+/**
+ * Standard BullMQ job-count buckets, all zero. Used when the backing store is
+ * unavailable so a queue is still listed (with empty counts) instead of being
+ * dropped from the snapshot entirely.
+ */
+export const emptyCounts = (): JobCounts => ({
+  waiting: 0,
+  active: 0,
+  completed: 0,
+  failed: 0,
+  delayed: 0,
+  paused: 0,
+});
+
+/**
+ * Map a list of known queue names to entries with empty counts. Keeps the
+ * dashboard showing the configured queues during transient backend outages.
+ */
+export const emptyQueueStats = (
+  queueNames: ReadonlyArray<string>
+): Array<{ name: string; counts: JobCounts }> =>
+  queueNames.map((name) => ({ name, counts: emptyCounts() }));
+
 export type RetrySnapshot = {
   name?: string;
   data: unknown;
@@ -144,10 +167,13 @@ const createRedisRpcDriver = (): QueueDriver => {
         const snapshot = await client.monitor<{
           queues?: Array<{ name: string; counts: JobCounts }>;
         }>('getSnapshot', { args: [queueNames] });
-        return snapshot.queues ?? [];
+        return snapshot.queues ?? emptyQueueStats(queueNames);
       } catch (error) {
-        Logger.warn('[queue-monitor] Redis RPC batch counts failed; returning no queues', error);
-        return [];
+        Logger.warn(
+          '[queue-monitor] Redis RPC batch counts failed; returning known queues with empty counts',
+          error
+        );
+        return emptyQueueStats(queueNames);
       }
     },
     async getRecentJobs(queueName: string, limit = 100): Promise<Job[]> {

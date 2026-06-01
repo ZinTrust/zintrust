@@ -19,6 +19,11 @@ import type {
   WorkerMetrics,
   WorkersListResponse,
 } from './types';
+import {
+  getWorkerManifestEntries,
+  getWorkerManifestQueueNames,
+  getWorkerManifestRecord,
+} from './workerManifest';
 
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 200;
@@ -55,21 +60,6 @@ type RedisRpcWorkerRecord = {
   source?: string;
 };
 
-type WorkerManifestEntry = {
-  name?: string;
-  workerName?: string;
-  queueName?: string;
-  status?: string;
-  autoStart?: boolean;
-  activeStatus?: boolean;
-};
-
-type WorkersManifestGlobal = typeof globalThis & {
-  __zintrustWorkersManifest?: ReadonlyArray<WorkerManifestEntry>;
-  __zintrustWorkerManifest?: ReadonlyArray<WorkerManifestEntry>;
-  __zintrustAppWorkerManifest?: ReadonlyArray<WorkerManifestEntry>;
-};
-
 const shouldUseRedisRpcWorkerApi = (): boolean =>
   Cloudflare.getWorkersEnv() !== null &&
   Env.getBool('USE_REDIS_PROXY', false) &&
@@ -99,7 +89,7 @@ const callRedisRpc = async <T = unknown>(
   });
   const body = (await response.json().catch(() => ({}))) as {
     ok?: boolean;
-    result?: T;
+    result: T;
     error?: { message?: string };
   };
   if (!response.ok || body.ok !== true) {
@@ -107,41 +97,30 @@ const callRedisRpc = async <T = unknown>(
       body.error?.message ?? `Redis RPC request failed with status ${response.status}`
     );
   }
-  return body.result as T;
+  return body.result;
 };
-
-const getManifestEntries = (): WorkerManifestEntry[] => {
-  const manifestGlobal = globalThis as WorkersManifestGlobal;
-  const manifest =
-    manifestGlobal.__zintrustWorkersManifest ??
-    manifestGlobal.__zintrustWorkerManifest ??
-    manifestGlobal.__zintrustAppWorkerManifest ??
-    [];
-  return Array.isArray(manifest) ? [...manifest] : [];
-};
-
-const getManifestQueueNames = (): string[] =>
-  Array.from(
-    new Set(
-      getManifestEntries()
-        .map((entry) => entry.queueName)
-        .filter((queueName): queueName is string => typeof queueName === 'string')
-        .map((queueName) => queueName.trim())
-        .filter(Boolean)
-    )
-  ).sort((left, right) => left.localeCompare(right));
 
 const manifestWorkers = (): WorkerData[] =>
   transformToWorkerData(
-    getManifestEntries()
+    getWorkerManifestEntries()
       .map((entry): RawWorkerData | null => {
         const name = entry.name ?? entry.workerName;
         if (typeof name !== 'string' || name.trim() === '') return null;
+        const autoStart = entry.autoStart ?? false;
+        let status: RawWorkerData['status'];
+        if (entry.status) {
+          status = normalizeStatus(entry.status);
+        } else if (autoStart) {
+          status = 'running';
+        } else {
+          status = 'stopped';
+        }
+        const trimmedName = name.trim();
         return {
-          name: name.trim(),
-          queueName: typeof entry.queueName === 'string' ? entry.queueName : `${name}-queue`,
-          status: normalizeStatus(entry.status ?? 'stopped'),
-          autoStart: entry.autoStart ?? false,
+          name: trimmedName,
+          queueName: typeof entry.queueName === 'string' ? entry.queueName : `${trimmedName}-queue`,
+          status,
+          autoStart,
           activeStatus: entry.activeStatus ?? true,
         };
       })
@@ -204,7 +183,10 @@ const redisRpcPersistence = async (limit: number): Promise<PersistenceResult> =>
       prePaginated: false,
     };
   } catch (error) {
-    Logger.debug('[getWorkers] Redis RPC persistence unavailable; returning manifest result', error);
+    Logger.debug(
+      '[getWorkers] Redis RPC persistence unavailable; returning manifest result',
+      error
+    );
     return {
       workers: manifest,
       total: manifest.length,
@@ -625,6 +607,28 @@ const buildWorkerFromRecord = (record: WorkerRecord, driver: WorkerDriver): Work
   return buildWorkerFromRaw(rawData, driver);
 };
 
+const resolveWorkerDetailsFromPersistence = async (
+  name: string,
+  driver: WorkerDriver
+): Promise<WorkerData | undefined> => {
+  if (driver === 'database') {
+    const dbRecord = await WorkerFactory.getPersisted(name, { driver: 'database' });
+    if (dbRecord) return buildWorkerFromRecord(dbRecord, 'database');
+
+    const redisRecord = await WorkerFactory.getPersisted(name, { driver: 'redis' });
+    if (redisRecord) return buildWorkerFromRecord(redisRecord, 'redis');
+    return undefined;
+  }
+
+  const record = await WorkerFactory.getPersisted(name, { driver });
+  if (record) return buildWorkerFromRecord(record, driver);
+
+  const fileBacked = await WorkerFactory.getFileBackedRecord(name);
+  if (fileBacked) return buildWorkerFromRecord(fileBacked, 'memory');
+
+  return undefined;
+};
+
 const buildWorkerFromRaw = (workerData: RawWorkerData, driver: WorkerDriver): WorkerData => {
   const status = normalizeStatus(workerData.status ?? 'stopped');
   return {
@@ -800,7 +804,7 @@ async function getRedisQueueData(): Promise<QueueData> {
 
     const monitor = QueueMonitor.create({
       knownQueues: async () => {
-        const manifestQueues = getManifestQueueNames();
+        const manifestQueues = getWorkerManifestQueueNames();
         if (shouldUseRedisRpcWorkerApi() && manifestQueues.length > 0) {
           return manifestQueues;
         }
@@ -1293,40 +1297,48 @@ const getLiveWorkerMetricsByName = (): ReadonlyMap<string, LiveWorkerMetrics> =>
   return liveMetrics;
 };
 
+const buildRedisRpcManifestWorker = (
+  name: string,
+  manifestRecord: ReturnType<typeof getWorkerManifestRecord>
+): WorkerData | undefined => {
+  if (!manifestRecord) return undefined;
+
+  const trimmedName = (manifestRecord.name ?? manifestRecord.workerName ?? name).trim();
+  return buildWorkerFromRaw(
+    {
+      name: trimmedName,
+      queueName:
+        typeof manifestRecord.queueName === 'string' && manifestRecord.queueName.trim().length > 0
+          ? manifestRecord.queueName.trim()
+          : `${trimmedName}-queue`,
+      status: normalizeStatus(manifestRecord.status ?? 'stopped'),
+      autoStart: manifestRecord.autoStart ?? false,
+      activeStatus: manifestRecord.activeStatus ?? true,
+    },
+    'redis'
+  );
+};
+
+const resolveRedisRpcWorkerDetails = async (name: string): Promise<WorkerData | undefined> => {
+  const persistence = await redisRpcPersistence(5000);
+  const persistedWorker = persistence.workers.find((candidate) => candidate.name === name);
+  if (persistedWorker) return persistedWorker;
+  return buildRedisRpcManifestWorker(name, getWorkerManifestRecord(name));
+};
+
 export async function toggleAutoStart(name: string, enabled: boolean): Promise<void> {
   await WorkerFactory.setAutoStart(name, enabled);
 }
 
 export async function getWorkerDetails(name: string, driver?: string): Promise<WorkerData> {
-  const persistenceDriver = (driver || process.env['WORKER_PERSISTENCE_DRIVER']) ?? 'memory';
-  const isMixedPersistence = persistenceDriver === 'database';
+  const persistenceDriver = (driver || Env.get('WORKER_PERSISTENCE_DRIVER', 'memory')) ?? 'memory';
+  const normalizedDriver = normalizeDriver(String(persistenceDriver).toLowerCase());
 
-  let worker: WorkerData | undefined;
-
-  if (isMixedPersistence) {
-    const dbRecord = await WorkerFactory.getPersisted(name, { driver: 'database' });
-    if (dbRecord) {
-      worker = buildWorkerFromRecord(dbRecord, 'database');
-    } else {
-      const redisRecord = await WorkerFactory.getPersisted(name, { driver: 'redis' });
-      if (redisRecord) {
-        worker = buildWorkerFromRecord(redisRecord, 'redis');
-      }
-    }
-  } else {
-    const normalizedDriver = normalizeDriver(persistenceDriver);
-    const record = await WorkerFactory.getPersisted(name, { driver: normalizedDriver });
-    if (record) {
-      worker = buildWorkerFromRecord(record, normalizedDriver);
-    }
-  }
-
-  if (!worker) {
-    const fileBacked = await WorkerFactory.getFileBackedRecord(name);
-    if (fileBacked) {
-      worker = buildWorkerFromRecord(fileBacked, 'memory');
-    }
-  }
+  const fromRedisRpc =
+    shouldUseRedisRpcWorkerApi() && (driver === undefined || normalizedDriver === 'redis');
+  const worker = fromRedisRpc
+    ? await resolveRedisRpcWorkerDetails(name)
+    : await resolveWorkerDetailsFromPersistence(name, normalizedDriver);
 
   if (!worker) {
     throw ErrorFactory.createWorkerError(`Worker ${name} not found`);

@@ -74,6 +74,12 @@ export type ISLAReport = {
   }>;
 };
 
+export type ISLAGate = {
+  allowed: boolean;
+  reason?: string;
+  status?: ISLAStatus;
+};
+
 const slaConfigs = new Map<string, ISLAConfig>();
 const violationHistory = new Map<string, ISLAViolation[]>();
 const lastAlertAt = new Map<string, Date>();
@@ -291,6 +297,10 @@ export const SLAMonitor = Object.freeze({
     Logger.info(`SLA defined for worker "${config.workerName}"`);
   },
 
+  hasSLA(workerName: string): boolean {
+    return slaConfigs.has(workerName);
+  },
+
   /**
    * Check SLA compliance for a worker
    */
@@ -329,6 +339,23 @@ export const SLAMonitor = Object.freeze({
       status,
       evaluatedAt: new Date(),
       checks,
+    };
+  },
+
+  async canSendWorkerRequest(workerName: string): Promise<ISLAGate> {
+    if (!slaConfigs.has(workerName)) {
+      return { allowed: true, reason: 'sla_not_configured' };
+    }
+
+    const status = await SLAMonitor.checkCompliance(workerName);
+    if (status.status === 'compliant') {
+      return { allowed: true, status };
+    }
+
+    return {
+      allowed: false,
+      reason: `sla_${status.status}`,
+      status,
     };
   },
 

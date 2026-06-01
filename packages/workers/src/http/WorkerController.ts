@@ -6,6 +6,7 @@
 
 import { Cloudflare } from '@zintrust/core/cloudflare';
 import { Env } from '@zintrust/core/config';
+import { ErrorFactory } from '@zintrust/core/errors';
 import type { IRequest, IResponse } from '@zintrust/core/http';
 import { getValidatedBody } from '@zintrust/core/http';
 import { Logger } from '@zintrust/core/logger';
@@ -31,7 +32,7 @@ const getBody = (req: IRequest): Record<string, unknown> => {
   return (
     getValidatedBody<Record<string, unknown>>(req) ??
     (req.getBody?.() as Record<string, unknown> | undefined) ??
-    (req.body as Record<string, unknown> | undefined) ??
+    req.body ??
     {}
   );
 };
@@ -39,6 +40,162 @@ const getBody = (req: IRequest): Record<string, unknown> => {
 // ==================== Core Worker Operations ====================
 
 const isCloudflareEnv = (): boolean => Cloudflare.getWorkersEnv() !== null;
+
+const shouldUseRedisRpcWorkerLifecycle = (
+  persistenceOverride: PersistenceOverride | undefined
+): boolean => {
+  if (!isCloudflareEnv()) return false;
+  if (persistenceOverride?.driver !== 'redis') return false;
+  return Env.getBool('USE_REDIS_PROXY', false) && Env.get('REDIS_RPC_URL', '').trim().length > 0;
+};
+
+const createRequestId = (): string => {
+  const cryptoApi = globalThis.crypto as { randomUUID?: () => string } | undefined;
+  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const callRedisRpc = async <T = unknown>(
+  service: string,
+  method: string,
+  payload: Record<string, unknown> = {}
+): Promise<T> => {
+  const baseUrl = Env.get('REDIS_RPC_URL', '').trim();
+  const endpoint = new URL('/rpc', baseUrl);
+  const secret = Env.get('REDIS_RPC_SECRET', Env.get('REDIS_PROXY_SECRET', Env.APP_KEY));
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(secret.trim() === '' ? {} : { 'x-redis-rpc-secret': secret }),
+    },
+    body: JSON.stringify({ requestId: createRequestId(), service, method, payload }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    result: T;
+    error?: { message?: string };
+  };
+  if (!response.ok || body.ok !== true) {
+    throw ErrorFactory.createTryCatchError(
+      body.error?.message ?? `Redis RPC request failed with status ${response.status}`
+    );
+  }
+  return body.result;
+};
+
+type WorkerManifestEntry = Readonly<{
+  name?: string;
+  workerName?: string;
+  queueName?: string;
+  processorSpec?: string | null;
+  concurrency?: number;
+  autoStart?: boolean;
+  activeStatus?: boolean;
+}>;
+
+type PersistenceOverride =
+  | { driver: 'memory' }
+  | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
+  | { driver: 'database'; connection?: string; table?: string };
+
+type WorkersManifestGlobal = typeof globalThis & {
+  __zintrustWorkerManifestGlobalKeys?: ReadonlyArray<string>;
+  [key: string]: unknown;
+};
+
+const DEFAULT_WORKER_MANIFEST_GLOBAL_KEYS = Object.freeze([
+  '__zintrustWorkersManifest',
+  '__zintrustWorkerManifest',
+  '__zintrustAppWorkerManifest',
+] as const);
+
+const readWorkerManifestGlobalKeys = (): string[] => {
+  const manifestGlobal = globalThis as WorkersManifestGlobal;
+  const fromGlobal = manifestGlobal.__zintrustWorkerManifestGlobalKeys;
+  if (Array.isArray(fromGlobal) && fromGlobal.every((key) => typeof key === 'string')) {
+    return Array.from(new Set(fromGlobal.map((key) => key.trim()).filter(Boolean)));
+  }
+
+  const raw = Env.get('WORKER_MANIFEST_GLOBAL_KEYS', '').trim();
+  if (raw.length > 0) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        return Array.from(
+          new Set(parsed.map((key) => String(key).trim()).filter((key) => key.length > 0))
+        );
+      }
+    } catch {
+      // fall through
+    }
+
+    const csv = raw
+      .split(',')
+      .map((key) => key.trim())
+      .filter(Boolean);
+    if (csv.length > 0) return Array.from(new Set(csv));
+  }
+
+  return [...DEFAULT_WORKER_MANIFEST_GLOBAL_KEYS];
+};
+
+const resolveManifestWorker = (
+  workerName: string
+): {
+  workerName: string;
+  queueName: string;
+  processorSpec: string | null;
+  concurrency: number;
+} | null => {
+  const manifestGlobal = globalThis as WorkersManifestGlobal;
+  const keys = readWorkerManifestGlobalKeys();
+  for (const key of keys) {
+    const value = manifestGlobal[key];
+    if (!Array.isArray(value)) continue;
+    const entries = value as WorkerManifestEntry[];
+    const match = entries.find((entry) => (entry.name ?? entry.workerName) === workerName);
+    if (!match) continue;
+    const queueName =
+      typeof match.queueName === 'string' && match.queueName.trim().length > 0
+        ? match.queueName.trim()
+        : `${workerName}-queue`;
+    const processorSpec =
+      typeof match.processorSpec === 'string' && match.processorSpec.trim().length > 0
+        ? match.processorSpec.trim()
+        : null;
+    const concurrency = Math.max(1, Number(match.concurrency ?? 1) || 1);
+    return { workerName, queueName, processorSpec, concurrency };
+  }
+  return null;
+};
+
+const isManifestWorkerInactive = (workerName: string): boolean => {
+  const manifestGlobal = globalThis as WorkersManifestGlobal;
+  const keys = readWorkerManifestGlobalKeys();
+  for (const key of keys) {
+    const value = manifestGlobal[key];
+    if (!Array.isArray(value)) continue;
+    const entries = value as WorkerManifestEntry[];
+    const match = entries.find((entry) => (entry.name ?? entry.workerName) === workerName);
+    if (match?.activeStatus === false) return true;
+  }
+  return false;
+};
+
+const assertSlaAllowsWorkerRequest = async (workerName: string): Promise<void> => {
+  const gate = await SLAMonitor.canSendWorkerRequest(workerName);
+  if (gate.allowed) return;
+  throw ErrorFactory.createConfigError(
+    `Worker "${workerName}" blocked because SLA status is not compliant`,
+    {
+      kind: 'worker_sla_blocked',
+      workerName,
+      reason: gate.reason,
+      status: gate.status?.status,
+    }
+  );
+};
 
 const validateCreatePayload = (body: WorkerFactoryConfig, res: IResponse): boolean => {
   if (!body.name || !body.queueName || !body.processor || !body.version) {
@@ -50,6 +207,29 @@ const validateCreatePayload = (body: WorkerFactoryConfig, res: IResponse): boole
     return false;
   }
   return true;
+};
+
+const isSlaBlockedError = (error: unknown): boolean => {
+  const details = (error as { details?: { kind?: unknown } } | undefined)?.details;
+  if (details?.kind === 'worker_sla_blocked') return true;
+  return error instanceof Error && error.message.includes('SLA status is not compliant');
+};
+
+const respondWorkerOperationError = (
+  res: IResponse,
+  error: unknown,
+  fallbackStatus = 500
+): void => {
+  if (isSlaBlockedError(error)) {
+    res.setStatus(409).json({
+      ok: false,
+      error: (error as Error).message,
+      code: 'WORKER_SLA_BLOCKED',
+    });
+    return;
+  }
+
+  res.setStatus(fallbackStatus).json({ error: (error as Error).message });
 };
 
 const respondIfWorkerExists = async (
@@ -161,7 +341,7 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
     if (!resolvedProcessor) return;
 
     const config = {
-      ...(body as WorkerFactoryConfig),
+      ...body,
       processor: resolvedProcessor.processor,
       processorSpec: resolvedProcessor.processorSpec,
     };
@@ -169,7 +349,7 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
     await finalizeWorkerCreate(config, res);
   } catch (error) {
     Logger.error('WorkerController.create failed', error);
-    res.setStatus(500).json({ error: (error as Error).message });
+    respondWorkerOperationError(res, error);
   }
 }
 
@@ -188,6 +368,23 @@ async function start(req: IRequest, res: IResponse): Promise<void> {
     const persistenceOverride = resolvePersistenceOverride(req);
     const isActive = await ensureActiveWorker(name, persistenceOverride, res);
     if (!isActive) return;
+
+    if (shouldUseRedisRpcWorkerLifecycle(persistenceOverride)) {
+      await assertSlaAllowsWorkerRequest(name);
+      const manifest = resolveManifestWorker(name);
+      if (!manifest) {
+        res.setStatus(404).json({ ok: false, error: `Worker ${name} not found in manifest` });
+        return;
+      }
+      const record = await callRedisRpc('worker', 'startAppWorker', manifest);
+      res.json({
+        ok: true,
+        message: `Worker ${name} started (redis-rpc registry updated)`,
+        record,
+      });
+      return;
+    }
+
     const registered = WorkerRegistry.list().includes(name);
 
     if (!registered) {
@@ -199,7 +396,7 @@ async function start(req: IRequest, res: IResponse): Promise<void> {
     res.json({ ok: true, message: `Worker ${name} started` });
   } catch (error) {
     Logger.error('WorkerController.start failed', error);
-    res.setStatus(500).json({ error: (error as Error).message });
+    respondWorkerOperationError(res, error);
   }
 }
 
@@ -214,11 +411,34 @@ async function stop(req: IRequest, res: IResponse): Promise<void> {
     const persistenceOverride = resolvePersistenceOverride(req);
     const isActive = await ensureActiveWorker(name, persistenceOverride, res);
     if (!isActive) return;
+
+    if (name && shouldUseRedisRpcWorkerLifecycle(persistenceOverride)) {
+      await assertSlaAllowsWorkerRequest(name);
+      // The registry stop operation is idempotent, but may return false if the worker
+      // has not been registered yet. In that case, register then stop to ensure the
+      // "stopped" state persists after a single click.
+      let recordOrFalse = await callRedisRpc<unknown>('worker', 'stopWorker', { workerName: name });
+      if (recordOrFalse === false) {
+        const manifest = resolveManifestWorker(name);
+        if (manifest) {
+          await callRedisRpc('worker', 'startAppWorker', manifest);
+        }
+        recordOrFalse = await callRedisRpc('worker', 'stopWorker', { workerName: name });
+      }
+
+      res.json({
+        ok: true,
+        message: `Worker ${name} stopped (redis-rpc registry updated)`,
+        result: recordOrFalse,
+      });
+      return;
+    }
+
     await WorkerFactory.stop(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} stopped` });
   } catch (error) {
     Logger.error('WorkerController.stop failed', error);
-    res.setStatus(500).json({ error: (error as Error).message });
+    respondWorkerOperationError(res, error);
   }
 }
 
@@ -233,11 +453,28 @@ async function restart(req: IRequest, res: IResponse): Promise<void> {
     const persistenceOverride = resolvePersistenceOverride(req);
     const isActive = await ensureActiveWorker(name, persistenceOverride, res);
     if (!isActive) return;
+
+    if (name && shouldUseRedisRpcWorkerLifecycle(persistenceOverride)) {
+      await assertSlaAllowsWorkerRequest(name);
+      const manifest = resolveManifestWorker(name);
+      if (!manifest) {
+        res.setStatus(404).json({ ok: false, error: `Worker ${name} not found in manifest` });
+        return;
+      }
+      const record = await callRedisRpc('worker', 'restartAppWorker', manifest);
+      res.json({
+        ok: true,
+        message: `Worker ${name} restarted (redis-rpc registry updated)`,
+        record,
+      });
+      return;
+    }
+
     await WorkerFactory.restart(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} restarted` });
   } catch (error) {
     Logger.error('WorkerController.restart failed', error);
-    res.setStatus(500).json({ error: (error as Error).message });
+    respondWorkerOperationError(res, error);
   }
 }
 
@@ -347,13 +584,7 @@ const normalizeQueryValue = (value: string | string[] | undefined): string | und
   return undefined;
 };
 
-const resolvePersistenceOverride = (
-  req: IRequest
-):
-  | { driver: 'memory' }
-  | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
-  | { driver: 'database'; connection?: string; table?: string }
-  | undefined => {
+const resolvePersistenceOverride = (req: IRequest): PersistenceOverride | undefined => {
   // Check for 'driver' parameter first (from frontend), then fallback to 'storage'
   const driverRaw =
     normalizeQueryValue(req.getQueryParam?.('driver')) ||
@@ -391,11 +622,7 @@ const resolvePersistenceOverride = (
 
 const ensureActiveWorker = async (
   name: string | undefined,
-  persistenceOverride:
-    | { driver: 'memory' }
-    | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
-    | { driver: 'database'; connection?: string; table?: string }
-    | undefined,
+  persistenceOverride: PersistenceOverride | undefined,
   res: IResponse
 ): Promise<boolean> => {
   if (!name) return false;
@@ -406,10 +633,19 @@ const ensureActiveWorker = async (
     return false;
   }
 
-  const persisted = await WorkerFactory.getPersisted(name, persistenceOverride);
-  if (persisted?.activeStatus === false) {
+  // In Cloudflare Redis-RPC mode we cannot rely on direct persistence reads. Use the app manifest
+  // to determine if the worker is intentionally inactive.
+  if (shouldUseRedisRpcWorkerLifecycle(persistenceOverride) && isManifestWorkerInactive(name)) {
     res.setStatus(410).json({ error: 'Worker is inactive', code: 'WORKER_INACTIVE' });
     return false;
+  }
+
+  if (!shouldUseRedisRpcWorkerLifecycle(persistenceOverride)) {
+    const persisted = await WorkerFactory.getPersisted(name, persistenceOverride);
+    if (persisted?.activeStatus === false) {
+      res.setStatus(410).json({ error: 'Worker is inactive', code: 'WORKER_INACTIVE' });
+      return false;
+    }
   }
 
   return true;
@@ -737,7 +973,7 @@ async function getSlaStatus(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
     const slaStatus = await SLAMonitor.checkCompliance(name);
-    res.json({ ok: true, status: slaStatus });
+    res.json({ ok: true, allowed: slaStatus.status === 'compliant', status: slaStatus });
   } catch (error) {
     Logger.error('WorkerController.getSlaStatus failed', error);
     if ((error as Error).message.includes('SLA config not found')) {

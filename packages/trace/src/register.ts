@@ -19,9 +19,9 @@
  *     middleware: ['admin'],
  *   });
  */
+import { BackgroundTaskScheduler } from '@zintrust/core/tasks';
 import { TraceConfig } from './config';
 import { TraceContext } from './context';
-import { BackgroundTaskScheduler } from './runtime/BackgroundTaskScheduler';
 import { ProxyTraceStorage, TraceServiceTag, TraceStorage } from './storage';
 import { TraceContentBudget } from './storage/TraceContentBudget';
 import { TraceContentRedaction } from './storage/TraceContentRedaction';

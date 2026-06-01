@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.4.3",
+  "version": "2.4.5",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -201,6 +201,14 @@
     "./socket": {
       "types": "./dist/src/socket-index.d.ts",
       "import": "./dist/src/socket-index.js"
+    },
+    "./tasks": {
+      "types": "./dist/src/tasks.d.ts",
+      "import": "./dist/src/tasks.js"
+    },
+    "./worker-runtime": {
+      "types": "./dist/src/worker-runtime.d.ts",
+      "import": "./dist/src/worker-runtime.js"
     },
     "./package.json": "./package.json"
   },

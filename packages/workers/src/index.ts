@@ -96,7 +96,14 @@ export type {
   IChaosReport,
   IChaosStatus,
 } from './ChaosEngineering';
-export type { ISLAConfig, ISLAReport, ISLAStatus, ISLAViolation, ITimeRange } from './SLAMonitor';
+export type {
+  ISLAConfig,
+  ISLAGate,
+  ISLAReport,
+  ISLAStatus,
+  ISLAViolation,
+  ITimeRange,
+} from './SLAMonitor';
 
 export type * from './config/workerConfig';
 export type * from './type';
