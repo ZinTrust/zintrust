@@ -58,6 +58,12 @@ const isAllQueuesSelection = (queue: string | null | undefined): boolean => queu
 const sortJobsByTimestamp = (jobs: JobSummary[]): JobSummary[] =>
   jobs.toSorted((left, right) => right.timestamp - left.timestamp);
 
+export const emptyLockAnalytics = (): LockAnalytics => ({
+  locks: [],
+  metrics: { active: 0, attempts: 0, acquired: 0, collisions: 0, collisionRate: 0 },
+  histogram: [],
+});
+
 const getObjectId = (value: object): number => {
   const existing = objectIds.get(value);
   if (existing !== undefined) return existing;
@@ -97,7 +103,14 @@ export async function getRecentJobsForSelection(
 
   const names = Array.from(new Set((queueNames ?? (await driver.getQueues())).filter(Boolean)));
   const jobsByQueue = await Promise.all(
-    names.map(async (name) => getRecentJobsForQueue(name, metrics, driver))
+    names.map(async (name) => {
+      try {
+        return await getRecentJobsForQueue(name, metrics, driver);
+      } catch (error) {
+        Logger.warn('[queue-monitor] Recent jobs lookup failed; returning no jobs', error);
+        return [];
+      }
+    })
   );
 
   return sortJobsByTimestamp(jobsByQueue.flat()).slice(0, 100);
@@ -105,7 +118,10 @@ export async function getRecentJobsForSelection(
 
 const buildSnapshotPayload = async (config: QueueMonitoringConfig): Promise<QueueSnapshotData> => {
   const { getSnapshot, getLocks, metrics, driver, queue: configuredQueue, pattern } = config;
-  const snapshot = await getSnapshot();
+  const snapshot = await getSnapshot().catch((error) => {
+    Logger.warn('[queue-monitor] Snapshot unavailable; returning empty snapshot', error);
+    return { status: 'ok' as const, startedAt: new Date().toISOString(), queues: [] };
+  });
   let queue: string | null;
   if (isAllQueuesSelection(configuredQueue)) {
     queue = ALL_QUEUES;
@@ -129,9 +145,15 @@ const buildSnapshotPayload = async (config: QueueMonitoringConfig): Promise<Queu
           metrics,
           driver,
           snapshot.queues.map((candidate) => candidate.name)
-        )
+        ).catch((error) => {
+          Logger.warn('[queue-monitor] Recent jobs unavailable; returning no jobs', error);
+          return [];
+        })
       : [],
-    locks: await getLocks(pattern),
+    locks: await getLocks(pattern).catch((error) => {
+      Logger.warn('[queue-monitor] Lock analytics unavailable; returning empty analytics', error);
+      return emptyLockAnalytics();
+    }),
   };
 };
 
@@ -314,8 +336,10 @@ export async function getRecentJobsForQueue(
   metrics: Metrics,
   driver: QueueDriver
 ): Promise<JobSummary[]> {
-  const recent = await metrics.getRecentJobs(queueName);
-  const failed = await metrics.getFailedJobs(queueName);
+  const [recent, failed] = await Promise.all([
+    metrics.getRecentJobs(queueName).catch(() => [] as JobSummary[]),
+    metrics.getFailedJobs(queueName).catch(() => [] as JobSummary[]),
+  ]);
   const all = sortJobsByTimestamp(
     [...recent, ...failed].map((job) => ({
       ...job,
@@ -327,7 +351,10 @@ export async function getRecentJobsForQueue(
     return all;
   }
 
-  const jobs = await driver.getRecentJobs(queueName, 100);
+  const jobs = await driver.getRecentJobs(queueName, 100).catch((error) => {
+    Logger.warn('[queue-monitor] Driver recent jobs unavailable; returning no jobs', error);
+    return [];
+  });
   const now = Date.now();
   return jobs.map((job) => {
     // Use the actual state from BullMQ if available

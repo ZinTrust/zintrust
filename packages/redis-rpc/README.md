@@ -2,7 +2,7 @@
 
 `@zintrust/redis-rpc` provides an HTTP RPC boundary for Redis-backed BullMQ operations. It is designed for runtimes that cannot safely create direct Redis or BullMQ connections, such as Cloudflare Workers, queue dashboards, remote worker controllers, and thin application processes.
 
-Instead of asking every package to emulate Redis commands or BullMQ Lua scripts, the caller sends a typed intent to a backend-owned RPC server. The RPC server owns the real Redis connection, BullMQ queues, queue events, and worker instances.
+Instead of asking every package to emulate Redis commands or BullMQ Lua scripts, the caller sends a typed intent to a backend-owned RPC server. The RPC server owns the real Redis connection, BullMQ queues, queue events, and worker lifecycle state. Application job execution stays in the runtime that has the application processors.
 
 ## When to use it
 
@@ -11,7 +11,7 @@ Use Redis RPC when:
 - `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are both configured.
 - Queue producers run in an environment where direct TCP Redis is unavailable.
 - Queue monitor or worker dashboard code needs queue state without constructing local BullMQ clients.
-- You want a single backend process to own Redis credentials and BullMQ execution details.
+- You want a single backend process to own Redis credentials and BullMQ coordination details.
 
 Use direct BullMQ/Redis when your process can safely connect to Redis and does not need a proxy boundary.
 
@@ -186,6 +186,7 @@ Supported methods:
 - `add` / `enqueue`
 - `dequeue`
 - `ack`
+- `fail` / `nack`
 - `get` / `getJob`
 - `getJobs`
 - `getJobCounts` / `counts`
@@ -202,15 +203,22 @@ Supported methods:
 
 Queue requests identify the queue with `payload.target`, `payload.queueName`, or `payload.queue`.
 
+`dequeue` is for pull-based runtimes. It uses BullMQ's own atomic waiting-to-active transition and returns `{ id, name, payload, attempts }`. The caller must report the result with `ack` or `fail` / `nack`. `ack` accepts an optional return value as `payload.returnValue`, `payload.returnvalue`, or the second positional arg. `fail` / `nack` accepts an optional failure reason as `payload.reason` or the second positional arg.
+
 ### `worker`
 
 Supported methods:
 
-- `startWorker`
-- `stopWorker`
+- `start` / `startWorker` / `startAppWorker`
+- `restart` / `restartWorker` / `restartAppWorker`
+- `stop` / `stopWorker`
 - `list`
 
-The default backend processors are intentionally small (`echo`, `sum`, and `fail`) so smoke tests and simple remote workers can run without loading application code. Register custom backend services or extend the backend process when production worker processors need application-specific behavior.
+The Redis RPC backend does not import application processor modules and does not create BullMQ `Worker` consumers. Worker lifecycle calls persist desired state in Redis under `<BULLMQ_PREFIX>:__rpc_workers`. The record includes worker name, queue name, optional processor spec, concurrency, status, and update time.
+
+This keeps Redis RPC as a coordination service. A Node worker process, Cloudflare Worker, container, or other runtime that already has the application code should pull jobs with `queue.dequeue`, execute the processor locally, then complete the job with `queue.ack` or `queue.fail`.
+
+`worker.list` returns the persisted lifecycle records plus queue-discovery placeholders for BullMQ queues that have no registered worker record. Placeholders use `source: "bullmq-discovery"` and names like `<queueName>:redis-rpc`; persisted records use `source: "redis-rpc-registry"`.
 
 ### `queue-monitor`
 
@@ -291,4 +299,4 @@ Run the BullMQ smoke test when a Redis instance is available:
 npm --prefix packages/redis-rpc run test
 ```
 
-The smoke test starts the RPC server, verifies Redis `PING`, adds normal and delayed jobs, starts backend-owned workers, checks completed and failed job states, reads queue monitor snapshots, removes jobs, drains, cleans, and obliterates the temporary queue.
+The smoke test starts the RPC server, verifies Redis `PING`, adds jobs, exercises queue lifecycle calls, reads queue monitor snapshots, removes jobs, drains, cleans, and obliterates the temporary queue.

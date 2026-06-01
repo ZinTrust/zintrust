@@ -5,7 +5,9 @@ type QueueRpcMethods = Readonly<{
   add: (name: string, data?: unknown, opts?: Record<string, unknown>) => Promise<unknown>;
   enqueue: (name: string, data?: unknown, opts?: Record<string, unknown>) => Promise<unknown>;
   dequeue: (visibilityTimeoutMs?: number) => Promise<unknown>;
-  ack: (jobId: string) => Promise<unknown>;
+  ack: (jobId: string, returnValue?: unknown) => Promise<unknown>;
+  fail: (jobId: string, reason?: string) => Promise<unknown>;
+  nack: (jobId: string, reason?: string) => Promise<unknown>;
   get: (data?: Record<string, unknown>) => Promise<unknown>;
   getJob: (jobId: string) => Promise<unknown>;
   getJobs: (states?: string[], start?: number, end?: number, asc?: boolean) => Promise<unknown>;
@@ -53,6 +55,8 @@ export const createBullMqRpcQueue = (
     dequeue: (visibilityTimeoutMs) =>
       client.queue('dequeue', { target: queueName, visibilityTimeoutMs }),
     ack: (...args) => client.queue('ack', { target: queueName, args }),
+    fail: (...args) => client.queue('fail', { target: queueName, args }),
+    nack: (...args) => client.queue('nack', { target: queueName, args }),
     get: (data = {}) => client.queue('getJob', { target: queueName, ...data }),
     getJob: (...args) => client.queue('getJob', { target: queueName, args }),
     getJobs: (...args) => client.queue('getJobs', { target: queueName, args }),

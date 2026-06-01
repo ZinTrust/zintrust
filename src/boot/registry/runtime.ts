@@ -21,7 +21,7 @@ import { registerMasterRoutes, tryImportOptional } from '@registry/registerRoute
 import type { IShutdownManager } from '@registry/type';
 import { registerWorkerShutdownHook } from '@registry/worker';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
-import { SocketFeature } from '@sockets/SocketRuntime';
+import { SocketFeature, type SocketRouteRegistrar, type SocketRuntime } from '@sockets/SocketRuntime';
 import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 import { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notification/NotificationRuntimeRegistration';
@@ -57,6 +57,11 @@ type QueueMonitorWorkerFactoryModule = {
   WorkerFactory?: {
     listPersistedRecords?: () => Promise<Array<{ queueName?: unknown }>>;
   };
+};
+
+type OptionalSocketModule = {
+  socketRuntime?: SocketRuntime;
+  socketRouteRegistrar?: SocketRouteRegistrar;
 };
 
 type ILocalSystemTraceModule = {
@@ -190,6 +195,24 @@ const appConfig = readRuntimeConfig('appConfig', {
   dockerWorker: false,
   worker: false,
 });
+
+const readRuntimeBool = (key: string, fallback: boolean): boolean => {
+  const value = readEnvString(key).trim().toLowerCase();
+  if (value === '') return fallback;
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+};
+
+const isRedisRpcRuntimeEnabled = (): boolean =>
+  readRuntimeBool('USE_REDIS_PROXY', false) && readEnvString('REDIS_RPC_URL').trim() !== '';
+
+const isWorkerRuntimeEnabled = (): boolean =>
+  readRuntimeBool('WORKER_ENABLED', appConfig.worker === true);
+
+const isDockerWorkerRuntime = (): boolean =>
+  readRuntimeBool('DOCKER_WORKER', appConfig.dockerWorker === true);
+
+const shouldUseAppRegisteredWorkerDashboards = (): boolean =>
+  Cloudflare.getWorkersEnv() !== null && isRedisRpcRuntimeEnabled();
 
 // exported solely for tests to exercise the default detectRuntime handler
 
@@ -635,11 +658,29 @@ const initializeSystemTrace = async (router: IRouter): Promise<void> => {
   }
 };
 
-const initializeSockets = (router: IRouter): void => {
+const ensureSocketRuntimeRegistered = async (): Promise<void> => {
+  if (SocketRuntimeRegistry.getRuntime() !== undefined) return;
+
+  try {
+    const socketModule = await tryImportOptional<OptionalSocketModule>('@zintrust/socket');
+    if (socketModule?.socketRuntime !== undefined) {
+      SocketRuntimeRegistry.registerRuntime(socketModule.socketRuntime);
+    }
+    if (socketModule?.socketRouteRegistrar !== undefined) {
+      SocketRuntimeRegistry.registerRoutes(socketModule.socketRouteRegistrar);
+    }
+  } catch {
+    // Optional socket package may not be installed in projects that do not use sockets.
+  }
+};
+
+const initializeSockets = async (router: IRouter): Promise<void> => {
   const settings = SocketFeature.getSettings();
   if (!settings.enabled) {
     return;
   }
+
+  await ensureSocketRuntimeRegistered();
 
   const runtime = SocketRuntimeRegistry.getRuntime();
   if (runtime === undefined || runtime.isEnabled() === false) {
@@ -682,11 +723,11 @@ type LifecycleParams = {
 const initializeRuntimeRoutes = async (params: LifecycleParams): Promise<void> => {
   await initializeArtifactDirectories(params.resolvedBasePath);
   await registerMasterRoutes(params.resolvedBasePath, params.router);
-  initializeSockets(params.router);
+  await initializeSockets(params.router);
   await initializeSystemTrace(params.router);
 
-  if (Cloudflare.getWorkersEnv() === null && appConfig.dockerWorker === false) {
-    if (appConfig.worker === true) {
+  if (Cloudflare.getWorkersEnv() === null && !isDockerWorkerRuntime()) {
+    if (isWorkerRuntimeEnabled()) {
       await initializeWorkers(params.router);
     } else {
       Logger.info('Skipping worker route registration (WORKER_ENABLED=false).');
@@ -694,7 +735,7 @@ const initializeRuntimeRoutes = async (params: LifecycleParams): Promise<void> =
 
     await initializeQueueMonitor(params.router);
 
-    if (appConfig.worker === true) {
+    if (isWorkerRuntimeEnabled()) {
       await initializeQueueHttpGateway(params.router);
       await initializeScheduleHttpGateway(params.router);
     } else {
@@ -704,7 +745,16 @@ const initializeRuntimeRoutes = async (params: LifecycleParams): Promise<void> =
     return;
   }
 
-  if (!appConfig.dockerWorker) {
+  if (!isDockerWorkerRuntime()) {
+    if (shouldUseAppRegisteredWorkerDashboards()) {
+      Logger.info(
+        'Skipping core optional worker dashboard imports in Cloudflare; app routes own Redis RPC dashboards.'
+      );
+      await initializeQueueHttpGateway(params.router);
+      await initializeScheduleHttpGateway(params.router);
+      return;
+    }
+
     Logger.info('Skipping local worker dashboards in Cloudflare Workers runtime.');
   }
 };

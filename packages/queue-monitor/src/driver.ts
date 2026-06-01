@@ -40,12 +40,6 @@ type RedisRpcClient = {
   monitor: <T = unknown>(method: string, payload?: Record<string, unknown>) => Promise<T>;
 };
 
-type RedisRpcModule = {
-  createRedisRpcClient: (options?: { baseUrl?: string; secret?: string }) => RedisRpcClient;
-};
-
-const REDIS_RPC_PACKAGE = '@zintrust/redis-rpc';
-
 const shouldUseRedisRpcMonitorDriver = (): boolean =>
   Env.USE_REDIS_PROXY === true && Env.get('REDIS_RPC_URL', '').trim() !== '';
 
@@ -57,20 +51,55 @@ const resolveRpcBaseUrl = (): string => {
   return `http://${host}:${port}`;
 };
 
-const createRpcClient = async (): Promise<RedisRpcClient> => {
+const createRequestId = (): string => {
+  const cryptoApi = globalThis.crypto as { randomUUID?: () => string } | undefined;
+  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const normalizeRpcBaseUrl = (): URL => {
   try {
-    const mod = (await import(REDIS_RPC_PACKAGE)) as unknown as RedisRpcModule;
-    return mod.createRedisRpcClient({
-      baseUrl: resolveRpcBaseUrl(),
-      secret: Env.get('REDIS_RPC_SECRET', Env.get('REDIS_PROXY_SECRET', Env.APP_KEY)),
-    });
+    return new URL(resolveRpcBaseUrl());
   } catch (error) {
-    throw ErrorFactory.createConfigError(
-      '@zintrust/redis-rpc is required when USE_REDIS_PROXY=true and REDIS_RPC_URL is configured',
-      error
-    );
+    throw ErrorFactory.createConfigError('REDIS_RPC_URL must be a valid URL', error);
   }
 };
+
+const callRedisRpc = async <T = unknown>(
+  service: string,
+  method: string,
+  payload: Record<string, unknown> = {}
+): Promise<T> => {
+  const endpoint = new URL('/rpc', normalizeRpcBaseUrl());
+  const secret = Env.get('REDIS_RPC_SECRET', Env.get('REDIS_PROXY_SECRET', Env.APP_KEY));
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(secret.trim() === '' ? {} : { 'x-redis-rpc-secret': secret }),
+    },
+    body: JSON.stringify({ requestId: createRequestId(), service, method, payload }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    result?: T;
+    error?: { message?: string };
+  };
+  if (!response.ok || body.ok !== true) {
+    throw ErrorFactory.createTryCatchError(
+      body.error?.message ?? `Redis RPC request failed with status ${response.status}`
+    );
+  }
+  return body.result as T;
+};
+
+const createRpcClient = async (): Promise<RedisRpcClient> =>
+  Object.freeze({
+    queue: <T = unknown>(method: string, payload: Record<string, unknown> = {}) =>
+      callRedisRpc<T>('queue', method, payload),
+    monitor: <T = unknown>(method: string, payload: Record<string, unknown> = {}) =>
+      callRedisRpc<T>('queue-monitor', method, payload),
+  });
 
 const createRedisRpcDriver = (): QueueDriver => {
   const enqueue = async <T>(name: string, payload: T, options?: JobsOptions): Promise<string> => {
@@ -89,29 +118,48 @@ const createRedisRpcDriver = (): QueueDriver => {
     enqueue,
     async getJob(queueName: string, jobId: string): Promise<Job | undefined> {
       const client = await createRpcClient();
-      return (await client.queue('getJob', { target: queueName, args: [jobId] })) as
-        | Job
-        | undefined;
+      try {
+        return (await client.queue('getJob', { target: queueName, args: [jobId] })) as
+          | Job
+          | undefined;
+      } catch (error) {
+        Logger.warn('[queue-monitor] Redis RPC job lookup failed; returning no job', error);
+        return undefined;
+      }
     },
     async getJobCounts(queueName: string): Promise<JobCounts> {
       const client = await createRpcClient();
-      return client.queue('getJobCounts', { target: queueName });
+      try {
+        return client.queue('getJobCounts', { target: queueName });
+      } catch (error) {
+        Logger.warn('[queue-monitor] Redis RPC job counts failed; returning empty counts', error);
+        return {};
+      }
     },
     async getJobCountsMany(
       queueNames: string[]
     ): Promise<Array<{ name: string; counts: Record<string, number> }>> {
       const client = await createRpcClient();
-      const snapshot = await client.monitor<{ queues?: Array<{ name: string; counts: JobCounts }> }>(
-        'getSnapshot',
-        { args: [queueNames] }
-      );
-      return snapshot.queues ?? [];
+      try {
+        const snapshot = await client.monitor<{
+          queues?: Array<{ name: string; counts: JobCounts }>;
+        }>('getSnapshot', { args: [queueNames] });
+        return snapshot.queues ?? [];
+      } catch (error) {
+        Logger.warn('[queue-monitor] Redis RPC batch counts failed; returning no queues', error);
+        return [];
+      }
     },
     async getRecentJobs(queueName: string, limit = 100): Promise<Job[]> {
       const client = await createRpcClient();
-      return (await client.monitor('getRecentJobsForQueue', {
-        args: [queueName, limit],
-      })) as Job[];
+      try {
+        return (await client.monitor('getRecentJobsForQueue', {
+          args: [queueName, limit],
+        })) as Job[];
+      } catch (error) {
+        Logger.warn('[queue-monitor] Redis RPC recent jobs failed; returning no jobs', error);
+        return [];
+      }
     },
     async retryJob(queueName: string, jobId: string): Promise<RetryJobResult> {
       const client = await createRpcClient();
@@ -119,8 +167,13 @@ const createRedisRpcDriver = (): QueueDriver => {
     },
     async getQueues(): Promise<string[]> {
       const client = await createRpcClient();
-      const snapshot = await client.monitor<{ queues?: Array<{ name: string }> }>('getSnapshot');
-      return (snapshot.queues ?? []).map((queue) => queue.name);
+      try {
+        const snapshot = await client.monitor<{ queues?: Array<{ name: string }> }>('getSnapshot');
+        return (snapshot.queues ?? []).map((queue) => queue.name);
+      } catch (error) {
+        Logger.warn('[queue-monitor] Redis RPC queue discovery failed; returning no queues', error);
+        return [];
+      }
     },
     async close(): Promise<void> {
       await Promise.resolve();

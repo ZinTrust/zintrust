@@ -1,4 +1,4 @@
-import { Env, queueConfig } from '@zintrust/core/config';
+import { Cloudflare, Env, queueConfig } from '@zintrust/core/config';
 import { ErrorFactory } from '@zintrust/core/errors';
 import { Logger } from '@zintrust/core/logger';
 import { WorkerFactory } from '../WorkerFactory';
@@ -44,6 +44,177 @@ type PersistenceResult = {
   prePaginated: boolean;
 };
 
+type RedisRpcWorkerRecord = {
+  workerName?: string;
+  name?: string;
+  queueName?: string;
+  status?: string;
+  autoStart?: boolean;
+  concurrency?: number;
+  processorSpec?: string | null;
+  source?: string;
+};
+
+type WorkerManifestEntry = {
+  name?: string;
+  workerName?: string;
+  queueName?: string;
+  status?: string;
+  autoStart?: boolean;
+  activeStatus?: boolean;
+};
+
+type WorkersManifestGlobal = typeof globalThis & {
+  __zintrustWorkersManifest?: ReadonlyArray<WorkerManifestEntry>;
+  __zintrustWorkerManifest?: ReadonlyArray<WorkerManifestEntry>;
+  __zintrustAppWorkerManifest?: ReadonlyArray<WorkerManifestEntry>;
+};
+
+const shouldUseRedisRpcWorkerApi = (): boolean =>
+  Cloudflare.getWorkersEnv() !== null &&
+  Env.getBool('USE_REDIS_PROXY', false) &&
+  Env.get('REDIS_RPC_URL', '').trim().length > 0;
+
+const createRequestId = (): string => {
+  const cryptoApi = globalThis.crypto as { randomUUID?: () => string } | undefined;
+  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const callRedisRpc = async <T = unknown>(
+  service: string,
+  method: string,
+  payload: Record<string, unknown> = {}
+): Promise<T> => {
+  const baseUrl = Env.get('REDIS_RPC_URL', '').trim();
+  const endpoint = new URL('/rpc', baseUrl);
+  const secret = Env.get('REDIS_RPC_SECRET', Env.get('REDIS_PROXY_SECRET', Env.APP_KEY));
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(secret.trim() === '' ? {} : { 'x-redis-rpc-secret': secret }),
+    },
+    body: JSON.stringify({ requestId: createRequestId(), service, method, payload }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    result?: T;
+    error?: { message?: string };
+  };
+  if (!response.ok || body.ok !== true) {
+    throw ErrorFactory.createTryCatchError(
+      body.error?.message ?? `Redis RPC request failed with status ${response.status}`
+    );
+  }
+  return body.result as T;
+};
+
+const getManifestEntries = (): WorkerManifestEntry[] => {
+  const manifestGlobal = globalThis as WorkersManifestGlobal;
+  const manifest =
+    manifestGlobal.__zintrustWorkersManifest ??
+    manifestGlobal.__zintrustWorkerManifest ??
+    manifestGlobal.__zintrustAppWorkerManifest ??
+    [];
+  return Array.isArray(manifest) ? [...manifest] : [];
+};
+
+const getManifestQueueNames = (): string[] =>
+  Array.from(
+    new Set(
+      getManifestEntries()
+        .map((entry) => entry.queueName)
+        .filter((queueName): queueName is string => typeof queueName === 'string')
+        .map((queueName) => queueName.trim())
+        .filter(Boolean)
+    )
+  ).sort((left, right) => left.localeCompare(right));
+
+const manifestWorkers = (): WorkerData[] =>
+  transformToWorkerData(
+    getManifestEntries()
+      .map((entry): RawWorkerData | null => {
+        const name = entry.name ?? entry.workerName;
+        if (typeof name !== 'string' || name.trim() === '') return null;
+        return {
+          name: name.trim(),
+          queueName: typeof entry.queueName === 'string' ? entry.queueName : `${name}-queue`,
+          status: normalizeStatus(entry.status ?? 'stopped'),
+          autoStart: entry.autoStart ?? false,
+          activeStatus: entry.activeStatus ?? true,
+        };
+      })
+      .filter((entry): entry is RawWorkerData => entry !== null),
+    'redis'
+  );
+
+const mergeManifestWorkers = (
+  backendWorkers: WorkerData[],
+  manifest: WorkerData[] = manifestWorkers()
+): WorkerData[] => {
+  const manifestQueues = new Set(manifest.map((worker) => worker.queueName));
+  const byName = new Map<string, WorkerData>();
+  for (const worker of manifest) {
+    byName.set(worker.name, worker);
+  }
+  for (const worker of backendWorkers) {
+    const isPlaceholder =
+      worker.name === `${worker.queueName}:redis-rpc` && manifestQueues.has(worker.queueName);
+    if (isPlaceholder) continue;
+    byName.set(worker.name, { ...byName.get(worker.name), ...worker });
+  }
+  return Array.from(byName.values()).sort((left, right) => left.name.localeCompare(right.name));
+};
+
+const redisRpcPersistence = async (limit: number): Promise<PersistenceResult> => {
+  const manifest = manifestWorkers();
+  try {
+    const records = await callRedisRpc<RedisRpcWorkerRecord[]>('worker', 'list');
+    const backendWorkers = transformToWorkerData(
+      records
+        .map((record): RawWorkerData | null => {
+          const name = record.workerName ?? record.name;
+          if (typeof name !== 'string' || name.trim() === '') return null;
+          return {
+            name: name.trim(),
+            queueName: record.queueName,
+            status: normalizeStatus(record.status ?? 'stopped'),
+            autoStart: record.autoStart ?? false,
+            details: {
+              configuration: {
+                processorSpec: record.processorSpec ?? null,
+                concurrency: record.concurrency ?? null,
+              },
+              health: {} as WorkerHealth,
+              metrics: {} as WorkerMetrics,
+              recentLogs: [],
+            },
+          };
+        })
+        .filter((record): record is RawWorkerData => record !== null),
+      'redis'
+    );
+    const workers = mergeManifestWorkers(backendWorkers, manifest);
+    return {
+      workers,
+      total: workers.length,
+      drivers: ['redis'],
+      effectiveLimit: limit,
+      prePaginated: false,
+    };
+  } catch (error) {
+    Logger.debug('[getWorkers] Redis RPC persistence unavailable; returning manifest result', error);
+    return {
+      workers: manifest,
+      total: manifest.length,
+      drivers: ['redis'],
+      effectiveLimit: limit,
+      prePaginated: false,
+    };
+  }
+};
+
 // Helper for timeout handling
 async function withTimeout<T>(
   promise: Promise<T>,
@@ -72,6 +243,10 @@ async function fetchPersistenceWithTimeout(
   limit: number,
   query: GetWorkersQuery
 ): Promise<PersistenceResult> {
+  if (shouldUseRedisRpcWorkerApi()) {
+    return redisRpcPersistence(limit);
+  }
+
   const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory');
   try {
     const result = await withTimeout(
@@ -625,6 +800,11 @@ async function getRedisQueueData(): Promise<QueueData> {
 
     const monitor = QueueMonitor.create({
       knownQueues: async () => {
+        const manifestQueues = getManifestQueueNames();
+        if (shouldUseRedisRpcWorkerApi() && manifestQueues.length > 0) {
+          return manifestQueues;
+        }
+
         const records = await WorkerFactory.listPersistedRecords();
         return Array.from(
           new Set(
@@ -666,7 +846,11 @@ async function getRedisQueueData(): Promise<QueueData> {
       failedJobs,
     };
   } catch (error) {
-    Logger.error('Error fetching Redis queue data:', error);
+    if (shouldUseRedisRpcWorkerApi()) {
+      Logger.debug('Error fetching Redis queue data:', error);
+    } else {
+      Logger.error('Error fetching Redis queue data:', error);
+    }
     return {
       driver: 'redis',
       totalQueues: 0,

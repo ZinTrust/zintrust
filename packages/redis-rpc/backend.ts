@@ -3,10 +3,9 @@ import { isArray, isNonEmptyString, isObject, isUndefinedOrNull } from '@zintrus
 import { Logger } from '@zintrust/core/logger';
 import { Sanitizer } from '@zintrust/core/security';
 import {
+  Job,
   Queue,
   QueueEvents,
-  Worker,
-  type Job,
   type JobType,
   type ObliterateOpts,
   type QueueOptions,
@@ -56,7 +55,6 @@ const EVENT_NAMES = [
 const PULL_WORKER_TOKEN = 'pull-worker';
 
 type EventLogEntry = Readonly<{ event: string; payload: unknown; at: number }>;
-type WorkerEntry = Readonly<{ queueName: string; worker: Worker }>;
 type RedisCommandArg = string | number | Buffer;
 type RedisCommandEntry = Readonly<{ command?: unknown; args?: unknown[] }>;
 type RedisCommandPipeline = {
@@ -70,11 +68,20 @@ type BackendState = {
   connectionOptions: RedisOptions;
   queues: Map<string, Queue>;
   queueEvents: Map<string, QueueEvents>;
-  workers: Map<string, WorkerEntry>;
   eventLogs: Map<string, EventLogEntry[]>;
   connections: Set<Redis>;
   services: Map<string, RedisRpcServiceHandler>;
 };
+
+type WorkerRegistryRecord = Readonly<{
+  workerName: string;
+  queueName: string;
+  processorSpec: string | null;
+  concurrency: number;
+  status: 'running' | 'stopped';
+  updatedAt: string;
+  source?: string;
+}>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   isObject(value) && !isArray(value);
@@ -356,21 +363,57 @@ const getQueueJobById = async (
   return getJob(state, queueName, firstDefined(args[0], payload.jobId, payload.id));
 };
 
+const normalizedPrefix = (state: BackendState): string => state.prefix.replace(/:+$/u, '');
+
+const claimLockKey = (state: BackendState, queueName: string, jobId: string): string =>
+  `${normalizedPrefix(state)}:${queueName}:__pull_claim:${jobId}`;
+
+const releaseClaim = async (
+  state: BackendState,
+  queueName: string,
+  jobId: string
+): Promise<void> => {
+  const connection = createConnection(state, { maxRetriesPerRequest: 1 });
+  try {
+    await connection.del(claimLockKey(state, queueName, jobId));
+  } finally {
+    connection.disconnect();
+  }
+};
+
 const dequeueQueueJob = async (
   state: BackendState,
   queueName: string,
   payload: RpcPayload
 ): Promise<unknown> => {
   const queue = getQueue(state, queueName);
-  const jobs = await queue.getJobs(['waiting'], 0, 0);
-  const job = jobs[0];
-  if (!job) return undefined;
+  (queue as unknown as { opts: { lockDuration?: number } }).opts.lockDuration = Math.max(
+    1,
+    numberFrom(payload.visibilityTimeoutMs, 30_000)
+  );
+  const scripts = (queue as unknown as {
+    scripts?: {
+      moveToActive: (
+        client: Redis,
+        token: string,
+        name?: string
+      ) => Promise<[Record<string, string> | undefined, string | undefined]>;
+    };
+  }).scripts;
+  if (scripts === undefined) return undefined;
 
-  const visibilityTimeoutMs = numberFrom(payload.visibilityTimeoutMs, 30_000);
-  await job.moveToDelayed(Date.now() + Math.max(1, visibilityTimeoutMs), PULL_WORKER_TOKEN);
-
+  const client = await (queue as unknown as { client: Promise<Redis> }).client;
+  const [jobData, jobId] = await scripts.moveToActive(client, PULL_WORKER_TOKEN, '');
+  if (!jobData || isUndefinedOrNull(jobId)) return undefined;
+  const job = Job.fromJSON(
+    queue,
+    jobData as unknown as Parameters<typeof Job.fromJSON>[1],
+    String(jobId)
+  );
+  job.token = PULL_WORKER_TOKEN;
   return {
-    id: isUndefinedOrNull(job.id) ? undefined : String(job.id),
+    id: String(job.id),
+    name: job.name,
     payload: job.data,
     attempts: job.attemptsMade || 0,
   };
@@ -383,7 +426,30 @@ const ackQueueJob = async (
 ): Promise<boolean> => {
   const job = await getQueueJobById(state, queueName, payload);
   if (!job) return false;
-  await job.moveToCompleted('acknowledged', PULL_WORKER_TOKEN, false);
+  const args = asArgs(payload);
+  const returnValue = firstDefined(args[1], payload.returnValue, payload.returnvalue, 'acknowledged');
+  await job.moveToCompleted(returnValue, PULL_WORKER_TOKEN, false);
+  if (!isUndefinedOrNull(job.id)) {
+    await releaseClaim(state, queueName, String(job.id));
+  }
+  return true;
+};
+
+const failQueueJob = async (
+  state: BackendState,
+  queueName: string,
+  payload: RpcPayload
+): Promise<boolean> => {
+  const job = await getQueueJobById(state, queueName, payload);
+  if (!job) return false;
+  const args = asArgs(payload);
+  const reason = isNonEmptyString(firstDefined(args[1], payload.reason))
+    ? String(firstDefined(args[1], payload.reason))
+    : 'failed by pull worker';
+  await job.moveToFailed(new Error(reason), PULL_WORKER_TOKEN, false);
+  if (!isUndefinedOrNull(job.id)) {
+    await releaseClaim(state, queueName, String(job.id));
+  }
   return true;
 };
 
@@ -448,6 +514,9 @@ const dispatchQueue = async (
       return dequeueQueueJob(state, queueName, payload);
     case 'ack':
       return ackQueueJob(state, queueName, payload);
+    case 'fail':
+    case 'nack':
+      return failQueueJob(state, queueName, payload);
     case 'pause':
       await getQueue(state, queueName).pause();
       return true;
@@ -493,31 +562,129 @@ const dispatchQueue = async (
 };
 /* eslint-enable complexity */
 
-const createProcessor = (kind: unknown) => {
-  switch (kind) {
-    case 'echo':
-    case undefined:
-    case null:
-      return async (
-        job: Job
-      ): Promise<{
-        echo: typeof job.data;
-        jobId: string | undefined;
-        name: string;
-      }> => ({ echo: job.data, jobId: job.id, name: job.name });
-    case 'sum':
-      return async (job: Job): Promise<number> => {
-        const data = job.data as { values?: unknown[] };
-        const values = isArray(data.values) ? data.values : [];
-        return values.reduce<number>((total, value) => total + Number(value || 0), 0);
-      };
-    case 'fail':
-      return async (): Promise<never> => {
-        throw ErrorFactory.createWorkerError('redis-rpc test processor failure');
-      };
-    default:
-      throw createRpcValidationError(`Unsupported worker processor: ${String(kind)}`);
+const workerRegistryKey = (state: BackendState): string => `${normalizedPrefix(state)}:__rpc_workers`;
+
+const buildWorkerRecord = (
+  payload: RpcPayload,
+  status: WorkerRegistryRecord['status']
+): WorkerRegistryRecord => {
+  const args = asArgs(payload);
+  const queueName = requireString(
+    firstDefined(args[0], payload.queueName, payload.queue),
+    'queueName'
+  );
+  const workerName = requireString(
+    firstDefined(args[1], payload.workerName, payload.name, `${queueName}:worker`),
+    'workerName'
+  );
+  const processorSpec = firstDefined(payload.processorSpec, payload.spec, payload.processor);
+  return {
+    workerName,
+    queueName,
+    processorSpec: isNonEmptyString(processorSpec) ? String(processorSpec) : null,
+    concurrency: Math.max(1, numberFrom(payload.concurrency, 1)),
+    status,
+    updatedAt: new Date().toISOString(),
+    source: 'redis-rpc-registry',
+  };
+};
+
+const parseWorkerRecord = (raw: string): WorkerRegistryRecord | null => {
+  try {
+    const parsed = JSON.parse(raw) as Partial<WorkerRegistryRecord>;
+    if (!isNonEmptyString(parsed.workerName) || !isNonEmptyString(parsed.queueName)) return null;
+    return {
+      workerName: parsed.workerName,
+      queueName: parsed.queueName,
+      processorSpec: isNonEmptyString(parsed.processorSpec) ? parsed.processorSpec : null,
+      concurrency: Math.max(1, numberFrom(parsed.concurrency, 1)),
+      status: parsed.status === 'running' ? 'running' : 'stopped',
+      updatedAt: isNonEmptyString(parsed.updatedAt) ? parsed.updatedAt : new Date().toISOString(),
+      source: 'redis-rpc-registry',
+    };
+  } catch {
+    return null;
   }
+};
+
+const saveWorkerRecord = async (
+  state: BackendState,
+  record: WorkerRegistryRecord
+): Promise<WorkerRegistryRecord> => {
+  const connection = createConnection(state, { maxRetriesPerRequest: 1 });
+  try {
+    await connection.hset(workerRegistryKey(state), record.workerName, JSON.stringify(record));
+  } finally {
+    connection.disconnect();
+  }
+  return record;
+};
+
+const getWorkerRecord = async (
+  state: BackendState,
+  workerName: string
+): Promise<WorkerRegistryRecord | null> => {
+  const connection = createConnection(state, { maxRetriesPerRequest: 1 });
+  try {
+    const raw = await connection.hget(workerRegistryKey(state), workerName);
+    return raw ? parseWorkerRecord(raw) : null;
+  } finally {
+    connection.disconnect();
+  }
+};
+
+const listWorkerRecords = async (state: BackendState): Promise<WorkerRegistryRecord[]> => {
+  const connection = createConnection(state, { maxRetriesPerRequest: 1 });
+  try {
+    const records = Object.values(await connection.hgetall(workerRegistryKey(state)))
+      .map((raw) => parseWorkerRecord(raw))
+      .filter((record): record is WorkerRegistryRecord => record !== null);
+    return records.sort((left, right) => left.workerName.localeCompare(right.workerName));
+  } finally {
+    connection.disconnect();
+  }
+};
+
+const QUEUE_DISCOVERY_EVENT_KEYS = new Set([
+  'wait',
+  'waiting',
+  'active',
+  'completed',
+  'failed',
+  'delayed',
+  'paused',
+  'meta',
+]);
+
+const discoverQueueNames = async (state: BackendState): Promise<string[]> => {
+  const discovered = new Set(state.queues.keys());
+  const connection = createConnection(state, { maxRetriesPerRequest: 1 });
+  const prefix = normalizedPrefix(state);
+  const marker = `${prefix}:`;
+  let cursor = '0';
+  try {
+    do {
+      // eslint-disable-next-line no-await-in-loop
+      const [nextCursor, keys] = await connection.scan(
+        cursor,
+        'MATCH',
+        `${prefix}:*`,
+        'COUNT',
+        '500'
+      );
+      cursor = String(nextCursor ?? '0');
+      for (const key of Array.isArray(keys) ? keys : []) {
+        if (typeof key !== 'string' || !key.startsWith(marker)) continue;
+        const [queueName, keyKind] = key.slice(marker.length).split(':');
+        if (queueName && QUEUE_DISCOVERY_EVENT_KEYS.has(keyKind ?? '')) {
+          discovered.add(queueName);
+        }
+      }
+    } while (cursor !== '0');
+  } finally {
+    connection.disconnect();
+  }
+  return Array.from(discovered).sort((left, right) => left.localeCompare(right));
 };
 
 const dispatchWorker = async (
@@ -528,45 +695,42 @@ const dispatchWorker = async (
   const args = asArgs(payload);
   switch (method) {
     case 'start':
-    case 'startWorker': {
-      const queueName = requireString(
-        firstDefined(args[0], payload.queueName, payload.queue),
-        'queueName'
-      );
-      const defaultWorkerName = `${queueName}:${String(payload.processor || 'echo')}`;
-      const workerName = requireString(
-        firstDefined(args[1], payload.workerName, payload.name, defaultWorkerName),
-        'workerName'
-      );
-      if (state.workers.has(workerName))
-        return { workerName, queueName, status: 'already-running' };
-      const options = isRecord(args[2]) ? args[2] : payload;
-      const worker = new Worker(queueName, createProcessor(options.processor), {
-        connection: createConnection(state) as unknown as QueueOptions['connection'],
-        prefix: state.prefix,
-        concurrency: numberFrom(options.concurrency, 1),
-      });
-      state.workers.set(workerName, { queueName, worker });
-      await worker.waitUntilReady();
-      return { workerName, queueName, status: 'running' };
-    }
+    case 'startWorker':
+    case 'startAppWorker':
+    case 'restart':
+    case 'restartWorker':
+    case 'restartAppWorker':
+      return saveWorkerRecord(state, buildWorkerRecord(payload, 'running'));
     case 'stop':
     case 'stopWorker': {
       const workerName = requireString(
         firstDefined(args[0], payload.workerName, payload.name),
         'workerName'
       );
-      const entry = state.workers.get(workerName);
-      if (!entry) return false;
-      await entry.worker.close(true);
-      state.workers.delete(workerName);
-      return true;
+      const current = await getWorkerRecord(state, workerName);
+      if (!current) return false;
+      return saveWorkerRecord(state, {
+        ...current,
+        status: 'stopped',
+        updatedAt: new Date().toISOString(),
+      });
     }
-    case 'list':
-      return Array.from(state.workers.entries()).map(([workerName, entry]) => ({
-        workerName,
-        queueName: entry.queueName,
-      }));
+    case 'list': {
+      const registered = await listWorkerRecords(state);
+      const registeredQueues = new Set(registered.map((record) => record.queueName));
+      const placeholders = (await discoverQueueNames(state))
+        .filter((queueName) => !registeredQueues.has(queueName))
+        .map((queueName) => ({
+          workerName: `${queueName}:redis-rpc`,
+          queueName,
+          processorSpec: null,
+          concurrency: 1,
+          status: 'stopped',
+          updatedAt: new Date().toISOString(),
+          source: 'bullmq-discovery',
+        }));
+      return [...registered, ...placeholders];
+    }
     default:
       throw createRpcValidationError(`Unsupported worker method: ${method}`);
   }
@@ -587,7 +751,7 @@ const dispatchMonitor = async (
       } else if (isArray(payload.queueNames)) {
         queueNames = payload.queueNames;
       } else {
-        queueNames = Array.from(state.queues.keys());
+        queueNames = await discoverQueueNames(state);
       }
       const queues = await Promise.all(
         queueNames.map(async (name) => {
@@ -678,15 +842,6 @@ const dispatchCustom = async (
 
 const closeBackend = async (state: BackendState): Promise<void> => {
   await Promise.allSettled(
-    Array.from(state.workers.values()).map(async ({ worker }) => {
-      try {
-        await withTimeout(() => worker.close(true));
-      } catch {
-        await worker.disconnect();
-      }
-    })
-  );
-  await Promise.allSettled(
     Array.from(state.queueEvents.values()).map(async (events) => {
       try {
         await withTimeout(() => events.close());
@@ -707,7 +862,6 @@ const closeBackend = async (state: BackendState): Promise<void> => {
   for (const connection of state.connections) {
     connection.disconnect();
   }
-  state.workers.clear();
   state.queues.clear();
   state.queueEvents.clear();
   state.eventLogs.clear();
@@ -723,7 +877,6 @@ export const createRedisRpcBackend = (
     connectionOptions: options.redis || redisConnectionOptions(),
     queues: new Map(),
     queueEvents: new Map(),
-    workers: new Map(),
     eventLogs: new Map(),
     connections: new Set(),
     services: new Map(Object.entries(options.services ?? {})),

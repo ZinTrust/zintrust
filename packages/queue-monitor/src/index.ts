@@ -18,7 +18,11 @@ import {
   type RetrySnapshot,
 } from './driver.js';
 import { createMetrics, type Metrics } from './metrics.js';
-import { getRecentJobsForSelection, QueueMonitoringStream } from './QueueMonitoringService.js';
+import {
+  emptyLockAnalytics,
+  getRecentJobsForSelection,
+  QueueMonitoringStream,
+} from './QueueMonitoringService.js';
 export {
   getRecentJobsForQueue,
   getRecentJobsForSelection,
@@ -294,6 +298,9 @@ function createGetLocks(redisConfig: RedisConfig) {
         },
         histogram,
       };
+    } catch (error) {
+      Logger.warn('[queue-monitor] Lock analytics failed; returning empty analytics', error);
+      return emptyLockAnalytics();
     } finally {
       if (typeof client.quit === 'function') {
         await client.quit();
@@ -408,9 +415,17 @@ function createGetSnapshot(
     | undefined
 ) {
   return async (): Promise<QueueMonitorSnapshot> => {
-    const persistedQueues = await resolveKnownQueues(knownQueues);
+    const persistedQueues = await resolveKnownQueues(knownQueues).catch((error) => {
+      Logger.warn('[queue-monitor] Known queue resolution failed; using no configured queues', error);
+      return [];
+    });
     const shouldDiscoverQueues = persistedQueues.length === 0;
-    const discoveredQueues = shouldDiscoverQueues ? await driver.getQueues() : [];
+    const discoveredQueues = shouldDiscoverQueues
+      ? await driver.getQueues().catch((error) => {
+          Logger.warn('[queue-monitor] Queue discovery failed; using no discovered queues', error);
+          return [];
+        })
+      : [];
     const queues = Array.from(new Set([...persistedQueues, ...discoveredQueues])).sort(
       (left, right) => left.localeCompare(right)
     );
@@ -427,18 +442,24 @@ function createGetSnapshot(
       });
     }
     const batchStartedAt = Date.now();
-    const stats =
-      typeof driver.getJobCountsMany === 'function'
-        ? (await driver.getJobCountsMany(queues)).map((item) => ({
-            name: item.name,
-            counts: item.counts as unknown as QueueCounts,
-          }))
-        : await Promise.all(
-            queues.map(async (name) => {
-              const counts = await driver.getJobCounts(name);
-              return { name, counts: counts as unknown as QueueCounts };
-            })
-          );
+    const stats = await (async (): Promise<QueueMonitorSnapshot['queues']> => {
+      try {
+        return typeof driver.getJobCountsMany === 'function'
+          ? (await driver.getJobCountsMany(queues)).map((item) => ({
+              name: item.name,
+              counts: item.counts as unknown as QueueCounts,
+            }))
+          : await Promise.all(
+              queues.map(async (name) => {
+                const counts = await driver.getJobCounts(name);
+                return { name, counts: counts as unknown as QueueCounts };
+              })
+            );
+      } catch (error) {
+        Logger.warn('[queue-monitor] Queue count lookup failed; returning empty snapshot', error);
+        return [];
+      }
+    })();
     if (QUEUE_MONITOR_LOGGING_ENABLED) {
       Logger.info('[queue-monitor] snapshot queue counts resolved', {
         durationMs: Date.now() - batchStartedAt,

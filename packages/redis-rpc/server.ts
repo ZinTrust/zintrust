@@ -2,7 +2,7 @@ import { isObject } from '@zintrust/core/helper';
 import { Logger } from '@zintrust/core/runtime';
 import http from 'node:http';
 import { createRedisRpcBackend } from './backend';
-import { rpcServerOptions } from './env';
+import { readString, rpcServerOptions } from './env';
 import { createRpcNotFoundError, createRpcUnauthorizedError, toErrorPayload } from './errors';
 import type { RedisRpcServerInstance, RpcRequest } from './types';
 
@@ -40,7 +40,17 @@ const getHeaderSecret = (request: http.IncomingMessage): string => {
 
 const previewSecret = (value: string): string => value.slice(0, 5);
 
+const readBool = (key: string, fallback: boolean): boolean => {
+  const raw = readString(key, fallback ? 'true' : 'false').trim().toLowerCase();
+  if (raw === '') return fallback;
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+};
+
+const shouldTraceServer = (): boolean =>
+  readBool('REDIS_RPC_SERVER_DEBUG', readBool('REDIS_RPC_TRACE', false));
+
 const logStep = (step: string, details: Record<string, unknown>): void => {
+  if (!shouldTraceServer()) return;
   Logger.debug(`[redis-rpc][server] ${step}`, details);
 };
 
@@ -186,15 +196,22 @@ const sendRpcSuccess = (
   });
 };
 
+const errorMessage = (payload: ReturnType<typeof toErrorPayload>, error: unknown): string => {
+  if (payload.body && typeof payload.body === 'object' && 'message' in payload.body) {
+    return String((payload.body as { message?: unknown }).message ?? '');
+  }
+  if (error instanceof Error) return error.message;
+  return String(error);
+};
+
 const handleRequestError = (response: http.ServerResponse, error: unknown): void => {
   const payload = toErrorPayload(error);
+  const message = errorMessage(payload, error);
   logStep('request.error', {
     status: payload.status,
-    message:
-      payload.body && typeof payload.body === 'object' && 'message' in payload.body
-        ? String((payload.body as { message?: unknown }).message ?? '')
-        : '',
+    message,
   });
+  Logger.warn('[redis-rpc][server] request failed', { status: payload.status, message });
   json(response, payload.status, payload.body);
 };
 

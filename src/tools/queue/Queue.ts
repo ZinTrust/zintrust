@@ -165,6 +165,29 @@ const markFailedEnqueue = async (input: {
   return fallbackJobId;
 };
 
+type QueueEnqueueHookGlobal = typeof globalThis & {
+  __zintrustQueueEnqueueHook?: (
+    queueName: string,
+    jobId: unknown,
+    driverName: string
+  ) => unknown | Promise<unknown>;
+};
+
+const runPostEnqueueHook = async (
+  queueName: string,
+  jobId: string,
+  driverName: string
+): Promise<void> => {
+  const enqueueHook = (globalThis as QueueEnqueueHookGlobal).__zintrustQueueEnqueueHook;
+  if (typeof enqueueHook !== 'function') return;
+
+  try {
+    await enqueueHook(queueName, jobId, driverName);
+  } catch (hookError) {
+    Logger.debug('Queue enqueue hook failed', { queue: queueName, jobId, error: hookError });
+  }
+};
+
 export const Queue = Object.freeze({
   register(name: string, driver: IQueueDriver) {
     drivers.set(name.toLowerCase(), driver);
@@ -233,6 +256,7 @@ export const Queue = Object.freeze({
       });
 
       SystemTraceBridge.emitJobDispatch(queue, queue, resolvedDriver, payload);
+      await runPostEnqueueHook(queue, jobId, resolvedDriver);
 
       return jobId;
     } catch (error) {

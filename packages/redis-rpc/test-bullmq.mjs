@@ -1,21 +1,21 @@
 import assert from 'node:assert/strict';
-import { setTimeout as sleep } from 'node:timers/promises';
 import { createRedisRpcClient } from './client.ts';
 import { listenRedisRpcServer } from './server.ts';
 import { rpcServerOptions } from './env.ts';
 import { createBullMqRpcQueue, createQueueMonitorRpcDriver, createRedisRpcService, createWorkerRpcRuntime } from './adapters.ts';
 
 const settings = rpcServerOptions();
+const secret = settings.secret || 'redis-rpc-test-secret';
 const created = await listenRedisRpcServer({
   host: settings.host,
   port: settings.port,
-  secret: settings.secret,
+  secret,
   prefix: `redis-rpc-test-${Date.now()}`,
 });
 
 const client = createRedisRpcClient({
   baseUrl: `http://${settings.host}:${settings.port}`,
-  secret: settings.secret,
+  secret,
 });
 
 const queueName = `redis-rpc-test-${Date.now()}`;
@@ -54,14 +54,24 @@ try {
   const jobs = await queue.getJobs(['waiting', 'delayed'], 0, 10);
   assert.ok(jobs.some((job) => job.id === added.id));
 
-  await workers.startWorker(queueName, workerName, { processor: 'sum', concurrency: 2 });
+  const startedWorker = await workers.startWorker(queueName, workerName, { processor: 'sum', concurrency: 2 });
+  assert.equal(startedWorker.status, 'running');
+  assert.equal(startedWorker.processorSpec, null);
+  const listedWorkers = await workers.list();
+  assert.ok(listedWorkers.some((worker) => worker.workerName === workerName && worker.queueName === queueName));
 
-  let completed = null;
-  for (let i = 0; i < 30; i += 1) {
-    await sleep(200);
-    completed = await queue.getJob(added.id);
-    if (completed?.state === 'completed') break;
+  let claimed;
+  for (let i = 0; i < 5; i += 1) {
+    claimed = await queue.dequeue(30_000);
+    assert.ok(claimed);
+    if (claimed.id === String(added.id)) break;
+    await queue.ack(claimed.id, { skipped: true });
   }
+  assert.equal(claimed.id, String(added.id));
+  assert.equal(claimed.name, 'sum');
+  assert.deepEqual(claimed.payload, { values: [2, 5, 7] });
+  await queue.ack(claimed.id, 14);
+  const completed = await queue.getJob(added.id);
   assert.equal(completed?.state, 'completed');
   assert.equal(completed?.returnvalue, 14);
 
@@ -73,16 +83,15 @@ try {
   const pausedCounts = await queue.getJobCounts();
   assert.ok('paused' in pausedCounts);
   await queue.resume();
-  await workers.stopWorker(workerName);
+  const stoppedWorker = await workers.stopWorker(workerName);
+  assert.equal(stoppedWorker.status, 'stopped');
 
   const failedJob = await queue.add('will-fail', { ok: false }, { attempts: 1, removeOnComplete: false, removeOnFail: false });
   await workers.startWorker(queueName, `${workerName}-fail`, { processor: 'fail' });
-  let failed = null;
-  for (let i = 0; i < 30; i += 1) {
-    await sleep(200);
-    failed = await queue.getJob(failedJob.id);
-    if (failed?.state === 'failed') break;
-  }
+  const failedClaim = await queue.dequeue(30_000);
+  assert.equal(failedClaim.id, String(failedJob.id));
+  await queue.fail(failedClaim.id, 'expected smoke failure');
+  const failed = await queue.getJob(failedJob.id);
   assert.equal(failed?.state, 'failed');
 
   const recent = await monitor.getRecentJobsForQueue(queueName, 20);
