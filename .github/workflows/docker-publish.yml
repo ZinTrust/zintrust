@@ -124,7 +124,7 @@ jobs:
       #   run: node scripts/docker-image-smoke.mjs worker --skip-build --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker:test
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
+        uses: aquasecurity/trivy-action@bfa4b33a029b9aa80ddb784b45574c30e072c59e # master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
           format: 'json'

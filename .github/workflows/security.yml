@@ -54,7 +54,7 @@ jobs:
           args: --severity-threshold=high
 
       - name: Run Trivy vulnerability scanner (Repo)
-        uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
+        uses: aquasecurity/trivy-action@bfa4b33a029b9aa80ddb784b45574c30e072c59e # master
         with:
           scan-type: 'fs'
           ignore-unfixed: true
