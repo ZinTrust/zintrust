@@ -14,6 +14,7 @@ import { RedisKeys } from '@tools/redis/RedisKeyManager';
 
 type RedisClientLike = {
   get: (key: string) => Promise<string | null>;
+  mget?: (...keys: string[]) => Promise<(string | null)[]>;
   set: (...args: unknown[]) => Promise<unknown>;
   del: (...keys: string[]) => Promise<unknown>;
   flushdb: () => Promise<unknown>;
@@ -100,6 +101,28 @@ const createCacheDriverFromIoredisClient = (client: RedisClientLike): CacheDrive
     } catch (error) {
       Logger.error('Redis GET failed', error);
       return null;
+    }
+  },
+
+  async many<T>(keys: string[]): Promise<(T | null)[]> {
+    if (keys.length === 0) return [];
+    try {
+      const prefixedKeys = keys.map((key) => RedisKeys.createCacheKey(key));
+      const values =
+        typeof client.mget === 'function'
+          ? await client.mget(...prefixedKeys)
+          : await Promise.all(prefixedKeys.map(async (prefixedKey) => client.get(prefixedKey)));
+      return values.map((value) => {
+        if (value === null || value === undefined) return null;
+        try {
+          return JSON.parse(value) as T;
+        } catch {
+          return null;
+        }
+      });
+    } catch (error) {
+      Logger.error('Redis MGET failed', error);
+      return keys.map(() => null);
     }
   },
 

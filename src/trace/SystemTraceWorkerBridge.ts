@@ -9,7 +9,13 @@ type WorkerTraceModule = Partial<{
     ttl?: number
   ) => void;
   emitEvent: (name: string, listenerCount: number, payload?: unknown) => void;
-  emitQuery: (query: string, params: unknown[], duration: number, connection?: string) => void;
+  emitQuery: (
+    query: string,
+    params: unknown[],
+    duration: number,
+    connection?: string,
+    routing?: { servedByPrimary?: boolean; servedByRegion?: string }
+  ) => void;
 }>;
 
 type GlobalTraceState = {
@@ -55,10 +61,11 @@ const emitQuery = (
   query: string,
   params: unknown[],
   duration: number,
-  connection?: string
+  connection?: string,
+  routing?: { servedByPrimary?: boolean; servedByRegion?: string }
 ): void => {
   withWorkerTraceModule((module) => {
-    module.emitQuery?.(query, params, duration, connection);
+    module.emitQuery?.(query, params, duration, connection, routing);
   });
 };
 

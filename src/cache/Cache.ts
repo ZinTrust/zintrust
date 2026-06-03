@@ -129,6 +129,50 @@ const get = async <T>(key: string): Promise<T | null> => {
   return value;
 };
 
+// Batched read: one round-trip via driver.many() (e.g. Redis MGET) when supported,
+// otherwise individual gets. Results stay aligned to the requested key order.
+const runMany = async <T>(
+  driver: CacheDriver,
+  keys: string[],
+  storeName: string
+): Promise<(T | null)[]> => {
+  if (keys.length === 0) return [];
+  const prefixedKeys = keys.map((key) => autoPrefixKey(key));
+  const startedAt = Date.now();
+  const batchedMany = driver.many as (<U>(keys: string[]) => Promise<(U | null)[]>) | undefined;
+
+  let values: (T | null)[];
+  const batched = typeof batchedMany === 'function';
+
+  if (batched) {
+    values = await batchedMany<T>(prefixedKeys);
+  } else {
+    values = (await Promise.all(
+      prefixedKeys.map(async (prefixedKey) => driver.get<T>(prefixedKey))
+    )) as (T | null)[];
+  }
+
+  const elapsed = Date.now() - startedAt;
+  const normalized = prefixedKeys.map((_prefixedKey, index) => values[index] ?? null);
+  const hitCount = normalized.filter((value) => value !== null).length;
+  // One trace record per round-trip: a driver-level `many` (e.g. Redis MGET) is a single
+  // network call, so it must not look like N separate gets. Drivers without `many` fall back
+  // to N gets, which is reflected with the `gets` label.
+  const label = batched ? 'mget' : 'gets';
+  SystemTraceBridge.emitCache(
+    'get',
+    `${label}(${prefixedKeys.length}/${hitCount} hit) ${prefixedKeys.join(',')}`,
+    elapsed,
+    hitCount > 0,
+    undefined,
+    storeName
+  );
+  return normalized;
+};
+
+const many = async <T>(keys: string[]): Promise<(T | null)[]> =>
+  runMany<T>(getDriverInstance(), keys, DEFAULT_STORE_NAME);
+
 /**
  * Store an item in the cache
  */
@@ -233,6 +277,7 @@ const getDriver = (): CacheDriver => {
 
 type CacheStore = Readonly<{
   get: <T>(key: string) => Promise<T | null>;
+  many: <T>(keys: string[]) => Promise<(T | null)[]>;
   set: <T>(key: string, value: T, ttl?: number) => Promise<void>;
   delete: (key: string) => Promise<void>;
   clear: () => Promise<void>;
@@ -259,6 +304,9 @@ const store = (name?: string): CacheStore => {
     );
     return value;
   };
+
+  const manyFromStore = async <T>(keys: string[]): Promise<(T | null)[]> =>
+    runMany<T>(getDriverInstance(name), keys, String(name ?? DEFAULT_STORE_NAME));
 
   const setInStore = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
     const prefixedKey = autoPrefixKey(key);
@@ -349,6 +397,7 @@ const store = (name?: string): CacheStore => {
 
   return Object.freeze({
     get: getFromStore,
+    many: manyFromStore,
     set: setInStore,
     delete: delFromStore,
     clear: clearStore,
@@ -376,6 +425,7 @@ const getRedisClient = (storeName?: string): unknown => {
 // Sealed namespace with cache functionality
 export const Cache = Object.freeze({
   get,
+  many,
   set,
   delete: del,
   clear,

@@ -24,7 +24,7 @@ import {
   ZintrustLang,
 } from '@zintrust/core/utils';
 import { NodeSingletons, type WorkerStatus } from '@zintrust/core/workers';
-import { Worker, type Job, type WorkerOptions } from 'bullmq';
+import type { Job, Worker, WorkerOptions } from 'bullmq';
 import { AutoScaler, type AutoScalerConfig } from './AutoScaler';
 import { CanaryController } from './CanaryController';
 import { CircuitBreaker } from './CircuitBreaker';
@@ -53,6 +53,13 @@ import {
 } from './storage/WorkerStore';
 
 const path = NodeSingletons.path;
+
+// Lazy BullMQ Worker loader keyed on a variable specifier so bundlers do not inline
+// bullmq into the Workers bundle. Worker creation is consumer-side (Node).
+const loadBullmqWorker = async (): Promise<typeof Worker> => {
+  const bullmqPkg = 'bullmq';
+  return (await import(bullmqPkg)).Worker;
+};
 
 type ShutdownTraceApi = {
   log: (label: string, details?: Record<string, unknown>) => void;
@@ -3062,7 +3069,8 @@ export const WorkerFactory = Object.freeze({
 
       // Create BullMQ worker
       const resolvedOptions = resolveWorkerOptions(config, autoStart);
-      const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
+      const WorkerCtor = await loadBullmqWorker();
+      const worker = new WorkerCtor(queueName, enhancedProcessor, resolvedOptions);
 
       setupWorkerEventListeners(worker, name, queueName, workerVersion, features);
 

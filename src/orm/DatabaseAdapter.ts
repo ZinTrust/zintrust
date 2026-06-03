@@ -6,21 +6,56 @@
 import type { SupportedDriver } from '@migrations/enum';
 
 /**
- * Minimal D1 Database interface for type safety
+ * Read-replication constraint for a D1 session.
+ *
+ * - `"first-primary"`: first query in the session goes to the primary
+ *   (read-your-writes without a bookmark).
+ * - `"first-unconstrained"`: first query may be served by any replica
+ *   (lowest latency; tolerates slightly stale reads).
+ * - any other `string`: an opaque D1 bookmark that resumes a prior session's
+ *   consistency point.
+ */
+export type D1ReadConstraint = 'first-primary' | 'first-unconstrained' | (string & {});
+
+/**
+ * Bound statement shape shared by the primary binding and a session handle.
+ */
+export interface ID1BoundStatement {
+  all<T = unknown>(): Promise<{
+    results?: T[];
+    success: boolean;
+    error?: string;
+    meta?: Record<string, unknown>;
+  }>;
+  first<T = unknown>(): Promise<T | null>;
+  run(): Promise<{ success: boolean; error?: string; meta?: Record<string, unknown> }>;
+}
+
+export interface ID1PreparedStatement {
+  bind(...values: unknown[]): ID1BoundStatement;
+}
+
+/**
+ * Minimal D1 Database interface for type safety.
+ *
+ * `withSession` is optional: it is present when the bound database has read
+ * replication enabled. The driver tolerates its absence and falls back to
+ * direct-to-primary execution.
  */
 export interface ID1Database {
-  prepare(sql: string): {
-    bind(...values: unknown[]): {
-      all<T = unknown>(): Promise<{
-        results?: T[];
-        success: boolean;
-        error?: string;
-        meta?: Record<string, unknown>;
-      }>;
-      first<T = unknown>(): Promise<T | null>;
-      run(): Promise<{ success: boolean; error?: string }>;
-    };
-  };
+  prepare(sql: string): ID1PreparedStatement;
+  withSession?(constraint?: D1ReadConstraint): ID1DatabaseSession;
+}
+
+/**
+ * Session-scoped handle returned by `ID1Database.withSession`.
+ *
+ * Carries a bookmark representing a point in the database's history so reads
+ * within the session observe sequential consistency.
+ */
+export interface ID1DatabaseSession {
+  prepare(sql: string): ID1PreparedStatement;
+  getBookmark(): string | null;
 }
 
 export interface DatabaseConfig {
@@ -40,6 +75,13 @@ export interface QueryResult {
   rows: Record<string, unknown>[];
   rowCount: number;
   lastInsertId?: string | number | bigint;
+  /**
+   * Read-replication routing metadata, when the driver exposes it (D1).
+   * `servedByPrimary` is `true` when the query hit the primary, `false` when a
+   * replica served it; `servedByRegion` is the replica/primary region code.
+   */
+  servedByPrimary?: boolean;
+  servedByRegion?: string;
 }
 
 export interface IDatabaseAdapter {
@@ -95,6 +137,21 @@ export interface IDatabaseAdapter {
    * For SQL databases, this typically means dropping user tables.
    */
   resetSchema?(): Promise<void>;
+
+  /**
+   * Run `fn` inside a read-replication session (D1 only).
+   *
+   * Every statement issued by `fn` is routed through a session-scoped handle so
+   * reads observe sequential consistency. Returns the function result together
+   * with the latest bookmark to persist and replay on the next request.
+   *
+   * Adapters without read-replication support leave this undefined; callers
+   * should fall back to executing `fn` directly with a `null` bookmark.
+   */
+  runReadSession?<T>(
+    constraint: D1ReadConstraint,
+    fn: () => Promise<T>
+  ): Promise<{ result: T; bookmark: string | null }>;
 
   /**
    * Get database type

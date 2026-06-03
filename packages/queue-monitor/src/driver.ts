@@ -2,19 +2,23 @@ import { Env } from '@zintrust/core/config';
 import { ErrorFactory } from '@zintrust/core/errors';
 import { Logger } from '@zintrust/core/logger';
 import { getBullMQSafeQueueName } from '@zintrust/core/redis';
-import type { ConnectionOptions, Job, JobsOptions } from 'bullmq';
-import { Queue } from 'bullmq';
+import type { ConnectionOptions, Job, JobsOptions, Queue } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection.js';
+
+let QueueCtor: typeof Queue | undefined;
+
+const ensureBullmqLoaded = async (): Promise<typeof Queue> => {
+  if (QueueCtor !== undefined) return QueueCtor;
+  const bullmqPkg = 'bullmq';
+  const loaded = (await import(bullmqPkg)).Queue;
+  QueueCtor = loaded;
+  return loaded;
+};
 
 export type JobPayload<T = unknown> = T;
 
 export type JobCounts = Record<string, number>;
 
-/**
- * Standard BullMQ job-count buckets, all zero. Used when the backing store is
- * unavailable so a queue is still listed (with empty counts) instead of being
- * dropped from the snapshot entirely.
- */
 export const emptyCounts = (): JobCounts => ({
   waiting: 0,
   active: 0,
@@ -24,10 +28,6 @@ export const emptyCounts = (): JobCounts => ({
   paused: 0,
 });
 
-/**
- * Map a list of known queue names to entries with empty counts. Keeps the
- * dashboard showing the configured queues during transient backend outages.
- */
 export const emptyQueueStats = (
   queueNames: ReadonlyArray<string>
 ): Array<{ name: string; counts: JobCounts }> =>
@@ -124,88 +124,108 @@ const createRpcClient = async (): Promise<RedisRpcClient> =>
       callRedisRpc<T>('queue-monitor', method, payload),
   });
 
-const createRedisRpcDriver = (): QueueDriver => {
-  const enqueue = async <T>(name: string, payload: T, options?: JobsOptions): Promise<string> => {
-    const client = await createRpcClient();
-    const result = await client.queue<{ id?: string | number }>('add', {
-      target: name,
-      args: ['default', payload, options ?? {}],
-    });
-    if (result.id === undefined || result.id === null) {
-      throw ErrorFactory.createTryCatchError(`Queue job id missing for ${name}`);
-    }
-    return String(result.id);
-  };
-
-  return Object.freeze({
-    enqueue,
-    async getJob(queueName: string, jobId: string): Promise<Job | undefined> {
-      const client = await createRpcClient();
-      try {
-        return (await client.queue('getJob', { target: queueName, args: [jobId] })) as
-          | Job
-          | undefined;
-      } catch (error) {
-        Logger.warn('[queue-monitor] Redis RPC job lookup failed; returning no job', error);
-        return undefined;
-      }
-    },
-    async getJobCounts(queueName: string): Promise<JobCounts> {
-      const client = await createRpcClient();
-      try {
-        return client.queue('getJobCounts', { target: queueName });
-      } catch (error) {
-        Logger.warn('[queue-monitor] Redis RPC job counts failed; returning empty counts', error);
-        return {};
-      }
-    },
-    async getJobCountsMany(
-      queueNames: string[]
-    ): Promise<Array<{ name: string; counts: Record<string, number> }>> {
-      const client = await createRpcClient();
-      try {
-        const snapshot = await client.monitor<{
-          queues?: Array<{ name: string; counts: JobCounts }>;
-        }>('getSnapshot', { args: [queueNames] });
-        return snapshot.queues ?? emptyQueueStats(queueNames);
-      } catch (error) {
-        Logger.warn(
-          '[queue-monitor] Redis RPC batch counts failed; returning known queues with empty counts',
-          error
-        );
-        return emptyQueueStats(queueNames);
-      }
-    },
-    async getRecentJobs(queueName: string, limit = 100): Promise<Job[]> {
-      const client = await createRpcClient();
-      try {
-        return (await client.monitor('getRecentJobsForQueue', {
-          args: [queueName, limit],
-        })) as Job[];
-      } catch (error) {
-        Logger.warn('[queue-monitor] Redis RPC recent jobs failed; returning no jobs', error);
-        return [];
-      }
-    },
-    async retryJob(queueName: string, jobId: string): Promise<RetryJobResult> {
-      const client = await createRpcClient();
-      return client.queue('retryJob', { target: queueName, args: [jobId] });
-    },
-    async getQueues(): Promise<string[]> {
-      const client = await createRpcClient();
-      try {
-        const snapshot = await client.monitor<{ queues?: Array<{ name: string }> }>('getSnapshot');
-        return (snapshot.queues ?? []).map((queue) => queue.name);
-      } catch (error) {
-        Logger.warn('[queue-monitor] Redis RPC queue discovery failed; returning no queues', error);
-        return [];
-      }
-    },
-    async close(): Promise<void> {
-      await Promise.resolve();
-    },
+const createRedisRpcEnqueue = async <T>(
+  name: string,
+  payload: T,
+  options?: JobsOptions
+): Promise<string> => {
+  const client = await createRpcClient();
+  const result = await client.queue<{ id?: string | number }>('add', {
+    target: name,
+    args: ['default', payload, options ?? {}],
   });
+
+  if (result.id === undefined || result.id === null) {
+    throw ErrorFactory.createTryCatchError(`Queue job id missing for ${name}`);
+  }
+
+  return String(result.id);
 };
+
+const createRedisRpcGetJob = async (queueName: string, jobId: string): Promise<Job | undefined> => {
+  const client = await createRpcClient();
+  try {
+    return await client.queue('getJob', { target: queueName, args: [jobId] });
+  } catch (error) {
+    Logger.warn('[queue-monitor] Redis RPC job lookup failed; returning no job', error);
+    return undefined;
+  }
+};
+
+const createRedisRpcGetJobCounts = async (queueName: string): Promise<JobCounts> => {
+  try {
+    const client = await createRpcClient();
+    return client.queue('getJobCounts', { target: queueName });
+  } catch (error) {
+    Logger.warn('[queue-monitor] Redis RPC job counts failed; returning empty counts', error);
+    return {};
+  }
+};
+
+const createRedisRpcGetJobCountsMany = async (
+  queueNames: string[]
+): Promise<Array<{ name: string; counts: Record<string, number> }>> => {
+  const client = await createRpcClient();
+  try {
+    const snapshot = await client.monitor<{
+      queues?: Array<{ name: string; counts: JobCounts }>;
+    }>('getSnapshot', { args: [queueNames] });
+    return snapshot.queues ?? emptyQueueStats(queueNames);
+  } catch (error) {
+    Logger.warn(
+      '[queue-monitor] Redis RPC batch counts failed; returning known queues with empty counts',
+      error
+    );
+    return emptyQueueStats(queueNames);
+  }
+};
+
+const createRedisRpcRecentJobs = async (queueName: string, limit = 100): Promise<Job[]> => {
+  const client = await createRpcClient();
+  try {
+    return await client.monitor('getRecentJobsForQueue', {
+      args: [queueName, limit],
+    });
+  } catch (error) {
+    Logger.warn('[queue-monitor] Redis RPC recent jobs failed; returning no jobs', error);
+    return [];
+  }
+};
+
+const createRedisRpcRetryJob = async (
+  queueName: string,
+  jobId: string
+): Promise<RetryJobResult> => {
+  const client = await createRpcClient();
+  return client.queue('retryJob', { target: queueName, args: [jobId] });
+};
+
+const createRedisRpcGetQueues = async (): Promise<string[]> => {
+  const client = await createRpcClient();
+  try {
+    const snapshot = await client.monitor<{ queues?: Array<{ name: string }> }>('getSnapshot');
+    return (snapshot.queues ?? []).map((queue) => queue.name);
+  } catch (error) {
+    Logger.warn('[queue-monitor] Redis RPC queue discovery failed; returning no queues', error);
+    return [];
+  }
+};
+
+const createRedisRpcClose = async (): Promise<void> => {
+  await Promise.resolve();
+};
+
+const createRedisRpcDriver = (): QueueDriver =>
+  Object.freeze({
+    enqueue: createRedisRpcEnqueue,
+    getJob: createRedisRpcGetJob,
+    getJobCounts: createRedisRpcGetJobCounts,
+    getJobCountsMany: createRedisRpcGetJobCountsMany,
+    getRecentJobs: createRedisRpcRecentJobs,
+    retryJob: createRedisRpcRetryJob,
+    getQueues: createRedisRpcGetQueues,
+    close: createRedisRpcClose,
+  });
 
 async function enrichJobsWithState(jobs: Job[]): Promise<void> {
   await Promise.all(
@@ -259,51 +279,61 @@ async function discoverQueuesFromRedis(
   return Array.from(found.values());
 }
 
-// eslint-disable-next-line max-lines-per-function
-export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
-  if (shouldUseRedisRpcMonitorDriver()) return createRedisRpcDriver();
-
-  const queues = new Map<string, Queue>();
-  const redis = createRedisConnection(config, 3, {
-    subsystem: 'queue-monitor',
-  });
-  const getQueue = (name: string): Queue => {
+const createBullMQQueueGetter = (
+  queues: Map<string, Queue>,
+  redis: unknown
+): ((name: string) => Promise<Queue>) => {
+  return async (name: string): Promise<Queue> => {
     if (!queues.has(name)) {
+      const QueueCtor = await ensureBullmqLoaded();
       const prefix = getBullMQSafeQueueName();
-      const queue = new Queue(name, { prefix, connection: redis as ConnectionOptions });
+      const queue = new QueueCtor(name, { prefix, connection: redis as ConnectionOptions });
       queues.set(name, queue);
     }
+
     const queue = queues.get(name);
     if (!queue) {
       throw ErrorFactory.createTryCatchError(`Queue initialization failed for ${name}`);
     }
+
     return queue;
   };
+};
 
-  const enqueue = async <T>(name: string, payload: T, options?: JobsOptions): Promise<string> => {
-    const queue = getQueue(name);
+const createBullMQEnqueue =
+  (getQueue: (name: string) => Promise<Queue>) =>
+  async <T>(name: string, payload: T, options?: JobsOptions): Promise<string> => {
+    const queue = await getQueue(name);
     const job = await queue.add('default', payload, {
       removeOnComplete: true,
       removeOnFail: false,
       ...options,
     });
+
     if (job.id === undefined || job.id === null) {
       throw ErrorFactory.createTryCatchError(`Queue job id missing for ${name}`);
     }
+
     return String(job.id);
   };
 
-  const getJob = async (queueName: string, jobId: string): Promise<Job | undefined> => {
-    const queue = getQueue(queueName);
+const createBullMQGetJob =
+  (getQueue: (name: string) => Promise<Queue>) =>
+  async (queueName: string, jobId: string): Promise<Job | undefined> => {
+    const queue = await getQueue(queueName);
     return (await queue.getJob(jobId)) || undefined;
   };
 
-  const getJobCounts = async (queueName: string): Promise<JobCounts> => {
-    const queue = getQueue(queueName);
+const createBullMQGetJobCounts =
+  (getQueue: (name: string) => Promise<Queue>) =>
+  async (queueName: string): Promise<JobCounts> => {
+    const queue = await getQueue(queueName);
     return queue.getJobCounts();
   };
 
-  const getJobCountsMany = async (
+const createBullMQGetJobCountsMany =
+  (getJobCounts: (queueName: string) => Promise<JobCounts>) =>
+  async (
     queueNames: string[]
   ): Promise<Array<{ name: string; counts: Record<string, number> }>> => {
     const uniqueQueueNames = Array.from(
@@ -320,6 +350,7 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
         uniqueCount: uniqueQueueNames.length,
       });
     }
+
     const startedAt = Date.now();
     if (uniqueQueueNames.length === 0) {
       if (QUEUE_MONITOR_LOGGING_ENABLED) {
@@ -348,13 +379,13 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
         pipelineCount: uniqueQueueNames.length,
       });
     }
+
     return stats;
   };
 
-  const requeueFromSnapshot = async (
-    queue: Queue,
-    snapshot: RetrySnapshot
-  ): Promise<RetryJobResult> => {
+const createBullMQRequeueFromSnapshot =
+  (queue: Queue) =>
+  async (snapshot: RetrySnapshot): Promise<RetryJobResult> => {
     try {
       const requeued = await queue.add(snapshot.name ?? 'default', snapshot.data, snapshot.opts);
       return {
@@ -372,31 +403,16 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     }
   };
 
-  const getRecentJobs = async (queueName: string, limit = 100): Promise<Job[]> => {
-    const queue = getQueue(queueName);
-    const jobs = await queue.getJobs(
-      ['completed', 'failed', 'active', 'waiting', 'delayed', 'paused'],
-      0,
-      Math.max(0, limit - 1),
-      true
-    );
-
-    // Fetch state for each job to ensure accurate status detection
-    await enrichJobsWithState(jobs);
-
-    return jobs;
-  };
-
-  const retryJob = async (
-    queueName: string,
-    jobId: string,
-    snapshot?: RetrySnapshot
-  ): Promise<RetryJobResult> => {
-    const queue = getQueue(queueName);
+const createBullMQRetryJob =
+  (
+    getQueue: (name: string) => Promise<Queue>,
+    getJob: (q: string, id: string) => Promise<Job | undefined>
+  ) =>
+  async (queueName: string, jobId: string, snapshot?: RetrySnapshot): Promise<RetryJobResult> => {
+    const queue = await getQueue(queueName);
     const job = await getJob(queueName, jobId);
     if (!job) {
-      if (snapshot) return requeueFromSnapshot(queue, snapshot);
-
+      if (snapshot) return createBullMQRequeueFromSnapshot(queue)(snapshot);
       return { ok: false, status: 'missing' };
     }
 
@@ -412,23 +428,48 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     }
   };
 
-  const getQueues = async (): Promise<string[]> => {
-    return discoverQueuesFromRedis(redis, queues);
+const createBullMQGetRecentJobs =
+  (getQueue: (name: string) => Promise<Queue>) =>
+  async (queueName: string, limit = 100): Promise<Job[]> => {
+    const queue = await getQueue(queueName);
+    const jobs = await queue.getJobs(
+      ['completed', 'failed', 'active', 'waiting', 'delayed', 'paused'],
+      0,
+      Math.max(0, limit - 1),
+      true
+    );
+
+    await enrichJobsWithState(jobs);
+
+    return jobs;
   };
 
-  const close = async (): Promise<void> => {
-    const closes = Array.from(queues.values()).map((q) => q.close());
-    await Promise.all(closes);
-  };
+const createBullMQGetQueues =
+  (redis: unknown, queues: Map<string, Queue>) => async (): Promise<string[]> =>
+    discoverQueuesFromRedis(redis, queues);
+
+const createBullMQClose = (queues: Map<string, Queue>) => async (): Promise<void> => {
+  const closes = Array.from(queues.values()).map((q) => q.close());
+  await Promise.all(closes);
+};
+
+export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
+  if (shouldUseRedisRpcMonitorDriver()) return createRedisRpcDriver();
+
+  const queues = new Map<string, Queue>();
+  const redis = createRedisConnection(config, 3, {
+    subsystem: 'queue-monitor',
+  });
+  const getQueue = createBullMQQueueGetter(queues, redis);
 
   return Object.freeze({
-    enqueue,
-    getJob,
-    getJobCounts,
-    getJobCountsMany,
-    getRecentJobs,
-    retryJob,
-    getQueues,
-    close,
+    enqueue: createBullMQEnqueue(getQueue),
+    getJob: createBullMQGetJob(getQueue),
+    getJobCounts: createBullMQGetJobCounts(getQueue),
+    getJobCountsMany: createBullMQGetJobCountsMany(createBullMQGetJobCounts(getQueue)),
+    getRecentJobs: createBullMQGetRecentJobs(getQueue),
+    retryJob: createBullMQRetryJob(getQueue, createBullMQGetJob(getQueue)),
+    getQueues: createBullMQGetQueues(redis, queues),
+    close: createBullMQClose(queues),
   });
 };

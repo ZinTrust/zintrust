@@ -7,8 +7,15 @@
 import { ErrorFactory } from '@zintrust/core/errors';
 import { Logger } from '@zintrust/core/logger';
 import { ShutdownTrace } from '@zintrust/core/workers';
-import { Worker, type Job, type WorkerOptions } from 'bullmq';
+import type { Job, Worker, WorkerOptions } from 'bullmq';
 import { PriorityQueue } from './PriorityQueue';
+
+// Lazy BullMQ Worker loader keyed on a variable specifier so bundlers do not inline
+// bullmq into the Workers bundle. Worker creation is consumer-side (Node).
+const loadBullmqWorker = async (): Promise<typeof Worker> => {
+  const bullmqPkg = 'bullmq';
+  return (await import(bullmqPkg)).Worker;
+};
 
 export type QueueConfig = {
   name: string;
@@ -68,7 +75,8 @@ const createQueueWorker = async (
     prefix: queue.opts.prefix,
   };
 
-  const worker = new Worker(
+  const WorkerCtor = await loadBullmqWorker();
+  const worker = new WorkerCtor(
     queueConfig.name,
     async (job: Job) => {
       Logger.debug(`Processing job from queue: ${queueConfig.name}`, {

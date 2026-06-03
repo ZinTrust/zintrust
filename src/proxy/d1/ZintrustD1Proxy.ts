@@ -141,6 +141,18 @@ const isMutatingSql = (sql: string): boolean => {
   );
 };
 
+const routingFromMeta = (
+  meta: unknown
+): { servedByPrimary?: boolean; servedByRegion?: string } | undefined => {
+  if (!isRecord(meta)) return undefined;
+  const out: { servedByPrimary?: boolean; servedByRegion?: string } = {};
+  const primary = meta['served_by_primary'];
+  if (typeof primary === 'boolean') out.servedByPrimary = primary;
+  const region = meta['served_by_region'];
+  if (typeof region === 'string' && region.trim() !== '') out.servedByRegion = region;
+  return out.servedByPrimary === undefined && out.servedByRegion === undefined ? undefined : out;
+};
+
 const requireDb = (env: D1Env): Response | D1Database => {
   const db = resolveD1Binding(env);
   if (db === null) {
@@ -244,7 +256,8 @@ const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
       resolved.sql,
       resolved.params,
       Date.now() - startedAt,
-      'd1-proxy'
+      'd1-proxy',
+      routingFromMeta((result as { meta?: unknown }).meta)
     );
     const rows = result.results ?? [];
     return json(200, { rows, rowCount: rows.length });
@@ -291,7 +304,8 @@ const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
       resolved.sql,
       resolved.params,
       Date.now() - startedAt,
-      'd1-proxy'
+      'd1-proxy',
+      routingFromMeta(out.meta)
     );
     return json(200, { ok: true, meta: out.meta });
   } catch (error) {
@@ -343,7 +357,13 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
         .prepare(sql)
         .bind(...parsed.params)
         .run();
-      SystemTraceWorkerBridge.emitQuery(sql, parsed.params, Date.now() - startedAt, 'd1-proxy');
+      SystemTraceWorkerBridge.emitQuery(
+        sql,
+        parsed.params,
+        Date.now() - startedAt,
+        'd1-proxy',
+        routingFromMeta(out.meta)
+      );
       return json(200, { ok: true, meta: out.meta });
     }
 
@@ -351,7 +371,13 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
       .prepare(sql)
       .bind(...parsed.params)
       .all<Record<string, unknown>>();
-    SystemTraceWorkerBridge.emitQuery(sql, parsed.params, Date.now() - startedAt, 'd1-proxy');
+    SystemTraceWorkerBridge.emitQuery(
+      sql,
+      parsed.params,
+      Date.now() - startedAt,
+      'd1-proxy',
+      routingFromMeta((out as { meta?: unknown }).meta)
+    );
     const rows = out.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {

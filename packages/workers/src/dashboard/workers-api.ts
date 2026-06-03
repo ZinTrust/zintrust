@@ -4,6 +4,7 @@ import { Logger } from '@zintrust/core/logger';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
 import { WorkerRegistry } from '../WorkerRegistry';
+import { SLAMonitor } from '../SLAMonitor';
 import { maskInfrastructurePasswords } from '../helper';
 import type { WorkerRecord } from '../storage/WorkerStore';
 import type {
@@ -342,6 +343,9 @@ export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListRes
       hasPrev: page > 1,
     },
     drivers: persistence.drivers,
+    features: {
+      sla: SLAMonitor.isAnyConfigured(),
+    },
   };
 
   // Include details if requested

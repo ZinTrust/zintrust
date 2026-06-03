@@ -1,7 +1,9 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
     "lib": ["es2023", "dom", "esnext.disposable"],
+    "moduleResolution": "bundler",
     "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,
@@ -9,7 +11,9 @@
     "sourceMap": false,
     "composite": false,
     "types": ["node"],
-    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "paths": {}
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "migrations"]

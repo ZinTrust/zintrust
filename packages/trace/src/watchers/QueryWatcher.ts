@@ -3,7 +3,12 @@
  */
 import { TraceContext } from '../context';
 import { TraceStorage } from '../storage';
-import type { ITraceWatcher, ITraceWatcherConfig, QueryContent } from '../types';
+import type {
+  ITraceWatcher,
+  ITraceWatcherConfig,
+  QueryContent,
+  QueryRoutingMeta,
+} from '../types';
 import { EntryType } from '../types';
 import { AuthTag } from '../utils/authTag';
 
@@ -31,7 +36,13 @@ const isTraceStorageQuery = (sql: string): boolean => {
   );
 };
 
-const emit = (query: string, params: unknown[], duration: number, connection = 'default'): void => {
+const emit = (
+  query: string,
+  params: unknown[],
+  duration: number,
+  connection = 'default',
+  routing?: QueryRoutingMeta
+): void => {
   if (_storage === null || _config === null) return;
   if (isTraceStorageQuery(query)) return;
 
@@ -53,6 +64,12 @@ const emit = (query: string, params: unknown[], duration: number, connection = '
     slow,
     hash,
     hostname: TraceContext.getHostname(),
+    ...(routing?.servedByPrimary === undefined
+      ? {}
+      : { servedByPrimary: routing.servedByPrimary }),
+    ...(routing?.servedByRegion === undefined
+      ? {}
+      : { servedByRegion: routing.servedByRegion }),
   };
 
   const tags = AuthTag.append([]);
@@ -95,13 +112,20 @@ export const QueryWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
     _scheduleBackgroundTask = scheduleBackgroundTask ?? null;
     const db = injectedDb;
 
-    const handler = (query: string, params: unknown[], duration: number): void => {
-      emit(query, params, duration);
+    const handler = (
+      query: string,
+      params: unknown[],
+      duration: number,
+      routing?: QueryRoutingMeta
+    ): void => {
+      emit(query, params, duration, 'default', routing);
     };
 
     (
       db as {
-        onAfterQuery?: (h: (sql: string, params: unknown[], duration: number) => void) => void;
+        onAfterQuery?: (
+          h: (sql: string, params: unknown[], duration: number, routing?: QueryRoutingMeta) => void
+        ) => void;
       }
     ).onAfterQuery?.(handler);
 
@@ -111,7 +135,14 @@ export const QueryWatcher: ITraceWatcher & { emit: typeof emit } = Object.freeze
       _scheduleBackgroundTask = null;
       (
         db as {
-          offAfterQuery?: (h: (sql: string, params: unknown[], duration: number) => void) => void;
+          offAfterQuery?: (
+            h: (
+              sql: string,
+              params: unknown[],
+              duration: number,
+              routing?: QueryRoutingMeta
+            ) => void
+          ) => void;
         }
       ).offAfterQuery?.(handler);
     };

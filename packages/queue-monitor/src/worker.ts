@@ -1,5 +1,5 @@
 import { getBullMQSafeQueueName } from '@zintrust/core/redis';
-import { Worker, type Job, type Processor } from 'bullmq';
+import type { Job, Processor } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection.js';
 import type { Metrics } from './metrics.js';
 
@@ -7,14 +7,18 @@ export type QueueWorker = {
   close: () => Promise<void>;
 };
 
-export const createWorker = (
+export const createWorker = async (
   queueName: string,
   processor: Processor,
   redisConfig: RedisConfig,
   metrics: Metrics
-): QueueWorker => {
+): Promise<QueueWorker> => {
   const connection = createRedisConnection(redisConfig, 3, { subsystem: 'queue-monitor-worker' });
   const prefix = getBullMQSafeQueueName();
+
+  // Variable specifier so bundlers do not inline bullmq into the Workers bundle.
+  const bullmqPkg = 'bullmq';
+  const { Worker } = await import(bullmqPkg);
 
   const worker = new Worker(queueName, processor, {
     connection: connection as unknown as RedisConfig,

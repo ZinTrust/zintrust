@@ -9,12 +9,15 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isObject } from '@helper/index';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type {
+  D1ReadConstraint,
   DatabaseConfig,
   ID1Database,
+  ID1DatabaseSession,
   IDatabaseAdapter,
   QueryResult,
 } from '@orm/DatabaseAdapter';
 import { BaseAdapter } from '@orm/DatabaseAdapter';
+import { createReadSessionScope, openSession } from '@orm/adapters/D1ReadSession';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
@@ -65,6 +68,22 @@ const extractMeta = (
 };
 
 /**
+ * Extract read-replication routing metadata from a D1 result `meta`, when D1
+ * exposes it. Returns an empty object when replication is off (no such fields).
+ */
+const extractServedBy = (
+  value: unknown
+): { servedByPrimary?: boolean; servedByRegion?: string } => {
+  if (!isRecord(value)) return {};
+  const out: { servedByPrimary?: boolean; servedByRegion?: string } = {};
+  const primary = value['served_by_primary'];
+  if (typeof primary === 'boolean') out.servedByPrimary = primary;
+  const region = value['served_by_region'];
+  if (typeof region === 'string' && region.trim() !== '') out.servedByRegion = region;
+  return out;
+};
+
+/**
  * Get D1 binding from config or global environment
  */
 function getD1Binding(_config: DatabaseConfig): ID1Database | null {
@@ -81,6 +100,22 @@ export const D1Adapter = Object.freeze({
   // eslint-disable-next-line max-lines-per-function
   create(_config: DatabaseConfig): IDatabaseAdapter {
     let connected = false;
+    const sessionScope = createReadSessionScope();
+
+    /**
+     * Resolve the statement source for the current operation: the active
+     * read-replication session handle when one is in scope, otherwise the raw
+     * binding. Throws a config error when no binding is available.
+     */
+    const resolveExecutor = (): ID1Database | ID1DatabaseSession => {
+      const active = sessionScope.peek();
+      if (active !== undefined) return active.db;
+      const db = getD1Binding(_config);
+      if (db === null) {
+        throw ErrorFactory.createConfigError('D1 database binding not found');
+      }
+      return db;
+    };
 
     return {
       // eslint-disable-next-line @typescript-eslint/require-await
@@ -98,10 +133,7 @@ export const D1Adapter = Object.freeze({
       async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
-        const db = getD1Binding(_config);
-        if (db === null) {
-          throw ErrorFactory.createConfigError('D1 database binding not found');
-        }
+        const db = resolveExecutor();
 
         try {
           const stmt = db.prepare(sql);
@@ -114,6 +146,7 @@ export const D1Adapter = Object.freeze({
               rows: [],
               rowCount: meta.changes,
               lastInsertId: meta.lastInsertId,
+              ...extractServedBy(runRecord.meta),
             };
           }
 
@@ -126,6 +159,7 @@ export const D1Adapter = Object.freeze({
             rows,
             rowCount: rows.length > 0 ? rows.length : meta.changes,
             lastInsertId: meta.lastInsertId,
+            ...extractServedBy(metaValue),
           };
         } catch (error) {
           throw ErrorFactory.createTryCatchError(`D1 query failed: ${sql}`, error);
@@ -135,10 +169,7 @@ export const D1Adapter = Object.freeze({
       async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
-        const db = getD1Binding(_config);
-        if (db === null) {
-          throw ErrorFactory.createConfigError('D1 database binding not found');
-        }
+        const db = resolveExecutor();
 
         try {
           const stmt = db.prepare(sql);
@@ -152,10 +183,7 @@ export const D1Adapter = Object.freeze({
       async ping(): Promise<void> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
-        const db = getD1Binding(_config);
-        if (db === null) {
-          throw ErrorFactory.createConfigError('D1 database binding not found');
-        }
+        const db = resolveExecutor();
 
         try {
           // Use a minimal, side-effect-free query.
@@ -175,6 +203,28 @@ export const D1Adapter = Object.freeze({
         }
       },
 
+      async runReadSession<T>(
+        constraint: D1ReadConstraint,
+        fn: () => Promise<T>
+      ): Promise<{ result: T; bookmark: string | null }> {
+        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
+
+        const db = getD1Binding(_config);
+        if (db === null) {
+          throw ErrorFactory.createConfigError('D1 database binding not found');
+        }
+
+        const handle = openSession(db, constraint);
+        if (handle === null) {
+          // Replication not enabled on the binding: run directly against the
+          // primary and report no bookmark.
+          const result = await fn();
+          return { result, bookmark: null };
+        }
+
+        const result = await sessionScope.run(handle, fn);
+        return { result, bookmark: handle.getBookmark() };
+      },
       getType(): SupportedDriver {
         return AdaptersEnum.d1;
       },
@@ -190,10 +240,7 @@ export const D1Adapter = Object.freeze({
           throw ErrorFactory.createConnectionError('Database not connected');
         }
 
-        const db = getD1Binding(_config);
-        if (db === null) {
-          throw ErrorFactory.createConfigError('D1 database binding not found');
-        }
+        const db = resolveExecutor();
 
         try {
           Logger.warn(

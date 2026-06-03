@@ -500,13 +500,24 @@ async function setAutoStart(req: IRequest, res: IResponse): Promise<void> {
     if (typeof rawEnabled === 'boolean') {
       enabled = rawEnabled;
     } else {
-      const enabledStr = normalizeQueryValue(rawEnabled as string | string[]) ?? '';
+      const enabledStr = normalizeQueryValue(rawEnabled) ?? '';
       enabled = ['true', '1', 'yes', 'on'].includes(enabledStr.toLowerCase());
     }
 
     const persistenceOverride = resolvePersistenceOverride(req);
     const isActive = await ensureActiveWorker(name, persistenceOverride, res);
     if (!isActive) return;
+
+    if (shouldUseRedisRpcWorkerLifecycle(persistenceOverride)) {
+      const manifest = resolveManifestWorker(name);
+      if (!manifest) {
+        res.setStatus(404).json({ ok: false, error: `Worker ${name} not found in manifest` });
+        return;
+      }
+      await callRedisRpc('worker', 'startAppWorker', { ...manifest, autoStart: enabled });
+      res.json({ ok: true, message: `Worker ${name} autoStart set to ${enabled}` });
+      return;
+    }
 
     await WorkerFactory.setAutoStart(name, enabled, persistenceOverride);
 
@@ -754,9 +765,7 @@ async function validateProcessorSpecIfNeeded(
   updateData: Record<string, unknown>
 ): Promise<boolean> {
   if (typeof updateData['processorSpec'] === 'string') {
-    const resolved = await WorkerFactory.resolveProcessorSpec(
-      updateData['processorSpec'] as string
-    );
+    const resolved = await WorkerFactory.resolveProcessorSpec(updateData['processorSpec']);
     return Boolean(resolved);
   }
   return true;
@@ -764,12 +773,12 @@ async function validateProcessorSpecIfNeeded(
 
 async function persistUpdatedRecord(
   name: string,
-  updatedRecord: WorkerRecord | unknown,
+  updatedRecord: WorkerRecord,
   persistenceOverride: ReturnType<typeof resolvePersistenceOverride> | undefined,
   updateData: Record<string, unknown>
 ): Promise<void> {
   try {
-    await WorkerFactory.update(name, updatedRecord as unknown as WorkerRecord, persistenceOverride);
+    await WorkerFactory.update(name, updatedRecord, persistenceOverride);
     Logger.info(`Worker ${name} persistence updated with fields:`, Object.keys(updateData));
   } catch (persistError) {
     Logger.warn(`Failed to persist some updates for ${name}`, persistError as Error);
@@ -785,8 +794,7 @@ async function restartIfNeeded(
   persistenceOverride: ReturnType<typeof resolvePersistenceOverride> | undefined
 ): Promise<string | undefined> {
   if (
-    !currentInstance ||
-    currentInstance.status !== 'running' ||
+    currentInstance?.status !== 'running' ||
     updatedRecord.activeStatus === false ||
     currentRecord.activeStatus === false
   ) {
@@ -901,10 +909,7 @@ async function startMonitoring(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
     const body = getBody(req);
-    HealthMonitor.startMonitoring(
-      name,
-      body as Parameters<typeof HealthMonitor.startMonitoring>[1]
-    );
+    HealthMonitor.startMonitoring(name, body);
     res.json({ ok: true, message: `Health monitoring started for ${name}` });
   } catch (error) {
     Logger.error('WorkerController.startMonitoring failed', error);
@@ -996,7 +1001,7 @@ async function updateMonitoringConfig(req: IRequest, res: IResponse): Promise<vo
   try {
     const name = getParam(req, 'name');
     const body = getBody(req);
-    HealthMonitor.updateConfig(name, body as Parameters<typeof HealthMonitor.updateConfig>[1]);
+    HealthMonitor.updateConfig(name, body);
     res.json({ ok: true, message: `Monitoring config updated for ${name}` });
   } catch (error) {
     Logger.error('WorkerController.updateMonitoringConfig failed', error);

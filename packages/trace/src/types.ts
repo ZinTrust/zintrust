@@ -63,6 +63,20 @@ export interface QueryContent {
   slow: boolean;
   hash: string;
   hostname: string;
+  /**
+   * D1 read-replication routing, when exposed on the result meta:
+   * whether the primary served the query and the serving region.
+   */
+  servedByPrimary?: boolean;
+  servedByRegion?: string;
+}
+
+/**
+ * Read-replication routing metadata passed alongside an after-query event.
+ */
+export interface QueryRoutingMeta {
+  servedByPrimary?: boolean;
+  servedByRegion?: string;
 }
 
 export interface ExceptionContent {

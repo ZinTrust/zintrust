@@ -13,10 +13,23 @@ import {
 } from '@zintrust/core/queue';
 import { createRedisConnection, getBullMQSafeQueueName } from '@zintrust/core/redis';
 import { generateUuid, ZintrustLang } from '@zintrust/core/utils';
-import { Queue, type JobsOptions } from 'bullmq';
+import type { JobsOptions, Queue } from 'bullmq';
 import { RedisRpcQueueDriver, shouldUseRedisRpcQueueDriver } from './RedisRpcQueueDriver';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
+
+// Lazy BullMQ loader keyed on a variable specifier so bundlers (esbuild/wrangler)
+// do not inline bullmq/ioredis into the Workers bundle. Every public method routes
+// through RedisRpcQueueDriver first when shouldUseRedisRpcQueueDriver() is true
+// (always, on Workers), so this loader never runs there.
+let QueueCtor: typeof Queue | undefined;
+const ensureBullmqLoaded = async (): Promise<typeof Queue> => {
+  if (QueueCtor !== undefined) return QueueCtor;
+  const bullmqPkg = 'bullmq';
+  const loaded = (await import(bullmqPkg)).Queue;
+  QueueCtor = loaded;
+  return loaded;
+};
 
 interface IQueueDriver {
   enqueue(queue: string, payload: BullMQPayload): Promise<string>;
@@ -27,7 +40,7 @@ interface IQueueDriver {
 }
 
 interface IBullMQRedisQueue extends IQueueDriver {
-  getQueue(queueName: string): Queue;
+  getQueue(queueName: string): Promise<Queue>;
   shutdown(): Promise<void>;
   closeQueue(queueName: string): Promise<void>;
   getQueueNames(): string[];
@@ -247,7 +260,9 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     }
   };
 
-  const getQueue = (queueName: string): Queue => {
+  const getQueue = async (queueName: string): Promise<Queue> => {
+    const QueueCtor = await ensureBullmqLoaded();
+
     // Check if queue exists in cache
     if (queues.has(queueName)) {
       const existingQueue = queues.get(queueName);
@@ -283,7 +298,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     const backoffType = Env.get('BULLMQ_BACKOFF_TYPE', 'exponential');
     const prefix = getBullMQSafeQueueName();
 
-    const queue = new Queue(queueName, {
+    const queue = new QueueCtor(queueName, {
       connection: connection,
       prefix,
       defaultJobOptions: {
@@ -547,7 +562,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       let requestedJobId: string | number | undefined;
 
       try {
-        const q = getQueue(queue);
+        const q = await getQueue(queue);
 
         // Extract BullMQ options from payload with proper typing
         const payloadData = payload;
@@ -591,7 +606,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       }
 
       try {
-        const q = getQueue(queue);
+        const q = await getQueue(queue);
 
         const jobs = await q.getJobs(['waiting'], 0, 1);
         if (jobs.length === 0) return undefined;
@@ -628,7 +643,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       }
 
       try {
-        const q = getQueue(queue);
+        const q = await getQueue(queue);
         const job = await q.getJob(id);
 
         if (job) {
@@ -648,7 +663,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       }
 
       try {
-        const q = getQueue(queue);
+        const q = await getQueue(queue);
         const counts = await q.getJobCounts();
 
         return counts['waiting'] || 0;
@@ -668,7 +683,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       }
 
       try {
-        const q = getQueue(queue);
+        const q = await getQueue(queue);
         await q.drain();
         Logger.debug(`BullMQ: Queue ${queue} drained`);
       } catch (error) {

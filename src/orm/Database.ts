@@ -6,6 +6,7 @@
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
+import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { SupportedDriver } from '@migrations/enum';
@@ -21,6 +22,7 @@ import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import { createSqlServerProxyAdapter } from '@orm/adapters/SqlServerProxyAdapter';
 import {
   BaseAdapter,
+  type D1ReadConstraint,
   type DatabaseConfig,
   type IDatabaseAdapter,
   type QueryResult,
@@ -42,6 +44,31 @@ export interface IDatabase {
   execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
   raw(value: string): RawValue;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
+  /**
+   * Scope a unit of work to a D1 read-replication session and surface the
+   * resulting bookmark for the caller to persist and replay.
+   *
+   * Reads inside the session observe sequential consistency; writes still hit
+   * the primary. The `constraint` only governs where the first read may be
+   * served, and defaults to `D1_READ_DEFAULT_CONSTRAINT`
+   * (`"first-unconstrained"`).
+   *
+   * Consistency guidance for adopters:
+   * - Persist a **per-actor bookmark** (e.g. a signed cookie/header) and pass
+   *   it as `constraint` so a user always reads state at least as fresh as
+   *   their own last write, across requests and regions.
+   * - Use `"first-primary"` for a read that immediately follows a write in the
+   *   **same** request and must be read-your-writes without a bookmark.
+   * - Pure, staleness-tolerant reads (catalogs, listings, dashboards) can use
+   *   `"first-unconstrained"` with no bookmark for the lowest latency.
+   *
+   * When `D1_READ_REPLICATION` is off or the driver has no session support,
+   * this runs `fn` directly against the primary and returns `bookmark: null`.
+   */
+  withReadSession<T>(
+    fn: (db: IDatabase) => Promise<T>,
+    options?: { constraint?: D1ReadConstraint }
+  ): Promise<{ result: T; bookmark: string | null }>;
   table(name: string): IQueryBuilder;
   onBeforeQuery(handler: (query: string, params: unknown[]) => void): void;
   onAfterQuery(handler: (query: string, params: unknown[], duration: number) => void): void;
@@ -220,6 +247,18 @@ const initializeAdapters = (
 };
 
 /**
+ * Read-replication routing metadata to surface in traces, when present.
+ */
+const routingMeta = (
+  result: QueryResult
+): { servedByPrimary?: boolean; servedByRegion?: string } | undefined => {
+  if (result.servedByPrimary === undefined && result.servedByRegion === undefined) {
+    return undefined;
+  }
+  return { servedByPrimary: result.servedByPrimary, servedByRegion: result.servedByRegion };
+};
+
+/**
  * Execute a query with events and timing
  */
 const executeQuery = async (
@@ -233,7 +272,7 @@ const executeQuery = async (
   const startTime = Date.now();
   const result = await adapter[method](sql, parameters);
   const duration = Date.now() - startTime;
-  eventEmitter.emit('after-query', sql, parameters, duration);
+  eventEmitter.emit('after-query', sql, parameters, duration, routingMeta(result));
   return BaseAdapter.normalizeRows(result.rows);
 };
 
@@ -247,7 +286,7 @@ const executeFullQuery = async (
   const startTime = Date.now();
   const result = await adapter.query(sql, parameters);
   const duration = Date.now() - startTime;
-  eventEmitter.emit('after-query', sql, parameters, duration);
+  eventEmitter.emit('after-query', sql, parameters, duration, routingMeta(result));
   return BaseAdapter.normalizeQueryResult(result);
 };
 
@@ -390,6 +429,10 @@ const createQueryHandlers = (
   queryOne(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown>;
   execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
+  withReadSession<T>(
+    fn: (db: IDatabase) => Promise<T>,
+    options?: { constraint?: D1ReadConstraint }
+  ): Promise<{ result: T; bookmark: string | null }>;
 } => {
   return {
     async query(sql: string, parameters: unknown[] = [], isRead = false) {
@@ -414,6 +457,22 @@ const createQueryHandlers = (
       if (connected.value === false) await db.connect();
 
       return writeAdapter.transaction(async () => callback(db));
+    },
+    async withReadSession<T>(
+      fn: (db: IDatabase) => Promise<T>,
+      options?: { constraint?: D1ReadConstraint }
+    ) {
+      if (connected.value === false) await db.connect();
+
+      // The write adapter owns the D1 binding; read adapters for D1 alias it.
+      const runReadSession = writeAdapter.runReadSession?.bind(writeAdapter);
+      if (FeatureFlags.isD1ReadReplicationEnabled() === false || runReadSession === undefined) {
+        const result = await fn(db);
+        return { result, bookmark: null };
+      }
+
+      const constraint = options?.constraint ?? FeatureFlags.getD1ReadDefaultConstraint();
+      return runReadSession(constraint, async () => fn(db));
     },
   };
 };
@@ -441,6 +500,7 @@ const applyQueryHandlers = (
   db.queryOne = queryHandlers.queryOne;
   db.execute = queryHandlers.execute;
   db.transaction = queryHandlers.transaction;
+  db.withReadSession = queryHandlers.withReadSession;
 };
 
 const createDbFacade = (input: {
@@ -477,6 +537,7 @@ const createDbFacade = (input: {
       return { __raw: value };
     },
     transaction: queryHandlers.transaction,
+    withReadSession: queryHandlers.withReadSession,
     table(name) {
       return QueryBuilder.create(name, db);
     },

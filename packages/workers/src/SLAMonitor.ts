@@ -301,6 +301,10 @@ export const SLAMonitor = Object.freeze({
     return slaConfigs.has(workerName);
   },
 
+  isAnyConfigured(): boolean {
+    return slaConfigs.size > 0;
+  },
+
   /**
    * Check SLA compliance for a worker
    */
