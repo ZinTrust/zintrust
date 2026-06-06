@@ -401,18 +401,36 @@ describe('Broadcast (later + now patch coverage)', () => {
     );
   });
 
-  it('rethrows the last socket transport error when delivery requires sockets', async () => {
-    const socketError = new Error('socket transport failed');
+  it('falls back to driver when forced socket delivery is unavailable', async () => {
+    const loggerWarn = vi.fn();
+    vi.doMock('@config/logger', () => ({
+      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
+    }));
+    vi.doMock('@broadcast/BroadcastRegistry', () => ({
+      BroadcastRegistry: {
+        has: () => true,
+        get: () => ({ driver: 'inmemory' }),
+      },
+    }));
     vi.doMock('@zintrust/socket', () => ({
       publishSocketEventFromServer: vi.fn(async () => {
-        throw socketError;
+        throw new Error('Socket runtime is not enabled.');
       }),
     }));
 
     const { Broadcast } = await import('@broadcast/Broadcast');
     await expect(
       Broadcast.publish({ channel: 'alpha', event: 'evt', data: {}, delivery: 'socket' })
-    ).rejects.toBe(socketError);
+    ).resolves.toMatchObject({
+      transport: 'driver',
+      driver: 'inmemory',
+      attemptedTransports: expect.arrayContaining(['socket', 'driver']),
+    });
+
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'Broadcast publish transport failed; falling back.',
+      expect.objectContaining({ transport: 'socket' })
+    );
   });
 
   it('supports persistent scope and ipv6 broadcast internal urls', async () => {

@@ -1,7 +1,4 @@
 import { ErrorFactory, isUndefinedOrNull } from '@zintrust/core/runtime';
-import { randomUUID } from 'node:crypto';
-import http from 'node:http';
-import https from 'node:https';
 import { rpcClientHeaders, rpcServerOptions } from './env';
 import type { RedisRpcClient, RedisRpcClientOptions, RpcPayload } from './types';
 
@@ -11,36 +8,28 @@ type RequestJsonResult = Readonly<{
   body: Record<string, unknown>;
 }>;
 
-const requestJson = (url: URL, body: string, headers: Record<string, string>): Promise<RequestJsonResult> => {
-  return new Promise((resolve, reject) => {
-    const transport = url.protocol === 'https:' ? https : http;
-    const request = transport.request(url, {
-      method: 'POST',
-      agent: false,
-      headers: {
-        ...headers,
-        'content-length': String(Buffer.byteLength(body)),
-      },
-    }, (response) => {
-      const chunks: string[] = [];
-      response.setEncoding('utf8');
-      response.on('data', (chunk: string) => chunks.push(chunk));
-      response.on('end', () => {
-        const text = chunks.join('');
-        try {
-          resolve({
-            statusCode: response.statusCode || 0,
-            ok: (response.statusCode || 0) >= 200 && (response.statusCode || 0) < 300,
-            body: isUndefinedOrNull(text.trim()) ? {} : JSON.parse(text),
-          });
-        } catch (error) {
-          reject(ErrorFactory.createTryCatchError('Redis RPC response parse failed', { error }));
-        }
-      });
-    });
-    request.on('error', (error) => reject(ErrorFactory.createConnectionError('Redis RPC request failed', { error })));
-    request.end(body);
-  });
+const requestJson = async (url: URL, body: string, headers: Record<string, string>): Promise<RequestJsonResult> => {
+  let response: Response;
+  try {
+    response = await fetch(url, { method: 'POST', headers, body });
+  } catch (error) {
+    throw ErrorFactory.createConnectionError('Redis RPC request failed', { error });
+  }
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (error) {
+    throw ErrorFactory.createTryCatchError('Redis RPC response read failed', { error });
+  }
+  try {
+    return {
+      statusCode: response.status,
+      ok: response.ok,
+      body: isUndefinedOrNull(text.trim()) ? {} : JSON.parse(text),
+    };
+  } catch (error) {
+    throw ErrorFactory.createTryCatchError('Redis RPC response parse failed', { error });
+  }
 };
 
 const createServiceProxy = <TService extends object>(
@@ -67,7 +56,7 @@ export const createRedisRpcClient = (options: RedisRpcClientOptions = {}): Redis
     call: async <T = unknown>(service: string, method: string, payload: RpcPayload = {}): Promise<T> => {
       const url = new URL('/rpc', baseUrl);
       const body = JSON.stringify({
-        requestId: randomUUID(),
+        requestId: globalThis.crypto.randomUUID(),
         service,
         method,
         payload,

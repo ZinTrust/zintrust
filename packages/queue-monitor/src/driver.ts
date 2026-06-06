@@ -285,9 +285,9 @@ const createBullMQQueueGetter = (
 ): ((name: string) => Promise<Queue>) => {
   return async (name: string): Promise<Queue> => {
     if (!queues.has(name)) {
-      const QueueCtor = await ensureBullmqLoaded();
+      const QueueConstructor = await ensureBullmqLoaded();
       const prefix = getBullMQSafeQueueName();
-      const queue = new QueueCtor(name, { prefix, connection: redis as ConnectionOptions });
+      const queue = new QueueConstructor(name, { prefix, connection: redis as ConnectionOptions });
       queues.set(name, queue);
     }
 

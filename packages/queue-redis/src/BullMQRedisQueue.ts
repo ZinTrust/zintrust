@@ -261,7 +261,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   };
 
   const getQueue = async (queueName: string): Promise<Queue> => {
-    const QueueCtor = await ensureBullmqLoaded();
+    const QueueConstructor = await ensureBullmqLoaded();
 
     // Check if queue exists in cache
     if (queues.has(queueName)) {
@@ -298,7 +298,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     const backoffType = Env.get('BULLMQ_BACKOFF_TYPE', 'exponential');
     const prefix = getBullMQSafeQueueName();
 
-    const queue = new QueueCtor(queueName, {
+    const queue = new QueueConstructor(queueName, {
       connection: connection,
       prefix,
       defaultJobOptions: {

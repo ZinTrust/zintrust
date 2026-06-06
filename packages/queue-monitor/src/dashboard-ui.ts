@@ -669,6 +669,14 @@ const getRenderJobsRowHelpersFunction = (): string => `
             return tr;
         }
 
+        function formatDateTime(value) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return '—';
+            }
+            return date.toLocaleString();
+        }
+
         function updateExistingJobRow(tr, job, idx) {
             const jobId = getJobId(job);
             const statusInfo = getJobStatusInfo(job);
@@ -683,7 +691,7 @@ const getRenderJobsRowHelpersFunction = (): string => `
                 '<td>' + (job.queue || currentQueue) + '</td>' +
                 '<td><span class="status-badge ' + statusInfo.cls + '">' + statusInfo.label + '</span></td>' +
                 '<td>' + job.attempts + '</td>' +
-                '<td>' + new Date(job.timestamp).toLocaleTimeString() + '</td>' +
+                '<td>' + formatDateTime(job.timestamp) + '</td>' +
                 '<td>' + getJobRetryMarkup(job) + '</td>';
 
             if (job.failedReason) {
@@ -869,7 +877,7 @@ const getLockHelperFunctions = (): string => `
 
     function updateExistingLockRow(row, lock, idx) {
         const ttl = typeof lock.ttl === 'number' ? Math.round(lock.ttl / 1000) + 's' : '—';
-        const expires = lock.expires ? new Date(lock.expires).toLocaleTimeString() : '—';
+        const expires = lock.expires ? formatDateTime(lock.expires) : '—';
 
         const ttlCell = row.children[1];
         const expiresCell = row.children[2];
@@ -885,7 +893,7 @@ const getLockHelperFunctions = (): string => `
         tr.dataset.lockIndex = idx;
 
         const ttl = typeof lock.ttl === 'number' ? Math.round(lock.ttl / 1000) + 's' : '—';
-        const expires = lock.expires ? new Date(lock.expires).toLocaleTimeString() : '—';
+        const expires = lock.expires ? formatDateTime(lock.expires) : '—';
         const isExpanded = expandedLockKeys.has(lock.key);
 
         tr.innerHTML =
@@ -1172,7 +1180,7 @@ const getDashboardScriptEventStream = (): string => `
 
                         const lastUpdated = document.getElementById('last-updated');
                         if (lastUpdated) {
-                            lastUpdated.textContent = new Date().toLocaleTimeString();
+                            lastUpdated.textContent = formatDateTime(new Date());
                         }
                         markStreamHealthy();
                     }
@@ -1208,7 +1216,7 @@ const getFetchDataFunction = (): string => `
                 updateQueueSelect(data.queues);
                 handleQueueSelection(data);
                 await fetchLocks();
-                document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+                document.getElementById('last-updated').textContent = formatDateTime(new Date());
             } catch (e) {
                 showError(e.message);
             }

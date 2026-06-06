@@ -57,13 +57,14 @@ export const triggerWorkerPing = async (
   appWorkerDefinitions: AppWorkerDefinition[],
   workerModules: ReadonlyArray<WorkerModule>
 ): Promise<void> => {
-  if (!Env.getBool('WORKER_ENABLED', false) || !isRedisRpcConfigured()) {
+  if (!isRedisRpcConfigured()) {
     return;
   }
   const url = Env.get('WORKER_PING_URL', '').trim();
 
   if (url.length === 0) {
-    // Same isolate: wake the local drain loop in the background.
+    // Same isolate: wake the local drain loop only when this instance is the worker.
+    if (!Env.getBool('WORKER_ENABLED', false)) return;
     BackgroundTaskScheduler.schedule(ensureDraining(appWorkerDefinitions, workerModules));
     return;
   }

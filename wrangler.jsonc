@@ -25,6 +25,14 @@
     "@zintrust/core": "./src/index.ts",
     "@zintrust/workers": "./packages/workers/src/index.ts",
     "@routes/api": "./routes/api.ts",
+    "@config/env": "./src/config/env.ts",
+    "@config/logger": "./src/config/logger.ts",
+    "@runtime/BackgroundTaskScheduler": "./src/runtime/BackgroundTaskScheduler.ts",
+    "@worker-runtime/drain": "./src/worker-runtime/drain.ts",
+    "@worker-runtime/rpc-client": "./src/worker-runtime/rpc-client.ts",
+    "@worker-runtime/*": "./src/worker-runtime/*",
+    "@runtime/*": "./src/runtime/*",
+    "@config/*": "./src/config/*",
   },
 
   // ============================================================================
@@ -41,12 +49,12 @@
         "MAIL_CLOUDFLARE_BINDING": "SEND_EMAIL",
         "ZT_PROXY_SIGNING_WINDOW_MS": "60000",
         "ZT_MAX_BODY_BYTES": "131072",
-        "NODE_ENV": "development"
+        "NODE_ENV": "development",
       },
       "send_email": [
         {
-          "name": "SEND_EMAIL"
-        }
+          "name": "SEND_EMAIL",
+        },
       ],
       // Add routes here when ready:
       // "routes": [{ "pattern": "email-proxy.example.com", "custom_domain": true }]
@@ -178,6 +186,14 @@
         "@zintrust/core": "./src/index.ts",
         "@zintrust/workers": "./packages/workers/src/index.ts",
         "@routes/api": "./routes/api.ts",
+        "@config/env": "./src/config/env.ts",
+        "@config/logger": "./src/config/logger.ts",
+        "@runtime/BackgroundTaskScheduler": "./src/runtime/BackgroundTaskScheduler.ts",
+        "@worker-runtime/drain": "./src/worker-runtime/drain.ts",
+        "@worker-runtime/rpc-client": "./src/worker-runtime/rpc-client.ts",
+        "@worker-runtime/*": "./src/worker-runtime/*",
+        "@runtime/*": "./src/runtime/*",
+        "@config/*": "./src/config/*",
       },
 
       // Observability and monitoring
@@ -312,8 +328,8 @@
 
       "triggers": {
         "crons": [
-          "0 1 * * *",   // Nightly billing deduction (01:00 UTC)
-          "* * * * *",   // Health probe every minute
+          "0 1 * * *", // Nightly billing deduction (01:00 UTC)
+          "* * * * *", // Health probe every minute
         ],
       },
 

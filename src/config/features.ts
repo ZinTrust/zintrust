@@ -11,6 +11,7 @@ let _rawQueryEnabled = false;
 const D1_READ_DEFAULT_CONSTRAINT: D1ReadConstraint = 'first-unconstrained';
 let _d1ReadReplicationEnabled = false;
 let _d1ReadDefaultConstraint: D1ReadConstraint = D1_READ_DEFAULT_CONSTRAINT;
+let _workerDetailsLiveHealthEnabled = true;
 
 const normalizeReadConstraint = (raw: string): D1ReadConstraint => {
   const value = raw.trim().toLowerCase();
@@ -33,6 +34,7 @@ export const FeatureFlags = Object.freeze({
     _d1ReadDefaultConstraint = normalizeReadConstraint(
       Env.get('D1_READ_DEFAULT_CONSTRAINT', D1_READ_DEFAULT_CONSTRAINT)
     );
+    _workerDetailsLiveHealthEnabled = Env.getBool('WORKER_DETAILS_LIVE_HEALTH_ENABLED', true);
 
     if (_d1ReadReplicationEnabled) {
       Logger.info(
@@ -76,12 +78,20 @@ export const FeatureFlags = Object.freeze({
   },
 
   /**
+   * Whether worker details should attempt a live in-process health lookup.
+   */
+  isWorkerDetailsLiveHealthEnabled(): boolean {
+    return _workerDetailsLiveHealthEnabled;
+  },
+
+  /**
    * Reset flags (primarily for testing)
    */
   reset(): void {
     _rawQueryEnabled = false;
     _d1ReadReplicationEnabled = false;
     _d1ReadDefaultConstraint = D1_READ_DEFAULT_CONSTRAINT;
+    _workerDetailsLiveHealthEnabled = true;
   },
 
   /**
@@ -104,6 +114,13 @@ export const FeatureFlags = Object.freeze({
    */
   setD1ReadDefaultConstraint(constraint: D1ReadConstraint): void {
     _d1ReadDefaultConstraint = constraint;
+  },
+
+  /**
+   * Set worker-details live health enabled state (primarily for testing).
+   */
+  setWorkerDetailsLiveHealthEnabled(enabled: boolean): void {
+    _workerDetailsLiveHealthEnabled = enabled;
   },
 });
 

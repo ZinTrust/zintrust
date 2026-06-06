@@ -18,6 +18,7 @@ export { appConfig, type AppConfig } from '@config/app';
 export { default as broadcastConfig } from '@config/broadcast';
 export { cacheConfig, type CacheConfig } from '@config/cache';
 export { databaseConfig, type DatabaseConfig } from '@config/database';
+export { default as FeatureFlags } from '@config/features';
 export { microservicesConfig, type MicroservicesConfig } from '@config/microservices';
 export { middlewareConfig } from '@config/middleware';
 export { notificationConfig, type NotificationConfig } from '@config/notification';

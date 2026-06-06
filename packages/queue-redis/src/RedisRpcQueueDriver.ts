@@ -9,10 +9,6 @@ type RedisRpcClient = {
   queue: <T = unknown>(method: string, payload?: Record<string, unknown>) => Promise<T>;
 };
 
-type RedisRpcModule = {
-  createRedisRpcClient: (options?: { baseUrl?: string; secret?: string }) => RedisRpcClient;
-};
-
 export interface IQueueDriver {
   enqueue(queue: string, payload: BullMQPayload): Promise<string>;
   dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined>;
@@ -20,8 +16,6 @@ export interface IQueueDriver {
   length(queue: string): Promise<number>;
   drain(queue: string): Promise<void>;
 }
-
-const REDIS_RPC_PACKAGE = '@zintrust/redis-rpc';
 
 export const shouldUseRedisRpcQueueDriver = (): boolean => {
   return Env.USE_REDIS_PROXY === true && Env.get('REDIS_RPC_URL', '').trim() !== '';
@@ -37,8 +31,8 @@ const resolveRpcBaseUrl = (): string => {
 
 const createRpcClient = async (): Promise<RedisRpcClient> => {
   try {
-    const mod = (await import(REDIS_RPC_PACKAGE)) as unknown as RedisRpcModule;
-    return mod.createRedisRpcClient({
+    const { createRedisRpcClient } = await import('@zintrust/redis-rpc/client');
+    return createRedisRpcClient({
       baseUrl: resolveRpcBaseUrl(),
       secret: Env.get('REDIS_RPC_SECRET', Env.get('REDIS_PROXY_SECRET', Env.APP_KEY)),
     });
@@ -60,13 +54,13 @@ const resolveRequestedJobId = (payloadData: BullMQPayload): string => {
 const createJobOptions = (payloadData: BullMQPayload): JobsOptions => ({
   jobId: resolveRequestedJobId(payloadData),
   delay: payloadData.delay,
-  attempts: payloadData.attempts,
+  attempts: payloadData.attempts ?? Env.getInt('BULLMQ_DEFAULT_ATTEMPTS', 3),
   priority: payloadData.priority,
-  removeOnComplete: payloadData.removeOnComplete || 100,
-  removeOnFail: payloadData.removeOnFail || 50,
+  removeOnComplete: payloadData.removeOnComplete ?? Env.getInt('BULLMQ_REMOVE_ON_COMPLETE', 100),
+  removeOnFail: payloadData.removeOnFail ?? Env.getInt('BULLMQ_REMOVE_ON_FAIL', 50),
   backoff: payloadData.backoff || {
-    type: 'exponential',
-    delay: 2000,
+    type: Env.get('BULLMQ_BACKOFF_TYPE', 'exponential') as 'exponential' | 'fixed',
+    delay: Env.getInt('BULLMQ_BACKOFF_DELAY', 2000),
   },
   repeat: payloadData.repeat,
   lifo: payloadData.lifo ?? false,
@@ -101,9 +95,11 @@ const markPendingRecoveryFallback = async (input: {
       ? payload['uniqueId'].trim()
       : undefined;
 
-  await (JobStateTracker as unknown as {
-    enqueued: (input: Record<string, unknown>) => Promise<void>;
-  }).enqueued({
+  await (
+    JobStateTracker as unknown as {
+      enqueued: (input: Record<string, unknown>) => Promise<void>;
+    }
+  ).enqueued({
     queueName: input.queue,
     jobId: input.fallbackJobId,
     payload: input.payload,
@@ -126,7 +122,10 @@ const markPendingRecoveryFallback = async (input: {
 export const RedisRpcQueueDriver: IQueueDriver = Object.freeze({
   async enqueue(queue: string, payload: BullMQPayload): Promise<string> {
     const fallbackJobId = resolveRequestedJobId(payload);
-    const timeoutMs = Env.getInt('REDIS_RPC_TIMEOUT_MS', Env.getInt('QUEUE_HTTP_PROXY_TIMEOUT_MS', 10000));
+    const timeoutMs = Env.getInt(
+      'REDIS_RPC_TIMEOUT_MS',
+      Env.getInt('QUEUE_HTTP_PROXY_TIMEOUT_MS', 10000)
+    );
     const options = createJobOptions({ ...payload, jobId: fallbackJobId });
 
     try {
@@ -141,8 +140,17 @@ export const RedisRpcQueueDriver: IQueueDriver = Object.freeze({
         },
         {
           timeoutMs,
-          maxRetries: Math.max(0, Env.getInt('REDIS_RPC_RETRY_MAX', Env.getInt('QUEUE_HTTP_PROXY_RETRY_MAX', 2))),
-          retryDelayMs: Math.max(0, Env.getInt('REDIS_RPC_RETRY_DELAY_MS', Env.getInt('QUEUE_HTTP_PROXY_RETRY_DELAY_MS', 500))),
+          maxRetries: Math.max(
+            0,
+            Env.getInt('REDIS_RPC_RETRY_MAX', Env.getInt('QUEUE_HTTP_PROXY_RETRY_MAX', 2))
+          ),
+          retryDelayMs: Math.max(
+            0,
+            Env.getInt(
+              'REDIS_RPC_RETRY_DELAY_MS',
+              Env.getInt('QUEUE_HTTP_PROXY_RETRY_DELAY_MS', 500)
+            )
+          ),
           operationName: `redis-rpc-queue-enqueue:${queue}`,
         }
       );

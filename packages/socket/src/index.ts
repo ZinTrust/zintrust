@@ -183,9 +183,34 @@ const resolveTransport = (value: string): SocketFeatureSettings['transport'] => 
   return 'auto';
 };
 
+/**
+ * Keys that indicate an env source actually carries socket configuration.
+ * The Workers bindings env exposed during an HTTP request carries these; the
+ * partial `globalThis.env` available inside the worker-runtime job context does
+ * not. When none are present the source is not authoritative for socket config.
+ */
+const SOCKET_CONFIG_KEYS = [
+  'SOCKET_ENABLED',
+  'PUSHER_APP_KEY',
+  'BROADCAST_AUTH_KEY',
+  'BROADCAST_APP_KEY',
+];
+
+const sourceCarriesSocketConfig = (source: Record<string, unknown>): boolean =>
+  SOCKET_CONFIG_KEYS.some((key) => {
+    const value = source[key];
+    return value !== undefined && value !== null && String(value).trim() !== '';
+  });
+
 const getSocketRuntimeSettings = (envSource?: unknown): SocketFeatureSettings => {
   const source = toEnvRecord(envSource);
-  if (source === null) {
+  // Fall back to the process-level Env when there is no env source, or when the
+  // provided source is non-null but does not carry socket config. The latter is
+  // the worker-runtime job context: `Cloudflare.getWorkersEnv()` is non-null but
+  // omits SOCKET_ENABLED / PUSHER_APP_KEY, which would otherwise report
+  // `enabled: false` and drop forced socket broadcasts. `SocketFeature.getSettings()`
+  // reads the authoritative process-level Env (.env / .dev.vars / merged bindings).
+  if (source === null || !sourceCarriesSocketConfig(source)) {
     const settings = SocketFeature.getSettings();
     return Object.freeze({
       ...settings,
@@ -496,7 +521,7 @@ const handleClientMessage = async (
   }
 
   if (eventName === 'pusher:subscribe' && data !== null && typeof data === 'object') {
-    await handleSubscribe(state, peer, data as SubscribePayload, settings);
+    await handleSubscribe(state, peer, data, settings);
     return;
   }
 
@@ -755,7 +780,17 @@ const shouldUseCloudflareHub = (settings: SocketFeatureSettings): boolean => {
     return false;
   }
 
-  return Cloudflare.getWorkersEnv() !== null;
+  if (settings.transport === 'cloudflare') {
+    // Explicitly requested: a missing DO binding is a real misconfiguration and
+    // is surfaced downstream via createMissingHubResponse().
+    return Cloudflare.getWorkersEnv() !== null;
+  }
+
+  // auto: only route to the Cloudflare hub when the socket-hub Durable Object
+  // binding is actually present. The worker-runtime job context exposes a
+  // non-null but partial globalThis.env without that binding; there the node
+  // transport is the correct choice rather than a 503.
+  return getSocketHubNamespace() !== null;
 };
 
 const parseJsonResponse = async (response: Response): Promise<unknown> => {
@@ -1410,7 +1445,7 @@ export class ZintrustSocketHub {
       return createJsonResponse({ error: 'Invalid socket publish payload.' }, 400);
     }
 
-    const payload = parsePublishPayload(body as PublishPayload);
+    const payload = parsePublishPayload(body);
     if (payload === null) {
       return createJsonResponse({ error: 'event/name and channel/channels are required.' }, 400);
     }

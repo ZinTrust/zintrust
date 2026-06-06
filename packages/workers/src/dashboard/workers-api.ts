@@ -1,10 +1,10 @@
-import { Cloudflare, Env, queueConfig } from '@zintrust/core/config';
+import { Cloudflare, Env, FeatureFlags, queueConfig } from '@zintrust/core/config';
 import { ErrorFactory } from '@zintrust/core/errors';
 import { Logger } from '@zintrust/core/logger';
+import { SLAMonitor } from '../SLAMonitor';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
 import { WorkerRegistry } from '../WorkerRegistry';
-import { SLAMonitor } from '../SLAMonitor';
 import { maskInfrastructurePasswords } from '../helper';
 import type { WorkerRecord } from '../storage/WorkerStore';
 import type {
@@ -1120,6 +1120,10 @@ const getWorkerHealthSnapshot = async (
   name: string,
   fallback: WorkerHealth
 ): Promise<WorkerHealth> => {
+  if (!FeatureFlags.isWorkerDetailsLiveHealthEnabled()) {
+    return fallback;
+  }
+
   try {
     const health = (await WorkerFactory.getHealth(name)) as WorkerHealth | null;
     if (health && typeof health.status === 'string') {
