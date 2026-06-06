@@ -1,13 +1,15 @@
 // TEMPLATE_START
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
+
+const { sign, verify } = jwt;
 
 export const Auth = Object.freeze({
   /**
    * Hash a password
    */
   async hash(password: string): Promise<string> {
-    const salt = await bcrypt.genSalt(10);
+    const salt: string = await bcrypt.genSalt(10);
     return bcrypt.hash(password, salt);
   },
 
@@ -27,14 +29,14 @@ export const Auth = Object.freeze({
     expiresIn: NonNullable<SignOptions['expiresIn']> = '1h'
   ): string {
     const options: SignOptions = { expiresIn };
-    return jwt.sign(payload, secret, options);
+    return sign(payload, secret, options);
   },
 
   /**
    * Verify a JWT token
    */
   verifyToken<T>(token: string, secret: Secret): T {
-    return jwt.verify(token, secret) as T;
+    return verify(token, secret) as T;
   },
 });
 // TEMPLATE_END

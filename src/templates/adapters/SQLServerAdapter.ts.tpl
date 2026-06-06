@@ -6,7 +6,8 @@
 import { FeatureFlags } from '@zintrust/core';
 import { Logger } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
-import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
+import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
 import { QueryBuilder } from '@zintrust/core';
 
 /**
@@ -59,8 +60,8 @@ export const SQLServerAdapter = Object.freeze({
         }
       },
 
-      getType(): string {
-        return 'sqlserver';
+      getType(): SupportedDriver {
+        return AdaptersEnum.sqlserver;
       },
       isConnected(): boolean {
         return connected;
@@ -76,7 +77,10 @@ export const SQLServerAdapter = Object.freeze({
           throw ErrorFactory.createConnectionError('Database not connected');
         }
 
-        Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+        Logger.warn(
+          `Raw SQL Query executed: ${sql}`,
+          Logger.withTraceSkipContext({ sql, parameters })
+        );
 
         try {
           if (sql.toUpperCase().includes('INVALID')) {

@@ -4,14 +4,19 @@
  * Production Implementation
  */
 
+import { databaseConfig } from '@config/database';
+import { Env } from '@config/env';
 import { FeatureFlags } from '@zintrust/core';
 import { Logger } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
-import { fs, path, performance } from '@zintrust/core/node';
-import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
+import fs from 'node:fs';
+import * as path from 'node:path';
+import { performance } from 'node:perf_hooks';
+import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
 import { QueryBuilder } from '@zintrust/core';
 
-type SqliteRunInfo = { changes: number };
+type SqliteRunInfo = { changes: number; lastInsertRowid: number | bigint };
 type SqliteStatement = {
   all: (params?: readonly unknown[]) => unknown[];
   run: (params?: readonly unknown[]) => SqliteRunInfo;
@@ -80,11 +85,35 @@ async function importSqliteDatabaseConstructor(): Promise<
 
 function normalizeFilename(database: string | null | undefined): string {
   const value = (database ?? '').trim();
-  return value.length > 0 ? value : ':memory:';
+  if (value.length === 0) return ':memory:';
+  if (value === ':memory:' || value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value)) {
+    return value;
+  }
+
+  const configuredProjectRoot = Env.ZINTRUST_PROJECT_ROOT.trim();
+  if (configuredProjectRoot !== '') return path.join(configuredProjectRoot, value);
+
+  return value;
 }
 
 function isSelectQuery(sql: string): boolean {
-  return sql.trimStart().toLowerCase().startsWith('select');
+  const normalized = sql.trimStart().toLowerCase();
+  return normalized.startsWith('select') || normalized.startsWith('pragma');
+}
+
+const TRACE_STORAGE_TABLE_NAMES = [
+  'zin_trace_entries',
+  'zin_trace_entries_tags',
+  'zin_trace_monitoring',
+];
+
+function isTraceStorageQuery(sql: string): boolean {
+  const normalized = sql.toLowerCase();
+  return TRACE_STORAGE_TABLE_NAMES.some((tableName) => normalized.includes(tableName));
+}
+
+function shouldLogQuery(sql: string): boolean {
+  return databaseConfig.logging.enabled && !isTraceStorageQuery(sql);
 }
 
 function requireDb(db: SqliteDatabase | null): SqliteDatabase {
@@ -102,13 +131,17 @@ function executeQuery(
   const stmt = db.prepare(sql);
   if (isSelectQuery(sql)) {
     const rows = stmt.all(parameters) as Record<string, unknown>[];
-    Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+    if (shouldLogQuery(sql)) {
+      Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+    }
     return { rows, rowCount: rows.length };
   }
 
   const info = stmt.run(parameters);
-  Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
-  return { rows: [], rowCount: info.changes };
+  if (shouldLogQuery(sql)) {
+    Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+  }
+  return { rows: [], rowCount: info.changes, lastInsertId: info.lastInsertRowid };
 }
 
 function executeRawQuery<T>(db: SqliteDatabase, sql: string, parameters: readonly unknown[]): T[] {
@@ -182,7 +215,9 @@ async function rawQuerySQLite<T>(
 
   const currentDb = requireDb(state.db);
 
-  Logger.warn(`Raw SQL Query executed: ${sql}`);
+  if (!isTraceStorageQuery(sql)) {
+    Logger.warn(`Raw SQL Query executed: ${sql}`, Logger.withTraceSkipContext({ sql }));
+  }
 
   try {
     return executeRawQuery<T>(currentDb, sql, parameters);
@@ -285,8 +320,8 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
       await adapter.query('PRAGMA foreign_keys = ON', []);
     },
 
-    getType(): string {
-      return 'sqlite';
+    getType(): SupportedDriver {
+      return AdaptersEnum.sqlite;
     },
 
     isConnected(): boolean {

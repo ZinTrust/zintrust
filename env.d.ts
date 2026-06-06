@@ -21,9 +21,15 @@ declare namespace NodeJS {
     BACKUP_DRIVER?: string | undefined;
     BACKUPS_PATH?: string | undefined;
     BCRYPT_ROUNDS?: string | undefined;
+    BROADCAST_BRIDGE_SECRET?: string | undefined;
+    BROADCAST_BRIDGE_URL?: string | undefined;
     BROADCAST_CHANNEL_PREFIX?: string | undefined;
     BROADCAST_CONNECTION?: string | undefined;
+    BROADCAST_REDIS_CONNECT_TIMEOUT?: string | undefined;
+    BROADCAST_REDIS_ENABLE_OFFLINE_QUEUE?: string | undefined;
     BROADCAST_REDIS_HOST?: string | undefined;
+    BROADCAST_REDIS_KEEP_ALIVE?: string | undefined;
+    BROADCAST_REDIS_MAX_LOADING_RETRY_TIME?: string | undefined;
     BROADCAST_REDIS_PASSWORD?: string | undefined;
     BROADCAST_REDIS_PORT?: string | undefined;
     CACHE_CONNECTION?: string | undefined;
@@ -50,7 +56,10 @@ declare namespace NodeJS {
     CSRF_COOKIE_SECURE?: string | undefined;
     CSRF_ENABLED?: string | undefined;
     CSRF_HEADER_NAME?: string | undefined;
+    CSRF_SKIP_PATHS?: string | undefined;
     CSRF_TOKEN_NAME?: string | undefined;
+    D1_READ_DEFAULT_CONSTRAINT?: string | undefined;
+    D1_READ_REPLICATION?: string | undefined;
     DATABASE_ISOLATION?: string | undefined;
     DATABASE_SCHEMA_PREFIX?: string | undefined;
     DB_CONNECTION?: string | undefined;
@@ -63,7 +72,6 @@ declare namespace NodeJS {
     DB_POOL_MIN?: string | undefined;
     DB_POOLING?: string | undefined;
     DB_SSL?: string | undefined;
-    DISABLE_LOGGING?: string | undefined;
     ENCRYPTION_ALGORITHM?: string | undefined;
     ENCRYPTION_CIPHER?: string | undefined;
     ENCRYPTION_KEY?: string | undefined;
@@ -93,12 +101,9 @@ declare namespace NodeJS {
     KV_LOG_RETENTION_DAYS?: string | undefined;
     KV_NAMESPACE?: string | undefined;
     LAMBDA_TASK_ROOT?: string | undefined;
-    LOG_CHANNEL?: string | undefined;
-    LOG_FORMAT?: string | undefined;
     LOG_KEEP_FILES?: string | undefined;
-    LOG_LEVEL?: string | undefined;
     LOG_MAX_TOTAL_SIZE?: string | undefined;
-    LOG_TO_FILE?: string | undefined;
+    MAIL_CLOUDFLARE_BINDING?: string | undefined;
     MAIL_CONNECTION?: string | undefined;
     MAIL_FROM_ADDRESS?: string | undefined;
     MAIL_FROM_NAME?: string | undefined;
@@ -122,11 +127,19 @@ declare namespace NodeJS {
     PASSWORD_REQUIRE_SPECIAL_CHARS?: string | undefined;
     PASSWORD_REQUIRE_UPPERCASE?: string | undefined;
     PORT?: string | undefined;
+    PROCESSOR_CACHE_DEFAULT_TTL?: string | undefined;
+    PROCESSOR_CACHE_MAX_SIZE?: string | undefined;
+    PROCESSOR_CACHE_MAX_TTL?: string | undefined;
+    PROCESSOR_FETCH_MAX_SIZE?: string | undefined;
+    PROCESSOR_FETCH_RETRY_ATTEMPTS?: string | undefined;
+    PROCESSOR_FETCH_RETRY_BACKOFF_MS?: string | undefined;
+    PROCESSOR_FETCH_TIMEOUT?: string | undefined;
     PUSHER_APP_CLUSTER?: string | undefined;
     PUSHER_APP_ID?: string | undefined;
     PUSHER_APP_KEY?: string | undefined;
     PUSHER_APP_SECRET?: string | undefined;
     PUSHER_USE_TLS?: string | undefined;
+    QUEUE_DATA_TIMEOUT_MS?: string | undefined;
     QUEUE_DB_CONNECTION?: string | undefined;
     QUEUE_DRIVER?: string | undefined;
     QUEUE_JOB_BACKOFF?: string | undefined;
@@ -151,11 +164,15 @@ declare namespace NodeJS {
     RATE_LIMIT_MAX_REQUESTS?: string | undefined;
     RATE_LIMIT_MESSAGE?: string | undefined;
     RATE_LIMIT_WINDOW_MS?: string | undefined;
+    REDIS_DB?: string | undefined;
     REDIS_HOST?: string | undefined;
     REDIS_HTTPS_ENDPOINT?: string | undefined;
     REDIS_HTTPS_TOKEN?: string | undefined;
     REDIS_PASSWORD?: string | undefined;
     REDIS_PORT?: string | undefined;
+    REDIS_PROXY_HOST?: string | undefined;
+    REDIS_PROXY_PORT?: string | undefined;
+    REDIS_PROXY_URL?: string | undefined;
     REDIS_QUEUE_DB?: string | undefined;
     REDIS_URL?: string | undefined;
     RUNTIME?: string | undefined;
@@ -192,6 +209,8 @@ declare namespace NodeJS {
     SLACK_LOG_LEVELS?: string | undefined;
     SLACK_LOG_WEBHOOK_URL?: string | undefined;
     SLACK_WEBHOOK_URL?: string | undefined;
+    SOCKET_ALLOW_AUTH_ROUTE_OVERRIDE?: string | undefined;
+    SOCKET_BROADCAST_AUTH_MIDDLEWARE?: string | undefined;
     STARTUP_CHECK_CACHE?: string | undefined;
     STARTUP_CHECK_DB?: string | undefined;
     STARTUP_CONTINUE_ON_FAILURE?: string | undefined;
@@ -224,6 +243,7 @@ declare namespace NodeJS {
     WORKER_DATA_RETENTION?: string | undefined;
     WORKER_DATADOG_API_KEY?: string | undefined;
     WORKER_DATADOG_ENABLED?: string | undefined;
+    WORKER_DETAILS_LIVE_HEALTH_ENABLED?: string | undefined;
     WORKER_ENABLED?: string | undefined;
     WORKER_ENCRYPTION?: string | undefined;
     WORKER_GDPR?: string | undefined;
@@ -247,9 +267,4 @@ declare namespace NodeJS {
     XSS_ENABLED?: string | undefined;
     XSS_REPORT_URI?: string | undefined;
   }
-}
-
-declare module '*.html' {
-  const content: string;
-  export default content;
 }
