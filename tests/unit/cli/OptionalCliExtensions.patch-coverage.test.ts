@@ -279,4 +279,18 @@ describe('OptionalCliCommandRegistry patch coverage', () => {
     expect(OptionalCliCommandRegistry.has('trace:status')).toBe(true);
     expect(OptionalCliCommandRegistry.has('migrate:trace')).toBe(true);
   }, 30000);
+
+  it('queue-cloudflare cli register syncs commands into an already-imported core registry', async () => {
+    const { OptionalCliCommandRegistry } = await import('@cli/OptionalCliCommandRegistry');
+
+    expect(OptionalCliCommandRegistry.has('migrate:queue-cloudflare')).toBe(false);
+
+    (
+      globalThis as { __zintrust_cli_command_registry__?: Map<string, unknown> }
+    ).__zintrust_cli_command_registry__ = new Map<string, unknown>();
+
+    await import('../../../packages/queue-cloudflare/src/cli-register.js');
+
+    expect(OptionalCliCommandRegistry.has('migrate:queue-cloudflare')).toBe(true);
+  }, 30000);
 });

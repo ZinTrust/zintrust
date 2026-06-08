@@ -326,6 +326,15 @@
         },
       ],
 
+      // zedgi-api has no Durable Objects. These overrides stop the env from
+      // inheriting the top-level ZintrustSocketHub DO binding/migration, which
+      // would otherwise make Miniflare try to wrap a class this Worker never
+      // exports ("Class extends value undefined" in createDurableObjectWrapper).
+      "durable_objects": {
+        "bindings": [],
+      },
+      "migrations": [],
+
       "triggers": {
         "crons": [
           "0 1 * * *", // Nightly billing deduction (01:00 UTC)

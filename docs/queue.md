@@ -223,6 +223,22 @@ zin add queue:sqs
 
 Note: This driver uses `rPush`/`lPop` semantics; `ack()` is a no-op for this simple implementation. For visibility timeouts and retry mechanics, implement a processing list (BRPOPLPUSH) and message requeueing.
 
+## Cloudflare Queues Driver
+
+Install:
+
+```bash
+zin add queue:cloudflare
+```
+
+`@zintrust/queue-cloudflare` supports Cloudflare Queue producers/consumers and a BullMQ-like state layer backed by D1, Durable Objects, KV, Cron Triggers, and DLQs. Run its state migration before using job inspection, repeatables, flows, or scheduler features:
+
+```bash
+zin migrate:queue-cloudflare --database zintrust-queue --local
+```
+
+See `docs/package-queue-cloudflare.md` for binding configuration and API examples.
+
 ## CI integration
 
 - If your application is tested against a real Redis instance in GitHub Actions, you can configure a repository secret (e.g. `INTEGRATION_REDIS_URL`) and pass it to your workflow.

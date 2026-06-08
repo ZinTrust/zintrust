@@ -77,6 +77,8 @@
       "@zintrust/cache-redis/*": ["./packages/cache-redis/src/*"],
       "@zintrust/queue-redis": ["./packages/queue-redis/src/index.ts"],
       "@zintrust/queue-redis/*": ["./packages/queue-redis/src/*"],
+      "@zintrust/queue-cloudflare": ["./packages/queue-cloudflare/src/index.ts"],
+      "@zintrust/queue-cloudflare/*": ["./packages/queue-cloudflare/src/*"],
       "@zintrust/socket": ["./packages/socket/src/index.ts"],
       "@zintrust/socket/*": ["./packages/socket/src/*"],
       "@zintrust/core/proxy/*": ["./src/proxy/*"],
@@ -175,6 +177,7 @@
     "packages/trace/src/**/*",
     "packages/trace/migrations/**/*.ts",
     "packages/queue-redis/src/**/*",
+    "packages/queue-cloudflare/src/**/*",
     "packages/socket/src/**/*",
     "env.d.ts",
     "processors"

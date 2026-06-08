@@ -339,7 +339,7 @@ import '@zintrust/cache-redis/register';
 
 - Listing tasks uses cache (hit on second request).
 
-## 7) Queue (packages/queue-redis, queue-rabbitmq, queue-sqs)
+## 7) Queue (packages/queue-redis, queue-rabbitmq, queue-sqs, queue-cloudflare)
 
 Local default: in-memory queue.
 
@@ -353,6 +353,7 @@ Provider-required (optional):
 
 - RabbitMQ queue: `@zintrust/queue-rabbitmq` (needs RabbitMQ running)
 - SQS queue: `@zintrust/queue-sqs` (needs AWS credentials + queue URL)
+- Cloudflare Queues: `@zintrust/queue-cloudflare` (needs Cloudflare Queue bindings/API credentials; D1/DO/KV for BullMQ-like state)
 
 ✅ Expected:
 
@@ -503,7 +504,7 @@ This demo should touch each adapter package at least once:
 - Cache: `@zintrust/cache-redis`, `@zintrust/cache-mongodb`
 - DB: `@zintrust/db-sqlite`, `@zintrust/db-postgres`, `@zintrust/db-mysql`, `@zintrust/db-sqlserver`, `@zintrust/db-d1`
 - Mail: `@zintrust/mail-smtp`, `@zintrust/mail-nodemailer`, `@zintrust/mail-sendgrid`, `@zintrust/mail-mailgun`
-- Queue: `@zintrust/queue-redis`, `@zintrust/queue-rabbitmq`, `@zintrust/queue-sqs`
+- Queue: `@zintrust/queue-redis`, `@zintrust/queue-rabbitmq`, `@zintrust/queue-sqs`, `@zintrust/queue-cloudflare`
 - Storage: `@zintrust/storage-s3`, `@zintrust/storage-r2`, `@zintrust/storage-gcs`
 - Cloudflare proxies: `@zintrust/cloudflare-d1-proxy`, `@zintrust/cloudflare-kv-proxy`
 

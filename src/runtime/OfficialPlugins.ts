@@ -77,6 +77,12 @@ const baseRegistrations = Object.freeze([
     isEnabled: () => isSelected(['QUEUE_DRIVER'], ['sqs']),
   },
   {
+    packageName: '@zintrust/queue-cloudflare',
+    specifier: '@zintrust/queue-cloudflare/register',
+    isEnabled: () =>
+      isSelected(['QUEUE_DRIVER'], ['cloudflare', 'cloudflare-queues', 'cf-queues']),
+  },
+  {
     packageName: '@zintrust/cache-redis',
     specifier: '@zintrust/cache-redis/register',
     isEnabled: () => isSelected(['CACHE_CONNECTION', 'CACHE_DRIVER'], ['redis']),

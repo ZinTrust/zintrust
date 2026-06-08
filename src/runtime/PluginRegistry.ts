@@ -132,6 +132,13 @@ export const PluginRegistry: Record<string, PluginDefinition> = {
     dependencies: ['@zintrust/queue-sqs', '@aws-sdk/client-sqs'],
     autoImports: ['@zintrust/queue-sqs/register'],
   }),
+  'driver:queue-cloudflare': driver({
+    name: 'Cloudflare Queues Driver',
+    description: 'Cloudflare Queues driver (installs @zintrust/queue-cloudflare)',
+    aliases: ['queue:cloudflare', 'queue:cloudflare-queues', 'queue:cf'],
+    dependencies: ['@zintrust/queue-cloudflare'],
+    autoImports: ['@zintrust/queue-cloudflare/register'],
+  }),
   'driver:broadcast-redis': driver({
     name: 'Redis Broadcast Driver',
     description: 'Redis-backed broadcast driver (installs redis client dependency)',

@@ -122,3 +122,4 @@ exts/zintrust-vscode-extensions.md
 .npmrc
 
 rpc-system/
+packages/queue-cloudflare/BULLMQ_COMPATIBILITY_PLAN.md

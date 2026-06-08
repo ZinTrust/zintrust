@@ -117,6 +117,14 @@ export default defineConfig({
       ),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
       '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
+      '@zintrust/queue-cloudflare': path.resolve(
+        __dirname,
+        './packages/queue-cloudflare/src/index.ts'
+      ),
+      '@zintrust/queue-cloudflare/register': path.resolve(
+        __dirname,
+        './packages/queue-cloudflare/src/register.ts'
+      ),
       '@zintrust/socket': path.resolve(__dirname, './packages/socket/src/index.ts'),
       '@zintrust/socket/register': path.resolve(__dirname, './packages/socket/src/register.ts'),
       '@zintrust/trace': path.resolve(__dirname, './packages/trace/src/index.ts'),

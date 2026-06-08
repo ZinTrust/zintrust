@@ -66,7 +66,7 @@ When `TRACE_PROXY=true`, the local runtime keeps collecting the same trace paylo
 
 On the receiver, use `TRACE_PROXY_MIDDLEWARE` for any gateway middleware such as `auth,admin`. If you want a dedicated ingest rate limit without encoding `rateLimit:<max>:<window>` by hand, set `TRACE_PROXY_RATE_LIMIT_MAX` and `TRACE_PROXY_RATE_LIMIT_WINDOW_MINUTES`; the gateway appends that parameterized rate-limit middleware automatically.
 
-This currently works with any queue driver already registered in ZinTrust. First-class Cloudflare Queue support still requires a dedicated queue driver and queue-runtime registration for that transport.
+This currently works with any queue driver already registered in ZinTrust, including `@zintrust/queue-cloudflare` when its queue binding/API configuration is registered in the runtime.
 
 ### 2. Enable the plugin in `zintrust.plugins.*`
 

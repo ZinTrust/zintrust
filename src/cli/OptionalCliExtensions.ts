@@ -120,6 +120,18 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
     ],
   },
   {
+    packageName: '@zintrust/queue-cloudflare',
+    specifier: '@zintrust/queue-cloudflare/cli-register',
+    commands: ['migrate:queue-cloudflare', 'queue-cloudflare:migrate'],
+    installCommand: 'npm install @zintrust/queue-cloudflare',
+    localCandidates: [
+      path.join(packageRoot, 'packages', 'queue-cloudflare', 'src', 'cli-register.ts'),
+      path.join(packageRoot, 'packages', 'queue-cloudflare', 'src', 'cli-register.js'),
+      path.join(packageRoot, 'packages', 'queue-cloudflare', 'dist', 'cli-register.js'),
+      path.join(packageRoot, 'dist', 'packages', 'queue-cloudflare', 'src', 'cli-register.js'),
+    ],
+  },
+  {
     packageName: '@zintrust/expose',
     specifier: '@zintrust/expose/register',
     commands: ['expose', 'exp'],

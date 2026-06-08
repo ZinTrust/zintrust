@@ -170,7 +170,7 @@ type QueueEnqueueHookGlobal = typeof globalThis & {
     queueName: string,
     jobId: unknown,
     driverName: string
-  ) => unknown | Promise<unknown>;
+  ) => Promise<unknown>;
 };
 
 const runPostEnqueueHook = async (

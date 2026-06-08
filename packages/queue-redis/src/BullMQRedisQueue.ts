@@ -352,8 +352,10 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       priority: payloadData.priority,
 
       // CLEANUP: Job retention
-      removeOnComplete: payloadData.removeOnComplete ?? resolveRetentionSetting('BULLMQ_REMOVE_ON_COMPLETE', 100),
-      removeOnFail: payloadData.removeOnFail ?? resolveRetentionSetting('BULLMQ_REMOVE_ON_FAIL', 50),
+      removeOnComplete:
+        payloadData.removeOnComplete ?? resolveRetentionSetting('BULLMQ_REMOVE_ON_COMPLETE', 100),
+      removeOnFail:
+        payloadData.removeOnFail ?? resolveRetentionSetting('BULLMQ_REMOVE_ON_FAIL', 50),
 
       // RETRY: Backoff strategy
       backoff: payloadData.backoff || {
@@ -597,7 +599,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         ) {
           return String(requestedJobId);
         }
-        throw ErrorFactory.createTryCatchError('Failed to enqueue job via BullMQ', error as Error);
+        throw ErrorFactory.createTryCatchError('Failed to enqueue job via BullMQ', error);
       }
     },
 

@@ -307,7 +307,7 @@ Redis RPC only becomes active when **both** `USE_REDIS_PROXY=true` and `REDIS_RP
 | `TRACE_REDACT_BODY`                          | package default    | Body-field names redacted before trace persistence.                                          |
 | `TRACE_REDACT_QUERY`                         | empty              | Query-string keys redacted before trace persistence.                                         |
 
-`TRACE_CONTENT_QUEUE_DRIVER` works with any queue driver already registered in the runtime. If you want first-class Cloudflare Queue support instead of generic driver wiring, add a dedicated Cloudflare Queue driver and register it in the queue runtime.
+`TRACE_CONTENT_QUEUE_DRIVER` works with any queue driver already registered in the runtime. For Cloudflare Queues, install `@zintrust/queue-cloudflare`, import its register entry, and configure the Cloudflare Queue binding/API credentials for the runtime.
 
 ## Job tracking
 
