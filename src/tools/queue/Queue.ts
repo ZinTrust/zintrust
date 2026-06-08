@@ -36,8 +36,8 @@ export interface BullMQPayload {
   uniqueId?: string;
   delay?: number;
   priority?: number;
-  removeOnComplete?: number | boolean;
-  removeOnFail?: number | boolean;
+  removeOnComplete?: number | boolean | { age: number; count?: number };
+  removeOnFail?: number | boolean | { age: number; count?: number };
   backoff?: {
     type: 'fixed' | 'exponential';
     delay: number;

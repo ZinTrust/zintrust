@@ -199,6 +199,67 @@ describe('BullMQ Redis queue (Workers)', () => {
     expect(bullMqState.add).toHaveBeenCalledTimes(2);
   });
 
+  it('passes age-based removeOnFail to BullMQ when BULLMQ_REMOVE_ON_FAIL_AGE_SECONDS is set', async () => {
+    Env.setSource({
+      USE_REDIS_PROXY: 'false',
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: '6379',
+      REDIS_PASSWORD: '',
+      REDIS_QUEUE_DB: '0',
+      BULLMQ_REMOVE_ON_FAIL_AGE_SECONDS: '604800',
+    });
+
+    await BullMQRedisQueue.enqueue('jobs', { payload: { ok: true } } as any);
+
+    expect(bullMqState.add).toHaveBeenCalledWith(
+      'jobs-job',
+      expect.anything(),
+      expect.objectContaining({ removeOnFail: { age: 604800 } })
+    );
+  });
+
+  it('passes combined age+count removeOnComplete when both envs are set', async () => {
+    Env.setSource({
+      USE_REDIS_PROXY: 'false',
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: '6379',
+      REDIS_PASSWORD: '',
+      REDIS_QUEUE_DB: '0',
+      BULLMQ_REMOVE_ON_COMPLETE_AGE_SECONDS: '86400',
+      BULLMQ_REMOVE_ON_COMPLETE: '500',
+    });
+
+    await BullMQRedisQueue.enqueue('jobs', { payload: { ok: true } } as any);
+
+    expect(bullMqState.add).toHaveBeenCalledWith(
+      'jobs-job',
+      expect.anything(),
+      expect.objectContaining({ removeOnComplete: { age: 86400, count: 500 } })
+    );
+  });
+
+  it('honours explicit payload removeOnFail over env-derived retention', async () => {
+    Env.setSource({
+      USE_REDIS_PROXY: 'false',
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: '6379',
+      REDIS_PASSWORD: '',
+      REDIS_QUEUE_DB: '0',
+      BULLMQ_REMOVE_ON_FAIL_AGE_SECONDS: '604800',
+    });
+
+    await BullMQRedisQueue.enqueue('jobs', {
+      payload: { ok: true },
+      removeOnFail: false,
+    } as any);
+
+    expect(bullMqState.add).toHaveBeenCalledWith(
+      'jobs-job',
+      expect.anything(),
+      expect.objectContaining({ removeOnFail: false })
+    );
+  });
+
   it('forces disconnect when shared Redis quit hangs during shutdown', async () => {
     vi.useFakeTimers();
 

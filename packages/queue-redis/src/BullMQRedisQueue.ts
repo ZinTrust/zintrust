@@ -15,6 +15,7 @@ import { createRedisConnection, getBullMQSafeQueueName } from '@zintrust/core/re
 import { generateUuid, ZintrustLang } from '@zintrust/core/utils';
 import type { JobsOptions, Queue } from 'bullmq';
 import { RedisRpcQueueDriver, shouldUseRedisRpcQueueDriver } from './RedisRpcQueueDriver';
+import { resolveRetentionSetting } from './retentionUtils';
 
 type RedisConnection = ReturnType<typeof createRedisConnection>;
 
@@ -291,8 +292,8 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     const connection = getSharedConnection();
 
     // Customizable BullMQ settings from environment
-    const removeOnComplete = Env.getInt('BULLMQ_REMOVE_ON_COMPLETE', 100);
-    const removeOnFail = Env.getInt('BULLMQ_REMOVE_ON_FAIL', 50);
+    const removeOnComplete = resolveRetentionSetting('BULLMQ_REMOVE_ON_COMPLETE', 100);
+    const removeOnFail = resolveRetentionSetting('BULLMQ_REMOVE_ON_FAIL', 50);
     const attempts = Env.getInt('BULLMQ_DEFAULT_ATTEMPTS', 3);
     const backoffDelay = Env.getInt('BULLMQ_BACKOFF_DELAY', 2000);
     const backoffType = Env.get('BULLMQ_BACKOFF_TYPE', 'exponential');
@@ -351,8 +352,8 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       priority: payloadData.priority,
 
       // CLEANUP: Job retention
-      removeOnComplete: payloadData.removeOnComplete || 100,
-      removeOnFail: payloadData.removeOnFail || 50,
+      removeOnComplete: payloadData.removeOnComplete ?? resolveRetentionSetting('BULLMQ_REMOVE_ON_COMPLETE', 100),
+      removeOnFail: payloadData.removeOnFail ?? resolveRetentionSetting('BULLMQ_REMOVE_ON_FAIL', 50),
 
       // RETRY: Backoff strategy
       backoff: payloadData.backoff || {

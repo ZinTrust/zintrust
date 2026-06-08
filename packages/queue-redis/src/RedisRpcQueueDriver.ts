@@ -4,6 +4,7 @@ import type { BullMQPayload, QueueMessage } from '@zintrust/core/queue';
 import { JobStateTracker, TimeoutManager } from '@zintrust/core/queue';
 import { generateUuid } from '@zintrust/core/utils';
 import type { JobsOptions } from 'bullmq';
+import { resolveRetentionSetting } from './retentionUtils';
 
 type RedisRpcClient = {
   queue: <T = unknown>(method: string, payload?: Record<string, unknown>) => Promise<T>;
@@ -56,8 +57,8 @@ const createJobOptions = (payloadData: BullMQPayload): JobsOptions => ({
   delay: payloadData.delay,
   attempts: payloadData.attempts ?? Env.getInt('BULLMQ_DEFAULT_ATTEMPTS', 3),
   priority: payloadData.priority,
-  removeOnComplete: payloadData.removeOnComplete ?? Env.getInt('BULLMQ_REMOVE_ON_COMPLETE', 100),
-  removeOnFail: payloadData.removeOnFail ?? Env.getInt('BULLMQ_REMOVE_ON_FAIL', 50),
+  removeOnComplete: payloadData.removeOnComplete ?? resolveRetentionSetting('BULLMQ_REMOVE_ON_COMPLETE', 100),
+  removeOnFail: payloadData.removeOnFail ?? resolveRetentionSetting('BULLMQ_REMOVE_ON_FAIL', 50),
   backoff: payloadData.backoff || {
     type: Env.get('BULLMQ_BACKOFF_TYPE', 'exponential') as 'exponential' | 'fixed',
     delay: Env.getInt('BULLMQ_BACKOFF_DELAY', 2000),
