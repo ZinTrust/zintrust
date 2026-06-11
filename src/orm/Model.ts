@@ -1012,6 +1012,7 @@ export type DefinedModel<T extends BoundModelMethods> = {
   join: (table: string, on: string) => IQueryBuilder;
   leftJoin: (table: string, on: string) => IQueryBuilder;
   orderBy: (column: string, direction?: 'ASC' | 'DESC') => IQueryBuilder;
+  inRandomOrder: () => IQueryBuilder;
   limit: (count: number) => IQueryBuilder;
   offset: (count: number) => IQueryBuilder;
   withTrashed: () => IQueryBuilder;
@@ -1400,6 +1401,7 @@ const createQueryBuilderMethods = (
     leftJoin: (table: string, on: string) => wrappedBuilder().leftJoin(table, on),
     orderBy: (column: string, direction?: 'ASC' | 'DESC') =>
       wrappedBuilder().orderBy(column, direction),
+    inRandomOrder: () => wrappedBuilder().inRandomOrder(),
     limit: (count: number) => wrappedBuilder().limit(count),
     offset: (count: number) => wrappedBuilder().offset(count),
     withTrashed: () => wrappedBuilder().withTrashed(),

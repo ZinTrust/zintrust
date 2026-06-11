@@ -101,6 +101,58 @@ describe('QueryBuilder', () => {
     expect(sql).toContain('ORDER BY "name" DESC');
   });
 
+  it('should build query with random order (default dialect)', () => {
+    const builder = QueryBuilder.create('users');
+    builder.inRandomOrder();
+
+    const sql = builder.toSQL();
+    expect(sql).toContain('ORDER BY RANDOM()');
+  });
+
+  it('should build query with random order for MySQL', () => {
+    const mockDb = {
+      getType: () => 'mysql',
+    } as IDatabase;
+    const builder = QueryBuilder.create('users', mockDb);
+    builder.inRandomOrder();
+
+    const sql = builder.toSQL();
+    expect(sql).toContain('ORDER BY RAND()');
+  });
+
+  it('should build query with random order for PostgreSQL', () => {
+    const mockDb = {
+      getType: () => 'postgres',
+    } as IDatabase;
+    const builder = QueryBuilder.create('users', mockDb);
+    builder.inRandomOrder();
+
+    const sql = builder.toSQL();
+    expect(sql).toContain('ORDER BY RANDOM()');
+  });
+
+  it('should build query with random order for SQLite', () => {
+    const mockDb = {
+      getType: () => 'sqlite',
+    } as IDatabase;
+    const builder = QueryBuilder.create('users', mockDb);
+    builder.inRandomOrder();
+
+    const sql = builder.toSQL();
+    expect(sql).toContain('ORDER BY RANDOM()');
+  });
+
+  it('should build query with random order for MSSQL', () => {
+    const mockDb = {
+      getType: () => 'mssql',
+    } as IDatabase;
+    const builder = QueryBuilder.create('users', mockDb);
+    builder.inRandomOrder();
+
+    const sql = builder.toSQL();
+    expect(sql).toContain('ORDER BY NEWID()');
+  });
+
   it('should support shorthand where syntax', () => {
     const builder = QueryBuilder.create('users');
     builder.where('id', 123);

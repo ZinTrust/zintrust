@@ -38,6 +38,7 @@ jobs:
       - name: Sync workspace versions for security scan
         run: |
           node scripts/release/sync-package-versions.mjs
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
@@ -133,6 +134,7 @@ jobs:
       - name: Sync workspace versions for CodeQL
         run: |
           node scripts/release/sync-package-versions.mjs
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
@@ -185,6 +187,7 @@ jobs:
       - name: Sync workspace versions for SAST
         run: |
           node scripts/release/sync-package-versions.mjs
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
@@ -228,6 +231,7 @@ jobs:
       - name: Sync workspace versions for license scan
         run: |
           node scripts/release/sync-package-versions.mjs
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
@@ -268,6 +272,7 @@ jobs:
       - name: Sync workspace versions for security config
         run: |
           node scripts/release/sync-package-versions.mjs
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
@@ -316,6 +321,7 @@ jobs:
       - name: Sync workspace versions for dependency graph
         run: |
           node scripts/release/sync-package-versions.mjs
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies

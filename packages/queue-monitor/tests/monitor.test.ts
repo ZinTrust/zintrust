@@ -63,7 +63,7 @@ vi.mock('../src/connection', () => ({
 }));
 
 describe('QueueMonitor', () => {
-  const redisConfig = { host: 'localhost', port: 6379 };
+  const redisConfig = { host: 'localhost', port: 6379, db: 0 };
   const monitors = new Set<QueueMonitorApi>();
 
   afterEach(async () => {

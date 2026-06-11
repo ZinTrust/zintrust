@@ -77,6 +77,7 @@ export interface IQueryBuilder {
   join(table: string, on: string): IQueryBuilder;
   leftJoin(table: string, on: string): IQueryBuilder;
   orderBy(column: string, direction?: 'ASC' | 'DESC'): IQueryBuilder;
+  inRandomOrder(): IQueryBuilder;
   limit(count: number): IQueryBuilder;
   offset(count: number): IQueryBuilder;
   getWhereClauses(): WhereClause[];
@@ -112,6 +113,7 @@ interface QueryState {
   limitValue?: number;
   offsetValue?: number;
   orderByClauses: Array<{ column: string; direction: 'ASC' | 'DESC' }>;
+  randomOrder: boolean;
   joins: Array<{ table: string; on: string }>;
   softDelete?: { column: string; mode: SoftDeleteMode };
   eagerLoads: string[];
@@ -584,8 +586,27 @@ const getEffectiveWhereConditions = (state: QueryState): WherePredicate[] => {
  */
 const buildOrderByClause = (
   orderByClauses: Array<{ column: string; direction: 'ASC' | 'DESC' }>,
+  randomOrder: boolean,
   dialect?: string
 ): string => {
+  if (randomOrder) {
+    // Database-specific random ordering
+    switch (dialect) {
+      case 'mysql':
+      case 'mariadb':
+        return ' ORDER BY RAND()';
+      case 'postgres':
+        return ' ORDER BY RANDOM()';
+      case 'sqlite':
+        return ' ORDER BY RANDOM()';
+      case 'mssql':
+        return ' ORDER BY NEWID()';
+      default:
+        // Fallback for other databases
+        return ' ORDER BY RANDOM()';
+    }
+  }
+
   if (orderByClauses.length === 0) return '';
 
   const parts = orderByClauses.map((orderBy) => {
@@ -631,6 +652,7 @@ const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown
   const where = compileWhere(getEffectiveWhereConditions(state), state.dialect);
   const sql = `SELECT ${columns}${fromClause}${where.sql}${buildOrderByClause(
     state.orderByClauses,
+    state.randomOrder,
     state.dialect
   )}${buildLimitOffsetClause(state.limitValue, state.offsetValue)}`;
   return { sql, parameters: where.parameters };
@@ -688,6 +710,7 @@ const createPredicateState = (dialect?: string): QueryState => ({
   whereConditions: [],
   selectColumns: ['*'],
   orderByClauses: [],
+  randomOrder: false,
   joins: [],
   eagerLoads: [],
   eagerLoadConstraints: {},
@@ -1036,6 +1059,10 @@ function attachJoinOrderPagingMethods(builder: IQueryBuilder, state: QueryState)
   builder.leftJoin = (tableJoin, on) => builder.join(tableJoin, on);
   builder.orderBy = (column, direction = 'ASC') => {
     applyOrderByClause(state, column, direction);
+    return builder;
+  };
+  builder.inRandomOrder = () => {
+    state.randomOrder = true;
     return builder;
   };
   builder.limit = (count) => {
@@ -1859,6 +1886,7 @@ export const QueryBuilder = Object.freeze({
       whereConditions: [],
       selectColumns: ['*'],
       orderByClauses: [],
+      randomOrder: false,
       joins: [],
       eagerLoads: [],
       eagerLoadConstraints: {},

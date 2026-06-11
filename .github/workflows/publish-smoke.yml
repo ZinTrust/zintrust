@@ -38,6 +38,7 @@ jobs:
       - name: Sync workspace versions for smoke CI
         run: |
           node scripts/release/sync-package-versions.mjs
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies
