@@ -47,23 +47,27 @@ describe('D1MigrateCommand', () => {
     });
 
     it('should have name property (protected)', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const name = (command as any).name;
       expect(name).toBeDefined();
       expect(typeof name).toBe('string');
     });
 
     it('should have description property (protected)', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const description = (command as any).description;
       expect(description).toBeDefined();
       expect(typeof description).toBe('string');
     });
 
     it('should have execute method', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const execute = (command as any).execute;
       expect(typeof execute).toBe('function');
     });
 
     it('should have getCommand method from BaseCommand', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const getCommand = (command as any).getCommand();
       expect(getCommand).toBeDefined();
       expect(getCommand.name()).toMatch(/d1/i);
@@ -72,16 +76,19 @@ describe('D1MigrateCommand', () => {
 
   describe('Command Metadata', () => {
     it('command name should be "d1:migrate"', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const name = (command as any).name;
       expect(name).toMatch(/d1:migrate/i);
     });
 
     it('description should not be empty', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const description = (command as any).description;
       expect(description.length).toBeGreaterThan(0);
     });
 
     it('description should mention D1 migrations', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const description = (command as any).description;
       expect(description.toLowerCase()).toContain('d1');
     });
@@ -89,16 +96,19 @@ describe('D1MigrateCommand', () => {
 
   describe('Instance Methods', () => {
     it('addOptions method should be defined', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const addOptions = (command as any).addOptions;
       expect(typeof addOptions).toBe('function');
     });
 
     it('debug method should be defined', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const debug = (command as any).debug;
       expect(typeof debug).toBe('function');
     });
 
     it('info method should be defined', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const info = (command as any).info;
       expect(typeof info).toBe('function');
     });
@@ -180,6 +190,18 @@ describe('D1MigrateCommand', () => {
       expect(helpText).toContain('--database');
     });
 
+    it('getCommand should have env option configured', () => {
+      const cmd = (command as any).getCommand();
+      const helpText = cmd.helpInformation();
+      expect(helpText).toContain('--env');
+    });
+
+    it('getCommand should have config option configured', () => {
+      const cmd = (command as any).getCommand();
+      const helpText = cmd.helpInformation();
+      expect(helpText).toContain('--config');
+    });
+
     it('getCommand should have verbose option from BaseCommand', () => {
       const cmd = (command as any).getCommand();
       const helpText = cmd.helpInformation();
@@ -237,6 +259,41 @@ describe('D1MigrateCommand', () => {
       await command.execute({ database: 'custom_db' });
 
       expect(vi.mocked(childProcess.execFileSync)).toHaveBeenCalled();
+    });
+
+    it('should pass env option to wrangler when provided', async () => {
+      vi.mocked(childProcess.execFileSync).mockReturnValue('Migrations applied');
+
+      await command.execute({ database: 'test_db', env: 'staging' });
+
+      expect(vi.mocked(childProcess.execFileSync)).toHaveBeenCalled();
+      const args = vi.mocked(childProcess.execFileSync).mock.calls[0]?.[1] as string[];
+      expect(args).toContain('--env');
+      expect(args).toContain('staging');
+    });
+
+    it('should pass config option to wrangler when provided', async () => {
+      vi.mocked(childProcess.execFileSync).mockReturnValue('Migrations applied');
+
+      await command.execute({ database: 'test_db', config: 'wrangler.dev.jsonc' });
+
+      expect(vi.mocked(childProcess.execFileSync)).toHaveBeenCalled();
+      const args = vi.mocked(childProcess.execFileSync).mock.calls[0]?.[1] as string[];
+      expect(args).toContain('--config');
+      expect(args).toContain('wrangler.dev.jsonc');
+    });
+
+    it('should pass both env and config options to wrangler when provided', async () => {
+      vi.mocked(childProcess.execFileSync).mockReturnValue('Migrations applied');
+
+      await command.execute({ database: 'test_db', env: 'api', config: 'wrangler.api.jsonc' });
+
+      expect(vi.mocked(childProcess.execFileSync)).toHaveBeenCalled();
+      const args = vi.mocked(childProcess.execFileSync).mock.calls[0]?.[1] as string[];
+      expect(args).toContain('--env');
+      expect(args).toContain('api');
+      expect(args).toContain('--config');
+      expect(args).toContain('wrangler.api.jsonc');
     });
 
     it('should log success message when migrations succeed', async () => {

@@ -7,462 +7,427 @@
  * KV namespace configurations.
  * ============================================================================
  */
-
 {
-  // ============================================================================
-  // PROJECT METADATA
-  // ============================================================================
-  "name": "zintrust-api",
-  "main": "./src/functions/cloudflare.ts",
-  "compatibility_date": "2026-03-12",
-  "compatibility_flags": ["nodejs_compat"],
-
-  // ============================================================================
-  // PATH ALIASES
-  // ============================================================================
-  // TypeScript path aliases for cleaner imports throughout the application
-  "alias": {
-    "@zintrust/core": "./src/index.ts",
-    "@zintrust/workers": "./packages/workers/src/index.ts",
-    "@routes/api": "./routes/api.ts",
-    "@config/env": "./src/config/env.ts",
-    "@config/logger": "./src/config/logger.ts",
-    "@runtime/BackgroundTaskScheduler": "./src/runtime/BackgroundTaskScheduler.ts",
-    "@worker-runtime/drain": "./src/worker-runtime/drain.ts",
-    "@worker-runtime/rpc-client": "./src/worker-runtime/rpc-client.ts",
-    "@worker-runtime/*": "./src/worker-runtime/*",
-    "@runtime/*": "./src/runtime/*",
-    "@config/*": "./src/config/*",
-  },
-
-  // ============================================================================
-  // ENVIRONMENT CONFIGURATIONS
-  // ============================================================================
-  // Define separate environments for different deployment contexts
-  "env": {
-    "email-proxy": {
-      "name": "zintrust-email-proxy",
-      "main": "./src/proxy/email/ZintrustEmailProxy.ts",
-      "compatibility_flags": ["nodejs_compat"],
-      "compatibility_date": "2026-03-12",
-      "vars": {
-        "MAIL_CLOUDFLARE_BINDING": "SEND_EMAIL",
-        "ZT_PROXY_SIGNING_WINDOW_MS": "60000",
-        "ZT_MAX_BODY_BYTES": "131072",
-        "NODE_ENV": "development",
-      },
-      "send_email": [
-        {
-          "name": "SEND_EMAIL",
-        },
-      ],
-      // Add routes here when ready:
-      // "routes": [{ "pattern": "email-proxy.example.com", "custom_domain": true }]
-    },
-    // --------------------------------------------------------------------------
-    // WORKER ENVIRONMENT
-    // --------------------------------------------------------------------------
-    // Standard Cloudflare Worker configuration for production-ready deployments
-    "worker": {
-      "name": "wk-zintrust",
-
-      // Compatibility settings
-      "compatibility_date": "2026-03-12",
-      "compatibility_flags": ["nodejs_compat"],
-
-      // Development settings
-      "workers_dev": true,
-      "minify": false,
-
-      // Observability and monitoring
-      "observability": {
-        "enabled": true,
-        "head_sampling_rate": 0.1,
-      },
-
-      // Static asset handling
-      "assets": {
-        "directory": "./app/Workers",
-        "not_found_handling": "single-page-application",
-      },
-
-      // Runtime vars required for Worker boot.
-      // Secrets such as APP_KEY stay in Cloudflare secrets; non-secret startup
-      // config belongs here so first-request boot does not fail on missing env.
-      "vars": {
-        "ENVIRONMENT": "production",
-        "NODE_ENV": "production",
-        "APP_NAME": "ZinTrust",
-        "HOST": "wk.zintrust.com",
-        "PORT": "443",
-        "BASE_URL": "https://wk.zintrust.com",
-        "DEBUG": "false",
-        "REQUEST_TIMEOUT": "30000",
-        "APP_TIMEZONE": "UTC",
-        "MAX_BODY_SIZE": "10485760",
-        "DB_CONNECTION": "d1",
-        "D1_BINDING": "ZIN_DB",
-        "KV_NAMESPACE": "ZIN_KV",
-        "STARTUP_HEALTH_CHECKS": "true",
-        "STARTUP_VALIDATE_SECRETS": "true",
-        "STARTUP_REQUIRE_ENV": "true",
-        "STARTUP_CHECK_DB": "true",
-        "STARTUP_CHECK_CACHE": "false",
-        "STARTUP_HEALTH_TIMEOUT_MS": "2500",
-        "STARTUP_CONTINUE_ON_FAILURE": "false",
-        "LOG_LEVEL": "info",
-        "LOG_FORMAT": "text",
-        "LOG_CHANNEL": "console",
-        "CORS_ENABLED": "true",
-        "CORS_ORIGINS": "*",
-        "CORS_METHODS": "GET,POST,PUT,PATCH,DELETE",
-        "CORS_ALLOWED_HEADERS": "Content-Type,Authorization",
-        "CORS_CREDENTIALS": "false",
-        "CORS_MAX_AGE": "86400",
-      },
-
-      // Wrangler env blocks do not inherit top-level bindings.
-      "d1_databases": [
-        {
-          "database_name": "d1-proxy-db",
-          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
-          "binding": "ZIN_DB",
-          "migrations_dir": "database/migrations/d1",
-        },
-      ],
-
-      "kv_namespaces": [
-        {
-          "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-          "binding": "ZIN_KV",
-        },
-      ],
-
-      "durable_objects": {
-        "bindings": [
-          {
-            "name": "ZT_SOCKET_HUB",
-            "class_name": "ZintrustSocketHub",
-          },
-        ],
-      },
-
-      // Custom domain routing
-      "routes": [
-        {
-          "pattern": "wk.zintrust.com",
-          "custom_domain": true,
-        },
-      ],
-    },
-
-    // --------------------------------------------------------------------------
-    // DEVELOPMENT ENVIRONMENT
-    // --------------------------------------------------------------------------
-    // Configuration for local development with Cloudflare environment support
-    "development": {
-      "main": "./src/functions/cloudflare.ts",
-
-      // Compatibility settings
-      "compatibility_date": "2026-03-12",
-      "compatibility_flags": ["nodejs_compat"],
-
-      // Development settings
-      "workers_dev": true,
-      "minify": false,
-
-      // D1 Database binding
-      "d1_databases": [
-        {
-          "binding": "ZIN_DB",
-          "database_name": "d1-proxy-db",
-          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
-          "migrations_dir": "database/migrations/d1",
-        },
-      ],
-
-      // Path aliases (duplicated for development environment)
-      "alias": {
-        "@zintrust/core": "./src/index.ts",
-        "@zintrust/workers": "./packages/workers/src/index.ts",
-        "@routes/api": "./routes/api.ts",
-        "@config/env": "./src/config/env.ts",
-        "@config/logger": "./src/config/logger.ts",
-        "@runtime/BackgroundTaskScheduler": "./src/runtime/BackgroundTaskScheduler.ts",
-        "@worker-runtime/drain": "./src/worker-runtime/drain.ts",
-        "@worker-runtime/rpc-client": "./src/worker-runtime/rpc-client.ts",
-        "@worker-runtime/*": "./src/worker-runtime/*",
-        "@runtime/*": "./src/runtime/*",
-        "@config/*": "./src/config/*",
-      },
-
-      // Observability and monitoring
-      "observability": {
-        "enabled": true,
-        "head_sampling_rate": 0.1,
-      },
-
-      // Environment variables
-      "vars": {
-        "ENVIRONMENT": "development",
-      },
-    },
-
-    // --------------------------------------------------------------------------
-    // PRODUCTION ENVIRONMENT
-    // --------------------------------------------------------------------------
-    // Minimal production configuration with optimized settings
-    "production": {
-      // Environment variables
-      "vars": {
-        "ENVIRONMENT": "production",
-      },
-
-      // Custom domain routing for production
-      "routes": [
-        {
-          "pattern": "api.zintrust.com",
-          "custom_domain": true,
-        },
-      ],
-
-      // Production build optimization
-      "minify": true,
-    },
-
-    // --------------------------------------------------------------------------
-    // D1 PROXY ENVIRONMENT
-    // --------------------------------------------------------------------------
-    // Dedicated proxy worker for handling D1 database operations
-    "d1-proxy": {
-      "name": "zintrust-d1-proxy",
-      "main": "./src/proxy/d1/ZintrustD1Proxy.ts",
-
-      // Compatibility settings
-      "compatibility_flags": ["nodejs_compat"],
-      "compatibility_date": "2026-03-12",
-
-      // Proxy configuration variables
-      "vars": {
-        "D1_BINDING": "ZIN_DB",
-        "ZT_PROXY_SIGNING_WINDOW_MS": "60000",
-        "ZT_MAX_BODY_BYTES": "131072",
-        "ZT_MAX_SQL_BYTES": "32768",
-        "ZT_MAX_PARAMS": "256",
-        "NODE_ENV": "development",
-        "ZT_D1_STATEMENTS_JSON": "{\"health\":\"select 1 as ok\"}",
-      },
-
-      // D1 Database binding for the proxy
-      "d1_databases": [
-        {
-          "binding": "ZIN_DB",
-          "database_name": "d1-proxy-db",
-          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
-          "migrations_dir": "database/migrations/d1",
-        },
-      ],
-
-      // KV Namespace binding for the proxy
-      "kv_namespaces": [
-        {
-          "binding": "ZIN_KV",
-          "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-          "preview_id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-          "remote": false,
-        },
-      ],
-
-      // Custom domain routing
-      "routes": [
-        {
-          "pattern": "d1-proxy.zintrust.com",
-          "custom_domain": true,
-        },
-      ],
-
-      // Production build optimization
-      "minify": true,
-    },
-
-    // --------------------------------------------------------------------------
-    // ZEDGI ENVIRONMENT
-    // --------------------------------------------------------------------------
-    // TCP-to-HTTP proxy control plane for edge/serverless developers
-    "zedgi": {
-      "name": "zedgi-api",
-      "main": "./zedgi/packages/api/index.ts",
-      "compatibility_date": "2026-03-12",
-      "compatibility_flags": ["nodejs_compat"],
-      "workers_dev": true,
-      "minify": true,
-
-      "observability": {
-        "enabled": true,
-        "head_sampling_rate": 0.1,
-      },
-
-      "vars": {
-        "BASE_URL": "https://api.zedgi.app",
-        "ZEDGI_PROXY_URL": "https://proxy.zedgi.app",
-        "NODE_ENV": "production",
-      },
-
-      "d1_databases": [
-        {
-          "binding": "ZEDGI_DB",
-          "database_name": "zedgi-db",
-          // Provision with: wrangler d1 create zedgi-db --env zedgi
-          "database_id": "REPLACE_WITH_ZEDGI_DB_ID",
-          "migrations_dir": "zedgi/packages/api/db/migrations",
-        },
-      ],
-
-      "kv_namespaces": [
-        {
-          "binding": "ZEDGI_KV",
-          // Provision with: wrangler kv namespace create ZEDGI_KV --env zedgi
-          "id": "REPLACE_WITH_ZEDGI_KV_ID",
-        },
-      ],
-
-      // zedgi-api has no Durable Objects. These overrides stop the env from
-      // inheriting the top-level ZintrustSocketHub DO binding/migration, which
-      // would otherwise make Miniflare try to wrap a class this Worker never
-      // exports ("Class extends value undefined" in createDurableObjectWrapper).
-      "durable_objects": {
-        "bindings": [],
-      },
-      "migrations": [],
-
-      "triggers": {
-        "crons": [
-          "0 1 * * *", // Nightly billing deduction (01:00 UTC)
-          "* * * * *", // Health probe every minute
-        ],
-      },
-
-      // Secrets required (set via: wrangler secret put <NAME> --env zedgi):
-      //   ZEDGI_MASTER_KEY     - 64-char hex AES-256 key for credential encryption
-      //   ZEDGI_JWT_SECRET     - Bridge JWT signing secret (shared with Mac Mini proxy)
-      //   STRIPE_SECRET_KEY    - Stripe secret key
-      //   STRIPE_WEBHOOK_SECRET - Stripe webhook signing secret
-      //   GITHUB_CLIENT_ID     - GitHub OAuth app client ID
-      //   GITHUB_CLIENT_SECRET - GitHub OAuth app client secret
-      //   GOOGLE_CLIENT_ID     - Google OAuth client ID
-      //   GOOGLE_CLIENT_SECRET - Google OAuth client secret
-      //   COOKIE_SECRET        - Session cookie signing secret
-
-      "routes": [
-        {
-          "pattern": "api.zedgi.app",
-          "custom_domain": true,
-        },
-        // Per-dev subdomain routing: *.zedgi.app → same Worker
-        {
-          "pattern": "*.zedgi.app/*",
-          "custom_domain": false,
-          "zone_name": "zedgi.app",
-        },
-      ],
-    },
-
-    // --------------------------------------------------------------------------
-    // KV PROXY ENVIRONMENT
-    // --------------------------------------------------------------------------
-    // Dedicated proxy worker for handling KV (Key-Value) store operations
-    "kv-proxy": {
-      "name": "zintrust-kv-proxy",
-      "main": "./src/proxy/kv/ZintrustKvProxy.ts",
-
-      // Compatibility settings
-      "compatibility_flags": ["nodejs_compat"],
-      "compatibility_date": "2026-03-12",
-
-      // Proxy configuration variables
-      "vars": {
-        "NODE_ENV": "development",
-      },
-
-      // KV Namespace binding for the proxy
-      "kv_namespaces": [
-        {
-          "binding": "ZIN_KV",
-          "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-          "preview_id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-          "remote": false,
-        },
-      ],
-
-      // D1 Database binding for the proxy
-      "d1_databases": [
-        {
-          "binding": "ZIN_DB",
-          "database_name": "d1-proxy-db",
-          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
-          "migrations_dir": "database/migrations/d1",
-        },
-      ],
-
-      // Custom domain routing
-      "routes": [
-        {
-          "pattern": "kv-proxy.zintrust.com",
-          "custom_domain": true,
-        },
-      ],
-
-      // Production build optimization
-      "minify": true,
-    },
-  },
-
-  // ============================================================================
-  // GLOBAL BINDINGS
-  // ============================================================================
-
-  // --------------------------------------------------------------------------
-  // D1 DATABASE BINDINGS
-  // --------------------------------------------------------------------------
-  // Global D1 database configuration for all environments
-  "d1_databases": [
-    {
-      "database_name": "d1-proxy-db",
-      "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
-      "binding": "ZIN_DB",
-      "migrations_dir": "database/migrations/d1",
-    },
-  ],
-
-  // --------------------------------------------------------------------------
-  // KV NAMESPACE BINDINGS
-  // --------------------------------------------------------------------------
-  // Global KV namespace configuration for all environments
-  "kv_namespaces": [
-    {
-      "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-      "binding": "ZIN_KV",
-    },
-  ],
-
-  // --------------------------------------------------------------------------
-  // DURABLE OBJECT BINDINGS
-  // --------------------------------------------------------------------------
-  // Optional socket hub binding used by @zintrust/socket when Cloudflare
-  // websocket traffic needs cross-request fan-out instead of isolate-local state.
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "ZT_SOCKET_HUB",
-        "class_name": "ZintrustSocketHub",
-      },
-    ],
-  },
-
-  "migrations": [
-    {
-      "tag": "v1-zintrust-socket-hub",
-      "new_sqlite_classes": ["ZintrustSocketHub"],
-    },
-  ],
+	// ============================================================================
+	// PROJECT METADATA
+	// ============================================================================
+	"name": "zintrust-api",
+	"main": "./src/functions/cloudflare.ts",
+	"compatibility_date": "2026-03-12",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// ============================================================================
+	// PATH ALIASES
+	// ============================================================================
+	// TypeScript path aliases for cleaner imports throughout the application
+	"alias": {
+		"@zintrust/core": "./src/index.ts",
+		"@zintrust/workers": "./packages/workers/src/index.ts",
+		// @zintrust/* subpath aliases so bundled builds
+		// resolve framework subpath imports from source instead of the package
+		// exports map.
+		"@zintrust/core/runtime": "./src/runtime-index.ts",
+		"@zintrust/core/cli": "./src/cli-index.ts",
+		"@zintrust/core/config": "./src/config-index.ts",
+		"@zintrust/core/helper": "./src/helper/index.ts",
+		"@zintrust/core/node": "./src/node.ts",
+		"@zintrust/core/orm": "./src/orm-index.ts",
+		"@zintrust/core/security": "./src/security-index.ts",
+		"@zintrust/core/auth": "./src/auth-index.ts",
+		"@zintrust/core/redis": "./src/redis-index.ts",
+		"@zintrust/core/cloudflare": "./src/cloudflare-index.ts",
+		"@zintrust/core/constants": "./src/constants-index.ts",
+		"@zintrust/core/microservices": "./src/microservices-index.ts",
+		"@zintrust/core/middleware": "./src/middleware-index.ts",
+		"@zintrust/core/scheduler": "./src/scheduler-index.ts",
+		"@zintrust/core/proxy": "./src/proxy-index.ts",
+		"@zintrust/core/proxy/*": "./src/proxy/*",
+		"@zintrust/core/scripts": "./src/scripts-index.ts",
+		"@zintrust/core/seeders": "./src/seeders-index.ts",
+		"@zintrust/core/templates": "./src/templates-index.ts",
+		"@zintrust/core/testing": "./src/testing-index.ts",
+		"@zintrust/core/tools": "./src/tools-index.ts",
+		"@zintrust/core/tools/mail": "./src/tools-mail-index.ts",
+		"@zintrust/core/tools/notification": "./src/tools-notification-index.ts",
+		"@zintrust/core/tools/storage": "./src/tools-storage-index.ts",
+		"@zintrust/core/tools/queue": "./src/tools-queue-index.ts",
+		"@zintrust/core/tools/broadcast": "./src/tools-broadcast-index.ts",
+		"@zintrust/core/tools/http": "./src/tools-http-index.ts",
+		"@zintrust/core/errors": "./src/errors-index.ts",
+		"@zintrust/core/logger": "./src/logger-index.ts",
+		"@zintrust/core/http": "./src/http-index.ts",
+		"@zintrust/core/database": "./src/database-index.ts",
+		"@zintrust/core/queue": "./src/queue-index.ts",
+		"@zintrust/core/workers": "./src/workers-index.ts",
+		"@zintrust/core/utils": "./src/utils-index.ts",
+		"@zintrust/core/storage": "./src/storage-index.ts",
+		"@zintrust/core/mail": "./src/mail-index.ts",
+		"@zintrust/core/tasks": "./src/tasks.ts",
+		"@zintrust/core/worker-runtime": "./src/worker-runtime.ts",
+		"@zintrust/core/lang": "./src/lang-index.ts",
+		"@zintrust/core/trace": "./src/trace-index.ts",
+		"@zintrust/core/socket": "./src/socket-index.ts",
+		"@zintrust/core/start": "./src/start.ts",
+		"@zintrust/d1-migrator": "./packages/d1-migrator/src/index.ts",
+		"@zintrust/d1-migrator/*": "./packages/d1-migrator/src/*",
+		"@zintrust/db-d1": "./packages/db-d1/src/index.ts",
+		"@zintrust/db-d1/*": "./packages/db-d1/src/*",
+		"@zintrust/db-mysql": "./packages/db-mysql/src/index.ts",
+		"@zintrust/db-mysql/*": "./packages/db-mysql/src/*",
+		"@zintrust/db-postgres": "./packages/db-postgres/src/index.ts",
+		"@zintrust/db-postgres/*": "./packages/db-postgres/src/*",
+		"@zintrust/db-sqlite": "./packages/db-sqlite/src/index.ts",
+		"@zintrust/db-sqlite/*": "./packages/db-sqlite/src/*",
+		"@zintrust/db-sqlserver": "./packages/db-sqlserver/src/index.ts",
+		"@zintrust/db-sqlserver/*": "./packages/db-sqlserver/src/*",
+		"@zintrust/workers/*": "./packages/workers/src/*",
+		"@zintrust/trace": "./packages/trace/src/index.ts",
+		"@zintrust/trace/*": "./packages/trace/src/*",
+		"@zintrust/queue-monitor": "./packages/queue-monitor/src/index.ts",
+		"@zintrust/queue-monitor/runtime": "./packages/queue-monitor/src/runtime-index.ts",
+		"@zintrust/queue-monitor/driver": "./packages/queue-monitor/src/driver-index.ts",
+		"@zintrust/queue-monitor/metrics": "./packages/queue-monitor/src/metrics-index.ts",
+		"@zintrust/queue-monitor/dashboard": "./packages/queue-monitor/src/dashboard-index.ts",
+		"@zintrust/queue-monitor/*": "./packages/queue-monitor/src/*",
+		"@zintrust/cache-redis": "./packages/cache-redis/src/index.ts",
+		"@zintrust/cache-redis/*": "./packages/cache-redis/src/*",
+		"@zintrust/queue-redis": "./packages/queue-redis/src/index.ts",
+		"@zintrust/queue-redis/*": "./packages/queue-redis/src/*",
+		"@zintrust/queue-cloudflare": "./packages/queue-cloudflare/src/index.ts",
+		"@zintrust/queue-cloudflare/*": "./packages/queue-cloudflare/src/*",
+		"@zintrust/socket": "./packages/socket/src/index.ts",
+		"@zintrust/socket/*": "./packages/socket/src/*",
+		"@routes/api": "./routes/api.ts",
+		"@config/env": "./src/config/env.ts",
+		"@config/logger": "./src/config/logger.ts",
+		"@runtime/BackgroundTaskScheduler": "./src/runtime/BackgroundTaskScheduler.ts",
+		"@worker-runtime/drain": "./src/worker-runtime/drain.ts",
+		"@worker-runtime/rpc-client": "./src/worker-runtime/rpc-client.ts",
+		"@worker-runtime/*": "./src/worker-runtime/*",
+		"@runtime/*": "./src/runtime/*",
+		"@config/*": "./src/config/*",
+	},
+	// ============================================================================
+	// ENVIRONMENT CONFIGURATIONS
+	// ============================================================================
+	// Define separate environments for different deployment contexts
+	"env": {
+		"email-proxy": {
+			"name": "zintrust-email-proxy",
+			"main": "./src/proxy/email/ZintrustEmailProxy.ts",
+			"compatibility_flags": [
+				"nodejs_compat"
+			],
+			"compatibility_date": "2026-03-12",
+			"vars": {
+				"MAIL_CLOUDFLARE_BINDING": "SEND_EMAIL",
+				"ZT_PROXY_SIGNING_WINDOW_MS": "60000",
+				"ZT_MAX_BODY_BYTES": "131072",
+				"NODE_ENV": "development",
+			},
+			"send_email": [
+				{
+					"name": "SEND_EMAIL",
+				},
+			],
+			// Add routes here when ready:
+			// "routes": [{ "pattern": "email-proxy.example.com", "custom_domain": true }]
+		},
+		// --------------------------------------------------------------------------
+		// WORKER ENVIRONMENT
+		// --------------------------------------------------------------------------
+		// Standard Cloudflare Worker configuration for production-ready deployments
+		"worker": {
+			"name": "wk-zintrust",
+			// Compatibility settings
+			"compatibility_date": "2026-03-12",
+			"compatibility_flags": [
+				"nodejs_compat"
+			],
+			// Development settings
+			"workers_dev": true,
+			"minify": false,
+			// Observability and monitoring
+			"observability": {
+				"enabled": true,
+				"head_sampling_rate": 0.1,
+			},
+			// Static asset handling
+			"assets": {
+				"directory": "./app/Workers",
+				"not_found_handling": "single-page-application",
+			},
+			// Runtime vars required for Worker boot.
+			// Secrets such as APP_KEY stay in Cloudflare secrets; non-secret startup
+			// config belongs here so first-request boot does not fail on missing env.
+			"vars": {
+				"ENVIRONMENT": "production",
+				"NODE_ENV": "production",
+				"APP_NAME": "ZinTrust",
+				"HOST": "wk.zintrust.com",
+				"PORT": "443",
+				"BASE_URL": "https://wk.zintrust.com",
+				"DEBUG": "false",
+				"REQUEST_TIMEOUT": "30000",
+				"APP_TIMEZONE": "UTC",
+				"MAX_BODY_SIZE": "10485760",
+				"DB_CONNECTION": "d1",
+				"D1_BINDING": "ZIN_DB",
+				"KV_NAMESPACE": "ZIN_KV",
+				"STARTUP_HEALTH_CHECKS": "true",
+				"STARTUP_VALIDATE_SECRETS": "true",
+				"STARTUP_REQUIRE_ENV": "true",
+				"STARTUP_CHECK_DB": "true",
+				"STARTUP_CHECK_CACHE": "false",
+				"STARTUP_HEALTH_TIMEOUT_MS": "2500",
+				"STARTUP_CONTINUE_ON_FAILURE": "false",
+				"LOG_LEVEL": "info",
+				"LOG_FORMAT": "text",
+				"LOG_CHANNEL": "console",
+				"CORS_ENABLED": "true",
+				"CORS_ORIGINS": "*",
+				"CORS_METHODS": "GET,POST,PUT,PATCH,DELETE",
+				"CORS_ALLOWED_HEADERS": "Content-Type,Authorization",
+				"CORS_CREDENTIALS": "false",
+				"CORS_MAX_AGE": "86400",
+			},
+			// Wrangler env blocks do not inherit top-level bindings.
+			"d1_databases": [
+				{
+					"database_name": "d1-proxy-db",
+					"database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+					"binding": "ZIN_DB",
+					"migrations_dir": "database/migrations/d1",
+				},
+			],
+			"kv_namespaces": [
+				{
+					"id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+					"binding": "ZIN_KV",
+				},
+			],
+			"durable_objects": {
+				"bindings": [
+					{
+						"name": "ZT_SOCKET_HUB",
+						"class_name": "ZintrustSocketHub",
+					},
+				],
+			},
+			// Custom domain routing
+			"routes": [
+				{
+					"pattern": "wk.zintrust.com",
+					"custom_domain": true,
+				},
+			],
+		},
+		// --------------------------------------------------------------------------
+		// DEVELOPMENT ENVIRONMENT
+		// --------------------------------------------------------------------------
+		// Configuration for local development with Cloudflare environment support
+		"development": {
+			"main": "./src/functions/cloudflare.ts",
+			// Compatibility settings
+			"compatibility_date": "2026-03-12",
+			"compatibility_flags": [
+				"nodejs_compat"
+			],
+			// Development settings
+			"workers_dev": true,
+			"minify": false,
+			// D1 Database binding
+			"d1_databases": [
+				{
+					"binding": "ZIN_DB",
+					"database_name": "d1-proxy-db",
+					"database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+					"migrations_dir": "database/migrations/d1",
+				},
+			],
+			// Path aliases (duplicated for development environment)
+			"alias": {
+				"@zintrust/core": "./src/index.ts",
+				"@zintrust/workers": "./packages/workers/src/index.ts",
+				"@routes/api": "./routes/api.ts",
+				"@config/env": "./src/config/env.ts",
+				"@config/logger": "./src/config/logger.ts",
+				"@runtime/BackgroundTaskScheduler": "./src/runtime/BackgroundTaskScheduler.ts",
+				"@worker-runtime/drain": "./src/worker-runtime/drain.ts",
+				"@worker-runtime/rpc-client": "./src/worker-runtime/rpc-client.ts",
+				"@worker-runtime/*": "./src/worker-runtime/*",
+				"@runtime/*": "./src/runtime/*",
+				"@config/*": "./src/config/*",
+			},
+			// Observability and monitoring
+			"observability": {
+				"enabled": true,
+				"head_sampling_rate": 0.1,
+			},
+			// Environment variables
+			"vars": {
+				"ENVIRONMENT": "development",
+			},
+		},
+		// --------------------------------------------------------------------------
+		// PRODUCTION ENVIRONMENT
+		// --------------------------------------------------------------------------
+		// Minimal production configuration with optimized settings
+		"production": {
+			// Environment variables
+			"vars": {
+				"ENVIRONMENT": "production",
+			},
+			// Custom domain routing for production
+			"routes": [
+				{
+					"pattern": "api.zintrust.com",
+					"custom_domain": true,
+				},
+			],
+			// Production build optimization
+			"minify": true,
+		},
+		// --------------------------------------------------------------------------
+		// D1 PROXY ENVIRONMENT
+		// --------------------------------------------------------------------------
+		// Dedicated proxy worker for handling D1 database operations
+		"d1-proxy": {
+			"name": "zintrust-d1-proxy",
+			"main": "./src/proxy/d1/ZintrustD1Proxy.ts",
+			// Compatibility settings
+			"compatibility_flags": [
+				"nodejs_compat"
+			],
+			"compatibility_date": "2026-03-12",
+			// Proxy configuration variables
+			"vars": {
+				"D1_BINDING": "ZIN_DB",
+				"ZT_PROXY_SIGNING_WINDOW_MS": "60000",
+				"ZT_MAX_BODY_BYTES": "131072",
+				"ZT_MAX_SQL_BYTES": "32768",
+				"ZT_MAX_PARAMS": "256",
+				"NODE_ENV": "development",
+				"ZT_D1_STATEMENTS_JSON": "{\"health\":\"select 1 as ok\"}",
+			},
+			// D1 Database binding for the proxy
+			"d1_databases": [
+				{
+					"binding": "ZIN_DB",
+					"database_name": "d1-proxy-db",
+					"database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+					"migrations_dir": "database/migrations/d1",
+				},
+			],
+			// KV Namespace binding for the proxy
+			"kv_namespaces": [
+				{
+					"binding": "ZIN_KV",
+					"id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+					"preview_id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+					"remote": false,
+				},
+			],
+			// Custom domain routing
+			"routes": [
+				{
+					"pattern": "d1-proxy.zintrust.com",
+					"custom_domain": true,
+				},
+			],
+			// Production build optimization
+			"minify": true,
+		},
+		// --------------------------------------------------------------------------
+		// KV PROXY ENVIRONMENT
+		// --------------------------------------------------------------------------
+		// Dedicated proxy worker for handling KV (Key-Value) store operations
+		"kv-proxy": {
+			"name": "zintrust-kv-proxy",
+			"main": "./src/proxy/kv/ZintrustKvProxy.ts",
+			// Compatibility settings
+			"compatibility_flags": [
+				"nodejs_compat"
+			],
+			"compatibility_date": "2026-03-12",
+			// Proxy configuration variables
+			"vars": {
+				"NODE_ENV": "development",
+			},
+			// KV Namespace binding for the proxy
+			"kv_namespaces": [
+				{
+					"binding": "ZIN_KV",
+					"id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+					"preview_id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+					"remote": false,
+				},
+			],
+			// D1 Database binding for the proxy
+			"d1_databases": [
+				{
+					"binding": "ZIN_DB",
+					"database_name": "d1-proxy-db",
+					"database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+					"migrations_dir": "database/migrations/d1",
+				},
+			],
+			// Custom domain routing
+			"routes": [
+				{
+					"pattern": "kv-proxy.zintrust.com",
+					"custom_domain": true,
+				},
+			],
+			// Production build optimization
+			"minify": true,
+		},
+	},
+	// ============================================================================
+	// GLOBAL BINDINGS
+	// ============================================================================
+	// --------------------------------------------------------------------------
+	// D1 DATABASE BINDINGS
+	// --------------------------------------------------------------------------
+	// Global D1 database configuration for all environments
+	"d1_databases": [
+		{
+			"database_name": "d1-proxy-db",
+			"database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+			"binding": "ZIN_DB",
+			"migrations_dir": "database/migrations/d1",
+		},
+	],
+	// --------------------------------------------------------------------------
+	// KV NAMESPACE BINDINGS
+	// --------------------------------------------------------------------------
+	// Global KV namespace configuration for all environments
+	"kv_namespaces": [
+		{
+			"id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+			"binding": "ZIN_KV",
+		},
+	],
+	// --------------------------------------------------------------------------
+	// DURABLE OBJECT BINDINGS
+	// --------------------------------------------------------------------------
+	// Optional socket hub binding used by @zintrust/socket when Cloudflare
+	// websocket traffic needs cross-request fan-out instead of isolate-local state.
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "ZT_SOCKET_HUB",
+				"class_name": "ZintrustSocketHub",
+			},
+		],
+	},
+	"migrations": [
+		{
+			"tag": "v1-zintrust-socket-hub",
+			"new_sqlite_classes": [
+				"ZintrustSocketHub"
+			],
+		},
+	],
 }

@@ -72,7 +72,6 @@
       "@zintrust/queue-monitor/metrics": ["./packages/queue-monitor/src/metrics-index.ts"],
       "@zintrust/queue-monitor/dashboard": ["./packages/queue-monitor/src/dashboard-index.ts"],
       "@zintrust/queue-monitor/*": ["./packages/queue-monitor/src/*"],
-      "@zedgi/zedgi-client": ["./zedgi/plugin/zedgi-client/index.ts"],
       "@zintrust/cache-redis": ["./packages/cache-redis/src/index.ts"],
       "@zintrust/cache-redis/*": ["./packages/cache-redis/src/*"],
       "@zintrust/queue-redis": ["./packages/queue-redis/src/index.ts"],

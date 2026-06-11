@@ -76,7 +76,7 @@ const loadQueueMonitorMetrics = async (): Promise<QueueMonitorMetrics | null> =>
   }
 
   try {
-    const module = (await import('@zintrust/queue-monitor')) as QueueMonitorModule;
+    const module = (await import('@zintrust/queue-monitor')) as unknown as QueueMonitorModule;
     if (typeof module.createMetrics !== 'function') {
       return null;
     }
