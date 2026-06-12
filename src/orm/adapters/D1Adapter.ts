@@ -8,6 +8,7 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isObject } from '@helper/index';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
+import { createReadSessionScope, openSession } from '@orm/adapters/D1ReadSession';
 import type {
   D1ReadConstraint,
   DatabaseConfig,
@@ -17,7 +18,6 @@ import type {
   QueryResult,
 } from '@orm/DatabaseAdapter';
 import { BaseAdapter } from '@orm/DatabaseAdapter';
-import { createReadSessionScope, openSession } from '@orm/adapters/D1ReadSession';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
@@ -91,6 +91,27 @@ function getD1Binding(_config: DatabaseConfig): ID1Database | null {
 }
 
 /**
+ * Normalize D1 bind parameters to handle integer-to-TEXT column compatibility.
+ *
+ * Workerd's D1 API binds every JavaScript number parameter as a float64 (REAL).
+ * When SQLite compares a REAL operand against a column with TEXT affinity,
+ * the operand is cast using the column's affinity, producing '2.0' — which
+ * never equals a stored '2' from PHP/PDO.
+ *
+ * This function converts integer-valued numbers to their canonical decimal
+ * string representation to match PHP/PDO behavior for TEXT columns.
+ *
+ * @param parameters - The bind parameters array
+ * @returns Normalized parameters with integers as strings
+ */
+function normalizeD1BindParameters(parameters: unknown[]): unknown[] {
+  if (!Array.isArray(parameters)) return parameters;
+  return parameters.map((value) =>
+    typeof value === 'number' && Number.isInteger(value) ? String(value) : value
+  );
+}
+
+/**
  * D1 adapter implementation
  */
 export const D1Adapter = Object.freeze({
@@ -134,12 +155,13 @@ export const D1Adapter = Object.freeze({
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
         const db = resolveExecutor();
+        const normalizedParams = normalizeD1BindParameters(parameters);
 
         try {
           const stmt = db.prepare(sql);
 
           if (isMutatingSql(sql)) {
-            const runResult = await stmt.bind(...parameters).run();
+            const runResult = await stmt.bind(...normalizedParams).run();
             const runRecord = runResult as { meta?: unknown };
             const meta = extractMeta(runRecord.meta);
             return {
@@ -150,7 +172,7 @@ export const D1Adapter = Object.freeze({
             };
           }
 
-          const result = await stmt.bind(...parameters).all();
+          const result = await stmt.bind(...normalizedParams).all();
           const rawResult = result as { results?: Record<string, unknown>[]; meta?: unknown };
           const rows = BaseAdapter.normalizeRows(rawResult.results ?? []);
           const metaValue = rawResult.meta;
@@ -170,10 +192,11 @@ export const D1Adapter = Object.freeze({
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
         const db = resolveExecutor();
+        const normalizedParams = normalizeD1BindParameters(parameters);
 
         try {
           const stmt = db.prepare(sql);
-          const result = await stmt.bind(...parameters).first<Record<string, unknown>>();
+          const result = await stmt.bind(...normalizedParams).first<Record<string, unknown>>();
           return result === null ? null : BaseAdapter.normalizeRow(result);
         } catch (error) {
           throw ErrorFactory.createTryCatchError(`D1 queryOne failed: ${sql}`, error);
@@ -241,6 +264,7 @@ export const D1Adapter = Object.freeze({
         }
 
         const db = resolveExecutor();
+        const normalizedParams = normalizeD1BindParameters(parameters ?? []);
 
         try {
           Logger.warn(
@@ -248,7 +272,7 @@ export const D1Adapter = Object.freeze({
             Logger.withTraceSkipContext({ sql, parameters })
           );
           const stmt = db.prepare(sql);
-          const result = await stmt.bind(...(parameters ?? [])).all<T>();
+          const result = await stmt.bind(...normalizedParams).all<T>();
           return (result.results as T[]) ?? [];
         } catch (error) {
           throw ErrorFactory.createTryCatchError(`Raw SQL query failed: ${sql}`, error);

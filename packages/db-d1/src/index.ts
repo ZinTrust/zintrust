@@ -70,6 +70,27 @@ function requireD1(config: DatabaseConfig): ID1Database {
   return db;
 }
 
+/**
+ * Normalize D1 bind parameters to handle integer-to-TEXT column compatibility.
+ *
+ * Workerd's D1 API binds every JavaScript number parameter as a float64 (REAL).
+ * When SQLite compares a REAL operand against a column with TEXT affinity,
+ * the operand is cast using the column's affinity, producing '2.0' — which
+ * never equals a stored '2' from PHP/PDO.
+ *
+ * This function converts integer-valued numbers to their canonical decimal
+ * string representation to match PHP/PDO behavior for TEXT columns.
+ *
+ * @param parameters - The bind parameters array
+ * @returns Normalized parameters with integers as strings
+ */
+function normalizeD1BindParameters(parameters: unknown[]): unknown[] {
+  if (!Array.isArray(parameters)) return parameters;
+  return parameters.map((value) =>
+    typeof value === 'number' && Number.isInteger(value) ? String(value) : value
+  );
+}
+
 async function queryD1(
   config: DatabaseConfig,
   sql: string,
@@ -78,7 +99,8 @@ async function queryD1(
   const db = requireD1(config);
   try {
     const stmt = db.prepare(sql);
-    const result = await stmt.bind(...parameters).all();
+    const normalizedParams = normalizeD1BindParameters(parameters);
+    const result = await stmt.bind(...normalizedParams).all();
     const rows = BaseAdapter.normalizeRows((result.results as Record<string, unknown>[]) ?? []);
     return { rows, rowCount: rows.length };
   } catch (error) {
@@ -94,7 +116,8 @@ async function queryOneD1(
   const db = requireD1(config);
   try {
     const stmt = db.prepare(sql);
-    const result = await stmt.bind(...parameters).first<Record<string, unknown>>();
+    const normalizedParams = normalizeD1BindParameters(parameters);
+    const result = await stmt.bind(...normalizedParams).first<Record<string, unknown>>();
     return result === null ? null : BaseAdapter.normalizeRow(result);
   } catch (error) {
     throw ErrorFactory.createTryCatchError(`D1 queryOne failed: ${sql}`, error);
@@ -124,7 +147,8 @@ async function rawQueryD1<T>(
   try {
     Logger.warn(`Raw SQL Query executed: ${sql}`, Logger.withTraceSkipContext({ sql, parameters }));
     const stmt = db.prepare(sql);
-    const result = await stmt.bind(...(parameters ?? [])).all<T>();
+    const normalizedParams = normalizeD1BindParameters(parameters ?? []);
+    const result = await stmt.bind(...normalizedParams).all<T>();
     return result.results ?? [];
   } catch (error) {
     throw ErrorFactory.createTryCatchError(`Raw SQL query failed: ${sql}`, error);
