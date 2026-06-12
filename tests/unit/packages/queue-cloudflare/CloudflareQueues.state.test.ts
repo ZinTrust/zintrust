@@ -1,3 +1,5 @@
+/* eslint-disable complexity, @typescript-eslint/no-this-alias, no-empty-function */
+/* Test file with complex mock setup */
 import { describe, expect, it } from 'vitest';
 
 type Statement = {
@@ -66,12 +68,22 @@ class FakeD1 {
     }
 
     if (normalized.startsWith('INSERT INTO cf_queue_job_events')) {
-      this.events.push({ id: params[0], job_id: params[1], queue_name: params[2], event: params[3] });
+      this.events.push({
+        id: params[0],
+        job_id: params[1],
+        queue_name: params[2],
+        event: params[3],
+      });
       return;
     }
 
     if (normalized.startsWith('INSERT INTO cf_queue_job_logs')) {
-      this.logs.push({ id: params[0], job_id: params[1], queue_name: params[2], message: params[4] });
+      this.logs.push({
+        id: params[0],
+        job_id: params[1],
+        queue_name: params[2],
+        message: params[4],
+      });
       return;
     }
 
@@ -194,7 +206,9 @@ class FakeD1 {
         .slice(0, limit);
     }
 
-    if (normalized.startsWith("SELECT * FROM cf_queue_jobs WHERE queue_name = ? AND state = 'active'")) {
+    if (
+      normalized.startsWith("SELECT * FROM cf_queue_jobs WHERE queue_name = ? AND state = 'active'")
+    ) {
       const cutoff = String(params[1]);
       const limit = Number(params[2] ?? 100);
       return Array.from(this.jobs.values())
@@ -239,9 +253,8 @@ class FakeD1 {
 
 describe('adapter package queue-cloudflare state layer', () => {
   it('runs D1 migrations and creates/query jobs with BullMQ-like APIs', async () => {
-    const { CloudflareQueues, CloudflareQueueMigrator } = await import(
-      '../../../../packages/queue-cloudflare/src/index.js'
-    );
+    const { CloudflareQueues, CloudflareQueueMigrator } =
+      await import('../../../../packages/queue-cloudflare/src/index.js');
     const d1 = new FakeD1();
     const sent: unknown[] = [];
 
@@ -261,10 +274,15 @@ describe('adapter package queue-cloudflare state layer', () => {
       state: { d1 },
     });
 
-    const job = await queue.add('email-queue', 'send-email', { to: 'user@example.com' }, {
-      attempts: 3,
-      priority: 2,
-    });
+    const job = await queue.add(
+      'email-queue',
+      'send-email',
+      { to: 'user@example.com' },
+      {
+        attempts: 3,
+        priority: 2,
+      }
+    );
 
     expect(sent).toHaveLength(0);
     expect(await queue.getJob('email-queue', job.id)).toMatchObject({
@@ -276,9 +294,7 @@ describe('adapter package queue-cloudflare state layer', () => {
   });
 
   it('processes jobs and releases flow parents when children complete', async () => {
-    const { CloudflareQueues } = await import(
-      '../../../../packages/queue-cloudflare/src/index.js'
-    );
+    const { CloudflareQueues } = await import('../../../../packages/queue-cloudflare/src/index.js');
     const d1 = new FakeD1();
     const queue = CloudflareQueues.create({
       driver: 'cloudflare',
@@ -325,9 +341,7 @@ describe('adapter package queue-cloudflare state layer', () => {
   });
 
   it('deduplicates jobs and uses sendBatch for bulk immediate jobs', async () => {
-    const { CloudflareQueues } = await import(
-      '../../../../packages/queue-cloudflare/src/index.js'
-    );
+    const { CloudflareQueues } = await import('../../../../packages/queue-cloudflare/src/index.js');
     const d1 = new FakeD1();
     const batches: unknown[][] = [];
     const queue = CloudflareQueues.create({
@@ -344,12 +358,22 @@ describe('adapter package queue-cloudflare state layer', () => {
       state: { d1 },
     });
 
-    const first = await queue.add('batch-queue', 'dedupe', { a: 1 }, {
-      deduplication: { id: 'same' },
-    });
-    const second = await queue.add('batch-queue', 'dedupe', { a: 2 }, {
-      deduplication: { id: 'same' },
-    });
+    const first = await queue.add(
+      'batch-queue',
+      'dedupe',
+      { a: 1 },
+      {
+        deduplication: { id: 'same' },
+      }
+    );
+    const second = await queue.add(
+      'batch-queue',
+      'dedupe',
+      { a: 2 },
+      {
+        deduplication: { id: 'same' },
+      }
+    );
 
     expect(second.id).toBe(first.id);
 
@@ -363,9 +387,8 @@ describe('adapter package queue-cloudflare state layer', () => {
   });
 
   it('marks DLQ jobs dead_lettered and reconciles stalled jobs', async () => {
-    const { CloudflareQueues, CloudflareQueueConsumer, CloudflareJobStore } = await import(
-      '../../../../packages/queue-cloudflare/src/index.js'
-    );
+    const { CloudflareQueues, CloudflareQueueConsumer, CloudflareJobStore } =
+      await import('../../../../packages/queue-cloudflare/src/index.js');
     const d1 = new FakeD1();
     const sent: unknown[] = [];
     const queue = CloudflareQueues.create({
@@ -382,7 +405,8 @@ describe('adapter package queue-cloudflare state layer', () => {
     });
 
     const job = await queue.add('stall-queue', 'work', { ok: true });
-    await d1.prepare('UPDATE cf_queue_jobs SET state = ?, updated_at = ? WHERE queue_name = ? AND id = ?')
+    await d1
+      .prepare('UPDATE cf_queue_jobs SET state = ?, updated_at = ? WHERE queue_name = ? AND id = ?')
       .bind('active', new Date(Date.now() - 120_000).toISOString(), 'stall-queue', job.id)
       .run();
 

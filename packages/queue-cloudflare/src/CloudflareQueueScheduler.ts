@@ -1,5 +1,6 @@
+/* eslint-disable no-await-in-loop -- Sequential processing required for queue operations */
 import type { CloudflareJobStore } from './CloudflareJobStore.js';
-import type { CloudflareQueueEnvelope, CloudflareQueueConfig } from './types.js';
+import type { CloudflareQueueConfig, CloudflareQueueEnvelope } from './types.js';
 
 type SchedulerQueueApi = {
   enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
@@ -28,24 +29,90 @@ const toEnvelope = (input: {
   availableAt: input.availableAt,
 });
 
-const createScheduler = (config: CloudflareQueueSchedulerConfig) => {
+const dispatchJob = async (
+  config: CloudflareQueueSchedulerConfig,
+  job: { queueName: string; id: string; name: string; attemptsMade: number; availableAt: string }
+): Promise<void> => {
+  await config.queue.enqueue(
+    config.queueName,
+    toEnvelope({
+      queueName: job.queueName,
+      jobId: job.id,
+      name: job.name,
+      attempt: job.attemptsMade,
+      availableAt: job.availableAt,
+    })
+  );
+  await config.store.markDispatched(job.queueName, job.id);
+};
+
+const dispatchRepeatable = async (
+  config: CloudflareQueueSchedulerConfig,
+  row: import('./types.js').CloudflareRepeatableRow
+): Promise<void> => {
+  const payload = JSON.parse(row.payload) as unknown;
+  const job = await config.store.createJob({
+    queueName: row.queue_name,
+    name: row.name,
+    data: payload,
+  });
+  await config.queue.enqueue(
+    row.queue_name,
+    toEnvelope({
+      queueName: row.queue_name,
+      jobId: job.id,
+      name: row.name,
+      attempt: 0,
+      availableAt: job.availableAt,
+    })
+  );
+  await config.store.markDispatched(job.queueName, job.id);
+  await config.store.updateRepeatableAfterRun(row);
+};
+
+const retryStalledJob = async (
+  config: CloudflareQueueSchedulerConfig,
+  job: { queueName: string; id: string; name: string; attemptsMade: number; availableAt: string }
+): Promise<void> => {
+  await config.store.updateState({
+    queueName: job.queueName,
+    jobId: job.id,
+    state: 'stalled',
+  });
+  await config.store.updateState({
+    queueName: job.queueName,
+    jobId: job.id,
+    state: 'retrying',
+    availableAt: new Date().toISOString(),
+  });
+  await config.queue.enqueue(
+    job.queueName,
+    toEnvelope({
+      queueName: job.queueName,
+      jobId: job.id,
+      name: job.name,
+      attempt: job.attemptsMade,
+      availableAt: job.availableAt,
+    })
+  );
+  await config.store.markDispatched(job.queueName, job.id);
+};
+
+const createScheduler = (
+  config: CloudflareQueueSchedulerConfig
+): {
+  dispatchDueJobs: () => Promise<number>;
+  dispatchRepeatables: () => Promise<number>;
+  reconcileStalled: () => Promise<number>;
+  run: () => Promise<{ jobs: number; repeatables: number }>;
+} => {
   return {
     async dispatchDueJobs(): Promise<number> {
       const jobs = await config.store.getDueJobs(config.queueName, config.batchSize);
       let dispatched = 0;
 
       for (const job of jobs) {
-        await config.queue.enqueue(
-          config.queueName,
-          toEnvelope({
-            queueName: job.queueName,
-            jobId: job.id,
-            name: job.name,
-            attempt: job.attemptsMade,
-            availableAt: job.availableAt,
-          })
-        );
-        await config.store.markDispatched(job.queueName, job.id);
+        await dispatchJob(config, job);
         dispatched += 1;
       }
 
@@ -57,24 +124,7 @@ const createScheduler = (config: CloudflareQueueSchedulerConfig) => {
       let dispatched = 0;
 
       for (const row of rows) {
-        const payload = JSON.parse(row.payload) as unknown;
-        const job = await config.store.createJob({
-          queueName: row.queue_name,
-          name: row.name,
-          data: payload,
-        });
-        await config.queue.enqueue(
-          row.queue_name,
-          toEnvelope({
-            queueName: row.queue_name,
-            jobId: job.id,
-            name: row.name,
-            attempt: 0,
-            availableAt: job.availableAt,
-          })
-        );
-        await config.store.markDispatched(job.queueName, job.id);
-        await config.store.updateRepeatableAfterRun(row);
+        await dispatchRepeatable(config, row);
         dispatched += 1;
       }
 
@@ -90,28 +140,7 @@ const createScheduler = (config: CloudflareQueueSchedulerConfig) => {
       let retried = 0;
 
       for (const job of stalled) {
-        await config.store.updateState({
-          queueName: job.queueName,
-          jobId: job.id,
-          state: 'stalled',
-        });
-        await config.store.updateState({
-          queueName: job.queueName,
-          jobId: job.id,
-          state: 'retrying',
-          availableAt: new Date().toISOString(),
-        });
-        await config.queue.enqueue(
-          job.queueName,
-          toEnvelope({
-            queueName: job.queueName,
-            jobId: job.id,
-            name: job.name,
-            attempt: job.attemptsMade,
-            availableAt: job.availableAt,
-          })
-        );
-        await config.store.markDispatched(job.queueName, job.id);
+        await retryStalledJob(config, job);
         retried += 1;
       }
 

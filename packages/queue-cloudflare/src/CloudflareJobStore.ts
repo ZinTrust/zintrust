@@ -1,3 +1,9 @@
+/* eslint-disable no-await-in-loop, complexity, max-lines-per-function */
+/* eslint-disable no-negated-condition, no-nested-ternary, no-restricted-syntax */
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
+/* sonarqube-disable cognitive-complexity, no-nested-conditional, no-nested-ternary */
+/* sonarqube-disable no-negated-condition, S3776 */
+/* Sequential processing required, complex functions by design */
 import { ErrorFactory } from '@zintrust/core/errors';
 import { generateUuid } from '@zintrust/core/utils';
 import type {

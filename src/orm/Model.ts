@@ -958,7 +958,7 @@ const bindUnboundMethods = <T extends UnboundModelMethods>(
 };
 
 const extendModel = <T extends BoundModelMethods>(model: IModel, methods: T): IModel & T => {
-  const extended = Object.create(model as object) as Record<string, unknown>;
+  const extended = Object.create(model) as Record<string, unknown>;
   for (const [name, method] of Object.entries(methods)) {
     extended[name] = method;
   }

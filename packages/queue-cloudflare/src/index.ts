@@ -1,14 +1,19 @@
+/* eslint-disable no-await-in-loop, complexity */
+/* Sequential processing required for queue operations, some functions are complex by design */
 import { Cloudflare } from '@zintrust/core/cloudflare';
 import { ErrorFactory } from '@zintrust/core/errors';
 import { generateUuid } from '@zintrust/core/utils';
-import { CloudflareJobStore, type CloudflareJobStore as ICloudflareJobStore } from './CloudflareJobStore.js';
+import {
+  CloudflareJobStore,
+  type CloudflareJobStore as ICloudflareJobStore,
+} from './CloudflareJobStore.js';
 import { CloudflareQueueConsumer } from './CloudflareQueueConsumer.js';
 import { CloudflareQueueMigrator } from './CloudflareQueueMigrator.js';
 import { CloudflareQueueScheduler } from './CloudflareQueueScheduler.js';
 import type {
-  CloudflareJobOptions,
   CloudflareFlowInput,
   CloudflareFlowResult,
+  CloudflareJobOptions,
   CloudflareQueueBinding,
   CloudflareQueueConfig,
   CloudflareQueueContentType,
@@ -22,10 +27,15 @@ import type {
   QueueMessage,
 } from './types.js';
 
+export { CloudflareJobStore } from './CloudflareJobStore.js';
+export { CloudflareQueueConsumer } from './CloudflareQueueConsumer.js';
+export { CloudflareQueueCoordinator } from './CloudflareQueueCoordinator.js';
+export { CloudflareQueueMigrator } from './CloudflareQueueMigrator.js';
+export { CloudflareQueueScheduler } from './CloudflareQueueScheduler.js';
 export type {
-  CloudflareJobOptions,
   CloudflareFlowInput,
   CloudflareFlowResult,
+  CloudflareJobOptions,
   CloudflareQueueBackoff,
   CloudflareQueueBinding,
   CloudflareQueueConfig,
@@ -35,17 +45,12 @@ export type {
   CloudflareQueueMetrics,
   CloudflareQueueProcessor,
   CloudflareQueueProcessorContext,
+  CloudflareQueueRetention,
   CloudflareQueueState,
   CloudflareQueueStateConfig,
-  CloudflareQueueRetention,
   CloudflareRepeatOptions,
   QueueMessage,
 } from './types.js';
-export { CloudflareJobStore } from './CloudflareJobStore.js';
-export { CloudflareQueueConsumer } from './CloudflareQueueConsumer.js';
-export { CloudflareQueueCoordinator } from './CloudflareQueueCoordinator.js';
-export { CloudflareQueueMigrator } from './CloudflareQueueMigrator.js';
-export { CloudflareQueueScheduler } from './CloudflareQueueScheduler.js';
 
 type CloudflareQueuesApiEnvelope<T> = {
   success?: boolean;
@@ -226,8 +231,10 @@ const apiFetch = async <T>(
 
   if (!response.ok || parsed.success === false) {
     const message =
-      parsed.errors?.map((error) => error.message).filter(Boolean).join('; ') ||
-      `Cloudflare Queues API error (${response.status})`;
+      parsed.errors
+        ?.map((error) => error.message)
+        .filter(Boolean)
+        .join('; ') || `Cloudflare Queues API error (${response.status})`;
     throw ErrorFactory.createConnectionError(message, { status: response.status, body: parsed });
   }
 
@@ -264,7 +271,12 @@ type CloudflareQueueDriver = {
   ack(queue: string, id: string): Promise<void>;
   length(queue: string): Promise<number>;
   drain(queue: string): Promise<void>;
-  add<T = unknown>(queue: string, name: string, data: T, options?: CloudflareJobOptions): Promise<CloudflareQueueJob<T>>;
+  add<T = unknown>(
+    queue: string,
+    name: string,
+    data: T,
+    options?: CloudflareJobOptions
+  ): Promise<CloudflareQueueJob<T>>;
   addBulk<T = unknown>(
     queue: string,
     jobs: Array<{ name: string; data: T; options?: CloudflareJobOptions }>
@@ -336,7 +348,11 @@ const createEnqueue =
 
 const sendRaw =
   (config?: CloudflareQueueConfig) =>
-  async (queue: string, payload: unknown, optionsOverride?: CloudflareQueueSendOptions): Promise<void> => {
+  async (
+    queue: string,
+    payload: unknown,
+    optionsOverride?: CloudflareQueueSendOptions
+  ): Promise<void> => {
     const options = { ...resolveSendOptions(config), ...(optionsOverride ?? {}) };
     const binding = resolveBinding(queue, config);
 
@@ -372,6 +388,7 @@ const sendRawBatch =
     }
 
     const rawSender = sendRaw(config);
+
     for (const message of messages) {
       await rawSender(queue, message.body, message.options);
     }
@@ -394,7 +411,9 @@ const createDequeue =
     });
 
     state.lastBacklogCount =
-      pulled.message_backlog_count ?? pulled.metadata?.metrics?.backlog_count ?? state.lastBacklogCount;
+      pulled.message_backlog_count ??
+      pulled.metadata?.metrics?.backlog_count ??
+      state.lastBacklogCount;
 
     const message = pulled.messages?.[0];
     if (message === undefined) return undefined;
@@ -488,6 +507,7 @@ const delayOptions = (options?: CloudflareJobOptions): CloudflareQueueSendOption
   return delaySeconds > 0 ? { delaySeconds } : undefined;
 };
 
+// eslint-disable-next-line max-lines-per-function -- Complex driver with many methods
 function createCloudflareQueueDriver(config?: CloudflareQueueConfig): CloudflareQueueDriver {
   const state: CloudflareQueueDriverState = { leases: new Map() };
   const rawSender = sendRaw(config);
@@ -541,7 +561,11 @@ function createCloudflareQueueDriver(config?: CloudflareQueueConfig): Cloudflare
       jobs: Array<{ name: string; data: T; options?: CloudflareJobOptions }>
     ): Promise<Array<CloudflareQueueJob<T>>> {
       const created: Array<CloudflareQueueJob<T>> = [];
-      const batch: Array<{ body: CloudflareQueueEnvelope; options?: CloudflareQueueSendOptions; id: string }> = [];
+      const batch: Array<{
+        body: CloudflareQueueEnvelope;
+        options?: CloudflareQueueSendOptions;
+        id: string;
+      }> = [];
       const coordinator = resolveCoordinator(config, queue);
       const rate = config?.state?.rateLimit;
       const rateResult =
@@ -552,6 +576,7 @@ function createCloudflareQueueDriver(config?: CloudflareQueueConfig): Cloudflare
               max: rate.max,
               durationMs: rate.durationMs,
             });
+
       for (const jobInput of jobs) {
         const job = await getStore().createJob({
           queueName: queue,
@@ -582,6 +607,7 @@ function createCloudflareQueueDriver(config?: CloudflareQueueConfig): Cloudflare
           queue,
           batch.map((message) => ({ body: message.body, options: message.options }))
         );
+
         for (const message of batch) {
           await getStore().markDispatched(queue, message.id);
         }
@@ -598,7 +624,10 @@ function createCloudflareQueueDriver(config?: CloudflareQueueConfig): Cloudflare
     ): Promise<Array<CloudflareQueueJob<T>>> {
       return await getStore().getJobs<T>(queue, states, limit);
     },
-    async getJobCounts(queue: string, ...states: CloudflareQueueState[]): Promise<Record<string, number>> {
+    async getJobCounts(
+      queue: string,
+      ...states: CloudflareQueueState[]
+    ): Promise<Record<string, number>> {
       return await getStore().getJobCounts(queue, ...states);
     },
     async getMetrics(queue: string): Promise<CloudflareQueueMetrics> {
@@ -642,19 +671,30 @@ function createCloudflareQueueDriver(config?: CloudflareQueueConfig): Cloudflare
       repeat: NonNullable<CloudflareJobOptions['repeat']>,
       id?: string
     ): Promise<unknown> {
-      return await getStore().upsertRepeatable({ id, queueName: queue, name, data, options: repeat });
+      return await getStore().upsertRepeatable({
+        id,
+        queueName: queue,
+        name,
+        data,
+        options: repeat,
+      });
     },
     async removeJobScheduler(id: string): Promise<void> {
       await getStore().removeRepeatable(id);
     },
-    async runScheduler(queue: string, limit?: number): Promise<{ jobs: number; repeatables: number }> {
+    async runScheduler(
+      queue: string,
+      limit?: number
+    ): Promise<{ jobs: number; repeatables: number }> {
       return await CloudflareQueueScheduler.create({
         queueName: queue,
         store: getStore(),
-        queue: { enqueue: async (queueName, payload) => {
-          await rawSender(queueName, payload);
-          return generateUuid();
-        } },
+        queue: {
+          enqueue: async (queueName, payload) => {
+            await rawSender(queueName, payload);
+            return generateUuid();
+          },
+        },
         batchSize: limit,
       }).run();
     },
@@ -662,10 +702,12 @@ function createCloudflareQueueDriver(config?: CloudflareQueueConfig): Cloudflare
       return await CloudflareQueueScheduler.create({
         queueName: queue,
         store: getStore(),
-        queue: { enqueue: async (queueName, payload) => {
-          await rawSender(queueName, payload);
-          return generateUuid();
-        } },
+        queue: {
+          enqueue: async (queueName, payload) => {
+            await rawSender(queueName, payload);
+            return generateUuid();
+          },
+        },
         batchSize: limit,
         stalledAfterMs: olderThanMs,
       }).reconcileStalled();
@@ -681,8 +723,12 @@ function createCloudflareQueueDriver(config?: CloudflareQueueConfig): Cloudflare
     ): Promise<Array<CloudflareQueueJob<T>>> {
       return await getStore().getFlowChildren<T>(queue, parentJobId);
     },
-    async markFlowChildCompleted(queue: string, childJobId: string): Promise<Array<CloudflareQueueJob>> {
+    async markFlowChildCompleted(
+      queue: string,
+      childJobId: string
+    ): Promise<Array<CloudflareQueueJob>> {
       const released = await getStore().markFlowChildCompleted(queue, childJobId);
+
       for (const parent of released) {
         await rawSender(parent.queueName, toQueueEnvelope(parent));
         await getStore().markDispatched(parent.queueName, parent.id);
@@ -698,9 +744,11 @@ function createCloudflareQueueDriver(config?: CloudflareQueueConfig): Cloudflare
         store: getStore(),
         processor,
         state: config?.state,
-        queue: { enqueue: async (queueName, payload) => {
-          await rawSender(queueName, payload);
-        } },
+        queue: {
+          enqueue: async (targetQueue, payload) => {
+            await rawSender(targetQueue, payload);
+          },
+        },
       });
     },
     async migrateState(): Promise<void> {

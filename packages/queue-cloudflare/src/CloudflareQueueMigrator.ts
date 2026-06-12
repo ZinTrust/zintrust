@@ -1,8 +1,8 @@
-import type { D1DatabaseLike, ZinTrustDatabaseLike } from './types.js';
 import {
   cloudflareQueueMigrationStatements,
   cloudflareQueueRollbackStatements,
 } from './migrationSql.js';
+import type { D1DatabaseLike, ZinTrustDatabaseLike } from './types.js';
 
 export type CloudflareQueueMigrationTarget =
   | { d1: D1DatabaseLike; db?: never }
@@ -25,14 +25,14 @@ export const CloudflareQueueMigrator = Object.freeze({
   rollbackStatements: cloudflareQueueRollbackStatements,
 
   async up(target: CloudflareQueueMigrationTarget): Promise<void> {
-    for (const statement of cloudflareQueueMigrationStatements) {
-      await runStatement(target, statement);
-    }
+    await Promise.all(
+      cloudflareQueueMigrationStatements.map((statement) => runStatement(target, statement))
+    );
   },
 
   async down(target: CloudflareQueueMigrationTarget): Promise<void> {
-    for (const statement of cloudflareQueueRollbackStatements) {
-      await runStatement(target, statement);
-    }
+    await Promise.all(
+      cloudflareQueueRollbackStatements.map((statement) => runStatement(target, statement))
+    );
   },
 });

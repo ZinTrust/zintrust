@@ -70,7 +70,8 @@ export const redactHeaders = (
   const lower = normalizeFields(fields);
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(headers)) {
-    out[k] = lower.has(k.toLowerCase()) ? REDACTED : v;
+    const keyLower = k.toLowerCase();
+    out[k] = lower.has(keyLower) || keyLower.includes('secret') ? REDACTED : v;
   }
   return out;
 };
