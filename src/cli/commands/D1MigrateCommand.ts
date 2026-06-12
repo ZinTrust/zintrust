@@ -67,7 +67,12 @@ const buildExecutionContext = (options: CommandOptions): D1MigrateExecutionConte
   const projectRoot = process.cwd();
   const dbName = getDbName(projectRoot, options);
   const env = typeof options['env'] === 'string' ? options['env'].trim() : undefined;
-  const config = typeof options['config'] === 'string' ? options['config'].trim() : undefined;
+  const config =
+    (typeof options['config'] === 'string' ? options['config'].trim() : undefined) ??
+    (typeof options['wrangler-config'] === 'string'
+      ? options['wrangler-config'].trim()
+      : undefined) ??
+    (typeof options['wc'] === 'string' ? options['wc'].trim() : undefined);
 
   const migrationsRelDir = isWorkerCommand
     ? path.join('database', 'migrations', 'd1')
@@ -159,7 +164,12 @@ export const D1MigrateCommand = Object.freeze({
           'Wrangler D1 identifier. Accepts database_name or binding; defaults to the configured wrangler d1_databases entry when available.'
         )
         .option('--env <name>', 'Wrangler environment to use (e.g., staging, production)')
-        .option('--config <path>', 'Path to wrangler config file (e.g., wrangler.dev.jsonc)');
+        .option('--config <path>', 'Path to wrangler config file (e.g., wrangler.dev.jsonc)')
+        .option(
+          '--wrangler-config <path>',
+          'Path to wrangler config file (e.g., wrangler.dev.jsonc)'
+        )
+        .option('--wc <path>', 'Path to wrangler config file (e.g., wrangler.dev.jsonc)');
     };
 
     const cmd = BaseCommand.create<ID1MigrateCommand>({

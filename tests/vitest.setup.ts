@@ -146,7 +146,7 @@ vi.mock('ioredis', () => {
     disconnect: async () => undefined,
   });
 
-  const IORedisMock = function IORedisMock(this: unknown) {
+  const IORedisMock = function (this: unknown) {
     if (ioredisMockState.mode === 'throw') {
       throw new Error('force import failure');
     }
