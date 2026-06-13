@@ -188,6 +188,7 @@ Redis RPC only becomes active when **both** `USE_REDIS_PROXY=true` and `REDIS_RP
 | `REDIS_RPC_REDIS_PASSWORD`  | `REDIS_PASSWORD`      | Redis password used by the RPC server.                       |
 | `REDIS_RPC_REDIS_DB`        | `REDIS_QUEUE_DB` / `REDIS_DB` | Redis database used by the RPC server.              |
 | `REDIS_RPC_BULLMQ_PREFIX`   | `BULLMQ_PREFIX` or `bull` | BullMQ key prefix owned by the RPC server.             |
+| `REDIS_RPC_STALE_ACTIVE_MS` | `max(visibilityTimeoutMs * 2, 120000)` | Pull-worker stale-active recovery threshold before Redis RPC fails abandoned BullMQ active jobs. |
 
 ## MongoDB proxy (HTTP)
 

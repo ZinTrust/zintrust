@@ -52,6 +52,7 @@ The server and client read these variables:
 | `REDIS_RPC_REDIS_PASSWORD` | `REDIS_PASSWORD`                     | Redis password used by the RPC backend.                         |
 | `REDIS_RPC_REDIS_DB`       | `REDIS_QUEUE_DB`, `REDIS_DB`, or `0` | Redis database used for queue operations.                       |
 | `REDIS_RPC_BULLMQ_PREFIX`  | `BULLMQ_PREFIX` or `bull`            | BullMQ key prefix used by the backend.                          |
+| `REDIS_RPC_STALE_ACTIVE_MS`| `max(visibilityTimeoutMs * 2, 120000)` | Pull-worker stale-active recovery threshold before failing abandoned active jobs. |
 | `REDIS_RPC_TIMEOUT_MS`     | `30000`                              | Client-side timeout used by integrations.                       |
 | `REDIS_RPC_RETRY_MAX`      | `2`                                  | Client-side retry count used by integrations.                   |
 | `REDIS_RPC_RETRY_DELAY_MS` | `500`                                | Client-side retry delay used by integrations.                   |
@@ -204,6 +205,10 @@ Supported methods:
 Queue requests identify the queue with `payload.target`, `payload.queueName`, or `payload.queue`.
 
 `dequeue` is for pull-based runtimes. It uses BullMQ's own atomic waiting-to-active transition and returns `{ id, name, payload, attempts }`. The caller must report the result with `ack` or `fail` / `nack`. `ack` accepts an optional return value as `payload.returnValue`, `payload.returnvalue`, or the second positional arg. `fail` / `nack` accepts an optional failure reason as `payload.reason` or the second positional arg.
+
+As of `@zintrust/redis-rpc@2.4.8`, `dequeue` also scans up to 100 active jobs for the queue and recovers stale pull-worker jobs whose `processedOn` age exceeds `REDIS_RPC_STALE_ACTIVE_MS`. When the variable is unset, the backend uses `max(visibilityTimeoutMs * 2, 120000)`. Recovered jobs are marked failed and their pull-claim keys are released so normal replay policy can handle follow-up processing.
+
+The local source also discards recovered stale jobs before `moveToFailed(...)` so they become terminal failures instead of delayed retries when attempts remain. Queue-monitor snapshot and recent-job reads run the same recovery pass, which keeps stale active jobs from lingering when no pull worker is polling. Manual recovery can use `queue.fail` with `force: true` or `discard: true` to recreate the pull-worker lock, discard retries, and fail the job.
 
 ### `worker`
 

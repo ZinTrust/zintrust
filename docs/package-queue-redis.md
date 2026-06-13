@@ -523,6 +523,8 @@ zin s redis-rpc
 
 Keep using the older Redis HTTP proxy only for simple command-level cache operations when you do not need BullMQ semantics.
 
+For pull-based consumers using Redis RPC `dequeue`, `@zintrust/redis-rpc@2.4.8` already repairs stale BullMQ `active` jobs before claiming new work. Tune the recovery window with `REDIS_RPC_STALE_ACTIVE_MS` on the Redis RPC server, or let it default to `max(visibilityTimeoutMs * 2, 120000)`.
+
 ### Lua Scripts
 
 ```typescript

@@ -166,6 +166,11 @@ const numberFrom = (value: unknown, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const positiveNumberFrom = (value: unknown): number | null => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 const boolFrom = (value: unknown, fallback = false): boolean =>
   typeof value === 'boolean' ? value : fallback;
 
@@ -234,7 +239,7 @@ const createConnection = (state: BackendState, extra: RedisOptions = {}): Redis 
 };
 
 const queueOptions = (state: BackendState): QueueOptions => ({
-  connection: createConnection(state) as unknown as QueueOptions['connection'],
+  connection: createConnection(state),
   prefix: state.prefix,
 });
 
@@ -381,26 +386,96 @@ const releaseClaim = async (
   }
 };
 
+const ensurePullWorkerJobLock = async (
+  queue: Queue,
+  jobId: string,
+  ttlMs: number
+): Promise<void> => {
+  const client = await (queue as unknown as { client: Promise<Redis> }).client;
+  await client.set(queue.toKey(jobId) + ':lock', PULL_WORKER_TOKEN, 'PX', Math.max(1, ttlMs));
+};
+
+const staleActiveThresholdMs = (visibilityTimeoutMs: number): number => {
+  const override = positiveNumberFrom(process.env['REDIS_RPC_STALE_ACTIVE_MS']);
+  if (override !== null) {
+    return override;
+  }
+  return Math.max(visibilityTimeoutMs * 2, 120_000);
+};
+
+const recoverStaleActiveJobs = async (
+  state: BackendState,
+  queueName: string,
+  queue: Queue,
+  visibilityTimeoutMs: number
+): Promise<void> => {
+  const thresholdMs = staleActiveThresholdMs(visibilityTimeoutMs);
+  const activeJobs = await queue.getJobs(['active'], 0, 99, true);
+
+  for (const job of activeJobs) {
+    if (isUndefinedOrNull(job.processedOn) || isUndefinedOrNull(job.id)) {
+      continue;
+    }
+
+    const processedOn = Number(job.processedOn);
+    if (!Number.isFinite(processedOn)) {
+      continue;
+    }
+
+    const ageMs = Date.now() - processedOn;
+    if (ageMs <= thresholdMs) {
+      continue;
+    }
+
+    const jobId = String(job.id);
+
+    try {
+      job.discard();
+      // eslint-disable-next-line no-await-in-loop
+      await ensurePullWorkerJobLock(queue, jobId, visibilityTimeoutMs);
+      // eslint-disable-next-line no-await-in-loop
+      await job.moveToFailed(
+        new Error(`stale active job recovered after ${ageMs}ms without ack/fail`),
+        PULL_WORKER_TOKEN,
+        false
+      );
+      // eslint-disable-next-line no-await-in-loop
+      await releaseClaim(state, queueName, jobId);
+    } catch (error) {
+      Logger.warn('Redis RPC stale active recovery failed', {
+        queueName,
+        jobId,
+        thresholdMs,
+        processedOn,
+        ageMs,
+        error,
+      });
+    }
+  }
+};
+
 const dequeueQueueJob = async (
   state: BackendState,
   queueName: string,
   payload: RpcPayload
 ): Promise<unknown> => {
   const queue = getQueue(state, queueName);
-  (queue as unknown as { opts: { lockDuration?: number } }).opts.lockDuration = Math.max(
-    1,
-    numberFrom(payload.visibilityTimeoutMs, 30_000)
-  );
-  const scripts = (queue as unknown as {
-    scripts?: {
-      moveToActive: (
-        client: Redis,
-        token: string,
-        name?: string
-      ) => Promise<[Record<string, string> | undefined, string | undefined]>;
-    };
-  }).scripts;
+  const visibilityTimeoutMs = Math.max(1, numberFrom(payload.visibilityTimeoutMs, 30_000));
+  (queue as unknown as { opts: { lockDuration?: number } }).opts.lockDuration = visibilityTimeoutMs;
+  const scripts = (
+    queue as unknown as {
+      scripts?: {
+        moveToActive: (
+          client: Redis,
+          token: string,
+          name?: string
+        ) => Promise<[Record<string, string> | undefined, string | undefined]>;
+      };
+    }
+  ).scripts;
   if (scripts === undefined) return undefined;
+
+  await recoverStaleActiveJobs(state, queueName, queue, visibilityTimeoutMs);
 
   const client = await (queue as unknown as { client: Promise<Redis> }).client;
   const [jobData, jobId] = await scripts.moveToActive(client, PULL_WORKER_TOKEN, '');
@@ -427,7 +502,12 @@ const ackQueueJob = async (
   const job = await getQueueJobById(state, queueName, payload);
   if (!job) return false;
   const args = asArgs(payload);
-  const returnValue = firstDefined(args[1], payload.returnValue, payload.returnvalue, 'acknowledged');
+  const returnValue = firstDefined(
+    args[1],
+    payload.returnValue,
+    payload.returnvalue,
+    'acknowledged'
+  );
   await job.moveToCompleted(returnValue, PULL_WORKER_TOKEN, false);
   if (!isUndefinedOrNull(job.id)) {
     await releaseClaim(state, queueName, String(job.id));
@@ -446,6 +526,18 @@ const failQueueJob = async (
   const reason = isNonEmptyString(firstDefined(args[1], payload.reason))
     ? String(firstDefined(args[1], payload.reason))
     : 'failed by pull worker';
+
+  if (boolFrom(payload.force, false) || boolFrom(payload.discard, false)) {
+    if (!isUndefinedOrNull(job.id)) {
+      await ensurePullWorkerJobLock(
+        getQueue(state, queueName),
+        String(job.id),
+        Math.max(1, numberFrom(payload.visibilityTimeoutMs, 30_000))
+      );
+    }
+    job.discard();
+  }
+
   await job.moveToFailed(new Error(reason), PULL_WORKER_TOKEN, false);
   if (!isUndefinedOrNull(job.id)) {
     await releaseClaim(state, queueName, String(job.id));
@@ -562,7 +654,8 @@ const dispatchQueue = async (
 };
 /* eslint-enable complexity */
 
-const workerRegistryKey = (state: BackendState): string => `${normalizedPrefix(state)}:__rpc_workers`;
+const workerRegistryKey = (state: BackendState): string =>
+  `${normalizedPrefix(state)}:__rpc_workers`;
 
 const buildWorkerRecord = (
   payload: RpcPayload,
@@ -756,7 +849,14 @@ const dispatchMonitor = async (
       const queues = await Promise.all(
         queueNames.map(async (name) => {
           const queueName = requireString(name, 'queueName');
-          return { name: queueName, counts: await getQueue(state, queueName).getJobCounts() };
+          const queue = getQueue(state, queueName);
+          await recoverStaleActiveJobs(
+            state,
+            queueName,
+            queue,
+            numberFrom(payload.visibilityTimeoutMs, 30_000)
+          );
+          return { name: queueName, counts: await queue.getJobCounts() };
         })
       );
       return { status: 'ok', startedAt: new Date().toISOString(), queues };
@@ -774,6 +874,12 @@ const dispatchMonitor = async (
       const queueName = requireString(
         firstDefined(args[0], payload.queueName, payload.queue),
         'queueName'
+      );
+      await recoverStaleActiveJobs(
+        state,
+        queueName,
+        getQueue(state, queueName),
+        numberFrom(payload.visibilityTimeoutMs, 30_000)
       );
       return dispatchQueue(state, 'getJobs', {
         ...payload,

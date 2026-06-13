@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/redis-rpc",
-  "version": "2.4.7",
+  "version": "2.4.9",
   "description": "Redis RPC backend for BullMQ queue operations in ZinTrust.",
   "private": false,
   "type": "module",

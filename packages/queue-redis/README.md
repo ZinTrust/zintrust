@@ -27,6 +27,8 @@ REDIS_RPC_URL=https://queues.example.com
 
 Start the backend with `zin redis-rpc` or `zin s redis-rpc`. See [`@zintrust/redis-rpc`](https://www.npmjs.com/package/@zintrust/redis-rpc).
 
+If you use Redis RPC pull-style dequeue/ack flows, `@zintrust/redis-rpc@2.4.8` can already fail abandoned BullMQ `active` jobs automatically. Tune that recovery threshold with `REDIS_RPC_STALE_ACTIVE_MS` on the Redis RPC server.
+
 ## When to use
 
 - ✅ Use `@zintrust/queue-redis` if you only need to **enqueue jobs** and another service will process them
