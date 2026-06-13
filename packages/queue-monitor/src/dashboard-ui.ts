@@ -125,6 +125,8 @@ html[data-theme="light"] .refresh-btn:hover { background: rgba(2, 132, 199, 0.16
 .retry-btn { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.2s; }
 .retry-btn:hover { background: rgba(59, 130, 246, 0.2); transform: scale(1.05); }
 .retry-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.recover-btn { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.35); }
+.recover-btn:hover { background: rgba(245, 158, 11, 0.2); }
 
 #error-container { display: none; margin-bottom: 2rem; padding: 1rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.5rem; font-size: 13px; font-weight: 600; }
 code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; color: var(--accent); border: 1px solid var(--border); }
@@ -579,6 +581,9 @@ const getRenderJobsIdentityHelpersFunction = (): string => `
 
         function getJobRetryMarkup(job) {
             const status = (job.status || (job.failedReason ? 'failed' : 'completed')).toLowerCase();
+            if (status === 'active') {
+                return '<button class="retry-btn recover-btn" onclick="recoverActiveJob(' + "'" + job.id + "'" + ', ' + "'" + (job.queue || currentQueue) + "'" + ')" title="Recover this active job">Recover</button>';
+            }
             if (status === 'failed') {
                 return '<button class="retry-btn" onclick="retryJob(' + "'" + job.id + "'" + ', ' + "'" + (job.queue || currentQueue) + "'" + ')" title="Retry this job">↻ Retry</button>';
             }
@@ -663,6 +668,7 @@ const getRenderJobsRowHelpersFunction = (): string => `
             tr.className = 'expandable-row';
             tr.addEventListener('click', (e) => {
                 if (e.target.classList.contains('retry-btn')) return;
+                if (e.target.classList.contains('recover-btn')) return;
                 toggleJobDetails(tr, tr.__jobData);
             });
             updateExistingJobRow(tr, job, idx);
@@ -1008,6 +1014,37 @@ const getToggleDetailsFunctions = (): string => `
             row.parentNode.insertBefore(detailRow, row.nextSibling);
         }`;
 
+const getRecoverActiveJobFunction = (): string => `
+        async function recoverActiveJob(jobId, queueName) {
+            try {
+                const btn = event.target;
+                btn.disabled = true;
+                btn.textContent = 'Recovering...';
+
+                const res = await fetch(API_BASE + '/api/recover-active/' + queueName + '/' + jobId, {
+                    method: 'POST'
+                });
+                const payload = await res.json().catch(() => null);
+
+                if (res.ok) {
+                    btn.textContent = payload && payload.status === 'removed_after_delayed_retry'
+                        ? 'Removed'
+                        : 'Recovered';
+                    setTimeout(() => {
+                        console.log('HTTP jobs polling disabled - using SSE only');
+                    }, 1000);
+                } else {
+                    btn.textContent = 'Failed';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                console.error('Failed to recover active job', e);
+                const btn = event.target;
+                btn.textContent = 'Failed';
+                btn.disabled = false;
+            }
+        }`;
+
 const getRetryJobFunction = (): string => `
         async function retryJob(jobId, queueName) {
             try {
@@ -1281,6 +1318,7 @@ const getDashboardScriptRender = (): string =>
     getLockHelperFunctions(),
     getErrorAndTooltipFunctions(),
     getToggleDetailsFunctions(),
+    getRecoverActiveJobFunction(),
     getRetryJobFunction(),
   ].join('\n');
 

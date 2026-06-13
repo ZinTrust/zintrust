@@ -15,6 +15,7 @@ import { getDashboardHtml } from './dashboard-ui.js';
 import {
   createBullMQDriver as createQueueDriver,
   type QueueDriver,
+  type RecoverActiveJobResult,
   type RetrySnapshot,
 } from './driver.js';
 import { createMetrics, type Metrics } from './metrics.js';
@@ -31,7 +32,7 @@ export {
 } from './QueueMonitoringService.js';
 
 export { createBullMQDriver } from './driver.js';
-export type { JobPayload, QueueDriver } from './driver.js';
+export type { JobPayload, QueueDriver, RecoverActiveJobResult } from './driver.js';
 export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics.js';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker.js';
 
@@ -399,6 +400,40 @@ async function handleRetryEndpoint(
   });
 }
 
+async function handleRecoverActiveEndpoint(
+  req: RequestWithParams,
+  res: {
+    status: (code: number) => { json: (data: unknown) => void };
+    json: (data: unknown) => void;
+  },
+  driver: QueueDriver
+): Promise<void> {
+  const queueName = extractQueueParam(req);
+  const jobId =
+    typeof req.getParam === 'function' ? req.getParam?.('jobId') : req.params?.['jobId'];
+
+  if (!queueName || !jobId) {
+    res.status(400).json(fieldError('queue_name,job_id', 'Queue name and job ID must be provided'));
+    return;
+  }
+
+  const result: RecoverActiveJobResult = await driver.recoverActiveJob(queueName, jobId);
+  if (result.ok) {
+    res.json({ ok: true, status: result.status, state: result.state });
+    return;
+  }
+
+  if (result.status === 'missing') {
+    res.status(404).json({ error: `Job ${jobId} no longer exists`, status: result.status });
+    return;
+  }
+
+  res.status(409).json({
+    error: result.reason ?? `Job ${jobId} cannot be recovered in its current state`,
+    status: result.status,
+  });
+}
+
 function buildSettings(config: QueueMonitorConfig): {
   enabled: boolean;
   basePath: string;
@@ -567,6 +602,7 @@ function registerApiRoutes(
   registerJobsApi(router, settings, routeOptions, metrics, driver);
   registerLocksApi(router, settings, routeOptions, getLocks);
   registerRetryApi(router, settings, routeOptions, driver, metrics);
+  registerRecoverActiveApi(router, settings, routeOptions, driver);
   registerEventsApi(router, settings, routeOptions, getSnapshot, getLocks, metrics, driver);
 }
 
@@ -638,6 +674,22 @@ function registerRetryApi(
     `${settings.basePath}/api/retry/:queue/:jobId`,
     async (req: IRequest, res: IResponse) => {
       await handleRetryEndpoint(req, res, driver, metrics);
+    },
+    routeOptions
+  );
+}
+
+function registerRecoverActiveApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: RouteOptions,
+  driver: QueueDriver
+): void {
+  Router.post(
+    router,
+    `${settings.basePath}/api/recover-active/:queue/:jobId`,
+    async (req: IRequest, res: IResponse) => {
+      await handleRecoverActiveEndpoint(req, res, driver);
     },
     routeOptions
   );

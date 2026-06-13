@@ -13,6 +13,7 @@ const getJobCountsMock = vi.fn(async () => ({
   delayed: 0,
   paused: 0,
 }));
+const queueClientSetMock = vi.fn(async () => 'OK');
 
 vi.mock('@zintrust/core', () => ({
   ErrorFactory: {
@@ -30,9 +31,11 @@ vi.mock('@zintrust/core/logger', () => ({
 vi.mock('bullmq', () => ({
   Queue: class {
     add = addMock;
+    client = Promise.resolve({ set: queueClientSetMock });
     getJob = getJobMock;
     getJobs = getJobsMock;
     getJobCounts = getJobCountsMock;
+    toKey = (suffix: string) => `zintrust:emails:${suffix}`;
     close = closeMock;
   },
 }));
@@ -121,6 +124,60 @@ describe('queue-monitor driver retryJob', () => {
       ok: true,
       status: 'retried',
     });
+  });
+});
+
+describe('queue-monitor driver recoverActiveJob', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns missing when the job does not exist', async () => {
+    getJobMock.mockResolvedValueOnce(undefined);
+
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    await expect(driver.recoverActiveJob('emails', 'job-1')).resolves.toEqual({
+      ok: false,
+      status: 'missing',
+    });
+  });
+
+  it('returns not_active when the job is no longer active', async () => {
+    getJobMock.mockResolvedValueOnce({
+      getState: vi.fn(async () => 'failed'),
+    });
+
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    await expect(driver.recoverActiveJob('emails', 'job-2')).resolves.toEqual({
+      ok: false,
+      status: 'not_active',
+      reason: 'Job is failed, not active',
+    });
+  });
+
+  it('discards retries, recreates the pull-worker lock, and fails active jobs', async () => {
+    const discard = vi.fn();
+    const moveToFailed = vi.fn(async () => undefined);
+    getJobMock.mockResolvedValueOnce({
+      discard,
+      getState: vi.fn(async () => 'active'),
+      moveToFailed,
+    });
+
+    const driver = createBullMQDriver({ host: 'localhost', port: 6379 });
+    await expect(driver.recoverActiveJob('emails', 'job-3')).resolves.toEqual({
+      ok: true,
+      status: 'failed',
+    });
+
+    expect(discard).toHaveBeenCalledOnce();
+    expect(queueClientSetMock).toHaveBeenCalledWith(
+      'zintrust:emails:job-3:lock',
+      'pull-worker',
+      'PX',
+      '30000'
+    );
+    expect(moveToFailed).toHaveBeenCalledWith(expect.any(Error), 'pull-worker', false);
   });
 });
 

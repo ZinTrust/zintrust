@@ -45,6 +45,10 @@ export type RetryJobResult =
   | { ok: false; status: 'missing' }
   | { ok: false; status: 'not_retryable'; reason?: string };
 
+export type RecoverActiveJobResult =
+  | { ok: true; status: 'failed' | 'removed' | 'removed_after_delayed_retry' | 'moved'; state?: string }
+  | { ok: false; status: 'missing' | 'not_active' | 'not_recoverable'; reason?: string };
+
 export type QueueDriver = {
   enqueue<T>(name: string, payload: T, options?: JobsOptions): Promise<string>;
   getJob(queueName: string, jobId: string): Promise<Job | undefined>;
@@ -54,6 +58,7 @@ export type QueueDriver = {
   ): Promise<Array<{ name: string; counts: Record<string, number> }>>;
   getRecentJobs(queueName: string, limit?: number): Promise<Job[]>;
   retryJob(queueName: string, jobId: string, snapshot?: RetrySnapshot): Promise<RetryJobResult>;
+  recoverActiveJob(queueName: string, jobId: string): Promise<RecoverActiveJobResult>;
   getQueues(): Promise<string[]>;
   close(): Promise<void>;
 };
@@ -200,6 +205,90 @@ const createRedisRpcRetryJob = async (
   return client.queue('retryJob', { target: queueName, args: [jobId] });
 };
 
+type RedisRpcJobSnapshot = {
+  id?: string | number;
+  state?: string;
+};
+
+const redisRpcRecoverActiveLockMs = (): number =>
+  Math.max(1, Env.getInt('QUEUE_MONITOR_RECOVER_ACTIVE_LOCK_MS', 30_000));
+
+const redisRpcBullMqPrefix = (): string =>
+  Env.get('REDIS_RPC_BULLMQ_PREFIX', Env.get('BULLMQ_PREFIX', 'bull')).replace(/:+$/u, '');
+
+const inspectRecoveredRedisRpcJob = async (
+  client: RedisRpcClient,
+  queueName: string,
+  jobId: string
+): Promise<RecoverActiveJobResult> => {
+  const job = await client.queue<RedisRpcJobSnapshot | null>('getJob', {
+    target: queueName,
+    args: [jobId],
+  });
+  if (!job) return { ok: true, status: 'removed' };
+  if (job.state === 'failed') return { ok: true, status: 'failed', state: job.state };
+  if (job.state === 'delayed') {
+    await client.queue('removeJob', { target: queueName, args: [jobId] });
+    return { ok: true, status: 'removed_after_delayed_retry', state: job.state };
+  }
+  if (job.state && job.state !== 'active') {
+    return { ok: true, status: 'moved', state: job.state };
+  }
+  return {
+    ok: false,
+    status: 'not_recoverable',
+    reason: `Job is ${job.state ?? 'unknown'} after recovery attempt`,
+  };
+};
+
+const createRedisRpcRecoverActiveJob = async (
+  queueName: string,
+  jobId: string
+): Promise<RecoverActiveJobResult> => {
+  const client = await createRpcClient();
+  const existingJob = await client.queue<RedisRpcJobSnapshot | null>('getJob', {
+    target: queueName,
+    args: [jobId],
+  });
+
+  if (!existingJob) return { ok: false, status: 'missing' };
+  if (existingJob.state !== 'active') {
+    return {
+      ok: false,
+      status: 'not_active',
+      reason: `Job is ${existingJob.state ?? 'unknown'}, not active`,
+    };
+  }
+
+  const visibilityTimeoutMs = redisRpcRecoverActiveLockMs();
+  try {
+    await client.queue('fail', {
+      target: queueName,
+      args: [jobId, 'manual queue-monitor stale active recovery'],
+      force: true,
+      discard: true,
+      visibilityTimeoutMs,
+    });
+  } catch {
+    const prefix = redisRpcBullMqPrefix();
+    await callRedisRpc('redis', 'call', {
+      args: [
+        'set',
+        `${prefix}:${queueName}:${jobId}:lock`,
+        'pull-worker',
+        'PX',
+        String(visibilityTimeoutMs),
+      ],
+    });
+    await client.queue('fail', {
+      target: queueName,
+      args: [jobId, 'manual queue-monitor stale active recovery'],
+    });
+  }
+
+  return inspectRecoveredRedisRpcJob(client, queueName, jobId);
+};
+
 const createRedisRpcGetQueues = async (): Promise<string[]> => {
   const client = await createRpcClient();
   try {
@@ -223,6 +312,7 @@ const createRedisRpcDriver = (): QueueDriver =>
     getJobCountsMany: createRedisRpcGetJobCountsMany,
     getRecentJobs: createRedisRpcRecentJobs,
     retryJob: createRedisRpcRetryJob,
+    recoverActiveJob: createRedisRpcRecoverActiveJob,
     getQueues: createRedisRpcGetQueues,
     close: createRedisRpcClose,
   });
@@ -428,6 +518,52 @@ const createBullMQRetryJob =
     }
   };
 
+const createBullMQRecoverActiveJob =
+  (
+    getQueue: (name: string) => Promise<Queue>,
+    getJob: (q: string, id: string) => Promise<Job | undefined>
+  ) =>
+  async (queueName: string, jobId: string): Promise<RecoverActiveJobResult> => {
+    const queue = await getQueue(queueName);
+    const job = await getJob(queueName, jobId);
+    if (!job) return { ok: false, status: 'missing' };
+
+    const state = await job.getState().catch(() => undefined);
+    if (state !== 'active') {
+      return {
+        ok: false,
+        status: 'not_active',
+        reason: `Job is ${state ?? 'unknown'}, not active`,
+      };
+    }
+
+    try {
+      job.discard();
+      const queueWithClient = queue as unknown as {
+        client: Promise<{ set: (...args: string[]) => Promise<unknown> }>;
+      };
+      const client = await queueWithClient.client;
+      await client.set(
+        queue.toKey(jobId) + ':lock',
+        'pull-worker',
+        'PX',
+        String(Math.max(1, Env.getInt('QUEUE_MONITOR_RECOVER_ACTIVE_LOCK_MS', 30_000)))
+      );
+      await job.moveToFailed(
+        new Error('manual queue-monitor stale active recovery'),
+        'pull-worker',
+        false
+      );
+      return { ok: true, status: 'failed' };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 'not_recoverable',
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    }
+  };
+
 const createBullMQGetRecentJobs =
   (getQueue: (name: string) => Promise<Queue>) =>
   async (queueName: string, limit = 100): Promise<Job[]> => {
@@ -469,6 +605,7 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     getJobCountsMany: createBullMQGetJobCountsMany(createBullMQGetJobCounts(getQueue)),
     getRecentJobs: createBullMQGetRecentJobs(getQueue),
     retryJob: createBullMQRetryJob(getQueue, createBullMQGetJob(getQueue)),
+    recoverActiveJob: createBullMQRecoverActiveJob(getQueue, createBullMQGetJob(getQueue)),
     getQueues: createBullMQGetQueues(redis, queues),
     close: createBullMQClose(queues),
   });

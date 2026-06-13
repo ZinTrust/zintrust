@@ -94,4 +94,17 @@ describe('queue monitor dashboard UI', () => {
     expect(html).toContain("return queue + '::' + id + '::' + timestamp;");
     expect(html).not.toContain('return String(job.id);');
   });
+
+  it('renders a recover action for active jobs', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    });
+
+    expect(html).toContain("if (status === 'active') {");
+    expect(html).toContain('recoverActiveJob(');
+    expect(html).toContain("/api/recover-active/");
+    expect(html).toContain('class="retry-btn recover-btn"');
+  });
 });

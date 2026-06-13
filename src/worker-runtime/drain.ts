@@ -35,9 +35,35 @@ const intEnv = (key: string, fallback: number): number => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const csvEnvSet = (key: string): Set<string> =>
+  new Set(
+    Env.get(key, '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0)
+  );
+
 type DrainTarget = {
   queueName: string;
   processorSpec: string;
+};
+
+/**
+ * Narrow drain targets by env allowlist/denylist:
+ * - `WORKER_DRAIN_QUEUES`: if set, only these queues are drained.
+ * - `WORKER_DRAIN_EXCLUDE_QUEUES`: these queues are always skipped.
+ */
+const filterDrainTargetsByEnv = (targets: DrainTarget[]): DrainTarget[] => {
+  const onlyQueues = csvEnvSet('WORKER_DRAIN_QUEUES');
+  const excludeQueues = csvEnvSet('WORKER_DRAIN_EXCLUDE_QUEUES');
+
+  return targets.filter((target) => {
+    if (onlyQueues.size > 0 && !onlyQueues.has(target.queueName)) {
+      return false;
+    }
+
+    return !excludeQueues.has(target.queueName);
+  });
 };
 
 type DrainLoopConfig = Readonly<{
@@ -94,7 +120,7 @@ const resolveDrainTargets = async (
       targets.push({ queueName: definition.queueName, processorSpec: definition.processorSpec });
     }
   }
-  return targets;
+  return filterDrainTargetsByEnv(targets);
 };
 
 const toJob = (
