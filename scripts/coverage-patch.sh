@@ -6,6 +6,14 @@
 
 set -e
 
+# macOS (and some dev machines) have low default open-file limits (often 256 soft).
+# Vitest + v8 coverage with hundreds of test files writes many intermediate
+# .tmp/coverage-*.json reports. This can trigger ENFILE "file table overflow"
+# (global kernel file table) or EMFILE even with fileParallelism/maxWorkers limited.
+# Raise the soft limit for this process tree. || true so the gate never breaks
+# on exotic systems where ulimit is unavailable.
+ulimit -n 8192 2>/dev/null || true
+
 MIN_PCT=${MIN_PCT:-82}
 COVERAGE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/zintrust-coverage-patch.XXXXXX")
 

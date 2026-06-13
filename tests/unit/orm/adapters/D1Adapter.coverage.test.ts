@@ -105,4 +105,35 @@ describe('D1Adapter (coverage)', () => {
     await adapter.disconnect();
     expect(adapter.isConnected()).toBe(false);
   });
+
+  it('normalizes integer bind params to decimal strings (for TEXT affinity compatibility) while leaving floats/other types unchanged', async () => {
+    const allMock = vi.fn(async () => ({ results: [{ ok: 1 }] }));
+    const bindMock = vi.fn(() => ({ all: allMock }));
+    const prepare = vi.fn(() => ({ bind: bindMock }));
+    getD1BindingMock.mockReturnValue({ prepare });
+
+    const adapter = D1Adapter.create({} as any);
+    await adapter.connect();
+
+    // integer -> becomes string '42'
+    await adapter.query('select * from t where id = ?', [42]);
+    expect(bindMock).toHaveBeenCalledWith('42');
+
+    // float stays number, string stays; covers the map 'else' path too
+    await adapter.query('select * from t where v = ? and s = ?', [3.14, 'foo']);
+    expect(bindMock).toHaveBeenCalledWith(3.14, 'foo');
+
+    // queryOne path with integer also exercises normalize
+    const firstMock = vi.fn(async () => ({ v: 1 }));
+    bindMock.mockReturnValueOnce({ first: firstMock });
+    await adapter.queryOne('select v from t where id=?', [7]);
+    expect(firstMock).toHaveBeenCalled();
+
+    // rawQuery path with integer
+    rawQueryEnabledMock.mockReturnValue(true);
+    const allForRaw = vi.fn(async () => ({ results: [] }));
+    bindMock.mockReturnValueOnce({ all: allForRaw });
+    await adapter.rawQuery('select 1', [123]);
+    expect(allForRaw).toHaveBeenCalled();
+  });
 });

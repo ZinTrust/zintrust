@@ -242,19 +242,43 @@ const resolveSqlRequest = async (
   return { ok: true, db: resolved.db, sql: parsed.sql, params: parsed.params };
 };
 
+/**
+ * Normalize bind parameters before passing to D1's bind().
+ *
+ * D1 rejects JS objects and needs integer-valued numbers serialized for TEXT
+ * column compatibility, Dates as ISO strings, while blobs must be untouched.
+ */
+const normalizeParams = (params: unknown[]): unknown[] => {
+  if (!Array.isArray(params)) return params;
+  return params.map((value) => {
+    if (typeof value === 'number' && Number.isInteger(value)) return String(value);
+    if (value instanceof Date) return value.toISOString();
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      !(value instanceof ArrayBuffer) &&
+      !ArrayBuffer.isView(value)
+    ) {
+      return JSON.stringify(value);
+    }
+    return value;
+  });
+};
+
 const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
   try {
     const resolved = await resolveSqlRequest(request, env);
     if (!resolved.ok) return resolved.response;
 
+    const normalizedParams = normalizeParams(resolved.params);
     const startedAt = Date.now();
     const result = await resolved.db
       .prepare(resolved.sql)
-      .bind(...resolved.params)
+      .bind(...normalizedParams)
       .all<Record<string, unknown>>();
     SystemTraceWorkerBridge.emitQuery(
       resolved.sql,
-      resolved.params,
+      normalizedParams,
       Date.now() - startedAt,
       'd1-proxy',
       routingFromMeta((result as { meta?: unknown }).meta)
@@ -272,14 +296,15 @@ const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> =
     const resolved = await resolveSqlRequest(request, env);
     if (!resolved.ok) return resolved.response;
 
+    const normalizedParams = normalizeParams(resolved.params);
     const startedAt = Date.now();
     const row = await resolved.db
       .prepare(resolved.sql)
-      .bind(...resolved.params)
+      .bind(...normalizedParams)
       .first<Record<string, unknown>>();
     SystemTraceWorkerBridge.emitQuery(
       resolved.sql,
-      resolved.params,
+      normalizedParams,
       Date.now() - startedAt,
       'd1-proxy'
     );
@@ -295,14 +320,15 @@ const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
     const resolved = await resolveSqlRequest(request, env);
     if (!resolved.ok) return resolved.response;
 
+    const normalizedParams = normalizeParams(resolved.params);
     const startedAt = Date.now();
     const out = await resolved.db
       .prepare(resolved.sql)
-      .bind(...resolved.params)
+      .bind(...normalizedParams)
       .run();
     SystemTraceWorkerBridge.emitQuery(
       resolved.sql,
-      resolved.params,
+      normalizedParams,
       Date.now() - startedAt,
       'd1-proxy',
       routingFromMeta(out.meta)
@@ -351,15 +377,16 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
       return toErrorResponse(404, 'NOT_FOUND', 'Unknown statementId');
     }
 
+    const normalizedParams = normalizeParams(parsed.params);
     const startedAt = Date.now();
     if (isMutatingSql(sql)) {
       const out = await resolved.db
         .prepare(sql)
-        .bind(...parsed.params)
+        .bind(...normalizedParams)
         .run();
       SystemTraceWorkerBridge.emitQuery(
         sql,
-        parsed.params,
+        normalizedParams,
         Date.now() - startedAt,
         'd1-proxy',
         routingFromMeta(out.meta)
@@ -369,11 +396,11 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
 
     const out = await resolved.db
       .prepare(sql)
-      .bind(...parsed.params)
+      .bind(...normalizedParams)
       .all<Record<string, unknown>>();
     SystemTraceWorkerBridge.emitQuery(
       sql,
-      parsed.params,
+      normalizedParams,
       Date.now() - startedAt,
       'd1-proxy',
       routingFromMeta((out as { meta?: unknown }).meta)

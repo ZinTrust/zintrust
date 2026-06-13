@@ -106,9 +106,19 @@ function getD1Binding(_config: DatabaseConfig): ID1Database | null {
  */
 function normalizeD1BindParameters(parameters: unknown[]): unknown[] {
   if (!Array.isArray(parameters)) return parameters;
-  return parameters.map((value) =>
-    typeof value === 'number' && Number.isInteger(value) ? String(value) : value
-  );
+  return parameters.map((value) => {
+    if (typeof value === 'number' && Number.isInteger(value)) return String(value);
+    if (value instanceof Date) return value.toISOString();
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      !(value instanceof ArrayBuffer) &&
+      !ArrayBuffer.isView(value)
+    ) {
+      return JSON.stringify(value);
+    }
+    return value;
+  });
 }
 
 /**

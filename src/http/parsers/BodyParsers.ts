@@ -15,6 +15,78 @@ interface IBodyParser {
 }
 
 /**
+ * Attempt to recover a JSON string that was parsed as a single form-urlencoded key.
+ * This handles cases where clients send JSON with the wrong Content-Type header.
+ */
+const tryRecoverJsonBody = (
+  result: Record<string, unknown>
+): Record<string, unknown> | undefined => {
+  const keys = Object.keys(result);
+  if (keys.length !== 1) return undefined;
+
+  const singleValue = result[keys[0]];
+  if (singleValue !== '') return undefined;
+
+  const maybeJson = keys[0].trim();
+  if (!maybeJson.startsWith('{') || !maybeJson.endsWith('}')) return undefined;
+
+  try {
+    const parsed: unknown = JSON.parse(maybeJson);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Not valid JSON — leave original result unchanged
+  }
+
+  return undefined;
+};
+
+/**
+ * Try to parse raw text as JSON before URLSearchParams touches it.
+ * This handles cases where JSON is sent with application/x-www-form-urlencoded Content-Type,
+ * which would be corrupted by URLSearchParams (splits on '=', converts '+' to spaces).
+ */
+const tryParseJsonRaw = (text: string): Record<string, unknown> | undefined => {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return undefined;
+
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Not valid JSON
+  }
+
+  return undefined;
+};
+
+/**
+ * Parse URL-encoded string into key-value pairs, handling duplicate keys as arrays.
+ */
+const parseUrlEncodedParams = (text: string): Record<string, unknown> => {
+  const params = new URLSearchParams(text);
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of params.entries()) {
+    if (Object.prototype.hasOwnProperty.call(result, key)) {
+      const existing = result[key];
+      if (Array.isArray(existing)) {
+        existing.push(value);
+      } else {
+        result[key] = [existing, value];
+      }
+    } else {
+      result[key] = value;
+    }
+  }
+
+  return result;
+};
+
+/**
  * URL-encoded form data parser
  * Content-Type: application/x-www-form-urlencoded
  */
@@ -27,21 +99,20 @@ const FormDataParser: IBodyParser = {
       const text = typeof body === 'string' ? body : body.toString('utf-8');
       if (!text.trim()) return { ok: true, data: {} };
 
-      const params = new URLSearchParams(text);
-      const result: Record<string, unknown> = {};
+      // JSON-first recovery: parse raw text before URLSearchParams touches it.
+      const rawJsonResult = tryParseJsonRaw(text);
+      if (rawJsonResult !== undefined) {
+        return { ok: true, data: rawJsonResult };
+      }
 
-      for (const [key, value] of params.entries()) {
-        if (Object.prototype.hasOwnProperty.call(result, key)) {
-          // Handle multiple values with same key
-          const existing = result[key];
-          if (Array.isArray(existing)) {
-            existing.push(value);
-          } else {
-            result[key] = [existing, value];
-          }
-        } else {
-          result[key] = value;
-        }
+      const result = parseUrlEncodedParams(text);
+
+      // Recovery: if a JSON payload was sent with wrong Content-Type,
+      // URLSearchParams treats the whole JSON string as a single key with
+      // an empty value. Detect this degenerate case and fall back to JSON.parse.
+      const recovered = tryRecoverJsonBody(result);
+      if (recovered !== undefined) {
+        return { ok: true, data: recovered };
       }
 
       return { ok: true, data: result };

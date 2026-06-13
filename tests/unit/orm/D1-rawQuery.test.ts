@@ -130,7 +130,9 @@ describe('D1Adapter - rawQuery()', () => {
     const params = [new Date('2024-01-01'), 'active'];
     await adapter.rawQuery('SELECT * FROM users WHERE created_at > ? AND status = ?', params);
 
-    expect(preparedStmt.bind).toHaveBeenCalledWith(...params);
+    // Normalization converts Date -> ISO string (and ints->string, plain objects->JSON)
+    // before binding. Assert the normalized values reach .bind().
+    expect(preparedStmt.bind).toHaveBeenCalledWith('2024-01-01T00:00:00.000Z', 'active');
   });
 
   it('should log warning on execution', async () => {
