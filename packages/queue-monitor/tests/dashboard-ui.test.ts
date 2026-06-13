@@ -107,4 +107,41 @@ describe('queue monitor dashboard UI', () => {
     expect(html).toContain("/api/recover-active/");
     expect(html).toContain('class="retry-btn recover-btn"');
   });
+
+  it('keeps HTTP refresh paths available alongside SSE', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    });
+
+    expect(html).toContain('id="jobs-refresh"');
+    expect(html).toContain('Refresh jobs');
+    expect(html).toContain("fetch(API_BASE + '/api/snapshot')");
+    expect(html).toContain("fetch(API_BASE + '/api/jobs/' + encodeURIComponent(queue))");
+    expect(html).toContain("fetch(API_BASE + '/api/locks?pattern=' + encodeURIComponent(pattern))");
+    expect(html).toContain('fetchData();');
+    expect(html).not.toContain('HTTP polling disabled - 100% SSE reliance');
+    expect(html).not.toContain('HTTP jobs polling disabled - using SSE only');
+  });
+
+  it('renders status filter tabs for the Recent Jobs card', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    });
+
+    expect(html).toContain('class="job-tab-bar"');
+    for (const status of ['all', 'active', 'waiting', 'failed', 'completed']) {
+      expect(html).toContain(`data-status="${status}"`);
+      expect(html).toContain(`id="tab-count-${status}"`);
+    }
+    expect(html).toContain('setJobStatusFilter(');
+    expect(html).toContain('applyJobStatusFilter');
+    expect(html).toContain('updateJobTabCounts');
+    expect(html).toContain('allJobsCache');
+    expect(html).toContain('currentJobStatusFilter');
+    expect(html).toContain('JOB_STATUS_FILTER_KEY');
+  });
 });

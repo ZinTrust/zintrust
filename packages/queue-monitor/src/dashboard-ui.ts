@@ -128,6 +128,15 @@ html[data-theme="light"] .refresh-btn:hover { background: rgba(2, 132, 199, 0.16
 .recover-btn { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.35); }
 .recover-btn:hover { background: rgba(245, 158, 11, 0.2); }
 
+.job-tab-bar { display: flex; gap: 0; padding: 0 8px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.job-tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 9px 12px; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); transition: color 0.15s, border-color 0.15s; margin-bottom: -1px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.job-tab:hover { color: var(--text); }
+.job-tab.active-tab { color: var(--accent); border-bottom-color: var(--accent); }
+.job-tab-count { background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 800; min-width: 16px; text-align: center; }
+.job-tab.active-tab .job-tab-count { background: rgba(186,230,253,0.12); }
+html[data-theme="light"] .job-tab-count { background: rgba(0,0,0,0.06); }
+html[data-theme="light"] .job-tab.active-tab .job-tab-count { background: rgba(2,132,199,0.12); }
+
 #error-container { display: none; margin-bottom: 2rem; padding: 1rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.5rem; font-size: 13px; font-weight: 600; }
 code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; color: var(--accent); border: 1px solid var(--border); }
 
@@ -215,11 +224,21 @@ const getLocksSection = (): string => `
 
 const getJobsSection = (): string => `
     <div class="tile" style="margin-top: 24px; padding: 0;">
-        <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);">
+        <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
             <h3 style="margin: 0; font-size: 14px; font-weight: 800; color: var(--text);">Recent Jobs</h3>
-            <select id="queue-select">
-                <!-- Queues inserted here -->
-            </select>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <button id="jobs-refresh" class="refresh-btn" type="button">Refresh jobs</button>
+                <select id="queue-select">
+                    <!-- Queues inserted here -->
+                </select>
+            </div>
+        </div>
+        <div class="job-tab-bar">
+            <button class="job-tab active-tab" data-status="all" type="button" onclick="setJobStatusFilter('all')">All <span class="job-tab-count" id="tab-count-all">—</span></button>
+            <button class="job-tab" data-status="active" type="button" onclick="setJobStatusFilter('active')">Active <span class="job-tab-count" id="tab-count-active">—</span></button>
+            <button class="job-tab" data-status="waiting" type="button" onclick="setJobStatusFilter('waiting')">Waiting <span class="job-tab-count" id="tab-count-waiting">—</span></button>
+            <button class="job-tab" data-status="failed" type="button" onclick="setJobStatusFilter('failed')">Failed <span class="job-tab-count" id="tab-count-failed">—</span></button>
+            <button class="job-tab" data-status="completed" type="button" onclick="setJobStatusFilter('completed')">Completed <span class="job-tab-count" id="tab-count-completed">—</span></button>
         </div>
         <div style="overflow-x: auto;">
             <table id="jobs-table">
@@ -275,6 +294,9 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => String.
         let dashboardResetTimer = null;
         let reconnectAttempts = 0;
         let currentTheme = null;
+        const JOB_STATUS_FILTER_KEY = 'zintrust-queue-monitor-job-status-filter';
+        let currentJobStatusFilter = localStorage.getItem(JOB_STATUS_FILTER_KEY) || 'all';
+        let allJobsCache = [];
 `;
 
 const getDashboardScriptTheme = (): string => `
@@ -553,7 +575,7 @@ const getRenderJobsStateFunction = (): string => `
 const getRenderJobsIdentityHelpersFunction = (): string => `
         function getJobId(job) {
             const queue = job.queue || currentQueue || '';
-            const id = job.id == null ? '' : String(job.id);
+            const id = String(job.id ?? '');
             const timestamp = Number.isFinite(job.timestamp) ? String(job.timestamp) : '';
             return queue + '::' + id + '::' + timestamp;
         }
@@ -737,9 +759,8 @@ const getRenderJobsRowHelpersFunction = (): string => `
 `;
 
 const getRenderJobsFunction = (): string => `
-        function renderJobs(jobs) {
+        function _renderJobsToDOM(jobList) {
             const tbody = document.querySelector('#jobs-table tbody');
-            const jobList = Array.isArray(jobs) ? jobs : [];
 
             if (jobList.length === 0) {
                 ensureEmptyJobsState(tbody);
@@ -769,7 +790,48 @@ const getRenderJobsFunction = (): string => `
 
             expandedJobIds = new Set([...expandedJobIds].filter(id => currentJobIds.has(id)));
             tbody.replaceChildren(fragment);
+        }
+
+        function renderJobs(jobs) {
+            allJobsCache = Array.isArray(jobs) ? jobs : [];
+            updateJobTabCounts(allJobsCache);
+            applyJobStatusFilter();
         }`;
+const getJobStatusTabsFunction = (): string => `
+        function updateJobTabCounts(jobs) {
+            const counts = { all: jobs.length, active: 0, waiting: 0, failed: 0, completed: 0 };
+            jobs.forEach(function(job) {
+                const status = (job.status || (job.failedReason ? 'failed' : 'completed')).toLowerCase();
+                if (Object.prototype.hasOwnProperty.call(counts, status)) {
+                    counts[status]++;
+                }
+            });
+            Object.keys(counts).forEach(function(status) {
+                const el = document.getElementById('tab-count-' + status);
+                if (el) el.textContent = String(counts[status]);
+            });
+        }
+
+        function applyJobStatusFilter() {
+            const filtered = currentJobStatusFilter === 'all'
+                ? allJobsCache
+                : allJobsCache.filter(function(job) {
+                    const status = (job.status || (job.failedReason ? 'failed' : 'completed')).toLowerCase();
+                    return status === currentJobStatusFilter;
+                });
+            _renderJobsToDOM(filtered);
+        }
+
+        function setJobStatusFilter(status) {
+            currentJobStatusFilter = status;
+            localStorage.setItem(JOB_STATUS_FILTER_KEY, status);
+            document.querySelectorAll('.job-tab').forEach(function(btn) {
+                btn.classList.toggle('active-tab', btn.dataset.status === status);
+            });
+            applyJobStatusFilter();
+        }
+`;
+
 const getRenderLocksFunction = (): string => `
     // Track expanded lock keys to preserve state during SSE updates
     let expandedLockKeys = new Set();
@@ -1031,7 +1093,7 @@ const getRecoverActiveJobFunction = (): string => `
                         ? 'Removed'
                         : 'Recovered';
                     setTimeout(() => {
-                        console.log('HTTP jobs polling disabled - using SSE only');
+                        fetchData();
                     }, 1000);
                 } else {
                     btn.textContent = 'Failed';
@@ -1062,8 +1124,7 @@ const getRetryJobFunction = (): string => `
                         ? '✓ Requeued'
                         : '✓ Retried';
                     setTimeout(() => {
-                        console.log('HTTP jobs polling disabled - using SSE only');
-                        // fetchJobs(currentQueue);
+                        fetchData();
                     }, 1000);
                 } else {
                     btn.textContent = '✗ Failed';
@@ -1238,11 +1299,7 @@ const getDashboardScriptEventStream = (): string => `
 `;
 
 const getFetchDataFunction = (): string => `
-        // HTTP polling disabled - 100% SSE reliance
         async function fetchData() {
-            console.log('HTTP polling disabled - using SSE only');
-            // Disabled to ensure 100% SSE streaming
-            /*
             try {
                 document.getElementById('error-container').style.display = 'none';
                 const res = await fetch(API_BASE + '/api/snapshot');
@@ -1250,18 +1307,26 @@ const getFetchDataFunction = (): string => `
                 const data = await res.json();
 
                 renderStats(data);
-                updateQueueSelect(data.queues);
+                const nextQueue = updateQueueSelect(data.queues || []);
+                currentQueue = nextQueue;
+                if (currentQueue) {
+                    localStorage.setItem(QUEUE_KEY, currentQueue);
+                } else {
+                    localStorage.removeItem(QUEUE_KEY);
+                }
                 handleQueueSelection(data);
+                if (currentQueue) {
+                    await fetchJobs(currentQueue);
+                }
                 await fetchLocks();
                 document.getElementById('last-updated').textContent = formatDateTime(new Date());
             } catch (e) {
                 showError(e.message);
             }
-            */
         }
 
         function handleQueueSelection(data) {
-            if (data.queues.length > 0) {
+            if (Array.isArray(data.queues) && data.queues.length > 0 && currentQueue) {
                 document.getElementById('queue-select').value = currentQueue;
             } else {
                 document.getElementById('queue-select').innerHTML = '<option>No Queues</option>';
@@ -1271,35 +1336,33 @@ const getFetchDataFunction = (): string => `
     `;
 
 const getDashboardScriptFetch = (): string => `
-        // HTTP polling disabled - 100% SSE reliance
         async function fetchJobs(queue) {
-            console.log('HTTP jobs polling disabled - using SSE only');
-            // Disabled to ensure 100% SSE streaming
-            /*
+            if (!queue) {
+                renderJobs([]);
+                return;
+            }
             try {
-                const res = await fetch(API_BASE + '/api/jobs/' + queue);
+                const res = await fetch(API_BASE + '/api/jobs/' + encodeURIComponent(queue));
+                if (!res.ok) throw new Error('Failed to fetch jobs');
                 const jobs = await res.json();
                 renderJobs(jobs);
             } catch (e) {
                 console.error('Failed to fetch jobs', e);
+                showError(e.message);
             }
-            */
         }
 
-        // HTTP polling disabled - 100% SSE reliance
         async function fetchLocks() {
-            console.log('HTTP locks polling disabled - using SSE only');
-            // Disabled to ensure 100% SSE streaming
-            /*
             try {
                 const pattern = getLockPattern();
                 const res = await fetch(API_BASE + '/api/locks?pattern=' + encodeURIComponent(pattern));
+                if (!res.ok) throw new Error('Failed to fetch locks');
                 const data = await res.json();
                 renderLocks(data);
             } catch (e) {
                 console.error('Failed to fetch locks', e);
+                showError(e.message);
             }
-            */
         }
 `;
 
@@ -1314,6 +1377,7 @@ const getDashboardScriptRender = (): string =>
     getRenderJobsEmptyStateFunction(),
     getRenderJobsRowHelpersFunction(),
     getRenderJobsFunction(),
+    getJobStatusTabsFunction(),
     getRenderLocksFunction(),
     getLockHelperFunctions(),
     getErrorAndTooltipFunctions(),
@@ -1342,9 +1406,9 @@ const getDashboardScriptBootstrap = (): string => `
                 } else {
                     localStorage.removeItem(QUEUE_KEY);
                 }
-                console.log('Queue changed - SSE will update automatically');
                 clearError();
 
+                fetchData();
                 setupEventStream(currentQueue);
             });
         }
@@ -1352,8 +1416,15 @@ const getDashboardScriptBootstrap = (): string => `
         const lockRefresh = document.getElementById('lock-refresh');
         if (lockRefresh) {
             lockRefresh.addEventListener('click', () => {
-                console.log('Lock refresh disabled - SSE handles updates');
-                // fetchLocks(); // Disabled - SSE handles updates
+                fetchLocks();
+                setupEventStream(currentQueue);
+            });
+        }
+
+        const jobsRefresh = document.getElementById('jobs-refresh');
+        if (jobsRefresh) {
+            jobsRefresh.addEventListener('click', () => {
+                fetchData();
                 setupEventStream(currentQueue);
             });
         }
@@ -1364,8 +1435,13 @@ const getDashboardScriptBootstrap = (): string => `
             : storedAutoRefresh === 'true';
 
         applyTheme(getPreferredTheme());
-        console.log('HTTP polling disabled - 100% SSE streaming active');
-        // fetchData(); // Disabled - SSE handles initial data
+
+        // Restore persisted status filter tab
+        document.querySelectorAll('.job-tab').forEach(function(btn) {
+            btn.classList.toggle('active-tab', btn.dataset.status === currentJobStatusFilter);
+        });
+
+        fetchData();
         setAutoRefresh(initialAutoRefresh);
 
         setupEventStream(currentQueue);
