@@ -26,3 +26,29 @@ describe('worker-runtime/ping environment coverage', () => {
     await expect(triggerWorkerPing([], [])).resolves.not.toThrow();
   });
 });
+
+describe('worker-runtime/install-enqueue-hook (coverage)', () => {
+  it('installs the global enqueue hook that wires worker defs + modules to ping', async () => {
+    // dynamic to avoid cross pollution with other worker-runtime tests
+    const { installQueueEnqueuePingHook: install } = await import(
+      '@/worker-runtime/install-enqueue-hook'
+    );
+
+    const fakeDefs: any[] = [{ queue: 'q1' }];
+    const fakeModules: any[] = [{ name: 'm1' }];
+
+    // Before: not present or undefined
+    delete (globalThis as any).__zintrustQueueEnqueueHook;
+
+    install(fakeDefs, fakeModules);
+
+    const hook = (globalThis as any).__zintrustQueueEnqueueHook;
+    expect(typeof hook).toBe('function');
+
+    // Invoking the installed hook should be safe (it delegates to trigger which has its own guards)
+    await expect(hook('q1', 'job-123', 'redis')).resolves.not.toThrow();
+
+    // cleanup
+    delete (globalThis as any).__zintrustQueueEnqueueHook;
+  });
+});

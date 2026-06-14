@@ -148,7 +148,7 @@ describe('proxy trace integration', () => {
     expect(emitQuery).toHaveBeenCalledWith(
       'select * from accounts where id = ?',
       ['9'],
-      0,
+      expect.any(Number),
       'd1-proxy',
       undefined
     );

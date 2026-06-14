@@ -6,6 +6,7 @@ import {
   Job,
   Queue,
   QueueEvents,
+  UnrecoverableError,
   type JobType,
   type ObliterateOpts,
   type QueueOptions,
@@ -368,7 +369,22 @@ const getQueueJobById = async (
   return getJob(state, queueName, firstDefined(args[0], payload.jobId, payload.id));
 };
 
-const normalizedPrefix = (state: BackendState): string => state.prefix.replace(/:+$/u, '');
+/**
+ * Strips trailing colons from the prefix.
+ *
+ * Uses a simple backward scan instead of a regex to avoid polynomial
+ * backtracking (ReDoS) that would occur with /:+$/u on long runs of colons
+ * followed by a non-colon character — the regex engine would try O(n²)
+ * combinations before giving up.
+ */
+const normalizedPrefix = (state: BackendState): string => {
+  const prefix = state.prefix;
+  let end = prefix.length;
+  while (end > 0 && prefix.codePointAt(end - 1) === 58 /* ':' */) {
+    end--;
+  }
+  return end === prefix.length ? prefix : prefix.slice(0, end);
+};
 
 const claimLockKey = (state: BackendState, queueName: string, jobId: string): string =>
   `${normalizedPrefix(state)}:${queueName}:__pull_claim:${jobId}`;
@@ -430,12 +446,11 @@ const recoverStaleActiveJobs = async (
     const jobId = String(job.id);
 
     try {
-      job.discard();
       // eslint-disable-next-line no-await-in-loop
       await ensurePullWorkerJobLock(queue, jobId, visibilityTimeoutMs);
       // eslint-disable-next-line no-await-in-loop
       await job.moveToFailed(
-        new Error(`stale active job recovered after ${ageMs}ms without ack/fail`),
+        new UnrecoverableError(`stale active job recovered after ${ageMs}ms without ack/fail`),
         PULL_WORKER_TOKEN,
         false
       );
@@ -535,10 +550,13 @@ const failQueueJob = async (
         Math.max(1, numberFrom(payload.visibilityTimeoutMs, 30_000))
       );
     }
-    job.discard();
   }
 
-  await job.moveToFailed(new Error(reason), PULL_WORKER_TOKEN, false);
+  const failErr: Error =
+    boolFrom(payload.force, false) || boolFrom(payload.discard, false)
+      ? new UnrecoverableError(reason)
+      : new Error(reason);
+  await job.moveToFailed(failErr, PULL_WORKER_TOKEN, false);
   if (!isUndefinedOrNull(job.id)) {
     await releaseClaim(state, queueName, String(job.id));
   }

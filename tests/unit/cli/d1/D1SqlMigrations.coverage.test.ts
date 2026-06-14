@@ -396,4 +396,50 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
     expect(writes[0].content).toContain('-- Generated from readonly_mig');
     expect(writes[0].content.trim().split('\n').length).toBe(1); // Only header
   });
+
+  it('captures drop / replace / pragma statements as mutating SQL (isMutatingSql branches)', async () => {
+    const writes: Array<{ content: string }> = [];
+    vi.doMock('@node-singletons/fs', () => ({
+      existsSync: () => true,
+      mkdirSync: vi.fn(),
+      writeFileSync: (p: string, c: string) => writes.push({ content: c }),
+    }));
+    vi.doMock('@node-singletons/path', async () => await import('node:path'));
+    vi.doMock('@/migrations/MigrationDiscovery', () => ({
+      MigrationDiscovery: {
+        resolveDir: (_root: string, rel: string) => rel,
+        listMigrationFiles: () => ['mutating-extra.ts'],
+      },
+    }));
+    vi.doMock('@/migrations/MigrationLoader', () => ({
+      MigrationLoader: {
+        load: async () => ({
+          name: 'extra_mutations',
+          up: async (db: any) => {
+            await db.query('DROP TABLE legacy_logs');
+            await db.query('REPLACE INTO counters(id, val) VALUES (?, ?)', [7, 42]);
+            await db.query('PRAGMA foreign_keys = ON');
+            await db.query('  PRAGMA journal_mode = WAL  ');
+          },
+        }),
+      },
+    }));
+
+    const { D1SqlMigrations: D1SqlMigrationsDynamic } =
+      await import('../../../../src/cli/d1/D1SqlMigrations');
+
+    const out = await D1SqlMigrationsDynamic.compileAndWrite({
+      projectRoot: '/',
+      globalDir: 'g',
+      extension: 'ts',
+      outputDir: 'o',
+    });
+
+    expect(out[0]?.statements).toEqual([
+      'DROP TABLE legacy_logs;',
+      'REPLACE INTO counters(id, val) VALUES (7, 42);',
+      'PRAGMA foreign_keys = ON;',
+      'PRAGMA journal_mode = WAL;',
+    ]);
+  });
 });
