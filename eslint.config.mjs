@@ -511,6 +511,7 @@ export default defineConfig(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       'max-lines-per-function': 'off',
+      'max-nested-callbacks': 'off',
       'no-empty': 'off',
       'no-restricted-imports': 'off',
     },
