@@ -114,7 +114,10 @@ export const createRedisPublishClient = async (): Promise<RedisPublishClient> =>
  */
 const tryCreateRedisClient = async (url: string): Promise<RedisPublishClient | null> => {
   try {
-    const mod = (await import('redis')) as unknown as {
+    // Variable specifier so bundlers (esbuild/wrangler) do not inline node-redis
+    // into the Workers bundle — this path never runs on Workers (RPC proxy is used).
+    const redisPkg = 'redis';
+    const mod = (await import(redisPkg)) as unknown as {
       createClient: (opts: { url: string }) => RedisPublishClient;
     };
     const client = mod.createClient({ url });
@@ -134,7 +137,9 @@ const tryCreateRedisClient = async (url: string): Promise<RedisPublishClient | n
  */
 const tryCreateIoRedisClient = async (url: string): Promise<RedisPublishClient | null> => {
   try {
-    const mod = (await import('ioredis')) as unknown as {
+    // Variable specifier so bundlers do not inline ioredis into the Workers bundle.
+    const ioredisPkg = 'ioredis';
+    const mod = (await import(ioredisPkg)) as unknown as {
       default: (url: string) => {
         connect?: () => Promise<void>;
         publish: (channel: string, message: string) => Promise<number>;

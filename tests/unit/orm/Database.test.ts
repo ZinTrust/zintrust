@@ -163,7 +163,7 @@ describe('Database', () => {
   let db: IDatabase;
 
   beforeEach(async () => {
-    resetDatabase();
+    await resetDatabase();
     vi.clearAllMocks();
 
     delete process.env.USE_MYSQL_PROXY;

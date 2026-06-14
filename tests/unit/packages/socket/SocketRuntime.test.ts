@@ -333,6 +333,49 @@ describe('@zintrust/socket', () => {
     expect(response.payload).toMatchObject({ ok: true, deliveries: 3, event: 'server-message' });
   });
 
+  it('publishes from a server context when globalThis.env lacks socket config', async () => {
+    // Worker-runtime job context: globalThis.env is non-null but does not carry
+    // SOCKET_ENABLED / PUSHER_APP_KEY. Settings must fall back to the process-level
+    // Env (set in beforeEach) instead of reporting the socket runtime disabled.
+    (globalThis as { env?: unknown }).env = {
+      WORKER_ENABLED: 'true',
+      REDIS_RPC_URL: 'https://rpc.internal',
+    };
+
+    const { publishSocketEventFromServer } = await import('@zintrust/socket');
+
+    const result = await publishSocketEventFromServer({
+      channels: ['public-chat'],
+      event: 'server-message',
+      data: { ok: true },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      transport: 'node',
+      channels: ['public-chat'],
+      event: 'server-message',
+    });
+  });
+
+  it('reports the socket runtime disabled when env source explicitly disables it', async () => {
+    // An env source that explicitly sets SOCKET_ENABLED=false is authoritative and
+    // must be respected (not treated as a "missing config" fallback case).
+    (globalThis as { env?: unknown }).env = {
+      SOCKET_ENABLED: 'false',
+    };
+
+    const { publishSocketEventFromServer } = await import('@zintrust/socket');
+
+    await expect(
+      publishSocketEventFromServer({
+        channels: ['public-chat'],
+        event: 'server-message',
+        data: { ok: true },
+      })
+    ).rejects.toThrow(/Socket runtime is not enabled/);
+  });
+
   it('matches websocket upgrade paths for node runtime handling', async () => {
     const { socketRuntime } = await import('@zintrust/socket');
 

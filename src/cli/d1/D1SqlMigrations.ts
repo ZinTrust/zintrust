@@ -180,6 +180,12 @@ const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
       await RESOLVED_VOID;
       return callback(this as unknown as IDatabase);
     },
+    async withReadSession<T>(
+      fn: (db: IDatabase) => Promise<T>
+    ): Promise<{ result: T; bookmark: string | null }> {
+      const result = await fn(this as unknown as IDatabase);
+      return { result, bookmark: null };
+    },
     table(): never {
       throw ErrorFactory.createCliError(
         'D1 SQL compilation does not support QueryBuilder-based migrations yet. Use db.query(...) with explicit SQL.'

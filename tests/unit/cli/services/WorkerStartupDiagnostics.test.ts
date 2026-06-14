@@ -11,6 +11,7 @@ describe('WorkerStartupDiagnostics', () => {
     vi.stubEnv('QUEUE_DRIVER', 'redis');
     vi.stubEnv('WORKER_AUTO_START', 'true');
     vi.stubEnv('WORKER_PERSISTENCE_DRIVER', 'database');
+    vi.stubEnv('USE_REDIS_PROXY', 'true');
     vi.stubEnv('REDIS_PROXY_URL', 'http://127.0.0.1:8800/redis');
 
     const { WorkerStartupDiagnostics } = await import('@cli/services/WorkerStartupDiagnostics');

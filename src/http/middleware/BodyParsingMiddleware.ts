@@ -171,7 +171,30 @@ const parseJsonBody = (text: string, contentType: string, res: IResponse): unkno
   }
 };
 
-const setRequestBody = (
+/**
+ * Attempt to recover a JSON string that was stored as raw text or bytes
+ * due to a missing or incorrect Content-Type header.
+ *
+ * Only plain objects `{...}` are considered for recovery — arrays, strings,
+ * and primitives are left unchanged. This minimizes false positives for
+ * legitimate text or binary payloads that happen to start with `{`.
+ */
+export const tryRecoverTextJsonBody = (body: string): string | Record<string, unknown> => {
+  const trimmed = body.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Not valid JSON — leave original unchanged
+    }
+  }
+  return body;
+};
+
+export const setRequestBody = (
   req: IRequest,
   rawResult: ReadBodyResult & { ok: true },
   contentType: string
@@ -183,8 +206,24 @@ const setRequestBody = (
   if (isUrlEncoded) {
     req.setBody(parseUrlEncodedBody(text));
   } else if (isText) {
-    req.setBody(text);
+    // Recovery: JSON body sent with text Content-Type (e.g. text/plain)
+    // is stored as a raw string. Detect a JSON object and parse it.
+    req.setBody(tryRecoverTextJsonBody(text));
   } else if (contentType !== '') {
+    // Recovery: JSON body sent with an unknown Content-Type is stored as
+    // raw bytes. Try to decode as text and check for JSON.
+    const decoded = text.trim();
+    if (decoded.startsWith('{') && decoded.endsWith('}')) {
+      try {
+        const parsed: unknown = JSON.parse(decoded);
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          req.setBody(parsed);
+          return;
+        }
+      } catch {
+        // Not valid JSON — fall through to bytes
+      }
+    }
     req.setBody(rawResult.bytes);
   }
 };
@@ -234,21 +273,83 @@ const reuseExistingRawBody = (
   return applyParsedRequestBody(req, res, rawResult, contentType);
 };
 
-const parseUrlEncodedBody = (text: string): Record<string, string | string[]> => {
+/**
+ * Attempt to parse a string as a JSON object.
+ * Returns the parsed object on success, or null if the string is not
+ * a valid JSON object literal (plain object `{...}`, not array or primitive).
+ */
+export const tryParseJsonObject = (text: string): Record<string, unknown> | null => {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Not valid JSON
+  }
+  return null;
+};
+
+/**
+ * Parse URL-encoded form data into a key-value record.
+ * Multiple values for the same key are collected into an array.
+ */
+const parseUrlEncodedParams = (text: string): Record<string, string | string[]> => {
   const out: Record<string, string | string[]> = {};
   const params = new URLSearchParams(text);
   for (const [key, value] of params.entries()) {
     const existing = out[key];
     if (existing === undefined) {
       out[key] = value;
-      continue;
-    }
-    if (Array.isArray(existing)) {
+    } else if (Array.isArray(existing)) {
       existing.push(value);
-      continue;
+    } else {
+      out[key] = [existing, value];
     }
-    out[key] = [existing, value];
   }
+  return out;
+};
+
+/**
+ * Detect and recover from a degenerate case where a JSON payload was sent
+ * with a url-encoded Content-Type header. URLSearchParams treats the entire
+ * JSON string as a single key with an empty value, so we try parsing that key.
+ */
+const tryRecoverDegenerateJson = (
+  out: Record<string, string | string[]>
+): Record<string, string | string[]> | null => {
+  const keys = Object.keys(out);
+  if (keys.length !== 1 || out[keys[0]] !== '') return null;
+  const maybeJson = keys[0].trim();
+  const parsed = tryParseJsonObject(maybeJson);
+  if (parsed !== null) {
+    return parsed as Record<string, string | string[]>;
+  }
+  return null;
+};
+
+const parseUrlEncodedBody = (text: string): Record<string, string | string[]> => {
+  // JSON-first recovery: parse raw text before URLSearchParams touches it.
+  // URLSearchParams splits on the first '=' (corrupting base64-padded values)
+  // and converts '+' to spaces, making encrypted/base64 fields unrecoverable.
+  const jsonResult = tryParseJsonObject(text);
+  if (jsonResult !== null) {
+    return jsonResult as Record<string, string | string[]>;
+  }
+
+  const out = parseUrlEncodedParams(text);
+
+  // Recovery: if a JSON payload is sent with the wrong Content-Type header
+  // (e.g. application/x-www-form-urlencoded instead of application/json),
+  // URLSearchParams will treat the entire JSON string as a single key with
+  // an empty value. Detect this degenerate case and fall back to JSON.parse.
+  const recovered = tryRecoverDegenerateJson(out);
+  if (recovered !== null) {
+    return recovered;
+  }
+
   return out;
 };
 

@@ -52,6 +52,7 @@ describe('QueueMonitoringService', () => {
       })),
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
+      recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
       getQueues: vi.fn(async () => ['alpha', 'beta']),
       close: vi.fn(async () => undefined),
     };
@@ -111,6 +112,7 @@ describe('QueueMonitoringService', () => {
       })),
       getRecentJobs: driverRecentJobs,
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
+      recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
       getQueues: vi.fn(async () => ['smartq']),
       close: vi.fn(async () => undefined),
     };
@@ -137,6 +139,77 @@ describe('QueueMonitoringService', () => {
     ]);
   });
 
+  it('merges metrics history with live driver recent jobs for a queue', async () => {
+    const metrics: Metrics = {
+      recordJob: vi.fn(async () => undefined),
+      getStats: vi.fn(async () => []),
+      getRecentJobs: vi.fn(async () => [
+        {
+          id: 'trace-pending',
+          name: 'trace-job',
+          queue: 'smartq',
+          data: { traceId: 't-1' },
+          attempts: 0,
+          status: 'pending',
+          timestamp: 100,
+        },
+      ]),
+      getFailedJobs: vi.fn(async () => []),
+      close: vi.fn(async () => undefined),
+    };
+
+    const driverRecentJobs = vi.fn(async () => [
+      {
+        id: 'completed-live',
+        name: 'smartq-job',
+        data: { smartId: 'completed' },
+        opts: { attempts: 2 },
+        attemptsMade: 1,
+        timestamp: 300,
+        processedOn: 310,
+        finishedOn: 330,
+        failedReason: undefined,
+        _state: 'completed',
+      },
+      {
+        id: 'failed-live',
+        name: 'smartq-job',
+        data: { smartId: 'failed' },
+        opts: { attempts: 2 },
+        attemptsMade: 2,
+        timestamp: 200,
+        processedOn: 210,
+        finishedOn: 230,
+        failedReason: 'boom',
+        _state: 'failed',
+      },
+    ]);
+
+    const driver: QueueDriver = {
+      enqueue: vi.fn(async () => '1'),
+      getJob: vi.fn(async () => undefined),
+      getJobCounts: vi.fn(async () => ({
+        waiting: 0,
+        active: 0,
+        completed: 1,
+        failed: 1,
+        delayed: 0,
+        paused: 0,
+      })),
+      getRecentJobs: driverRecentJobs,
+      retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
+      recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
+      getQueues: vi.fn(async () => ['smartq']),
+      close: vi.fn(async () => undefined),
+    };
+
+    const jobs = await getRecentJobsForSelection('smartq', metrics, driver);
+
+    expect(driverRecentJobs).toHaveBeenCalledWith('smartq', 100);
+    expect(jobs.map((job) => job.id)).toEqual(['completed-live', 'failed-live', 'trace-pending']);
+    expect(jobs.map((job) => job.status)).toEqual(['completed', 'failed', 'pending']);
+  });
+
   it('does not emit polling debug logs for subscription churn', () => {
     const metrics: Metrics = {
       recordJob: vi.fn(async () => undefined),
@@ -159,6 +232,7 @@ describe('QueueMonitoringService', () => {
       })),
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
+      recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
       getQueues: vi.fn(async () => ['alpha']),
       close: vi.fn(async () => undefined),
     };
@@ -216,6 +290,7 @@ describe('QueueMonitoringService', () => {
       })),
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
+      recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
       getQueues: vi.fn(async () => ['alpha']),
       close: vi.fn(async () => undefined),
     };

@@ -17,6 +17,7 @@ type MockBuilder = {
   where: ReturnType<typeof vi.fn>;
   limit: ReturnType<typeof vi.fn>;
   join: ReturnType<typeof vi.fn>;
+  inRandomOrder: ReturnType<typeof vi.fn>;
   first: ReturnType<typeof vi.fn>;
   firstOrFail: ReturnType<typeof vi.fn>;
   get: ReturnType<typeof vi.fn>;
@@ -38,6 +39,7 @@ vi.mock('@orm/QueryBuilder', () => {
         where: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
         join: vi.fn().mockReturnThis(),
+        inRandomOrder: vi.fn().mockReturnThis(),
         first: vi.fn(async () => null),
         firstOrFail: vi.fn(async () => {
           throw new Error('not found');

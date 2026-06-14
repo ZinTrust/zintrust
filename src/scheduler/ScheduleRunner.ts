@@ -29,14 +29,29 @@ type RunnerState = {
   store: IScheduleStateStore;
 };
 
+/**
+ * Result of a `runIfDue` invocation.
+ * - `ran: true` → the handler was invoked this call.
+ * - `ran: false` → skipped; `reason` explains why and `nextRunAt` (when present)
+ *   is the epoch-ms timestamp at which the schedule next becomes due.
+ */
+export type RunIfDueResult = Readonly<{
+  ran: boolean;
+  reason?: 'disabled' | 'not-due' | 'no-cadence';
+  nextRunAt?: number;
+  outcome?: 'success' | 'failure';
+}>;
+
 type ScheduleRunner = {
   register: (schedule: ISchedule) => void;
   start: (kernel?: IScheduleKernel) => void;
   stop: (timeoutMs?: number) => Promise<void>;
   list: () => ISchedule[];
   runOnce: (name: string, kernel?: IScheduleKernel) => Promise<void>;
+  runIfDue: (name: string, kernel?: IScheduleKernel) => Promise<RunIfDueResult>;
   getState: (name: string) => Promise<ScheduleRunState | null>;
   listStates: () => Promise<Array<{ name: string; state: ScheduleRunState }>>;
+  setStore: (store: IScheduleStateStore) => void;
 };
 
 const nowMs = (): number => Date.now();
@@ -237,11 +252,12 @@ const createRegister =
   };
 
 const createInvokeHandler =
-  (store: IScheduleStateStore) =>
+  (runner: RunnerState) =>
   async (
     state: InternalScheduleState,
     kernel?: IScheduleKernel
   ): Promise<'success' | 'failure'> => {
+    const store = runner.store;
     if (state.isRunning) {
       Logger.info(`Skipping overlapping run for schedule: ${state.schedule.name}`);
       return 'failure';
@@ -386,15 +402,73 @@ const createRunOnce =
     await invokeHandler(state, kernel ?? runner.kernel);
   };
 
-export const create = (): Readonly<ScheduleRunner> => {
+/**
+ * Computes the epoch-ms timestamp at which a schedule next becomes due,
+ * measured from its last successful run. Cron takes precedence over interval.
+ * Returns `null` when the schedule has neither a cron nor a positive interval
+ * (i.e. it has no cadence of its own and is always considered due).
+ */
+const computeDueAtMs = (schedule: ISchedule, lastRunAt: number): number | null => {
+  if (typeof schedule.cron === 'string' && schedule.cron.trim().length > 0) {
+    const tz =
+      typeof schedule.timezone === 'string' && schedule.timezone.trim().length > 0
+        ? schedule.timezone
+        : undefined;
+    return Cron.nextRunAtMs(lastRunAt, schedule.cron, tz);
+  }
+
+  if (typeof schedule.intervalMs === 'number' && schedule.intervalMs > 0) {
+    return lastRunAt + Math.floor(schedule.intervalMs);
+  }
+
+  return null;
+};
+
+const createRunIfDue =
+  (
+    runner: RunnerState,
+    invokeHandler: (
+      state: InternalScheduleState,
+      kernel?: IScheduleKernel
+    ) => Promise<'success' | 'failure'>
+  ) =>
+  async (name: string, kernel?: IScheduleKernel): Promise<RunIfDueResult> => {
+    const state = runner.schedules.get(name);
+    if (state === undefined) throw ErrorFactory.createNotFoundError(`Schedule not found: ${name}`);
+    if (state.schedule.enabled === false) return { ran: false, reason: 'disabled' };
+
+    // Prefer the durable, persisted last-run time over the in-memory mirror so
+    // this works across stateless invocations (e.g. Cloudflare Worker cron ticks)
+    // when a persistent store has been wired via setStore().
+    const persisted = await runner.store.get(name);
+    const lastRunAt =
+      persisted?.lastSuccessAt ?? persisted?.lastRunAt ?? state.lastRunAt ?? undefined;
+
+    if (typeof lastRunAt === 'number') {
+      const dueAt = computeDueAtMs(state.schedule, lastRunAt);
+      if (dueAt === null) {
+        // No cadence configured: nothing to gate on, run it.
+        const outcome = await invokeHandler(state, kernel ?? runner.kernel);
+        return { ran: true, outcome, reason: 'no-cadence' };
+      }
+      if (nowMs() < dueAt) {
+        return { ran: false, reason: 'not-due', nextRunAt: dueAt };
+      }
+    }
+
+    const outcome = await invokeHandler(state, kernel ?? runner.kernel);
+    return { ran: true, outcome };
+  };
+
+export const create = (store?: IScheduleStateStore): Readonly<ScheduleRunner> => {
   const runner: RunnerState = {
     schedules: new Map<string, InternalScheduleState>(),
     started: false,
     kernel: undefined,
-    store: InMemoryScheduleStateStore.create(),
+    store: store ?? InMemoryScheduleStateStore.create(),
   };
 
-  const invokeHandler = createInvokeHandler(runner.store);
+  const invokeHandler = createInvokeHandler(runner);
 
   const register = createRegister(runner, invokeHandler);
   const start = createStart(runner, invokeHandler);
@@ -402,9 +476,13 @@ export const create = (): Readonly<ScheduleRunner> => {
   const stop = createStopWithTimeout(stopRaw);
   const list = createList(runner);
   const runOnce = createRunOnce(runner, invokeHandler);
+  const runIfDue = createRunIfDue(runner, invokeHandler);
   const getState = async (name: string): Promise<ScheduleRunState | null> => runner.store.get(name);
   const listStates = async (): Promise<Array<{ name: string; state: ScheduleRunState }>> =>
     runner.store.list();
+  const setStore = (next: IScheduleStateStore): void => {
+    runner.store = next;
+  };
 
   return Object.freeze({
     register,
@@ -412,8 +490,10 @@ export const create = (): Readonly<ScheduleRunner> => {
     stop,
     list,
     runOnce,
+    runIfDue,
     getState,
     listStates,
+    setStore,
   });
 };
 

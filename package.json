@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.4.0",
+  "version": "2.7.0",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -202,13 +202,21 @@
       "types": "./dist/src/socket-index.d.ts",
       "import": "./dist/src/socket-index.js"
     },
+    "./tasks": {
+      "types": "./dist/src/tasks.d.ts",
+      "import": "./dist/src/tasks.js"
+    },
+    "./worker-runtime": {
+      "types": "./dist/src/worker-runtime.d.ts",
+      "import": "./dist/src/worker-runtime.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
-    "zintrust": "./bin/zintrust.ts",
-    "zin": "./bin/zin.ts",
-    "z": "./bin/z.ts",
-    "zt": "./bin/zt.ts"
+    "zintrust": "./dist/bin/zintrust.js",
+    "zin": "./dist/bin/zin.js",
+    "z": "./dist/bin/z.js",
+    "zt": "./dist/bin/zt.js"
   },
   "files": [
     "bin",
@@ -317,11 +325,11 @@
     "commemtout": "bash ./scripts/disable-plugins-import.sh",
     "duplication:check": "node scripts/ci/duplication-check.mjs",
     "prepare": "node -e \"const omit=(process.env.npm_config_omit||'').split(',').map(s=>s.trim()).filter(Boolean); const skip=process.env.NODE_ENV==='production'||process.env.CI==='true'||process.env.CI==='1'||omit.includes('dev'); process.exit(skip?0:1)\" || husky",
-    "prepublishOnly": "publish-please guard && npm run core:build:dist",
+    "prepublishOnly": "npm run core:build:dist",
     "postinstall": "node -e \"process.exit(0)\"",
     "check-up": "npx npm-check-updates -u && npm install --no-audit --no-fund",
     "check-up:check": "npx npm-check-updates",
-    "pub": "npm run release:update-deps && npm run core:build:dist && npm publish ./dist --access public",
+    "pub": "npm run core:build:dist && npm publish ./dist --access public",
     "pub:ci": "npm run release:update-deps && npm run core:build:dist && npm publish ./dist --access public",
     "push:docker": "npm run docker:push --",
     "rebuild:bcrypt": "npm rebuild bcrypt",
@@ -336,8 +344,7 @@
     "cag": "npm run cleanup:github-actions",
     "core": "npm run core:build:dist",
     "prewg": "npm run -s worker-plugins:ensure",
-    "wg": "zin s --wg --env development",
-    "publish-please": "publish-please"
+    "wg": "zin s --wg --env development"
   },
   "lint-staged": {
     "src/**/*.ts": [
@@ -410,6 +417,7 @@
     "ws": "^8.20.0",
     "micromatch": "^4.0.8",
     "brace-expansion": "^5.0.6",
+    "esbuild": "0.28.1",
     "qs": "^6.15.2"
   },
   "dependencies": {
@@ -418,13 +426,13 @@
     "bullmq": "^5.77.6",
     "chalk": "^5.6.2",
     "commander": "^15.0.0",
-    "inquirer": "^14.0.0",
+    "inquirer": "^14.0.1",
     "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.22.4",
     "pg": "^8.21.0",
     "redis": "^6.0.0",
-    "tsx": "^4.22.3"
+    "tsx": "^4.22.4"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "^2.0.1",
@@ -452,7 +460,7 @@
     "hot-shots": "^15.0.0",
     "husky": "^9.1.7",
     "jscpd": "^4.2.4",
-    "lint-staged": "^17.0.5",
+    "lint-staged": "^17.0.7",
     "miniflare": "^4.20260526.0",
     "mongodb": "^7.2.0",
     "mssql": "^12.5.5",
@@ -462,6 +470,6 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.0",
     "vitest": "^4.1.7",
-    "wrangler": "4.95.0"
+    "wrangler": "4.100.0"
   }
 }

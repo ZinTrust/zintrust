@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/workers",
-  "version": "2.4.0",
+  "version": "2.7.0",
   "description": "Worker orchestration and background job management for ZinTrust.",
   "private": false,
   "type": "module",
@@ -46,13 +46,17 @@
   "peerDependencies": {
     "@zintrust/core": "*",
     "@zintrust/queue-monitor": "*",
-    "@zintrust/queue-redis": "*"
+    "@zintrust/queue-redis": "*",
+    "@zintrust/redis-rpc": "*"
   },
   "peerDependenciesMeta": {
     "@zintrust/queue-monitor": {
       "optional": true
     },
     "@zintrust/queue-redis": {
+      "optional": true
+    },
+    "@zintrust/redis-rpc": {
       "optional": true
     }
   },

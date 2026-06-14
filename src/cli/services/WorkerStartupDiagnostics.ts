@@ -228,11 +228,13 @@ const getQueueDriverEnvKeys = (snapshot: Record<string, string>, queueDriver: st
   }
 
   const usesRedisProxy =
-    Env.getBool('USE_REDIS_PROXY', false) ||
-    isNonEmptyString(getExplicitEnv(snapshot, 'REDIS_PROXY_URL'));
+    Env.getBool('USE_REDIS_PROXY', false) &&
+    (isNonEmptyString(getExplicitEnv(snapshot, 'REDIS_RPC_URL')) ||
+      isNonEmptyString(getExplicitEnv(snapshot, 'REDIS_PROXY_URL')));
 
   if (queueDriver === 'redis' && usesRedisProxy) {
     return [
+      'REDIS_RPC_URL',
       'REDIS_PROXY_URL',
       'REDIS_PROXY_HOST',
       'REDIS_PROXY_SECRET',

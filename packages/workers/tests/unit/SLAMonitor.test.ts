@@ -66,6 +66,15 @@ const baseConfig: ISLAConfig = {
   },
 };
 
+const compliantConfig: ISLAConfig = {
+  ...baseConfig,
+  workerName: 'compliant-worker',
+  metrics: {
+    ...baseConfig.metrics,
+    minAvailability: 90,
+  },
+};
+
 describe('SLAMonitor', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -109,5 +118,44 @@ describe('SLAMonitor', () => {
     });
 
     expect(violations.length).toBeGreaterThan(0);
+  });
+
+  it('allows worker requests only when configured SLA is compliant', async () => {
+    SLAMonitor.defineSLA(compliantConfig);
+
+    vi.mocked(WorkerMetrics.query).mockResolvedValue({
+      workerName: 'compliant-worker',
+      metricType: 'duration',
+      granularity: 'hourly',
+      points: [
+        { timestamp: new Date(), value: 50 },
+        { timestamp: new Date(), value: 80 },
+      ],
+    } as MetricEntry);
+
+    vi.mocked(WorkerMetrics.aggregate).mockImplementation(async (options) => {
+      if (options.metricType === 'processed') {
+        return { ...buildAggregate('processed', 1200), workerName: 'compliant-worker' };
+      }
+      if (options.metricType === 'errors') {
+        return { ...buildAggregate('errors', 0), workerName: 'compliant-worker' };
+      }
+      return { ...buildAggregate(options.metricType, 0), workerName: 'compliant-worker' };
+    });
+
+    vi.mocked(HealthMonitor.getHealthHistory).mockReturnValue([
+      buildHealthResult('healthy'),
+      buildHealthResult('healthy'),
+    ]);
+
+    await expect(SLAMonitor.canSendWorkerRequest('worker-without-sla')).resolves.toEqual({
+      allowed: true,
+      reason: 'sla_not_configured',
+    });
+
+    await expect(SLAMonitor.canSendWorkerRequest('compliant-worker')).resolves.toMatchObject({
+      allowed: true,
+      status: { status: 'compliant' },
+    });
   });
 });

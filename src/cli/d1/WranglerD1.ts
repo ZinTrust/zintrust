@@ -10,6 +10,8 @@ type ApplyOptions = {
   cmd: IBaseCommand;
   dbName: string;
   isLocal: boolean;
+  env?: string;
+  config?: string;
 };
 
 type ExecuteSqlOptions = {
@@ -56,6 +58,15 @@ const runWrangler = (args: string[], cmd?: IBaseCommand): string => {
 export const WranglerD1 = Object.freeze({
   applyMigrations(opts: ApplyOptions): string {
     const args = ['d1', 'migrations', 'apply', opts.dbName, opts.isLocal ? '--local' : '--remote'];
+
+    if (opts.env !== undefined && opts.env !== null && opts.env.trim() !== '') {
+      args.push('--env', opts.env);
+    }
+
+    if (opts.config !== undefined && opts.config !== null && opts.config.trim() !== '') {
+      args.push('--config', opts.config);
+    }
+
     return runWrangler(args, opts.cmd);
   },
 

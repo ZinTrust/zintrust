@@ -157,6 +157,7 @@ Built-in base plugin packages:
 - `@zintrust/queue-redis`
 - `@zintrust/queue-rabbitmq`
 - `@zintrust/queue-sqs`
+- `@zintrust/queue-cloudflare`
 - `@zintrust/cache-redis`
 - `@zintrust/cache-mongodb`
 - `@zintrust/mail-nodemailer`

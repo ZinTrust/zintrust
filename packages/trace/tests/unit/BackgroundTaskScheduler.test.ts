@@ -1,8 +1,8 @@
 /**
  * BackgroundTaskScheduler tests
  */
+import { BackgroundTaskScheduler } from '@runtime/BackgroundTaskScheduler';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BackgroundTaskScheduler } from '../../src/runtime/BackgroundTaskScheduler';
 
 describe('BackgroundTaskScheduler', () => {
   beforeEach(() => {

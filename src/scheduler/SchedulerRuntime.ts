@@ -1,8 +1,20 @@
 import { Logger } from '@config/logger';
 import { createScheduleRunner } from '@scheduler/index';
 import { SchedulerLeader } from '@scheduler/leader/SchedulerLeader';
-import type { ScheduleRunState } from '@scheduler/state/ScheduleStateStore';
+import type { RunIfDueResult } from '@scheduler/ScheduleRunner';
+import type { IScheduleStateStore, ScheduleRunState } from '@scheduler/state/ScheduleStateStore';
 import type { ISchedule, IScheduleKernel } from '@scheduler/types';
+
+type SchedulerRunnerApi = Readonly<{
+  register: (schedule: ISchedule) => void;
+  start: (kernel?: IScheduleKernel) => void;
+  stop: (timeoutMs?: number) => Promise<void>;
+  list: () => ISchedule[];
+  runOnce: (name: string, kernel?: IScheduleKernel) => Promise<void>;
+  runIfDue: (name: string, kernel?: IScheduleKernel) => Promise<RunIfDueResult>;
+  setStore: (store: IScheduleStateStore) => void;
+  getState?: (name: string) => Promise<ScheduleRunState | null>;
+}>;
 
 type SchedulerRuntimeApi = Readonly<{
   registerMany: (schedules: ReadonlyArray<ISchedule>, source?: 'core' | 'app') => void;
@@ -11,10 +23,12 @@ type SchedulerRuntimeApi = Readonly<{
   list: () => ISchedule[];
   listWithState: () => Promise<Array<{ schedule: ISchedule; state: ScheduleRunState | null }>>;
   runOnce: (name: string, kernel?: IScheduleKernel) => Promise<void>;
+  runIfDue: (name: string, kernel?: IScheduleKernel) => Promise<RunIfDueResult>;
+  useStateStore: (store: IScheduleStateStore) => void;
 }>;
 
 type SchedulerRuntimeState = {
-  runner: ReturnType<typeof createScheduleRunner>;
+  runner: SchedulerRunnerApi;
   registered: Map<string, 'core' | 'app'>;
   leader: ReturnType<typeof SchedulerLeader.create>;
   leaderStarted: boolean;
@@ -106,6 +120,24 @@ export const SchedulerRuntime = Object.freeze({
   },
   async runOnce(name: string, kernel?: IScheduleKernel): Promise<void> {
     await state.runner.runOnce(name, kernel);
+  },
+  /**
+   * Runs a schedule only if it is due, based on its persisted last-run time and
+   * its configured cron/interval cadence. Intended for stateless cron triggers
+   * (e.g. a Cloudflare Worker `scheduled` handler) where the timer-based
+   * `start()` loop cannot run. For the due check to survive cold starts, wire a
+   * persistent state store via {@link useStateStore} first.
+   */
+  async runIfDue(name: string, kernel?: IScheduleKernel): Promise<RunIfDueResult> {
+    return state.runner.runIfDue(name, kernel);
+  },
+  /**
+   * Swaps the schedule state store (default is in-memory). Provide a durable
+   * implementation (Redis/KV/D1-backed) so `runIfDue` can read `lastRunAt`
+   * across stateless invocations. Call this before `registerMany`/`runIfDue`.
+   */
+  useStateStore(store: IScheduleStateStore): void {
+    state.runner.setStore(store);
   },
 }) satisfies SchedulerRuntimeApi;
 

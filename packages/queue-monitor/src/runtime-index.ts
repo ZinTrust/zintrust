@@ -11,6 +11,7 @@ import { ShutdownTrace } from '@zintrust/core/workers';
 import { createRedisConnection, type RedisConfig } from './connection.js';
 import { createBullMQDriver, type QueueDriver } from './driver.js';
 import { createMetrics, type Metrics } from './metrics.js';
+import { emptyLockAnalytics } from './QueueMonitoringService.js';
 
 export type { JobPayload } from './driver.js';
 export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics.js';
@@ -36,6 +37,18 @@ export type QueueCounts = {
   delayed: number;
   paused: number;
 };
+
+const emptyQueueCounts = (): QueueCounts => ({
+  waiting: 0,
+  active: 0,
+  completed: 0,
+  failed: 0,
+  delayed: 0,
+  paused: 0,
+});
+
+const emptyQueueStats = (queues: ReadonlyArray<string>): QueueMonitorSnapshot['queues'] =>
+  queues.map((name) => ({ name, counts: emptyQueueCounts() }));
 
 export type QueueMonitorSnapshot = {
   status: 'ok';
@@ -262,6 +275,9 @@ function createGetLocks(redisConfig: RedisConfig) {
         },
         histogram,
       };
+    } catch (error) {
+      Logger.warn('[queue-monitor] Lock analytics failed; returning empty analytics', error);
+      return emptyLockAnalytics();
     } finally {
       if (typeof client.quit === 'function') {
         await client.quit();
@@ -301,18 +317,33 @@ function createGetSnapshot(
 ) {
   return async (): Promise<QueueMonitorSnapshot> => {
     const [discoveredQueues, persistedQueues] = await Promise.all([
-      driver.getQueues(),
-      resolveKnownQueues(knownQueues),
+      driver.getQueues().catch((error) => {
+        Logger.warn('[queue-monitor] Queue discovery failed; using no discovered queues', error);
+        return [];
+      }),
+      resolveKnownQueues(knownQueues).catch((error) => {
+        Logger.warn(
+          '[queue-monitor] Known queue resolution failed; using no configured queues',
+          error
+        );
+        return [];
+      }),
     ]);
     const queues = Array.from(new Set([...persistedQueues, ...discoveredQueues])).sort(
       (left, right) => left.localeCompare(right)
     );
     const stats = await Promise.all(
       queues.map(async (name) => {
-        const counts = await driver.getJobCounts(name);
+        const counts = await driver.getJobCounts(name).catch(() => ({}));
         return { name, counts: counts as unknown as QueueCounts };
       })
-    );
+    ).catch((error) => {
+      Logger.warn(
+        '[queue-monitor] Queue count lookup failed; returning known queues with empty counts',
+        error
+      );
+      return emptyQueueStats(queues) as unknown as QueueMonitorSnapshot['queues'];
+    });
 
     return {
       status: 'ok',

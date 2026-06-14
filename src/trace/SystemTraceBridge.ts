@@ -42,7 +42,13 @@ type SystemTraceModule = Partial<{
     }) => void;
   };
   QueryWatcher: {
-    emit: (query: string, params: unknown[], duration: number, connection?: string) => void;
+    emit: (
+      query: string,
+      params: unknown[],
+      duration: number,
+      connection?: string,
+      routing?: { servedByPrimary?: boolean; servedByRegion?: string }
+    ) => void;
   };
   RedisWatcher: {
     emit: (command: string, duration: number) => void;
@@ -69,7 +75,7 @@ let loadPromise: Promise<SystemTraceModule | null> | null = null;
 
 const importSystemTrace = async (): Promise<SystemTraceModule | null> => {
   try {
-    return (await import('@zintrust/trace')) as unknown as SystemTraceModule;
+    return await import('@zintrust/trace');
   } catch {
     return null;
   }
@@ -186,10 +192,11 @@ const emitQuery = (
   query: string,
   params: unknown[],
   duration: number,
-  connection?: string
+  connection?: string,
+  routing?: { servedByPrimary?: boolean; servedByRegion?: string }
 ): void => {
   withSystemTrace((module) => {
-    module.QueryWatcher?.emit(query, params, duration, connection);
+    module.QueryWatcher?.emit(query, params, duration, connection, routing);
   });
 };
 

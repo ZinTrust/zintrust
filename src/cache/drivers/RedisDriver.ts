@@ -14,10 +14,13 @@ import { RedisKeys } from '@tools/redis/RedisKeyManager';
 
 type RedisClientLike = {
   get: (key: string) => Promise<string | null>;
+  mget?: (...keys: string[]) => Promise<(string | null)[]>;
   set: (...args: unknown[]) => Promise<unknown>;
   del: (...keys: string[]) => Promise<unknown>;
   flushdb: () => Promise<unknown>;
   exists: (...keys: string[]) => Promise<number>;
+  incrby?: (key: string, amount: number) => Promise<number>;
+  decrby?: (key: string, amount: number) => Promise<number>;
 };
 
 type SocketListener = (...args: unknown[]) => void;
@@ -68,7 +71,7 @@ const createIoredisClient = (params: {
         db,
       },
       3,
-      { subsystem: 'cache', requireDirectForScripts: false }
+      { subsystem: 'cache' }
     ) as unknown as RedisClientLike;
 
     return client !== null && typeof client.get === 'function' ? client : null;
@@ -86,6 +89,8 @@ const createIoredisClient = (params: {
   }
 };
 
+// Redis driver objects keep each cache operation together for parity across transports.
+// eslint-disable-next-line max-lines-per-function
 const createCacheDriverFromIoredisClient = (client: RedisClientLike): CacheDriver => ({
   async get<T>(key: string): Promise<T | null> {
     try {
@@ -96,6 +101,28 @@ const createCacheDriverFromIoredisClient = (client: RedisClientLike): CacheDrive
     } catch (error) {
       Logger.error('Redis GET failed', error);
       return null;
+    }
+  },
+
+  async many<T>(keys: string[]): Promise<(T | null)[]> {
+    if (keys.length === 0) return [];
+    try {
+      const prefixedKeys = keys.map((key) => RedisKeys.createCacheKey(key));
+      const values =
+        typeof client.mget === 'function'
+          ? await client.mget(...prefixedKeys)
+          : await Promise.all(prefixedKeys.map(async (prefixedKey) => client.get(prefixedKey)));
+      return values.map((value) => {
+        if (value === null || value === undefined) return null;
+        try {
+          return JSON.parse(value) as T;
+        } catch {
+          return null;
+        }
+      });
+    } catch (error) {
+      Logger.error('Redis MGET failed', error);
+      return keys.map(() => null);
     }
   },
 
@@ -138,6 +165,40 @@ const createCacheDriverFromIoredisClient = (client: RedisClientLike): CacheDrive
     } catch (error) {
       Logger.error('Redis EXISTS failed', error);
       return false;
+    }
+  },
+
+  async increment(key: string, amount = 1): Promise<number> {
+    try {
+      const prefixedKey = RedisKeys.createCacheKey(key);
+      if (typeof client.incrby === 'function') {
+        return await client.incrby(prefixedKey, amount);
+      }
+
+      const current = Number((await client.get(prefixedKey)) ?? 0);
+      const next = current + amount;
+      await client.set(prefixedKey, String(next));
+      return next;
+    } catch (error) {
+      Logger.error('Redis INCRBY failed', error);
+      return 0;
+    }
+  },
+
+  async decrement(key: string, amount = 1): Promise<number> {
+    try {
+      const prefixedKey = RedisKeys.createCacheKey(key);
+      if (typeof client.decrby === 'function') {
+        return await client.decrby(prefixedKey, amount);
+      }
+
+      const current = Number((await client.get(prefixedKey)) ?? 0);
+      const next = current - amount;
+      await client.set(prefixedKey, String(next));
+      return next;
+    } catch (error) {
+      Logger.error('Redis DECRBY failed', error);
+      return 0;
     }
   },
 
@@ -298,6 +359,8 @@ const createTcpSendCommand = (params: {
   };
 };
 
+// TCP fallback mirrors the same Redis cache method table without an external client.
+// eslint-disable-next-line max-lines-per-function
 const createTcpCacheDriver = (): CacheDriver => {
   const host = Env.REDIS_HOST;
   const port = Env.REDIS_PORT;
@@ -365,6 +428,30 @@ const createTcpCacheDriver = (): CacheDriver => {
       }
     },
 
+    async increment(key: string, amount = 1): Promise<number> {
+      try {
+        const prefixedKey = RedisKeys.createCacheKey(key);
+        const response = await sendCommand(`INCRBY ${prefixedKey} ${amount}\r\n`);
+        const value = Number.parseInt(response.replace(':', '').trim(), 10);
+        return Number.isFinite(value) ? value : 0;
+      } catch (error) {
+        Logger.error('Redis INCRBY failed', error);
+        return 0;
+      }
+    },
+
+    async decrement(key: string, amount = 1): Promise<number> {
+      try {
+        const prefixedKey = RedisKeys.createCacheKey(key);
+        const response = await sendCommand(`DECRBY ${prefixedKey} ${amount}\r\n`);
+        const value = Number.parseInt(response.replace(':', '').trim(), 10);
+        return Number.isFinite(value) ? value : 0;
+      } catch (error) {
+        Logger.error('Redis DECRBY failed', error);
+        return 0;
+      }
+    },
+
     getRedisClient(): unknown {
       throw ErrorFactory.createConfigError(
         'getRedisClient() is only supported with ioredis driver, not TCP socket driver'
@@ -379,7 +466,9 @@ const createTcpCacheDriver = (): CacheDriver => {
 const create = (): CacheDriver => {
   const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
   const wantsProxy =
-    Env.USE_REDIS_PROXY === true || (Env.get('REDIS_PROXY_URL', '') || '').trim() !== '';
+    Env.USE_REDIS_PROXY === true &&
+    ((Env.get('REDIS_PROXY_URL', '') || '').trim() !== '' ||
+      (Env.get('REDIS_RPC_URL', '') || '').trim() !== '');
   const ioredisDriver = createIoredisCacheDriver({ isWorkersRuntime, wantsProxy });
   return ioredisDriver ?? createTcpCacheDriver();
 };

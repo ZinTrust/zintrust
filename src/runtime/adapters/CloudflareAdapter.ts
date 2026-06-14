@@ -227,8 +227,16 @@ function formatCloudflareResponse(response: PlatformResponse): Response {
     }
   }
 
+  // Null body status codes per Fetch spec
+  // These statuses must not have a body; Workers runtime warns if body is non-null
+  const NULL_BODY_STATUS_CODES = new Set([101, 204, 205, 304]);
+
   let body: string | ReadableStream<Uint8Array> | null = null;
-  if (response.body !== null && response.body !== undefined) {
+  if (
+    !NULL_BODY_STATUS_CODES.has(response.statusCode) &&
+    response.body !== null &&
+    response.body !== undefined
+  ) {
     if (typeof response.body === 'string') {
       body = response.body;
     } else if (

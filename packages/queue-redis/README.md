@@ -16,9 +16,18 @@ npm i @zintrust/queue-redis
 import '@zintrust/queue-redis/register';
 ```
 
-Then set `QUEUE_DRIVER=redis` and configure `REDIS_URL`.
+Then set `QUEUE_DRIVER=redis` and configure your Redis connection.
 
-For Cloudflare Workers, set `ENABLE_CLOUDFLARE_SOCKETS=true` and use a TCP-accessible Redis endpoint.
+For Cloudflare Workers or any runtime without Redis TCP access, run Redis RPC from a Node.js backend and configure the Worker with both flags:
+
+```bash
+USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
+```
+
+Start the backend with `zin redis-rpc` or `zin s redis-rpc`. See [`@zintrust/redis-rpc`](https://www.npmjs.com/package/@zintrust/redis-rpc).
+
+If you use Redis RPC pull-style dequeue/ack flows, `@zintrust/redis-rpc@2.4.8` can already fail abandoned BullMQ `active` jobs automatically. Tune that recovery threshold with `REDIS_RPC_STALE_ACTIVE_MS` on the Redis RPC server.
 
 ## When to use
 

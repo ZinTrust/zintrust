@@ -165,8 +165,30 @@ For the full workflow, Cloudflare examples, `.env.pack` local development suppor
 | `REDIS_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                           |
 | `REDIS_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                   |
 | `REDIS_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                 |
-| `USE_REDIS_PROXY`               | `false`                      | Enable Redis proxy.                                                                        |
+| `USE_REDIS_PROXY`               | `false`                      | Allows Redis proxy transports. Pair it with `REDIS_RPC_URL` for Redis RPC or `REDIS_PROXY_URL` for the legacy HTTP Redis command proxy. |
 | `REDIS_PROXY_HEADERS_*`         | empty                        | Custom headers to send with proxy requests (e.g., `REDIS_PROXY_HEADERS_X_Tracing_Id=123`). |
+
+## Redis RPC
+
+Redis RPC is the recommended proxy transport for Redis-backed queue, worker, monitor, cache, and lock workflows that run from Cloudflare Workers or other runtimes without direct Redis TCP access. Install [`@zintrust/redis-rpc`](https://www.npmjs.com/package/@zintrust/redis-rpc) in the project that will host the RPC server, then start it with `zin redis-rpc` or `zin s redis-rpc`.
+
+Redis RPC only becomes active when **both** `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are set. This keeps accidental proxy mode from hijacking local direct Redis connections.
+
+| Key                         | Default               | Description                                                  |
+| --------------------------- | --------------------- | ------------------------------------------------------------ |
+| `REDIS_RPC_URL`             | empty                 | Base URL for the Redis RPC server, for example `https://queues.example.com`. |
+| `REDIS_RPC_HOST`            | `127.0.0.1`           | Host used by `zin redis-rpc` when starting the server.       |
+| `REDIS_RPC_PORT`            | `8794`                | Port used by `zin redis-rpc` when starting the server.       |
+| `REDIS_RPC_SECRET`          | `REDIS_PROXY_SECRET` or `APP_KEY` | Shared secret sent as `x-redis-rpc-secret`. |
+| `REDIS_RPC_TIMEOUT_MS`      | `ZT_PROXY_TIMEOUT_MS` | Client request timeout in milliseconds.                      |
+| `REDIS_RPC_RETRY_MAX`       | `2`                   | Queue enqueue retry count for Redis RPC clients.             |
+| `REDIS_RPC_RETRY_DELAY_MS`  | `500`                 | Delay between Redis RPC enqueue retries.                     |
+| `REDIS_RPC_REDIS_HOST`      | `REDIS_HOST`          | Redis host used by the RPC server.                           |
+| `REDIS_RPC_REDIS_PORT`      | `REDIS_PORT`          | Redis port used by the RPC server.                           |
+| `REDIS_RPC_REDIS_PASSWORD`  | `REDIS_PASSWORD`      | Redis password used by the RPC server.                       |
+| `REDIS_RPC_REDIS_DB`        | `REDIS_QUEUE_DB` / `REDIS_DB` | Redis database used by the RPC server.              |
+| `REDIS_RPC_BULLMQ_PREFIX`   | `BULLMQ_PREFIX` or `bull` | BullMQ key prefix owned by the RPC server.             |
+| `REDIS_RPC_STALE_ACTIVE_MS` | `max(visibilityTimeoutMs * 2, 120000)` | Pull-worker stale-active recovery threshold before Redis RPC fails abandoned BullMQ active jobs. |
 
 ## MongoDB proxy (HTTP)
 
@@ -286,7 +308,7 @@ For the full workflow, Cloudflare examples, `.env.pack` local development suppor
 | `TRACE_REDACT_BODY`                          | package default    | Body-field names redacted before trace persistence.                                          |
 | `TRACE_REDACT_QUERY`                         | empty              | Query-string keys redacted before trace persistence.                                         |
 
-`TRACE_CONTENT_QUEUE_DRIVER` works with any queue driver already registered in the runtime. If you want first-class Cloudflare Queue support instead of generic driver wiring, add a dedicated Cloudflare Queue driver and register it in the queue runtime.
+`TRACE_CONTENT_QUEUE_DRIVER` works with any queue driver already registered in the runtime. For Cloudflare Queues, install `@zintrust/queue-cloudflare`, import its register entry, and configure the Cloudflare Queue binding/API credentials for the runtime.
 
 ## Job tracking
 

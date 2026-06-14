@@ -147,9 +147,10 @@ describe('proxy trace integration', () => {
     expect(response.status).toBe(200);
     expect(emitQuery).toHaveBeenCalledWith(
       'select * from accounts where id = ?',
-      [9],
-      expect.any(Number),
-      'd1-proxy'
+      ['9'],
+      0,
+      'd1-proxy',
+      undefined
     );
   });
 

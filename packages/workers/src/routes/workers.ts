@@ -20,7 +20,6 @@ import {
 import { WorkerApiController } from '../http/WorkerApiController';
 import { WorkerController } from '../http/WorkerController';
 import { ResourceMonitor } from '../ResourceMonitor';
-import { TelemetryDashboard } from '../telemetry';
 import { registerStaticAssets } from '../ui/router/ui';
 import { WorkerFactory } from '../WorkerFactory';
 type WorkerUiOptions = WorkersDashboardUiOptions;
@@ -28,6 +27,12 @@ type RouteOptions = { middleware?: ReadonlyArray<string> } | undefined;
 
 const controller = WorkerController.create();
 const apiController = WorkerApiController.create();
+
+const isRedisRpcRuntimeEnabled = (): boolean =>
+  Env.getBool('USE_REDIS_PROXY', false) && Env.get('REDIS_RPC_URL', '').trim().length > 0;
+
+const shouldRegisterDashboardApis = (): boolean =>
+  Cloudflare.getWorkersEnv() === null || isRedisRpcRuntimeEnabled();
 
 function registerCoreWorkerRoutes(r: IRouter): void {
   // Core worker operations
@@ -130,14 +135,18 @@ function registerUtilityRoutes(r: IRouter): void {
   Router.get(r, '/health', apiController.getHealthSummaryHandler);
 }
 
-function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArray<string>): void {
+function registerLifecycleGroup(
+  router: IRouter,
+  basePath: string,
+  middleware?: ReadonlyArray<string>
+): void {
   Router.group(
     router,
-    '/api/workers',
+    basePath,
     (r: IRouter) => {
       Logger.info('Registering Worker Management Routes');
       registerCoreWorkerRoutes(r);
-      if (Cloudflare.getWorkersEnv() === null) {
+      if (shouldRegisterDashboardApis()) {
         registerMonitoringRoutes(r); // ← Move FIRST - has /events
         registerWorkerQueryRoutes(r);
         registerVersioningRoutes(r);
@@ -146,6 +155,11 @@ function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArr
     },
     { middleware: middleware }
   );
+}
+
+function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArray<string>): void {
+  registerLifecycleGroup(router, '/api/workers', middleware);
+  registerLifecycleGroup(router, '/workers/api', middleware);
 }
 
 function registerWorkerTelemetryRoutes(router: IRouter, middleware?: ReadonlyArray<string>): void {
@@ -203,14 +217,8 @@ export function registerWorkerRoutes(
   registerWorkerLifecycleRoutes(router, routeOptions?.middleware);
   registerWorkerTelemetryRoutes(router, routeOptions?.middleware);
 
-  // Register Telemetry Dashboard
-  const dashboard = TelemetryDashboard.create({
-    basePath: '/telemetry',
-  });
-  dashboard.registerRoutes(router);
   const port = Env.get('PORT', '7777');
   Logger.info(`Worker routes registered at http://127.0.0.1:${port}/workers`);
-  Logger.info(`Telemetry dashboard registered at http://127.0.0.1:${port}/telemetry`);
 }
 
 export default registerWorkerRoutes;

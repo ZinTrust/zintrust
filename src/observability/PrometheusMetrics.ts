@@ -47,7 +47,9 @@ async function ensureState(): Promise<MetricsState> {
   statePromise = (async () => {
     let client: PromClientModule;
     try {
-      client = await import('prom-client');
+      // Variable specifier so bundlers do not inline prom-client into the Workers bundle.
+      const promClientPkg = 'prom-client';
+      client = (await import(promClientPkg)) as PromClientModule;
     } catch {
       // prom-client is intentionally optional at runtime.
       return createNoopState();

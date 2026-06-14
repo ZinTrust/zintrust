@@ -86,6 +86,7 @@ _Note: Uninstall is currently **non-destructive** and does not roll back generat
 | `driver:queue-redis`     | `queue:redis`     | Redis-backed queue driver (installs @zintrust/queue-redis)      | `@zintrust/queue-redis`                          |
 | `driver:queue-rabbitmq`  | `queue:rabbitmq`  | RabbitMQ-backed queue driver (registers via plugin hook)        | `@zintrust/queue-rabbitmq`, `amqplib`            |
 | `driver:queue-sqs`       | `queue:sqs`       | AWS SQS-backed queue driver (registers via plugin hook)         | `@zintrust/queue-sqs`, `@aws-sdk/client-sqs`     |
+| `driver:queue-cloudflare` | `queue:cloudflare`, `queue:cf` | Cloudflare Queues driver with D1/DO/KV state layer | `@zintrust/queue-cloudflare`                     |
 | `driver:broadcast-redis` | `broadcast:redis` | Redis-backed broadcast driver (installs redis client)           | `redis`                                          |
 | `driver:cache-redis`     | `cache:redis`     | Redis cache driver (registers via plugin hook)                  | `@zintrust/cache-redis`                          |
 | `driver:cache-mongodb`   | `cache:mongodb`   | MongoDB Atlas Data API cache driver (registers via plugin hook) | `@zintrust/cache-mongodb`                        |

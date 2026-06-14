@@ -21,6 +21,7 @@ const testState = vi.hoisted(() => {
       })),
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
+      recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
       getQueues: vi.fn(async () => []),
       close: vi.fn(async () => undefined),
     },
@@ -134,6 +135,13 @@ function getRetryHandler() {
   return route?.[2] as ((req: unknown, res: unknown) => Promise<void>) | undefined;
 }
 
+function getRecoverActiveHandler() {
+  const route = testState.routerPost.mock.calls.find((call) =>
+    String(call[1]).includes('/api/recover-active/')
+  );
+  return route?.[2] as ((req: unknown, res: unknown) => Promise<void>) | undefined;
+}
+
 describe('queue-monitor retry API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -150,6 +158,7 @@ describe('queue-monitor retry API', () => {
       })),
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
+      recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
       getQueues: vi.fn(async () => []),
       close: vi.fn(async () => undefined),
     };
@@ -271,6 +280,81 @@ describe('queue-monitor retry API', () => {
       ok: true,
       status: 'retried',
       message: 'Job job-3 queued for retry',
+    });
+  });
+
+  it('returns 200 when an active job is recovered', async () => {
+    testState.currentDriver.recoverActiveJob = vi.fn(async () => ({
+      ok: true as const,
+      status: 'failed' as const,
+      state: 'failed',
+    }));
+
+    const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
+    const handler = getRecoverActiveHandler();
+    expect(handler).toBeTypeOf('function');
+
+    const response = createJsonResponse();
+    await handler?.(
+      { getParam: (name: string) => (name === 'queue' ? 'emails' : 'job-active') },
+      response.res
+    );
+
+    expect(testState.currentDriver.recoverActiveJob).toHaveBeenCalledWith(
+      'emails',
+      'job-active'
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.payload).toEqual({ ok: true, status: 'failed', state: 'failed' });
+  });
+
+  it('returns 404 when active recovery targets a missing job', async () => {
+    testState.currentDriver.recoverActiveJob = vi.fn(async () => ({
+      ok: false as const,
+      status: 'missing' as const,
+    }));
+
+    const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
+    const handler = getRecoverActiveHandler();
+    expect(handler).toBeTypeOf('function');
+
+    const response = createJsonResponse();
+    await handler?.(
+      { getParam: (name: string) => (name === 'queue' ? 'emails' : 'job-missing') },
+      response.res
+    );
+
+    expect(response.statusCode).toBe(404);
+    expect(response.payload).toEqual({
+      error: 'Job job-missing no longer exists',
+      status: 'missing',
+    });
+  });
+
+  it('returns 409 when active recovery targets a non-active job', async () => {
+    testState.currentDriver.recoverActiveJob = vi.fn(async () => ({
+      ok: false as const,
+      status: 'not_active' as const,
+      reason: 'Job is failed, not active',
+    }));
+
+    const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
+    const handler = getRecoverActiveHandler();
+    expect(handler).toBeTypeOf('function');
+
+    const response = createJsonResponse();
+    await handler?.(
+      { getParam: (name: string) => (name === 'queue' ? 'emails' : 'job-failed') },
+      response.res
+    );
+
+    expect(response.statusCode).toBe(409);
+    expect(response.payload).toEqual({
+      error: 'Job is failed, not active',
+      status: 'not_active',
     });
   });
 });

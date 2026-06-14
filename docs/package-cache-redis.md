@@ -5,7 +5,7 @@ description: Redis adapter for ZinTrust's cache system
 
 # Redis Cache Adapter
 
-The `@zintrust/cache-redis` package provides a Redis driver for ZinTrust's cache system, offering high-performance caching with Redis.
+The `@zintrust/cache-redis` package provides a Redis driver for ZinTrust's cache system. It uses direct Redis in Node.js and can use Redis RPC from Cloudflare Workers when both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are configured. If `USE_REDIS_PROXY=true` is set without `REDIS_RPC_URL`, ZinTrust falls back to the legacy Redis HTTP proxy.
 
 ## Installation
 
@@ -41,6 +41,20 @@ REDIS_PORT=6379
 REDIS_PASSWORD=your_password
 REDIS_DB=0
 ```
+
+### Redis RPC mode
+
+Use Redis RPC when the cache caller cannot open Redis TCP sockets:
+
+```bash
+npm install @zintrust/redis-rpc
+USE_REDIS_PROXY=true
+REDIS_RPC_URL=https://queues.example.com
+```
+
+Redis RPC wins whenever `REDIS_RPC_URL` is set. The older Redis HTTP proxy is still relevant as a compatibility fallback for simple command forwarding when `USE_REDIS_PROXY=true` but `REDIS_RPC_URL` is not configured.
+
+Redis RPC supports the cache features shown here, including `get`, `set`, `delete`, `clear`, `has`, atomic `increment` / `decrement`, raw Redis client calls, `pipeline()`, and `multi()`.
 
 ### Cloudflare Tunnel Configuration
 

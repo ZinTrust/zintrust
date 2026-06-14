@@ -1,0 +1,63 @@
+{
+  "name": "@zintrust/redis-rpc",
+  "version": "2.7.0",
+  "description": "Redis RPC backend for BullMQ queue operations in ZinTrust.",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "default": "./dist/adapters.js"
+    },
+    "./backend": {
+      "types": "./dist/backend.d.ts",
+      "default": "./dist/backend.js"
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@zintrust/core": "2.5.9",
+    "bullmq": "^5.77.6",
+    "dotenv": "^17.2.3",
+    "ioredis": "^5.11.0"
+  },
+  "peerDependencies": {
+    "@zintrust/core": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "zintrust",
+    "redis",
+    "rpc",
+    "bullmq",
+    "queue",
+    "proxy"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node ../../scripts/fix-dist-esm-imports.mjs dist",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx test-bullmq.mjs",
+    "prepublishOnly": "npm run build"
+  }
+}

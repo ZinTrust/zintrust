@@ -127,8 +127,12 @@ let datadogClient: DatadogClient | null = null;
  * Helper: Lazy load Prometheus client
  */
 const getPrometheusClient = async (): Promise<typeof import('prom-client')> => {
-  promClient ??= await import('prom-client');
-  return promClient;
+  if (promClient !== null) return promClient;
+  // Variable specifier so bundlers do not inline prom-client into the Workers bundle.
+  const promClientPkg = 'prom-client';
+  const loaded = await import(promClientPkg);
+  promClient = loaded;
+  return loaded;
 };
 
 /**
@@ -195,7 +199,9 @@ const initDatadog = async (ddConfig: ObservabilityConfig['datadog']): Promise<vo
   if (!ddConfig.enabled) return;
 
   try {
-    const module = (await import('hot-shots')) as unknown as { StatsD?: DatadogClientConstructor };
+    // Variable specifier so bundlers do not inline hot-shots (StatsD/UDP) into the Workers bundle.
+    const hotShotsPkg = 'hot-shots';
+    const module = (await import(hotShotsPkg)) as unknown as { StatsD?: DatadogClientConstructor };
     const StatsDClass = module.StatsD;
 
     if (!StatsDClass) {

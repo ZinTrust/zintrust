@@ -109,6 +109,7 @@ When Queue Monitor is enabled, these environment keys configure the dashboard su
 | `QUEUE_MONITOR_MIDDLEWARE`   | empty            | Comma-separated route middleware keys for dashboard auth |
 | `QUEUE_MONITOR_AUTO_REFRESH` | `true`           | Enables dashboard auto-refresh by default                |
 | `QUEUE_MONITOR_REFRESH_MS`   | `5000`           | Dashboard auto-refresh interval in milliseconds          |
+| `QUEUE_MONITOR_RECOVER_ACTIVE_LOCK_MS` | `30000` | BullMQ lock TTL used by the manual Recover action for stale active jobs |
 
 `QUEUE_MONITOR_MIDDLEWARE` is the env key used to protect the dashboard with existing route middleware such as `auth` or `auth,jwt`, and it also accepts supported dynamic middleware keys such as `rateLimit:1000:1`. ZinTrust validates the configured values against registered route middleware keys and supported dynamic middleware keys, and throws on unknown values.
 

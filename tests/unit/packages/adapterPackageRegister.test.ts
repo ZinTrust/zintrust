@@ -30,6 +30,13 @@ describe('adapter packages /register', () => {
     expect(() => Queue.get('sqs')).not.toThrow();
   });
 
+  it('registers queue cloudflare', async () => {
+    expect(() => Queue.get('cloudflare')).toThrow();
+    await import('../../../packages/queue-cloudflare/src/register.js');
+    expect(() => Queue.get('cloudflare')).not.toThrow();
+    expect(() => Queue.get('cloudflare-queues')).not.toThrow();
+  });
+
   it('registers storage s3/r2/gcs', async () => {
     expect(StorageDriverRegistry.has('s3')).toBe(false);
     expect(StorageDriverRegistry.has('r2')).toBe(false);

@@ -830,11 +830,19 @@ const publishInternal = async (input: BroadcastPublishInput): Promise<BroadcastP
   }
 
   if (normalized.delivery === 'socket') {
-    if (autoTransportResult.lastTransportError instanceof Error) {
-      throw autoTransportResult.lastTransportError;
-    }
+    // Socket delivery was forced but the socket transport is unavailable
+    // (e.g. worker-runtime env missing SOCKET_ENABLED / PUSHER_APP_KEY).
+    // Fall through to the configured driver instead of dropping the event,
+    // matching the recoverable-error handling that auto mode already implements.
+    const socketError =
+      autoTransportResult.lastTransportError instanceof Error
+        ? autoTransportResult.lastTransportError
+        : undefined;
 
-    throw ErrorFactory.createConfigError('Socket publish delivery is not available.');
+    logTransportFallback('socket', {
+      error: describeError(socketError),
+      attemptedTransports: autoTransportResult.attemptedTransports,
+    });
   }
 
   const attemptedTransports: readonly BroadcastTransport[] = [

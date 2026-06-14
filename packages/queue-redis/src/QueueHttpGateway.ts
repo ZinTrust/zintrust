@@ -1,40 +1,16 @@
 import { Env } from '@zintrust/core/config';
 import { ErrorFactory } from '@zintrust/core/errors';
-import type { IRequest, IResponse, IRouter } from '@zintrust/core/http';
-import { Router } from '@zintrust/core/http';
+import { Router, type IRouter } from '@zintrust/core/http';
 import { Logger } from '@zintrust/core/logger';
-import type { BullMQPayload, QueueMessage } from '@zintrust/core/queue';
 import { SignedRequest } from '@zintrust/core/security';
-import BullMQRedisQueue, { runWithDirectQueueDriver } from './BullMQRedisQueue';
+import BullMQRedisQueue from './BullMQRedisQueue';
 
 type QueueRpcAction = 'enqueue' | 'dequeue' | 'ack' | 'length' | 'drain';
 
 type QueueRpcRequest = {
   action: QueueRpcAction;
   requestId: string;
-  payload: {
-    queue?: string;
-    id?: string;
-    payload?: BullMQPayload;
-  };
-};
-
-type QueueRpcSuccess<T> = {
-  ok: true;
-  requestId: string;
-  result: T;
-  error: null;
-};
-
-type QueueRpcFailure = {
-  ok: false;
-  requestId: string;
-  result: null;
-  error: {
-    code: string;
-    message: string;
-    details?: unknown;
-  };
+  payload: Record<string, unknown>;
 };
 
 type QueueGatewaySettings = {
@@ -46,10 +22,21 @@ type QueueGatewaySettings = {
   middleware: ReadonlyArray<string>;
 };
 
-type RouteOptions = { middleware?: ReadonlyArray<string> } | undefined;
+type RequestLike = {
+  getBody?: () => unknown;
+  body?: unknown;
+  context?: Record<string, unknown>;
+  getHeaders: () => Record<string, string | string[] | undefined>;
+  getMethod: () => string;
+  getPath: () => string;
+};
+
+type ResponseLike = {
+  status: (status: number) => ResponseLike;
+  json: (value: unknown) => void;
+};
 
 const nonces = new Map<string, number>();
-
 const nowMs = (): number => Date.now();
 
 const normalizePath = (value: string): string => {
@@ -81,9 +68,7 @@ const readSettings = (): QueueGatewaySettings => {
 const cleanupExpiredNonces = (): void => {
   const current = nowMs();
   for (const [nonceKey, expiresAt] of nonces.entries()) {
-    if (expiresAt <= current) {
-      nonces.delete(nonceKey);
-    }
+    if (expiresAt <= current) nonces.delete(nonceKey);
   }
 };
 
@@ -95,7 +80,7 @@ const storeNonce = async (keyId: string, nonce: string, ttlMs: number): Promise<
   return true;
 };
 
-const getBodyRecord = (req: IRequest): Record<string, unknown> => {
+const getBodyRecord = (req: RequestLike): Record<string, unknown> => {
   const body = req.getBody?.() ?? req.body;
   if (typeof body === 'object' && body !== null && !Array.isArray(body)) {
     return body as Record<string, unknown>;
@@ -103,18 +88,16 @@ const getBodyRecord = (req: IRequest): Record<string, unknown> => {
   return {};
 };
 
-const getRawBody = (req: IRequest): string => {
-  const rawText = req.context['rawBodyText'];
+const getRawBody = (req: RequestLike): string => {
+  const rawText = req.context?.['rawBodyText'];
   if (typeof rawText === 'string') return rawText;
   return JSON.stringify(getBodyRecord(req));
 };
 
-const toIncomingHeaders = (req: IRequest): Record<string, string | undefined> => {
+const toIncomingHeaders = (req: RequestLike): Record<string, string | undefined> => {
   const headers = req.getHeaders();
-  const normalize = (value: string | string[] | undefined): string | undefined => {
-    if (Array.isArray(value)) return value.join(',');
-    return value;
-  };
+  const normalize = (value: string | string[] | undefined): string | undefined =>
+    Array.isArray(value) ? value.join(',') : value;
 
   return {
     'x-zt-key-id': normalize(headers['x-zt-key-id']),
@@ -126,86 +109,69 @@ const toIncomingHeaders = (req: IRequest): Record<string, string | undefined> =>
 };
 
 const sendFailure = (
-  res: IResponse,
+  res: ResponseLike,
   requestId: string,
   status: number,
   code: string,
   message: string,
   details?: unknown
 ): void => {
-  const payload: QueueRpcFailure = {
+  res.status(status).json({
     ok: false,
     requestId,
     result: null,
     error: { code, message, details },
-  };
-  res.status(status).json(payload);
-};
-
-const sendSuccess = <T>(res: IResponse, requestId: string, result: T): void => {
-  const payload: QueueRpcSuccess<T> = {
-    ok: true,
-    requestId,
-    result,
-    error: null,
-  };
-  res.status(200).json(payload);
-};
-
-const readQueueName = (payload: QueueRpcRequest['payload']): string | null => {
-  const value = payload.queue;
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim();
-  return normalized === '' ? null : normalized;
-};
-
-const executeAction = async (request: QueueRpcRequest): Promise<unknown> => {
-  return runWithDirectQueueDriver(async () => {
-    const queueName = readQueueName(request.payload);
-
-    if (!queueName) {
-      throw ErrorFactory.createValidationError('payload.queue is required');
-    }
-
-    switch (request.action) {
-      case 'enqueue': {
-        const payload = request.payload.payload as BullMQPayload | undefined;
-        if (!payload || typeof payload !== 'object') {
-          throw ErrorFactory.createValidationError('payload.payload is required for enqueue');
-        }
-        return BullMQRedisQueue.enqueue(queueName, payload);
-      }
-
-      case 'dequeue':
-        return BullMQRedisQueue.dequeue(queueName) as Promise<QueueMessage<unknown> | undefined>;
-
-      case 'ack': {
-        const id = request.payload.id;
-        if (typeof id !== 'string' || id.trim() === '') {
-          throw ErrorFactory.createValidationError('payload.id is required for ack');
-        }
-        await BullMQRedisQueue.ack(queueName, id);
-        return null;
-      }
-
-      case 'length':
-        return BullMQRedisQueue.length(queueName);
-
-      case 'drain':
-        await BullMQRedisQueue.drain(queueName);
-        return null;
-
-      default:
-        throw ErrorFactory.createValidationError(`Unsupported action: ${String(request.action)}`);
-    }
   });
 };
 
+const sendSuccess = (res: ResponseLike, requestId: string, result: unknown): void => {
+  res.status(200).json({ ok: true, requestId, result, error: null });
+};
+
+const readQueueName = (payload: Record<string, unknown>): string => {
+  const value = payload['queue'];
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw ErrorFactory.createValidationError('payload.queue is required');
+  }
+  return value.trim();
+};
+
+const executeAction = async (request: QueueRpcRequest): Promise<unknown> => {
+  const queueName = readQueueName(request.payload);
+
+  switch (request.action) {
+    case 'enqueue': {
+      const payload = request.payload['payload'];
+      if (!payload || typeof payload !== 'object') {
+        throw ErrorFactory.createValidationError('payload.payload is required for enqueue');
+      }
+      return BullMQRedisQueue.enqueue(queueName, payload as Record<string, unknown>);
+    }
+    case 'dequeue':
+      return BullMQRedisQueue.dequeue(queueName);
+    case 'ack': {
+      const id = request.payload['id'];
+      if (typeof id !== 'string' || id.trim() === '') {
+        throw ErrorFactory.createValidationError('payload.id is required for ack');
+      }
+      await BullMQRedisQueue.ack(queueName, id);
+      return null;
+    }
+    case 'length':
+      return BullMQRedisQueue.length(queueName);
+    case 'drain':
+      await BullMQRedisQueue.drain(queueName);
+      return null;
+    default:
+      throw ErrorFactory.createValidationError(`Unsupported action: ${String(request.action)}`);
+  }
+};
+
 const verifyRequest = async (
-  req: IRequest,
+  req: RequestLike,
   bodyText: string,
   settings: QueueGatewaySettings
-): Promise<{ ok: true } | { ok: false; code: string; status: number; message: string }> => {
+): Promise<{ ok: true } | { ok: false; status: number; code: string; message: string }> => {
   if (settings.keyId.trim() === '' || settings.secret.trim() === '') {
     return {
       ok: false,
@@ -215,42 +181,36 @@ const verifyRequest = async (
     };
   }
 
-  const url = new URL(req.getPath(), 'http://localhost');
   const verifyResult = await SignedRequest.verify({
     method: req.getMethod(),
-    url,
+    url: new URL(req.getPath(), 'http://localhost'),
     body: bodyText,
     headers: toIncomingHeaders(req),
     nowMs: nowMs(),
     windowMs: settings.signingWindowMs,
-    verifyNonce: async (keyId: string, nonce: string) =>
-      storeNonce(keyId, nonce, settings.nonceTtlMs),
-    getSecretForKeyId: async (keyId: string) => {
-      if (keyId === settings.keyId) return settings.secret;
-      return undefined;
-    },
+    verifyNonce: async (keyId: string, nonce: string) => storeNonce(keyId, nonce, settings.nonceTtlMs),
+    getSecretForKeyId: async (keyId: string) => (keyId === settings.keyId ? settings.secret : undefined),
   });
 
   if (verifyResult.ok === true) return { ok: true };
 
-  const errorCode = 'code' in verifyResult ? verifyResult.code : 'INVALID_SIGNATURE';
-  const errorMessage = 'message' in verifyResult ? verifyResult.message : 'Invalid signature';
-
+  const code = 'code' in verifyResult ? verifyResult.code : 'INVALID_SIGNATURE';
+  const message = 'message' in verifyResult ? verifyResult.message : 'Invalid signature';
   return {
     ok: false,
-    code: errorCode,
-    status: errorCode === 'EXPIRED' || errorCode === 'REPLAYED' ? 401 : 403,
-    message: errorMessage,
+    code,
+    status: code === 'EXPIRED' || code === 'REPLAYED' ? 401 : 403,
+    message,
   };
 };
 
 const createHandler = (settings: QueueGatewaySettings) => {
-  return async (req: IRequest, res: IResponse): Promise<void> => {
+  return async (req: RequestLike, res: ResponseLike): Promise<void> => {
     const rawBody = getRawBody(req);
     const body = getBodyRecord(req);
     const requestId =
       typeof body['requestId'] === 'string' && body['requestId'].trim() !== ''
-        ? (body['requestId'] as string)
+        ? body['requestId']
         : 'unknown';
 
     const auth = await verifyRequest(req, rawBody, settings);
@@ -259,53 +219,41 @@ const createHandler = (settings: QueueGatewaySettings) => {
       return;
     }
 
-    const action = body['action'];
-    const payload = body['payload'];
-
-    if (typeof action !== 'string') {
+    if (typeof body['action'] !== 'string') {
       sendFailure(res, requestId, 400, 'VALIDATION_ERROR', 'action is required');
       return;
     }
 
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    if (!body['payload'] || typeof body['payload'] !== 'object' || Array.isArray(body['payload'])) {
       sendFailure(res, requestId, 400, 'VALIDATION_ERROR', 'payload must be an object');
       return;
     }
 
-    const normalizedRequest: QueueRpcRequest = {
-      action: action as QueueRpcAction,
-      requestId,
-      payload: payload as QueueRpcRequest['payload'],
-    };
-
     try {
-      const result = await executeAction(normalizedRequest);
-      sendSuccess(res, requestId, result);
-    } catch (error: unknown) {
-      Logger.error('Queue HTTP gateway action failed', error as Error);
-      sendFailure(
-        res,
+      const result = await executeAction({
+        action: body['action'] as QueueRpcAction,
         requestId,
-        500,
-        'QUEUE_ERROR',
-        'Queue operation failed',
-        error instanceof Error ? { message: error.message } : error
-      );
+        payload: body['payload'] as Record<string, unknown>,
+      });
+      sendSuccess(res, requestId, result);
+    } catch (error) {
+      Logger.error('Queue HTTP gateway action failed', error as Error);
+      sendFailure(res, requestId, 500, 'QUEUE_ERROR', 'Queue operation failed', {
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 };
 
 export const QueueHttpGateway = Object.freeze({
-  create(config?: Partial<QueueGatewaySettings>): {
-    registerRoutes: (router: IRouter) => void;
-  } {
+  create(config?: Partial<QueueGatewaySettings>): { registerRoutes: (router: IRouter) => void } {
+    const defaults = readSettings();
     const settings = {
-      ...readSettings(),
+      ...defaults,
       ...config,
-      basePath: normalizePath(config?.basePath ?? readSettings().basePath),
+      basePath: normalizePath(config?.basePath ?? defaults.basePath),
     };
-
-    const routeOptions: RouteOptions =
+    const routeOptions =
       settings.middleware.length > 0 ? { middleware: settings.middleware } : undefined;
 
     return {

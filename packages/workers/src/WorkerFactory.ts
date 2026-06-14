@@ -24,7 +24,7 @@ import {
   ZintrustLang,
 } from '@zintrust/core/utils';
 import { NodeSingletons, type WorkerStatus } from '@zintrust/core/workers';
-import { Worker, type Job, type WorkerOptions } from 'bullmq';
+import type { Job, Worker, WorkerOptions } from 'bullmq';
 import { AutoScaler, type AutoScalerConfig } from './AutoScaler';
 import { CanaryController } from './CanaryController';
 import { CircuitBreaker } from './CircuitBreaker';
@@ -38,6 +38,7 @@ import { Observability, type ObservabilityConfig } from './Observability';
 import { PluginManager } from './PluginManager';
 import { PriorityQueue } from './PriorityQueue';
 import { ResourceMonitor } from './ResourceMonitor';
+import { SLAMonitor } from './SLAMonitor';
 import { WorkerMetrics } from './WorkerMetrics';
 import { WorkerRegistry, type WorkerInstance as RegistryWorkerInstance } from './WorkerRegistry';
 import { WorkerVersioning } from './WorkerVersioning';
@@ -52,6 +53,13 @@ import {
 } from './storage/WorkerStore';
 
 const path = NodeSingletons.path;
+
+// Lazy BullMQ Worker loader keyed on a variable specifier so bundlers do not inline
+// bullmq into the Workers bundle. Worker creation is consumer-side (Node).
+const loadBullmqWorker = async (): Promise<typeof Worker> => {
+  const bullmqPkg = 'bullmq';
+  return (await import(bullmqPkg)).Worker;
+};
 
 type ShutdownTraceApi = {
   log: (label: string, details?: Record<string, unknown>) => void;
@@ -2558,6 +2566,21 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
   };
 };
 
+const assertSlaAllowsWorkerRequest = async (workerName: string): Promise<void> => {
+  const gate = await SLAMonitor.canSendWorkerRequest(workerName);
+  if (gate.allowed) return;
+
+  throw ErrorFactory.createConfigError(
+    `Worker "${workerName}" blocked because SLA status is not compliant`,
+    {
+      kind: 'worker_sla_blocked',
+      workerName,
+      reason: gate.reason,
+      status: gate.status?.status,
+    }
+  );
+};
+
 const buildDefaultAutoScalerConfig = (): AutoScalerConfig => ({
   enabled: workersConfig.autoScaling.enabled,
   checkInterval: workersConfig.autoScaling.interval,
@@ -2637,21 +2660,6 @@ const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): 
     'Worker requires a connection. Provide options.connection or infrastructure.redis config',
     'infrastructure.redis'
   );
-
-  const requireDirectForScripts =
-    Env.getBool('REDIS_REQUIRE_DIRECT_FOR_SCRIPTS', true) && Env.getBool('USE_REDIS_PROXY', false);
-  // TODO remove when proxy convert to rpc
-  if (requireDirectForScripts) {
-    return {
-      ...options,
-      connection: {
-        host: redisConfig.host,
-        port: redisConfig.port,
-        db: redisConfig.db,
-        password: redisConfig.password,
-      },
-    };
-  }
 
   return {
     ...options,
@@ -3037,6 +3045,10 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createWorkerError(`Worker "${name}" already exists`);
     }
 
+    if (autoStart) {
+      await assertSlaAllowsWorkerRequest(name);
+    }
+
     // Resolve the correct store for this worker configuration
     const store = await getStoreForWorker(config);
 
@@ -3057,7 +3069,8 @@ export const WorkerFactory = Object.freeze({
 
       // Create BullMQ worker
       const resolvedOptions = resolveWorkerOptions(config, autoStart);
-      const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
+      const WorkerCtor = await loadBullmqWorker();
+      const worker = new WorkerCtor(queueName, enhancedProcessor, resolvedOptions);
 
       setupWorkerEventListeners(worker, name, queueName, workerVersion, features);
 
@@ -3454,6 +3467,8 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
     }
 
+    await assertSlaAllowsWorkerRequest(name);
+
     const version = instance.config.version ?? '1.0.0';
     await WorkerRegistry.start(name, version);
 
@@ -3527,6 +3542,8 @@ export const WorkerFactory = Object.freeze({
     if (record.activeStatus === false) {
       throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
     }
+
+    await assertSlaAllowsWorkerRequest(name);
 
     let processor: WorkerFactoryConfig['processor'];
     try {

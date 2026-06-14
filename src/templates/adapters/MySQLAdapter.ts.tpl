@@ -6,7 +6,8 @@
 import { FeatureFlags } from '@zintrust/core';
 import { Logger } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
-import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
+import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
 import { QueryBuilder } from '@zintrust/core';
 
 type AdapterState = {
@@ -24,7 +25,10 @@ function createRawQuery(state: AdapterState) {
     }
 
     try {
-      Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+      Logger.warn(
+        `Raw SQL Query executed: ${sql}`,
+        Logger.withTraceSkipContext({ sql, parameters })
+      );
       // Mock implementation for tests
       if (sql.includes('INVALID')) {
         throw ErrorFactory.createDatabaseError('Invalid SQL syntax');
@@ -81,8 +85,8 @@ function createMySQLAdapterInstance(config: DatabaseConfig, state: AdapterState)
       }
     },
 
-    getType(): string {
-      return 'mysql';
+    getType(): SupportedDriver {
+      return AdaptersEnum.mysql;
     },
     isConnected(): boolean {
       return state.connected;

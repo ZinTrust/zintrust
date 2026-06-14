@@ -14,6 +14,7 @@ let currentPage = 1;
 let totalPages = 1;
 let totalWorkers = 0;
 let autoRefreshEnabled = true;
+let slaFeatureEnabled = false;
 let refreshTimer = null;
 let currentTheme = null;
 let eventSource = null;
@@ -93,6 +94,50 @@ function validateWorkerData(data) {
   return true;
 }
 
+function getWorkerSearchQuery(searchBtn) {
+  return searchBtn ? searchBtn.parentElement?.parentElement?.querySelector('input')?.value : '';
+}
+
+function buildWorkerFetchParams(searchBtn) {
+  const limit = localStorage.getItem(PAGE_SIZE_KEY) || '100';
+  const statusFilter = document.getElementById('status-filter')?.value || '';
+  const driverFilter = document.getElementById('driver-filter')?.value || '';
+  const sortBy = document.getElementById('sort-select')?.value || 'status';
+
+  return new URLSearchParams({
+    page: currentPage.toString(),
+    limit,
+    status: statusFilter,
+    driver: driverFilter,
+    sortBy,
+    sortOrder: 'asc',
+    search: getWorkerSearchQuery(searchBtn),
+  });
+}
+
+async function handleFetchDataResponse(elements, response) {
+  if (!response.ok) {
+    console.error('Failed to fetch workers:', response.statusText);
+    hideLoadingState(elements);
+    elements.error.style.display = 'block';
+    return;
+  }
+
+  const data = await response.json();
+  console.log('Worker data received:', data);
+
+  if (!validateWorkerData(data)) {
+    elements.error.style.display = 'block';
+    hideLoadingState(elements);
+    return;
+  }
+
+  slaFeatureEnabled = data.features?.sla === true;
+  console.log('Rendering', data.workers.length, 'workers');
+  renderWorkers(data);
+  hideLoadingState(elements);
+}
+
 // Data fetching - only for search and pagination, SSE handles regular updates
 async function fetchData() {
   const elements = getDomElements();
@@ -100,41 +145,9 @@ async function fetchData() {
   showLoadingState(elements);
 
   try {
-    const query = elements.searchBtn
-      ? elements.searchBtn.parentElement?.parentElement?.querySelector('input')?.value
-      : '';
-    const limit = localStorage.getItem(PAGE_SIZE_KEY) || '100';
-
-    const params = new URLSearchParams({
-      page: currentPage.toString(),
-      limit: limit,
-      status: document.getElementById('status-filter')?.value || '',
-      driver: document.getElementById('driver-filter')?.value || '',
-      sortBy: document.getElementById('sort-select')?.value || 'status',
-      sortOrder: 'asc',
-      search: query,
-    });
-
+    const params = buildWorkerFetchParams(elements.searchBtn);
     const response = await fetch(API_BASE + '/api/workers?' + params.toString());
-    if (!response.ok) {
-      console.error('Failed to fetch workers:', response.statusText);
-      hideLoadingState(elements);
-      elements.error.style.display = 'block';
-      return;
-    }
-
-    const data = await response.json();
-    console.log('Worker data received:', data);
-
-    if (!validateWorkerData(data)) {
-      elements.error.style.display = 'block';
-      hideLoadingState(elements);
-      return;
-    }
-
-    console.log('Rendering', data.workers.length, 'workers');
-    renderWorkers(data);
-    hideLoadingState(elements);
+    await handleFetchDataResponse(elements, response);
   } catch (err) {
     handleFetchError(elements, err);
   }
@@ -165,13 +178,15 @@ function validateDriver(driver) {
 }
 
 async function fetchWorkerData(workerName, driver) {
-  const [detailsRes, historyRes, trendRes, slaRes] = await Promise.all([
+  const fetches = [
     fetch(API_BASE + '/api/workers/' + workerName + '/details?driver=' + driver),
     fetch(API_BASE + '/api/workers/' + workerName + '/monitoring/history?limit=50'),
     fetch(API_BASE + '/api/workers/' + workerName + '/monitoring/trend'),
-    fetch(API_BASE + '/api/workers/' + workerName + '/sla/status'),
-  ]);
-
+  ];
+  if (slaFeatureEnabled) {
+    fetches.push(fetch(API_BASE + '/api/workers/' + workerName + '/sla/status'));
+  }
+  const [detailsRes, historyRes, trendRes, slaRes] = await Promise.all(fetches);
   return { detailsRes, historyRes, trendRes, slaRes };
 }
 
@@ -237,7 +252,9 @@ async function ensureWorkerDetails(workerName, detailRow, driver) {
       const data = {};
 
       await processDetailsResponse(responses.detailsRes, data);
-      await processSlaResponse(responses.slaRes, data);
+      if (slaFeatureEnabled) {
+        await processSlaResponse(responses.slaRes, data);
+      }
       await processHistoryResponse(responses.historyRes, data);
       await processTrendResponse(responses.trendRes, data);
 

@@ -30,6 +30,8 @@ type D1MigrateExecutionContext = {
   migrationsRelDir: string;
   sourceMigrationsDir: string;
   outputDir: string;
+  env?: string;
+  config?: string;
 };
 
 const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> => {
@@ -64,6 +66,13 @@ const buildExecutionContext = (options: CommandOptions): D1MigrateExecutionConte
   const isLocal = options['local'] === true || options['remote'] !== true;
   const projectRoot = process.cwd();
   const dbName = getDbName(projectRoot, options);
+  const env = typeof options['env'] === 'string' ? options['env'].trim() : undefined;
+  const config =
+    (typeof options['config'] === 'string' ? options['config'].trim() : undefined) ??
+    (typeof options['wranglerConfig'] === 'string'
+      ? options['wranglerConfig'].trim()
+      : undefined) ??
+    (typeof options['wc'] === 'string' ? options['wc'].trim() : undefined);
 
   const migrationsRelDir = isWorkerCommand
     ? path.join('database', 'migrations', 'd1')
@@ -80,6 +89,8 @@ const buildExecutionContext = (options: CommandOptions): D1MigrateExecutionConte
     migrationsRelDir,
     sourceMigrationsDir,
     outputDir: path.join(projectRoot, migrationsRelDir),
+    env,
+    config,
   };
 };
 
@@ -117,7 +128,13 @@ const executeD1Migrate = async (cmd: IBaseCommand, options: CommandOptions): Pro
     });
     cmd.info(`Generated ${generated.length} SQL migration file(s).`);
 
-    const output = WranglerD1.applyMigrations({ cmd, dbName: ctx.dbName, isLocal: ctx.isLocal });
+    const output = WranglerD1.applyMigrations({
+      cmd,
+      dbName: ctx.dbName,
+      isLocal: ctx.isLocal,
+      env: ctx.env,
+      config: ctx.config,
+    });
     if (output !== '') cmd.info(output);
     cmd.info('✓ D1 migrations completed successfully');
   } catch (error: unknown) {
@@ -145,7 +162,14 @@ export const D1MigrateCommand = Object.freeze({
         .option(
           '--database <name>',
           'Wrangler D1 identifier. Accepts database_name or binding; defaults to the configured wrangler d1_databases entry when available.'
-        );
+        )
+        .option('--env <name>', 'Wrangler environment to use (e.g., staging, production)')
+        .option('--config <path>', 'Path to wrangler config file (e.g., wrangler.dev.jsonc)')
+        .option(
+          '--wrangler-config <path>',
+          'Path to wrangler config file (e.g., wrangler.dev.jsonc)'
+        )
+        .option('--wc <path>', 'Path to wrangler config file (e.g., wrangler.dev.jsonc)');
     };
 
     const cmd = BaseCommand.create<ID1MigrateCommand>({

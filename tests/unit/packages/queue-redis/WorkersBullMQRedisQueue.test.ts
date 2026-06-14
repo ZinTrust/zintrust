@@ -116,41 +116,6 @@ describe('BullMQ Redis queue (Workers)', () => {
     }
   });
 
-  it('uses HTTP proxy fallback when enabled', async () => {
-    const originalFetch = globalThis.fetch;
-
-    try {
-      Env.setSource({
-        QUEUE_HTTP_PROXY_ENABLED: 'true',
-        QUEUE_HTTP_PROXY_URL: 'http://127.0.0.1:7772',
-        QUEUE_HTTP_PROXY_PATH: '/api/_sys/queue/rpc',
-        QUEUE_HTTP_PROXY_KEY_ID: 'test-key',
-        QUEUE_HTTP_PROXY_KEY: 'test-secret',
-        QUEUE_HTTP_PROXY_TIMEOUT_MS: '1000',
-      });
-
-      globalThis.fetch = vi.fn(async () => {
-        return new Response(
-          JSON.stringify({ ok: true, requestId: 'r1', result: 'job-http-id', error: null }),
-          {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          }
-        );
-      }) as unknown as typeof fetch;
-
-      const id = await BullMQRedisQueue.enqueue('jobs', {
-        payload: { ok: true },
-      } as any);
-
-      expect(id).toBe('job-http-id');
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
-    } finally {
-      Env.setSource(null);
-      globalThis.fetch = originalFetch;
-    }
-  });
-
   it('prefers explicit payload jobId over legacy uniqueId when enqueueing BullMQ jobs', async () => {
     bullMqState.add.mockResolvedValueOnce({ id: 'job-id-123' });
 
@@ -232,6 +197,67 @@ describe('BullMQ Redis queue (Workers)', () => {
     expect(first).toBe('job-id-123');
     expect(second).toBe('job-id-123');
     expect(bullMqState.add).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes age-based removeOnFail to BullMQ when BULLMQ_REMOVE_ON_FAIL_AGE_SECONDS is set', async () => {
+    Env.setSource({
+      USE_REDIS_PROXY: 'false',
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: '6379',
+      REDIS_PASSWORD: '',
+      REDIS_QUEUE_DB: '0',
+      BULLMQ_REMOVE_ON_FAIL_AGE_SECONDS: '604800',
+    });
+
+    await BullMQRedisQueue.enqueue('jobs', { payload: { ok: true } } as any);
+
+    expect(bullMqState.add).toHaveBeenCalledWith(
+      'jobs-job',
+      expect.anything(),
+      expect.objectContaining({ removeOnFail: { age: 604800 } })
+    );
+  });
+
+  it('passes combined age+count removeOnComplete when both envs are set', async () => {
+    Env.setSource({
+      USE_REDIS_PROXY: 'false',
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: '6379',
+      REDIS_PASSWORD: '',
+      REDIS_QUEUE_DB: '0',
+      BULLMQ_REMOVE_ON_COMPLETE_AGE_SECONDS: '86400',
+      BULLMQ_REMOVE_ON_COMPLETE: '500',
+    });
+
+    await BullMQRedisQueue.enqueue('jobs', { payload: { ok: true } } as any);
+
+    expect(bullMqState.add).toHaveBeenCalledWith(
+      'jobs-job',
+      expect.anything(),
+      expect.objectContaining({ removeOnComplete: { age: 86400, count: 500 } })
+    );
+  });
+
+  it('honours explicit payload removeOnFail over env-derived retention', async () => {
+    Env.setSource({
+      USE_REDIS_PROXY: 'false',
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: '6379',
+      REDIS_PASSWORD: '',
+      REDIS_QUEUE_DB: '0',
+      BULLMQ_REMOVE_ON_FAIL_AGE_SECONDS: '604800',
+    });
+
+    await BullMQRedisQueue.enqueue('jobs', {
+      payload: { ok: true },
+      removeOnFail: false,
+    } as any);
+
+    expect(bullMqState.add).toHaveBeenCalledWith(
+      'jobs-job',
+      expect.anything(),
+      expect.objectContaining({ removeOnFail: false })
+    );
   });
 
   it('forces disconnect when shared Redis quit hangs during shutdown', async () => {

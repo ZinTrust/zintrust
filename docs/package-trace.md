@@ -81,7 +81,7 @@ When `TRACE_CONTENT_QUEUE_DRIVER` is set, trace writes enqueue through that regi
 
 When `TRACE_PROXY=true`, the runtime still builds the normal trace write payload locally, but it sends the write/update/family-stale operations to a remote signed trace gateway instead of writing to the local trace database. `TRACE_SERVICE_TAG` is appended once to outgoing trace entries and falls back to `APP_NAME` when empty.
 
-That means the current architecture already supports Redis or any other registered async queue driver. First-class Cloudflare Queue support still requires a dedicated queue driver plus queue-runtime registration for that transport.
+That means the current architecture already supports Redis or any other registered async queue driver, including `@zintrust/queue-cloudflare` when its Cloudflare Queue binding/API configuration is registered in the runtime.
 
 Then opt in through your project plugin file.
 

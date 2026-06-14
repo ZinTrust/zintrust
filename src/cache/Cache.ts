@@ -129,6 +129,50 @@ const get = async <T>(key: string): Promise<T | null> => {
   return value;
 };
 
+// Batched read: one round-trip via driver.many() (e.g. Redis MGET) when supported,
+// otherwise individual gets. Results stay aligned to the requested key order.
+const runMany = async <T>(
+  driver: CacheDriver,
+  keys: string[],
+  storeName: string
+): Promise<(T | null)[]> => {
+  if (keys.length === 0) return [];
+  const prefixedKeys = keys.map((key) => autoPrefixKey(key));
+  const startedAt = Date.now();
+  const batchedMany = driver.many as (<U>(keys: string[]) => Promise<(U | null)[]>) | undefined;
+
+  let values: (T | null)[];
+  const batched = typeof batchedMany === 'function';
+
+  if (batched) {
+    values = await batchedMany<T>(prefixedKeys);
+  } else {
+    values = (await Promise.all(
+      prefixedKeys.map(async (prefixedKey) => driver.get<T>(prefixedKey))
+    )) as (T | null)[];
+  }
+
+  const elapsed = Date.now() - startedAt;
+  const normalized = prefixedKeys.map((_prefixedKey, index) => values[index] ?? null);
+  const hitCount = normalized.filter((value) => value !== null).length;
+  // One trace record per round-trip: a driver-level `many` (e.g. Redis MGET) is a single
+  // network call, so it must not look like N separate gets. Drivers without `many` fall back
+  // to N gets, which is reflected with the `gets` label.
+  const label = batched ? 'mget' : 'gets';
+  SystemTraceBridge.emitCache(
+    'get',
+    `${label}(${prefixedKeys.length}/${hitCount} hit) ${prefixedKeys.join(',')}`,
+    elapsed,
+    hitCount > 0,
+    undefined,
+    storeName
+  );
+  return normalized;
+};
+
+const many = async <T>(keys: string[]): Promise<(T | null)[]> =>
+  runMany<T>(getDriverInstance(), keys, DEFAULT_STORE_NAME);
+
 /**
  * Store an item in the cache
  */
@@ -198,6 +242,32 @@ const has = async (key: string): Promise<boolean> => {
   return exists;
 };
 
+const increment = async (key: string, amount = 1): Promise<number> => {
+  const prefixedKey = autoPrefixKey(key);
+  const driver = getDriverInstance();
+  if (typeof driver.increment === 'function') {
+    return driver.increment(prefixedKey, amount);
+  }
+
+  const current = Number((await driver.get<number>(prefixedKey)) ?? 0);
+  const next = current + amount;
+  await driver.set(prefixedKey, next);
+  return next;
+};
+
+const decrement = async (key: string, amount = 1): Promise<number> => {
+  const prefixedKey = autoPrefixKey(key);
+  const driver = getDriverInstance();
+  if (typeof driver.decrement === 'function') {
+    return driver.decrement(prefixedKey, amount);
+  }
+
+  const current = Number((await driver.get<number>(prefixedKey)) ?? 0);
+  const next = current - amount;
+  await driver.set(prefixedKey, next);
+  return next;
+};
+
 /**
  * Get the underlying driver instance
  */
@@ -207,13 +277,18 @@ const getDriver = (): CacheDriver => {
 
 type CacheStore = Readonly<{
   get: <T>(key: string) => Promise<T | null>;
+  many: <T>(keys: string[]) => Promise<(T | null)[]>;
   set: <T>(key: string, value: T, ttl?: number) => Promise<void>;
   delete: (key: string) => Promise<void>;
   clear: () => Promise<void>;
   has: (key: string) => Promise<boolean>;
+  increment: (key: string, amount?: number) => Promise<number>;
+  decrement: (key: string, amount?: number) => Promise<number>;
   getDriver: () => CacheDriver;
 }>;
 
+// Store factories expose a compact per-store facade with traced operations.
+// eslint-disable-next-line max-lines-per-function
 const store = (name?: string): CacheStore => {
   const getFromStore = async <T>(key: string): Promise<T | null> => {
     const prefixedKey = autoPrefixKey(key);
@@ -229,6 +304,9 @@ const store = (name?: string): CacheStore => {
     );
     return value;
   };
+
+  const manyFromStore = async <T>(keys: string[]): Promise<(T | null)[]> =>
+    runMany<T>(getDriverInstance(name), keys, String(name ?? DEFAULT_STORE_NAME));
 
   const setInStore = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
     const prefixedKey = autoPrefixKey(key);
@@ -287,16 +365,45 @@ const store = (name?: string): CacheStore => {
     return exists;
   };
 
+  const incrementInStore = async (key: string, amount = 1): Promise<number> => {
+    const prefixedKey = autoPrefixKey(key);
+    const driver = getDriverInstance(name);
+    if (typeof driver.increment === 'function') {
+      return driver.increment(prefixedKey, amount);
+    }
+
+    const current = Number((await driver.get<number>(prefixedKey)) ?? 0);
+    const next = current + amount;
+    await driver.set(prefixedKey, next);
+    return next;
+  };
+
+  const decrementInStore = async (key: string, amount = 1): Promise<number> => {
+    const prefixedKey = autoPrefixKey(key);
+    const driver = getDriverInstance(name);
+    if (typeof driver.decrement === 'function') {
+      return driver.decrement(prefixedKey, amount);
+    }
+
+    const current = Number((await driver.get<number>(prefixedKey)) ?? 0);
+    const next = current - amount;
+    await driver.set(prefixedKey, next);
+    return next;
+  };
+
   const getStoreDriver = (): CacheDriver => {
     return getDriverInstance(name);
   };
 
   return Object.freeze({
     get: getFromStore,
+    many: manyFromStore,
     set: setInStore,
     delete: delFromStore,
     clear: clearStore,
     has: hasInStore,
+    increment: incrementInStore,
+    decrement: decrementInStore,
     getDriver: getStoreDriver,
   });
 };
@@ -318,10 +425,13 @@ const getRedisClient = (storeName?: string): unknown => {
 // Sealed namespace with cache functionality
 export const Cache = Object.freeze({
   get,
+  many,
   set,
   delete: del,
   clear,
   has,
+  increment,
+  decrement,
   getDriver,
   getRedisClient,
   store,

@@ -274,6 +274,16 @@ const normalizeProxyTargetArgs = (args: string[]): string[] => {
   return [`proxy:${mappedTarget}`, ...args.slice(2)];
 };
 
+const normalizeRedisRpcStartArgs = (args: string[]): string[] => {
+  if (args.length < 2) return args;
+  const command = args[0]?.trim().toLowerCase();
+  const target = args[1]?.trim().toLowerCase();
+  if ((command === 'start' || command === 's') && target === 'redis-rpc') {
+    return ['redis-rpc', ...args.slice(2)];
+  }
+  return args;
+};
+
 const getPrimaryCommand = (args: string[]): string | undefined => {
   for (const arg of args) {
     const normalized = arg.trim().toLowerCase();
@@ -435,7 +445,7 @@ const runCliInternal = async (): Promise<void> => {
       // ignore
     }
   }
-  await cli.run(normalizeProxyTargetArgs(args));
+  await cli.run(normalizeProxyTargetArgs(normalizeRedisRpcStartArgs(args)));
 };
 
 export async function run(): Promise<void> {

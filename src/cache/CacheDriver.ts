@@ -10,6 +10,14 @@ export interface CacheDriver {
   get<T>(key: string): Promise<T | null>;
 
   /**
+   * Get many items from the cache in a single round-trip when the driver
+   * supports it (e.g. Redis MGET). Results are returned in the same order as
+   * the requested keys, with `null` for misses. Optional: callers fall back to
+   * issuing individual `get` calls when a driver does not implement it.
+   */
+  many?<T>(keys: string[]): Promise<(T | null)[]>;
+
+  /**
    * Store an item in the cache
    */
   set<T>(key: string, value: T, ttl?: number): Promise<void>;
@@ -28,6 +36,16 @@ export interface CacheDriver {
    * Check if an item exists in the cache
    */
   has(key: string): Promise<boolean>;
+
+  /**
+   * Atomically increment a numeric cache value when the driver supports it.
+   */
+  increment?(key: string, amount?: number): Promise<number>;
+
+  /**
+   * Atomically decrement a numeric cache value when the driver supports it.
+   */
+  decrement?(key: string, amount?: number): Promise<number>;
 
   /**
    * Dispose of resources (optional cleanup method)

@@ -19,9 +19,9 @@
  *     middleware: ['admin'],
  *   });
  */
+import { BackgroundTaskScheduler } from '@zintrust/core/tasks';
 import { TraceConfig } from './config';
 import { TraceContext } from './context';
-import { BackgroundTaskScheduler } from './runtime/BackgroundTaskScheduler';
 import { ProxyTraceStorage, TraceServiceTag, TraceStorage } from './storage';
 import { TraceContentBudget } from './storage/TraceContentBudget';
 import { TraceContentRedaction } from './storage/TraceContentRedaction';
@@ -157,7 +157,7 @@ const resolveTraceStartupOverrides = async (
   }
 
   const overrides = registry?.get<unknown>(traceConfigFile);
-  return isObjectValue(overrides) ? (overrides as TraceConfigOverrides) : undefined;
+  return isObjectValue(overrides) ? overrides : undefined;
 };
 
 const buildTraceRedactionOverrides = (input: {
@@ -678,12 +678,7 @@ const activateTrace = async (
   const watcherArgs = await createTraceWatcherArgs(core, Env, config);
 
   if (core.RequestContext) {
-    TraceContext.setRequestContextImpl(
-      core.RequestContext as {
-        current?: () => unknown;
-        peek?: () => unknown;
-      }
-    );
+    TraceContext.setRequestContextImpl(core.RequestContext);
   }
 
   await registerTraceWatchers(watcherArgs);

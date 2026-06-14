@@ -84,4 +84,13 @@ describe('OfficialPlugins selection', () => {
       expect.arrayContaining(['@zintrust/workers/register'])
     );
   });
+
+  it('selects Cloudflare Queues when requested as the queue driver', async () => {
+    process.env['QUEUE_DRIVER'] = 'cloudflare';
+
+    const { OfficialPlugins } = await import('@/runtime/OfficialPlugins');
+
+    expect(OfficialPlugins.getPackages('base')).toContain('@zintrust/queue-cloudflare');
+    expect(OfficialPlugins.getAutoImports('base')).toContain('@zintrust/queue-cloudflare/register');
+  });
 });

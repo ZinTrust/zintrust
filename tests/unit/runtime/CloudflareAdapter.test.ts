@@ -188,4 +188,38 @@ describe('CloudflareAdapter', () => {
     expect(parsed.error).toBe('Internal Server Error');
     expect(parsed.details?.message).toBe('boom');
   });
+
+  it('formatResponse should force null body for null-body status codes (204, 205, 304)', () => {
+    const adapter = CloudflareAdapter.create({
+      handler: async () => undefined,
+    });
+
+    // Note: 101 (Switching Protocols) is not valid for Response constructor (200-599 range)
+    const nullBodyStatuses = [204, 205, 304];
+    nullBodyStatuses.forEach((statusCode) => {
+      const response = adapter.formatResponse({
+        statusCode,
+        headers: {},
+        body: '', // Empty string should be forced to null for these statuses
+      }) as Response;
+
+      expect(response.status).toBe(statusCode);
+      expect(response.body).toBeNull();
+    });
+  });
+
+  it('formatResponse should allow body for non-null-body status codes', () => {
+    const adapter = CloudflareAdapter.create({
+      handler: async () => undefined,
+    });
+
+    const response = adapter.formatResponse({
+      statusCode: 200,
+      headers: { 'content-type': 'text/plain' },
+      body: 'hello',
+    }) as Response;
+
+    expect(response.status).toBe(200);
+    expect(response.body).not.toBeNull();
+  });
 });

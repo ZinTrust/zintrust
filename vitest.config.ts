@@ -80,6 +80,7 @@ export default defineConfig({
       '@zintrust/core/storage': path.resolve(__dirname, './src/storage-index.ts'),
       '@zintrust/core/mail': path.resolve(__dirname, './src/mail-index.ts'),
       '@zintrust/core/trace': path.resolve(__dirname, './src/trace-index.ts'),
+      '@zintrust/core/tasks': path.resolve(__dirname, './src/tasks.ts'),
       '@zintrust/core/helper': path.resolve(__dirname, './src/helper/index.ts'),
       '@zintrust/core/worker-commands': path.resolve(__dirname, './src/worker-commands.ts'),
       '@zintrust/core/collections': path.resolve(__dirname, './src/collections/index.ts'),
@@ -116,6 +117,14 @@ export default defineConfig({
       ),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
       '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
+      '@zintrust/queue-cloudflare': path.resolve(
+        __dirname,
+        './packages/queue-cloudflare/src/index.ts'
+      ),
+      '@zintrust/queue-cloudflare/register': path.resolve(
+        __dirname,
+        './packages/queue-cloudflare/src/register.ts'
+      ),
       '@zintrust/socket': path.resolve(__dirname, './packages/socket/src/index.ts'),
       '@zintrust/socket/register': path.resolve(__dirname, './packages/socket/src/register.ts'),
       '@zintrust/trace': path.resolve(__dirname, './packages/trace/src/index.ts'),
@@ -193,6 +202,7 @@ export default defineConfig({
       '@config': path.resolve(__dirname, './src/config'),
       '@runtime-config': path.resolve(__dirname, './config'),
       '@common': path.resolve(__dirname, './src/common'),
+      '@worker-runtime': path.resolve(__dirname, './src/worker-runtime'),
       '@scheduler': path.resolve(__dirname, './src/scheduler'),
       '@schedules': path.resolve(__dirname, './src/schedules'),
       '@exceptions': path.resolve(__dirname, './src/exceptions'),

@@ -58,6 +58,75 @@ const isAllQueuesSelection = (queue: string | null | undefined): boolean => queu
 const sortJobsByTimestamp = (jobs: JobSummary[]): JobSummary[] =>
   jobs.toSorted((left, right) => right.timestamp - left.timestamp);
 
+const jobIdentity = (job: JobSummary): string => {
+  const queue = job.queue ?? '';
+  const id = String(job.id ?? '');
+  const timestamp = Number.isFinite(job.timestamp) ? String(job.timestamp) : '';
+  return `${queue}::${id}::${timestamp}`;
+};
+
+const dedupeJobs = (jobs: JobSummary[]): JobSummary[] => {
+  const seen = new Set<string>();
+  return jobs.filter((job) => {
+    const identity = jobIdentity(job);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+};
+
+const jobSummaryFromDriverJob = (
+  queueName: string,
+  job: Awaited<ReturnType<QueueDriver['getRecentJobs']>>[number],
+  now: number
+): JobSummary => {
+  // Use the actual state from BullMQ if available.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jobState = (job as any)._state as string | undefined;
+
+  const isFailed = Boolean(job.failedReason) || jobState === 'failed';
+  const isCompleted = Boolean(job.finishedOn) || jobState === 'completed';
+  const isActive =
+    Boolean(job.processedOn && !job.finishedOn && !job.failedReason) || jobState === 'active';
+  const isDelayed = jobState === 'delayed';
+  const isPaused = jobState === 'paused';
+
+  let status: string;
+  if (isFailed) {
+    status = 'failed';
+  } else if (isCompleted) {
+    status = 'completed';
+  } else if (isActive) {
+    status = 'active';
+  } else if (isDelayed) {
+    status = 'delayed';
+  } else if (isPaused) {
+    status = 'paused';
+  } else {
+    status = 'waiting';
+  }
+
+  return {
+    id: job.id,
+    name: job.name,
+    queue: queueName,
+    data: job.data,
+    opts: job.opts,
+    attempts: job.attemptsMade,
+    status,
+    failedReason: job.failedReason || undefined,
+    timestamp: job.timestamp ?? now,
+    processedOn: job.processedOn ?? undefined,
+    finishedOn: job.finishedOn ?? undefined,
+  };
+};
+
+export const emptyLockAnalytics = (): LockAnalytics => ({
+  locks: [],
+  metrics: { active: 0, attempts: 0, acquired: 0, collisions: 0, collisionRate: 0 },
+  histogram: [],
+});
+
 const getObjectId = (value: object): number => {
   const existing = objectIds.get(value);
   if (existing !== undefined) return existing;
@@ -97,7 +166,14 @@ export async function getRecentJobsForSelection(
 
   const names = Array.from(new Set((queueNames ?? (await driver.getQueues())).filter(Boolean)));
   const jobsByQueue = await Promise.all(
-    names.map(async (name) => getRecentJobsForQueue(name, metrics, driver))
+    names.map(async (name) => {
+      try {
+        return await getRecentJobsForQueue(name, metrics, driver);
+      } catch (error) {
+        Logger.warn('[queue-monitor] Recent jobs lookup failed; returning no jobs', error);
+        return [];
+      }
+    })
   );
 
   return sortJobsByTimestamp(jobsByQueue.flat()).slice(0, 100);
@@ -105,7 +181,10 @@ export async function getRecentJobsForSelection(
 
 const buildSnapshotPayload = async (config: QueueMonitoringConfig): Promise<QueueSnapshotData> => {
   const { getSnapshot, getLocks, metrics, driver, queue: configuredQueue, pattern } = config;
-  const snapshot = await getSnapshot();
+  const snapshot = await getSnapshot().catch((error) => {
+    Logger.warn('[queue-monitor] Snapshot unavailable; returning empty snapshot', error);
+    return { status: 'ok' as const, startedAt: new Date().toISOString(), queues: [] };
+  });
   let queue: string | null;
   if (isAllQueuesSelection(configuredQueue)) {
     queue = ALL_QUEUES;
@@ -129,9 +208,15 @@ const buildSnapshotPayload = async (config: QueueMonitoringConfig): Promise<Queu
           metrics,
           driver,
           snapshot.queues.map((candidate) => candidate.name)
-        )
+        ).catch((error) => {
+          Logger.warn('[queue-monitor] Recent jobs unavailable; returning no jobs', error);
+          return [];
+        })
       : [],
-    locks: await getLocks(pattern),
+    locks: await getLocks(pattern).catch((error) => {
+      Logger.warn('[queue-monitor] Lock analytics unavailable; returning empty analytics', error);
+      return emptyLockAnalytics();
+    }),
   };
 };
 
@@ -314,61 +399,23 @@ export async function getRecentJobsForQueue(
   metrics: Metrics,
   driver: QueueDriver
 ): Promise<JobSummary[]> {
-  const recent = await metrics.getRecentJobs(queueName);
-  const failed = await metrics.getFailedJobs(queueName);
-  const all = sortJobsByTimestamp(
-    [...recent, ...failed].map((job) => ({
-      ...job,
-      queue: job.queue ?? queueName,
-    }))
-  ).slice(0, 100);
-
-  if (all.length > 0) {
-    return all;
-  }
-
-  const jobs = await driver.getRecentJobs(queueName, 100);
+  const [recent, failed, driverJobs] = await Promise.all([
+    metrics.getRecentJobs(queueName).catch(() => [] as JobSummary[]),
+    metrics.getFailedJobs(queueName).catch(() => [] as JobSummary[]),
+    driver.getRecentJobs(queueName, 100).catch((error) => {
+      Logger.warn('[queue-monitor] Driver recent jobs unavailable; returning no jobs', error);
+      return [];
+    }),
+  ]);
   const now = Date.now();
-  return jobs.map((job) => {
-    // Use the actual state from BullMQ if available
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const jobState = (job as any)._state as string | undefined;
+  const liveJobs = driverJobs.map((job) => jobSummaryFromDriverJob(queueName, job, now));
 
-    // Fallback detection if state is not available
-    const isFailed = Boolean(job.failedReason) || jobState === 'failed';
-    const isCompleted = Boolean(job.finishedOn) || jobState === 'completed';
-    const isActive =
-      Boolean(job.processedOn && !job.finishedOn && !job.failedReason) || jobState === 'active';
-    const isDelayed = jobState === 'delayed';
-    const isPaused = jobState === 'paused';
-
-    let status: string;
-    if (isFailed) {
-      status = 'failed';
-    } else if (isCompleted) {
-      status = 'completed';
-    } else if (isActive) {
-      status = 'active';
-    } else if (isDelayed) {
-      status = 'delayed';
-    } else if (isPaused) {
-      status = 'paused';
-    } else {
-      status = 'waiting';
-    }
-
-    return {
-      id: job.id,
-      name: job.name,
-      queue: queueName,
-      data: job.data,
-      opts: job.opts,
-      attempts: job.attemptsMade,
-      status,
-      failedReason: job.failedReason || undefined,
-      timestamp: job.timestamp ?? now,
-      processedOn: job.processedOn ?? undefined,
-      finishedOn: job.finishedOn ?? undefined,
-    };
-  });
+  return dedupeJobs(
+    sortJobsByTimestamp(
+      [...recent, ...failed, ...liveJobs].map((job) => ({
+        ...job,
+        queue: job.queue ?? queueName,
+      }))
+    )
+  ).slice(0, 100);
 }

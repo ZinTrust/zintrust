@@ -49,11 +49,13 @@ export const DoctorArchitectureCommand = Object.freeze({
         // Rule 3: Proxy requirement for Cloudflare
         if (mode === 'cloudflare-workers') {
           const useProxy =
-            Env.getBool('USE_REDIS_PROXY', false) ||
+            (Env.getBool('USE_REDIS_PROXY', false) &&
+              (Env.get('REDIS_RPC_URL', '').trim() !== '' ||
+                Env.get('REDIS_PROXY_URL', '').trim() !== '')) ||
             Env.getBool('ENABLE_CLOUDFLARE_SOCKETS', false);
           if (!useProxy) {
             issues.push(
-              '❌ CRITICAL: Cloudflare runtime requires USE_REDIS_PROXY=true or ENABLE_CLOUDFLARE_SOCKETS=true for Queue producers.'
+              '❌ CRITICAL: Cloudflare runtime requires USE_REDIS_PROXY=true with REDIS_RPC_URL/REDIS_PROXY_URL, or ENABLE_CLOUDFLARE_SOCKETS=true for Queue producers.'
             );
           }
         }

@@ -3,19 +3,13 @@ import { Logger } from '@config/logger';
 import type { RedisConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { parseCustomHeadersFromEnv } from '@orm/adapters/SqlProxyAdapterUtils';
-import {
-  type ProxyRpcEnvelope,
-  type ProxyRpcService,
-  resolveProxyRpcService,
-} from '@proxy/CloudflareProxyShared';
 import { SignedRequest } from '@security/SignedRequest';
 
-export type RedisTransportMode = 'direct' | 'proxy';
+export type RedisTransportMode = 'direct' | 'proxy' | 'rpc';
 
 export type RedisTransportOptions = Readonly<{
   subsystem?: string;
   requireDirect?: boolean;
-  requireDirectForScripts?: boolean;
 }>;
 
 type ProxySettings = Readonly<{
@@ -23,40 +17,32 @@ type ProxySettings = Readonly<{
   keyId?: string;
   secret?: string;
   timeoutMs: number;
-  service: ProxyRpcService;
   customHeaders?: Record<string, string>;
+}>;
+
+type RpcSettings = Readonly<{
+  baseUrl: string;
+  secret?: string;
+  timeoutMs: number;
 }>;
 
 type RedisProxyConnection = {
   [x: string]: unknown;
-  __bullmq_iredis?: true;
-  isCluster?: false;
-  options?: Readonly<Record<string, unknown>>;
   status: 'ready';
   connect: () => Promise<void>;
   quit: () => Promise<'OK'>;
   disconnect: () => void;
-  duplicate: () => RedisProxyConnection;
-  defineCommand: (name: string, definition: { numberOfKeys: number; lua: string }) => void;
-  runCommand: (name: string, args: unknown[]) => Promise<unknown>;
   on: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
   once: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
   off: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
   removeListener: (event: string, handler: (...args: unknown[]) => void) => RedisProxyConnection;
-  setMaxListeners: (count: number) => RedisProxyConnection;
-  getMaxListeners: () => number;
   call: (command: string, ...args: unknown[]) => Promise<unknown>;
-  scripts: {
-    [key: string]: (...args: unknown[]) => Promise<unknown>;
-  };
   pipeline: () => {
     exec: () => Promise<Array<[Error | null, unknown]>>;
-    runCommand?: (name: string, args: unknown[]) => unknown;
     [key: string]: unknown;
   };
   multi: () => {
     exec: () => Promise<Array<[Error | null, unknown]>>;
-    runCommand?: (name: string, args: unknown[]) => unknown;
     [key: string]: unknown;
   };
   scanStream: (options?: { match?: string; count?: number }) => {
@@ -64,16 +50,6 @@ type RedisProxyConnection = {
     once: (event: string, handler: (...args: unknown[]) => void) => unknown;
     off: (event: string, handler: (...args: unknown[]) => void) => unknown;
   };
-};
-
-type ScriptDefinition = Readonly<{
-  numberOfKeys: number;
-  lua: string;
-}>;
-
-type ProxyScriptRegistry = {
-  definitions: Map<string, ScriptDefinition>;
-  shaByCommand: Map<string, string>;
 };
 
 const loggedSelections = new Set<string>();
@@ -94,6 +70,24 @@ const readEnvBool = (key: string, fallback = false): boolean => {
 
   const value = (Env as Record<string, unknown>)[key];
   return typeof value === 'boolean' ? value : fallback;
+};
+
+const readEnvInt = (key: string, fallback: number): number => {
+  if (typeof Env.getInt === 'function') {
+    return Env.getInt(key, fallback);
+  }
+
+  const value = (Env as Record<string, unknown>)[key];
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  }
+
+  return fallback;
 };
 
 const resolveSigningPrefix = (baseUrl: string): string | undefined => {
@@ -135,19 +129,24 @@ const resolveProxyBaseUrl = (): string => {
   return `http://${Env.REDIS_PROXY_HOST}:${Env.REDIS_PROXY_PORT}`;
 };
 
-const createRequestId = (): string => {
-  const crypto = globalThis.crypto as { randomUUID?: () => string } | undefined;
-  if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID();
-  return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-};
-
-const resolveProxySettings = (_options?: RedisTransportOptions): ProxySettings => ({
+const resolveProxySettings = (): ProxySettings => ({
   baseUrl: resolveProxyBaseUrl(),
-  keyId: Env.get('REDIS_PROXY_KEY_ID').trim() === '' ? undefined : Env.get('REDIS_PROXY_KEY_ID'),
-  secret: Env.REDIS_PROXY_SECRET.trim() === '' ? undefined : Env.get('REDIS_PROXY_SECRET'),
+  keyId: Env.REDIS_PROXY_KEY_ID.trim() === '' ? undefined : Env.REDIS_PROXY_KEY_ID,
+  secret: Env.REDIS_PROXY_SECRET.trim() === '' ? undefined : Env.REDIS_PROXY_SECRET,
   timeoutMs: Env.REDIS_PROXY_TIMEOUT_MS,
-  service: resolveProxyRpcService('redis'),
   customHeaders: parseCustomHeadersFromEnv('REDIS'),
+});
+
+const isRedisRpcEnabled = (): boolean =>
+  readEnvBool('USE_REDIS_PROXY', false) && readEnvString('REDIS_RPC_URL', '').trim() !== '';
+
+const resolveRpcSettings = (): RpcSettings => ({
+  baseUrl: readEnvString('REDIS_RPC_URL', '').trim(),
+  secret: readEnvString(
+    'REDIS_RPC_SECRET',
+    readEnvString('REDIS_PROXY_SECRET', readEnvString('APP_KEY', ''))
+  ),
+  timeoutMs: readEnvInt('REDIS_RPC_TIMEOUT_MS', 30000),
 });
 
 const buildHeaders = async (
@@ -180,21 +179,14 @@ const buildHeaders = async (
 
 const requestProxyCommand = async <T>(
   settings: ProxySettings,
-  action: string,
-  payload: Record<string, unknown>
+  command: string,
+  args: unknown[]
 ): Promise<T> => {
   if (settings.baseUrl.trim() === '') {
     throw ErrorFactory.createConfigError('Redis proxy URL is missing (REDIS_PROXY_URL)');
   }
 
-  const envelope: ProxyRpcEnvelope = {
-    service: settings.service,
-    action,
-    requestId: createRequestId(),
-    payload,
-  };
-
-  const body = JSON.stringify(envelope);
+  const body = JSON.stringify({ command, args });
   const requestUrl = buildRequestUrl(settings.baseUrl, '/zin/redis/command');
   const headers = await buildHeaders(settings, requestUrl, body);
   const signal =
@@ -211,49 +203,97 @@ const requestProxyCommand = async <T>(
 
   if (!response.ok) {
     const text = await response.text();
-    // Don't log HTML responses (e.g., 502 Bad Gateway pages)
-    const isHtml =
-      text.trim().toLowerCase().startsWith('<!doctype html') ||
-      text.trim().toLowerCase().startsWith('<html');
-    const errorMessage = isHtml ? 'Non-JSON response from proxy (proxy may be unavailable)' : text;
-    throw ErrorFactory.createTryCatchError(
-      `Redis proxy request failed (${response.status})`,
-      errorMessage
-    );
+    throw ErrorFactory.createTryCatchError(`Redis proxy request failed (${response.status})`, text);
   }
 
   const parsed = (await response.json()) as { result: T };
   return parsed.result;
 };
 
-const loadScriptDefinition = async (
-  settings: ProxySettings,
-  definition: ScriptDefinition
-): Promise<string> => {
-  const loaded = await requestProxyCommand<string>(settings, 'SCRIPT', {
-    args: ['LOAD', definition.lua],
+const requestRpcMethod = async <T>(
+  settings: RpcSettings,
+  method: string,
+  payload: Record<string, unknown>
+): Promise<T> => {
+  if (settings.baseUrl.trim() === '') {
+    throw ErrorFactory.createConfigError(
+      'Redis RPC URL is missing. Set USE_REDIS_PROXY=true and REDIS_RPC_URL.'
+    );
+  }
+
+  const url = new URL('/rpc', settings.baseUrl);
+  const body = JSON.stringify({
+    service: 'redis',
+    method,
+    payload,
   });
-  return loaded;
+  const signal =
+    typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+      ? AbortSignal.timeout(settings.timeoutMs)
+      : undefined;
+
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(settings.secret !== undefined && settings.secret.trim() !== ''
+        ? { 'x-redis-rpc-secret': settings.secret }
+        : {}),
+    },
+    body,
+    signal,
+  });
+
+  const parsed = (await response.json()) as {
+    ok?: boolean;
+    result?: T;
+    error?: { message?: string; details?: unknown };
+  };
+  if (!response.ok || parsed.ok !== true) {
+    const errorMessage = parsed.error?.message;
+    throw ErrorFactory.createTryCatchError(
+      typeof errorMessage === 'string' && errorMessage.trim() !== ''
+        ? errorMessage
+        : `Redis RPC request failed (${response.status})`,
+      parsed.error?.details
+    );
+  }
+
+  return parsed.result as T;
 };
 
-const getDefinedScriptSha = async (
-  settings: ProxySettings,
-  registry: ProxyScriptRegistry,
-  command: string
-): Promise<string | undefined> => {
-  const cached = registry.shaByCommand.get(command);
-  if (cached !== undefined) {
-    return cached;
-  }
+const requestRpcCommand = async <T>(
+  settings: RpcSettings,
+  command: string,
+  args: unknown[]
+): Promise<T> => requestRpcMethod<T>(settings, 'call', { args: [command, ...args] });
 
-  const definition = registry.definitions.get(command);
-  if (definition === undefined) {
-    return undefined;
-  }
+const requestRpcPipeline = async (
+  settings: RpcSettings,
+  commands: Array<{ command: string; args: unknown[] }>,
+  transaction: boolean
+): Promise<Array<[Error | null, unknown]>> => {
+  const results = await requestRpcMethod<Array<[string | null, unknown]>>(
+    settings,
+    transaction ? 'multi' : 'pipeline',
+    { commands, transaction }
+  );
 
-  const sha = await loadScriptDefinition(settings, definition);
-  registry.shaByCommand.set(command, sha);
-  return sha;
+  return results.map(([error, result]) => [
+    error === null ? null : ErrorFactory.createTryCatchError(error),
+    result,
+  ]);
+};
+
+const requestRedisCommand = async <T>(
+  mode: Exclude<RedisTransportMode, 'direct'>,
+  settings: ProxySettings | RpcSettings,
+  command: string,
+  args: unknown[]
+): Promise<T> => {
+  return mode === 'rpc'
+    ? requestRpcCommand(settings as RpcSettings, command, args)
+    : requestProxyCommand(settings as ProxySettings, command, args);
 };
 
 const logTransportSelection = (
@@ -275,6 +315,7 @@ const logTransportSelection = (
     host: mode === 'direct' ? config.host : undefined,
     port: mode === 'direct' ? config.port : undefined,
     proxyUrl: mode === 'proxy' ? resolveProxyBaseUrl() : undefined,
+    rpcUrl: mode === 'rpc' ? readEnvString('REDIS_RPC_URL', '') : undefined,
   });
 };
 
@@ -291,7 +332,8 @@ const normalizeScanResponse = (value: unknown): [string, string[]] => {
 };
 
 const createScanStream = (
-  settings: ProxySettings,
+  settings: ProxySettings | RpcSettings,
+  mode: Exclude<RedisTransportMode, 'direct'>,
   options?: { match?: string; count?: number }
 ): {
   on: (event: string, handler: (...args: unknown[]) => void) => unknown;
@@ -332,9 +374,13 @@ const createScanStream = (
         let cursor = '0';
         do {
           // eslint-disable-next-line no-await-in-loop
-          const result = await requestProxyCommand<unknown>(settings, 'SCAN', {
-            args: [cursor, 'MATCH', options?.match ?? '*', 'COUNT', String(options?.count ?? 200)],
-          });
+          const result = await requestRedisCommand<unknown>(mode, settings, 'SCAN', [
+            cursor,
+            'MATCH',
+            options?.match ?? '*',
+            'COUNT',
+            String(options?.count ?? 200),
+          ]);
           const [nextCursor, batch] = normalizeScanResponse(result);
           cursor = nextCursor;
           if (batch.length > 0) {
@@ -353,7 +399,9 @@ const createScanStream = (
 };
 
 const createPipeline = (
-  settings: ProxySettings
+  settings: ProxySettings | RpcSettings,
+  mode: Exclude<RedisTransportMode, 'direct'>,
+  transaction = false
 ): {
   exec: () => Promise<Array<[Error | null, unknown]>>;
   [key: string]: unknown;
@@ -362,16 +410,15 @@ const createPipeline = (
 
   const target = {
     async exec(): Promise<Array<[Error | null, unknown]>> {
-      Logger.debug('[redis][proxy][pipeline] Executing pipeline', {
-        commandCount: commands.length,
-        commands: commands.map((c) => ({ command: c.command, argsCount: c.args.length })),
-      });
+      if (mode === 'rpc') {
+        return requestRpcPipeline(settings, commands, transaction);
+      }
 
       const results: Array<[Error | null, unknown]> = [];
       for (const entry of commands) {
         try {
           // eslint-disable-next-line no-await-in-loop
-          const result = await requestProxyCommand(settings, entry.command, { args: entry.args });
+          const result = await requestRedisCommand(mode, settings, entry.command, entry.args);
           results.push([null, result]);
         } catch (error) {
           results.push([
@@ -384,23 +431,14 @@ const createPipeline = (
       }
       return results;
     },
-    runCommand(name: string, args: unknown[]) {
-      Logger.debug('[redis][proxy][pipeline] runCommand called in pipeline', {
-        commandName: name,
-        argsCount: args.length,
-      });
-      commands.push({ command: name, args });
-      return pipeline;
-    },
   };
 
   const pipeline = new Proxy(target, {
     get(obj, prop) {
       if (typeof prop !== 'string') return Reflect.get(obj, prop) as unknown;
       if (prop in obj) return Reflect.get(obj, prop) as unknown;
-
       return (...args: unknown[]) => {
-        commands.push({ command: prop, args });
+        commands.push({ command: prop.toUpperCase(), args });
         return pipeline;
       };
     },
@@ -410,162 +448,65 @@ const createPipeline = (
 };
 
 export const resolveRedisTransportMode = (): RedisTransportMode => {
-  return readEnvBool('USE_REDIS_PROXY', false) || readEnvString('REDIS_PROXY_URL', '').trim() !== ''
-    ? 'proxy'
-    : 'direct';
+  if (isRedisRpcEnabled()) return 'rpc';
+  return readEnvBool('USE_REDIS_PROXY', false) ? 'proxy' : 'direct';
 };
 
-const createCommandFunction = (settings: ProxySettings, command: string) => {
-  return async (...args: unknown[]) => requestProxyCommand(settings, command, { args });
-};
-
-const createDefinedScriptFunction = (
-  settings: ProxySettings,
-  command: string,
-  registry: ProxyScriptRegistry
-) => {
-  return async (...args: unknown[]) => {
-    const sha = await getDefinedScriptSha(settings, registry, command);
-
-    if (sha === undefined) {
-      return requestProxyCommand(settings, command, { args });
-    }
-
-    const definition = registry.definitions.get(command);
-    const numberOfKeys = definition?.numberOfKeys ?? 0;
-    return requestProxyCommand(settings, 'EVALSHA', {
-      args: [sha, numberOfKeys, ...args],
-    });
-  };
-};
-
-const createScriptsHandler = (
-  settings: ProxySettings
-): {
-  [key: string]: (...args: unknown[]) => Promise<unknown>;
-} => {
-  return new Proxy(
-    {},
-    {
-      get(_target, prop: string | symbol) {
-        if (typeof prop !== 'string') return undefined;
-        return async (...args: unknown[]): Promise<unknown> =>
-          requestProxyCommand(settings, prop, { args });
-      },
-    }
-  );
-};
-
-const handlePropertyAccess = (
-  obj: RedisProxyConnection,
-  prop: string | symbol,
-  client: RedisProxyConnection,
-  settings: ProxySettings,
-  registry: ProxyScriptRegistry
-): unknown => {
-  if (typeof prop !== 'string') return Reflect.get(obj, prop) as unknown;
-
-  if (prop === 'then') return undefined;
-
-  if (prop === 'setMaxListeners') {
-    return function (_count: number): RedisProxyConnection {
-      return client;
-    };
-  }
-
-  if (prop === 'getMaxListeners') {
-    return function (): number {
-      return Infinity;
-    };
-  }
-
-  if (registry.definitions.has(prop)) {
-    return createDefinedScriptFunction(settings, prop, registry);
-  }
-
-  if (prop in obj) {
-    return Reflect.get(obj, prop) as unknown;
-  }
-
-  return createCommandFunction(settings, prop);
-};
-
-const createProxyTarget = (
+export const createRedisProxyConnection = (
   config: RedisConfig,
-  options: RedisTransportOptions | undefined,
-  settings: ProxySettings,
-  client: RedisProxyConnection | null,
-  registry: ProxyScriptRegistry
+  options?: RedisTransportOptions
 ): RedisProxyConnection => {
+  const mode = resolveRedisTransportMode();
+  const settings = mode === 'rpc' ? resolveRpcSettings() : resolveProxySettings();
+  if (mode === 'direct') {
+    throw ErrorFactory.createConfigError(
+      'Redis proxy connection requested while direct mode is active.'
+    );
+  }
+  logTransportSelection(mode, config, options);
+
   const target: RedisProxyConnection = {
-    __bullmq_iredis: true,
-    isCluster: false,
-    options: Object.freeze({}),
     status: 'ready' as const,
 
     connect: async (): Promise<void> => {},
     // eslint-disable-next-line @typescript-eslint/require-await
     quit: async (): Promise<'OK'> => 'OK',
     disconnect: (): void => undefined,
-    duplicate: (): RedisProxyConnection => createRedisProxyConnection(config, options, registry),
-    defineCommand: (name: string, definition: { numberOfKeys: number; lua: string }): void => {
-      registry.definitions.set(name, definition);
-      registry.shaByCommand.delete(name);
-      Logger.debug('[redis][proxy][bullmq] registered defined command', {
-        commandName: name,
-        numberOfKeys: definition.numberOfKeys,
-        luaLength: definition.lua.length,
-      });
-    },
-    runCommand: async (name: string, args: unknown[]): Promise<unknown> =>
-      requestProxyCommand(settings, name, { args }),
-    on: (_event: string, _handler: (...args: unknown[]) => void): RedisProxyConnection =>
-      client ?? target,
-    once: (_event: string, _handler: (...args: unknown[]) => void): RedisProxyConnection =>
-      client ?? target,
-    off: (_event: string, _handler: (...args: unknown[]) => void): RedisProxyConnection =>
-      client ?? target,
+    on: (_event: string, _handler: (...args: unknown[]) => void): RedisProxyConnection => client,
+    once: (_event: string, _handler: (...args: unknown[]) => void): RedisProxyConnection => client,
+    off: (_event: string, _handler: (...args: unknown[]) => void): RedisProxyConnection => client,
     removeListener: (
       _event: string,
       _handler: (...args: unknown[]) => void
-    ): RedisProxyConnection => client ?? target,
-    setMaxListeners: (_count: number): RedisProxyConnection => client ?? target,
+    ): RedisProxyConnection => client,
+    setMaxListeners: (_count: number): RedisProxyConnection => client,
     getMaxListeners: (): number => Infinity,
-    call: async (command: string, ...args: unknown[]): Promise<unknown> =>
-      requestProxyCommand(settings, command, { args }),
-    scripts: createScriptsHandler(settings),
-    pipeline: (): { exec: () => Promise<Array<[Error | null, unknown]>>; [key: string]: unknown } =>
-      createPipeline(settings),
-    multi: (): { exec: () => Promise<Array<[Error | null, unknown]>>; [key: string]: unknown } =>
-      createPipeline(settings),
+    call: async (command: string, ...args: unknown[]): Promise<unknown> => {
+      return requestRedisCommand(mode, settings, command, args);
+    },
+    pipeline: () => createPipeline(settings, mode),
+    multi: () => createPipeline(settings, mode, true),
     scanStream: (scanOptions?: { match?: string; count?: number }) =>
-      createScanStream(settings, scanOptions),
+      createScanStream(settings, mode, scanOptions),
   };
 
-  return target;
-};
-
-export const createRedisProxyConnection = (
-  config: RedisConfig,
-  options?: RedisTransportOptions,
-  registry?: ProxyScriptRegistry
-): RedisProxyConnection => {
-  const settings = resolveProxySettings(options);
-  const scriptRegistry = registry ?? {
-    definitions: new Map<string, ScriptDefinition>(),
-    shaByCommand: new Map<string, string>(),
-  };
-
-  logTransportSelection('proxy', config, options);
-
-  Logger.info('[redis][proxy] Creating opaque proxy connection', {
-    transport: 'BullMQ',
-  });
-
-  const proxyTarget = createProxyTarget(config, options, settings, null, scriptRegistry);
-  const client: RedisProxyConnection = new Proxy(proxyTarget, {
+  const client: RedisProxyConnection = new Proxy(target, {
     get(obj, prop) {
-      return handlePropertyAccess(obj, prop, client, settings, scriptRegistry);
+      if (typeof prop !== 'string') return Reflect.get(obj, prop) as unknown;
+      if (prop === 'then') return undefined;
+      if (prop === 'setMaxListeners') {
+        return function (_count: number): RedisProxyConnection {
+          return client;
+        };
+      }
+      if (prop === 'getMaxListeners') {
+        return function (): number {
+          return Infinity;
+        };
+      }
+      if (prop in obj) return Reflect.get(obj, prop) as unknown;
+      return async (...args: unknown[]) =>
+        requestRedisCommand(mode, settings, prop.toUpperCase(), args);
     },
   });
 
@@ -577,19 +518,9 @@ export const ensureRedisTransportMode = (
   options?: RedisTransportOptions
 ): RedisTransportMode => {
   const mode = resolveRedisTransportMode();
-  const subsystem = options?.subsystem ?? 'redis';
-  const requireDirectForScripts =
-    options?.requireDirectForScripts ?? Env.REDIS_REQUIRE_DIRECT_FOR_SCRIPTS;
-
   if (mode === 'proxy' && options?.requireDirect === true) {
     throw ErrorFactory.createConfigError(
-      `Redis subsystem '${subsystem}' requires a direct Redis connection, but proxy mode is enabled.`
-    );
-  }
-
-  if (mode === 'proxy' && requireDirectForScripts) {
-    throw ErrorFactory.createConfigError(
-      `Redis subsystem '${subsystem}' requires a direct Redis connection for scripts, but proxy mode is enabled.`
+      `Redis subsystem '${options.subsystem ?? 'redis'}' requires a direct Redis connection, but proxy mode is enabled.`
     );
   }
 

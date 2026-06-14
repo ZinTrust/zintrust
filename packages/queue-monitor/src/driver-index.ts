@@ -8,6 +8,7 @@ export type {
   JobCounts,
   JobPayload,
   QueueDriver,
+  RecoverActiveJobResult,
   RetryJobResult,
   RetrySnapshot,
 } from './driver.js';

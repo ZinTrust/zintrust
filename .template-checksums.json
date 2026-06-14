@@ -144,10 +144,10 @@
   "src/orm/adapters/SQLServerAdapter.ts|registry-imports-v2": "5c90e996c00cabd7c54c6cb73cbb37855dca223c",
   "src/auth/Auth.ts|registry-imports-v2": "ee07ddee391969c5c9c3c036edc77a1c62bc1e9f",
   "src/features/Queue.ts|registry-imports-v2": "52209e731120451acc1de7ca0ee40b09f38e6ba4",
-  "src/orm/adapters/SQLiteAdapter.ts|registry-imports-v3": "b74296fb4f262ddf9be36c89b6300d5ada390ac9",
-  "src/orm/adapters/PostgreSQLAdapter.ts|registry-imports-v3": "db680fe1d65069a4b437df6794a0c8ac5692142a",
-  "src/orm/adapters/MySQLAdapter.ts|registry-imports-v3": "ea250dfe0f2dec4a7e2d43a778dfda9b77a583f6",
-  "src/orm/adapters/SQLServerAdapter.ts|registry-imports-v3": "5c90e996c00cabd7c54c6cb73cbb37855dca223c",
-  "src/auth/Auth.ts|registry-imports-v3": "ee07ddee391969c5c9c3c036edc77a1c62bc1e9f",
+  "src/orm/adapters/SQLiteAdapter.ts|registry-imports-v3": "bd0345992e321f6eadee03bfd4327a3d590e71f5",
+  "src/orm/adapters/PostgreSQLAdapter.ts|registry-imports-v3": "a7e04bf7dd4b386c498c8414b82e529e9caba4c4",
+  "src/orm/adapters/MySQLAdapter.ts|registry-imports-v3": "4fbd158d626a3ab1c81d6f963e7850578c8a52b9",
+  "src/orm/adapters/SQLServerAdapter.ts|registry-imports-v3": "8ff8e06072a8124acca90b89dd9f9b988343c9b7",
+  "src/auth/Auth.ts|registry-imports-v3": "163d0347b63beebfe7349b3bb8c7adfd85ad34a4",
   "src/features/Queue.ts|registry-imports-v3": "52209e731120451acc1de7ca0ee40b09f38e6ba4"
 }

@@ -81,6 +81,9 @@ export interface WorkersListResponse {
     hasPrev: boolean;
   };
   drivers: WorkerDriver[];
+  features: {
+    sla: boolean;
+  };
 }
 
 // Queue Data Types

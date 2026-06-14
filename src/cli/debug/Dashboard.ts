@@ -217,7 +217,7 @@ type DashboardCtor = {
   create(): IDashboard;
 };
 
-const DashboardCallable = function DashboardCallable(): IDashboard {
+const DashboardCallable = function (): IDashboard {
   return DashboardFactory.create();
 };
 

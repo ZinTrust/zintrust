@@ -208,6 +208,7 @@ const DatabaseAndCloudflare = (
   '',
 ];
 
+// eslint-disable-next-line max-lines-per-function
 const HttpProxies = (): string[] => [
   '# ============================================================================',
   '# HTTP PROXIES (for Workers compatibility)',
@@ -250,6 +251,14 @@ const HttpProxies = (): string[] => [
   'REDIS_PROXY_TIMEOUT_MS=30000',
   'REDIS_PROXY_REQUIRE_SIGNING=true',
   'REDIS_PROXY_SIGNING_WINDOW_MS=60000',
+  '# Redis RPC is selected only when USE_REDIS_PROXY=true and REDIS_RPC_URL is non-empty.',
+  'REDIS_RPC_URL=',
+  'REDIS_RPC_HOST=127.0.0.1',
+  'REDIS_RPC_PORT=8794',
+  'REDIS_RPC_SECRET=',
+  'REDIS_RPC_TIMEOUT_MS=30000',
+  'REDIS_RPC_RETRY_MAX=2',
+  'REDIS_RPC_RETRY_DELAY_MS=500',
   '',
   'USE_SMTP_PROXY=false',
   'SMTP_PROXY_URL=',

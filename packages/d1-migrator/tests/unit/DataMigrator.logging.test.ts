@@ -67,6 +67,20 @@ vi.mock('@zintrust/core', async (importOriginal) => {
   };
 });
 
+vi.mock('@zintrust/core/cli', async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    LocalD1Resolver: {
+      resolveD1Binding: (...args: unknown[]) => resolveD1BindingMock(...args),
+      resolveLocalD1SqlitePath: (...args: unknown[]) => resolveLocalD1SqlitePathMock(...args),
+    },
+    WranglerD1: {
+      executeSql: (...args: unknown[]) => wranglerExecuteSqlMock(...args),
+    },
+  };
+});
+
 vi.mock('@zintrust/db-mysql', () => ({
   MySQLAdapter: {
     create: (...args: unknown[]) => mysqlCreateMock(...args),
@@ -215,6 +229,13 @@ describe('DataMigrator logging and totals', () => {
     sqliteCreateMock.mockReturnValue(targetAdapter);
     analyzeSchemaMock.mockResolvedValue({ tables: [] });
 
+    resolveD1BindingMock.mockReturnValue({
+      matchedBy: 'database_name',
+      databaseName: 'd1-proxy-db',
+      config: { database_name: 'd1-proxy-db', binding: 'ZIN_DB' },
+    });
+    resolveLocalD1SqlitePathMock.mockResolvedValue('/tmp/.wrangler/d1-proxy-db.sqlite');
+
     const { DataMigrator } = await import('../../src/cli/DataMigrator');
     const encodedPasswordSegments = ['afe', '%26', 'cfe269d57790fD3', '%21', 'dba8b'];
     const sourceConnection = `mysql://root:${encodedPasswordSegments.join('')}@127.0.0.1:3306/app`;
@@ -254,6 +275,13 @@ describe('DataMigrator logging and totals', () => {
     mysqlCreateMock.mockReturnValue(sourceAdapter);
     sqliteCreateMock.mockReturnValue(targetAdapter);
     analyzeSchemaMock.mockResolvedValue({ tables: [] });
+
+    resolveD1BindingMock.mockReturnValue({
+      matchedBy: 'database_name',
+      databaseName: 'd1-proxy-db',
+      config: { database_name: 'd1-proxy-db', binding: 'ZIN_DB' },
+    });
+    resolveLocalD1SqlitePathMock.mockResolvedValue('/tmp/.wrangler/d1-proxy-db.sqlite');
 
     const { DataMigrator } = await import('../../src/cli/DataMigrator');
 

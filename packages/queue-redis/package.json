@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-redis",
-  "version": "2.4.0",
+  "version": "2.7.0",
   "description": "Redis queue driver for ZinTrust.",
   "private": false,
   "type": "module",
@@ -23,7 +23,13 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "*"
+    "@zintrust/core": "*",
+    "@zintrust/redis-rpc": "*"
+  },
+  "peerDependenciesMeta": {
+    "@zintrust/redis-rpc": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public"

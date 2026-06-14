@@ -195,8 +195,10 @@ const injectIoredisModule = async (): Promise<void> => {
   if (globalAny.__zintrustIoredisModule !== undefined) return;
 
   try {
-    const module = await import('ioredis');
-    globalAny.__zintrustIoredisModule = module;
+    // Variable specifier so bundlers do not inline ioredis into the Workers bundle.
+    const ioredisPkg = 'ioredis';
+    const module: unknown = await import(ioredisPkg);
+    globalAny.__zintrustIoredisModule = module as unknown;
   } catch {
     // Best-effort: leave undefined so resolveIORedis can surface a config error.
   }

@@ -19,7 +19,7 @@ jobs:
   quality-checks:
     name: Quality Assurance
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -40,6 +40,7 @@ jobs:
       - name: Sync workspace versions for CI
         run: |
           node scripts/release/sync-package-versions.mjs
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
 
       - name: Install dependencies (disable lifecycle scripts in CI)

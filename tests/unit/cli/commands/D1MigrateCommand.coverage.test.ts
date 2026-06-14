@@ -108,4 +108,35 @@ describe('D1MigrateCommand (coverage extras)', () => {
       /Multiple D1 targets are configured/
     );
   });
+
+  it('supports --wrangler-config alias for wrangler config path', async () => {
+    const cmd = D1MigrateCommand.create();
+    await cmd.execute({ wranglerConfig: 'wrangler.ci.jsonc' } as any);
+
+    expect(applyMigrationsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ config: 'wrangler.ci.jsonc' })
+    );
+  });
+
+  it('supports --wc short alias for wrangler config path', async () => {
+    const cmd = D1MigrateCommand.create();
+    await cmd.execute({ wc: 'wrangler.short.jsonc' } as any);
+
+    expect(applyMigrationsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ config: 'wrangler.short.jsonc' })
+    );
+  });
+
+  it('prefers explicit --config over wrangler-config / wc aliases', async () => {
+    const cmd = D1MigrateCommand.create();
+    await cmd.execute({
+      config: 'primary.jsonc',
+      wranglerConfig: 'secondary.jsonc',
+      wc: 'tertiary.jsonc',
+    } as any);
+
+    expect(applyMigrationsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ config: 'primary.jsonc' })
+    );
+  });
 });

@@ -117,7 +117,14 @@ The built-in bulletproof responder currently uses the stable `reason` value `una
 
 ### 3. Login controller — full example
 
-Fresh apps can use the built-in `LoginFlow` Bulletproof issuer and the core-backed `BulletproofDeviceStore`. Run your normal migrations first so the `zintrust_bulletproof_devices` table exists.
+Fresh apps can use the built-in `LoginFlow` Bulletproof issuer and the core-backed `BulletproofDeviceStore`.
+
+**Run the migration command first** so the `zintrust_bulletproof_devices` table exists:
+
+- Regular / MySQL / Postgres / SQLite: `zin migrate`
+- Cloudflare D1 (see `wrangler.jsonc` → `d1_databases[].migrations_dir`, typically `database/migrations/d1`): `zin d1:migrate --local` (or `--remote --database <name>`)
+
+The D1 command compiles the source TS migration (including the bulletproof devices table) into SQL and applies it via Wrangler.
 
 ```ts
 // app/Controllers/AuthController.ts
