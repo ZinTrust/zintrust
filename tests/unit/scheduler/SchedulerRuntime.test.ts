@@ -161,4 +161,22 @@ describe('SchedulerRuntime', () => {
     expect(mocked.runner.stop).toHaveBeenCalledTimes(1);
     expect(mocked.runner.stop).toHaveBeenCalledWith(123);
   });
+
+  it('runIfDue and useStateStore delegate to the underlying runner', async () => {
+    const runIfDueMock = vi.fn(async () => ({ ran: true, reason: 'test-due' as const }));
+    const setStoreMock = vi.fn();
+
+    (mocked.runner as any).runIfDue = runIfDueMock;
+    (mocked.runner as any).setStore = setStoreMock;
+
+    const { SchedulerRuntime } = await import('@/scheduler/SchedulerRuntime');
+
+    const mockStore = { kind: 'memory' } as any;
+    SchedulerRuntime.useStateStore(mockStore);
+    expect(setStoreMock).toHaveBeenCalledWith(mockStore);
+
+    const result = await SchedulerRuntime.runIfDue('my-schedule');
+    expect(runIfDueMock).toHaveBeenCalledWith('my-schedule', undefined);
+    expect(result).toEqual({ ran: true, reason: 'test-due' });
+  });
 });

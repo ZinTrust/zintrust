@@ -62,6 +62,43 @@ describe('patch coverage: RedisDriver ioredis branches', () => {
     await expect(driver.clear()).resolves.toBeUndefined();
   });
 
+  it('exercises increment, decrement, and many (mget fallback) paths on ioredis client', async () => {
+    vi.resetModules();
+
+    const client = {
+      get: vi.fn().mockResolvedValue('5'),
+      mget: undefined, // force fallback to multiple get
+      set: vi.fn(async () => 'OK'),
+      del: vi.fn(async () => 1),
+      flushdb: vi.fn(async () => 'OK'),
+      exists: vi.fn(async () => 1),
+      incrby: vi.fn(async (_k: string, a: number) => 5 + a),
+      decrby: vi.fn(async (_k: string, a: number) => 5 - a),
+    };
+
+    vi.doMock('@config/workers', () => ({ createRedisConnection: vi.fn(() => client) }));
+    vi.doMock('@config/env', () => ({
+      Env: {
+        NODE_ENV: 'development',
+        REDIS_HOST: 'localhost',
+        REDIS_PORT: 6379,
+        USE_REDIS_PROXY: false,
+        get: vi.fn((_k: string, f?: string) => f ?? ''),
+        getInt: vi.fn((_k: string, f?: number) => f ?? 0),
+      },
+    }));
+    vi.doMock('@config/cloudflare', () => ({ Cloudflare: { getWorkersEnv: () => null } }));
+    vi.doMock('@config/logger', () => ({ Logger: { error: vi.fn(), warn: vi.fn() } }));
+
+    const { RedisDriver } = await import('@/cache/drivers/RedisDriver');
+    const driver = RedisDriver.create();
+
+    await expect(driver.increment('ctr', 3)).resolves.toBe(8);
+    await expect(driver.decrement('ctr', 2)).resolves.toBe(3);
+    // get mocked to return string '5'; no mget so fallback map of gets + JSON.parse('5') === 5
+    await expect(driver.many(['a', 'b'])).resolves.toEqual([5, 5]);
+  });
+
   it('throws when ioredis init fails in workers/proxy mode and otherwise falls back', async () => {
     vi.resetModules();
 
