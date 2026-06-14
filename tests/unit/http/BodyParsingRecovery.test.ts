@@ -1,4 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import BodyParsers from '@/http/parsers/BodyParsers';
+import {
+  tryRecoverTextJsonBody as realTryRecoverTextJsonBody,
+  tryParseJsonObject,
+  setRequestBody,
+} from '@/http/middleware/BodyParsingMiddleware';
 
 /**
  * Tests for the body parsing recovery mechanism that detects JSON payloads
@@ -281,5 +287,127 @@ describe('Body Parsing Recovery — text/plain and unknown Content-Type', () => 
       const rawBytes = '{bad json}';
       expect(recoverUnknownContentTypeBody(body, rawBytes)).toBe(rawBytes);
     });
+  });
+});
+
+// Real implementation coverage — these exercise the actual src functions (not the test-local duplicates)
+// so that patch coverage counts hits on the changed lines in BodyParsers.ts and related.
+describe('Body Parsing Recovery — real BodyParsers execution (for patch coverage)', () => {
+  it('FormDataParser recovers JSON sent as bare object (degenerate urlencoded case)', () => {
+    const json = '{"token":"encrypted-gold-sale-order","pin":123456}';
+    const result = BodyParsers.FormDataParser.parse(json);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({ token: 'encrypted-gold-sale-order', pin: 123456 });
+    }
+  });
+
+  it('FormDataParser recovers nested JSON via raw text path', () => {
+    const json = JSON.stringify({ user: { name: 'Alice' }, ids: [1, 2] });
+    const result = BodyParsers.FormDataParser.parse(json);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({ user: { name: 'Alice' }, ids: [1, 2] });
+    }
+  });
+
+  it('FormDataParser leaves legitimate form data untouched', () => {
+    const result = BodyParsers.FormDataParser.parse('a=1&b=2');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({ a: '1', b: '2' });
+    }
+  });
+
+  it('FormDataParser recovers JSON after URLSearchParams decodes a single key', () => {
+    const encodedJsonKey = encodeURIComponent('{"decoded":true,"count":2}');
+    const result = BodyParsers.FormDataParser.parse(encodedJsonKey);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({ decoded: true, count: 2 });
+    }
+  });
+
+  it('FormDataParser falls back to raw form output for invalid decoded JSON keys', () => {
+    const encodedInvalidJsonKey = encodeURIComponent('{invalid json}');
+    const result = BodyParsers.FormDataParser.parse(encodedInvalidJsonKey);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({ '{invalid json}': '' });
+    }
+  });
+
+  it('FormDataParser falls back after invalid raw JSON parse fails', () => {
+    const result = BodyParsers.FormDataParser.parse('{invalid json}');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({ '{invalid json}': '' });
+    }
+  });
+});
+
+// Drive the *exported* recovery helpers from the real middleware module.
+// This ensures the changed lines inside BodyParsingMiddleware.ts are executed
+// during test runs, satisfying patch coverage for the added recovery logic.
+describe('Body Parsing Recovery — real middleware helpers (for patch coverage)', () => {
+  it('tryRecoverTextJsonBody (exported) recovers object from text body', () => {
+    expect(realTryRecoverTextJsonBody('  {"a":1}  ')).toEqual({ a: 1 });
+  });
+
+  it('tryRecoverTextJsonBody (exported) leaves non-object text', () => {
+    const text = 'plain text here';
+    expect(realTryRecoverTextJsonBody(text)).toBe(text);
+  });
+
+  it('tryParseJsonObject (exported) parses object or returns null', () => {
+    expect(tryParseJsonObject('{"x": true}')).toEqual({ x: true });
+    expect(tryParseJsonObject('[1,2]')).toBeNull();
+    expect(tryParseJsonObject('not json')).toBeNull();
+  });
+});
+
+// Direct calls to the (now exported for test) setRequestBody exercise the call sites for recovery
+// inside the middleware (the statements like `req.setBody(tryRecoverTextJsonBody(text))`).
+// This ensures those specific changed executable lines are counted as covered for patch coverage.
+describe('Body Parsing Recovery — direct setRequestBody calls (covers call sites)', () => {
+  const makeReq = () => {
+    let body: unknown;
+    return {
+      setBody(b: unknown) { body = b; },
+      get bodyForAssert() { return body; },
+    } as any;
+  };
+  const makeRaw = (text: string) => ({ ok: true as const, text, bytes: Buffer.from(text) });
+
+  it('hits text recovery call site', () => {
+    const req = makeReq();
+    setRequestBody(req, makeRaw('{"from":"text-ct"}'), 'text/plain');
+    expect(req.bodyForAssert).toEqual({ from: 'text-ct' });
+  });
+
+  it('hits urlencoded raw JSON recovery call site', () => {
+    const req = makeReq();
+    setRequestBody(req, makeRaw('{"from":"urlencoded-raw"}'), 'application/x-www-form-urlencoded');
+    expect(req.bodyForAssert).toEqual({ from: 'urlencoded-raw' });
+  });
+
+  it('hits urlencoded decoded-key JSON recovery call site', () => {
+    const req = makeReq();
+    const encodedJsonKey = encodeURIComponent('{"from":"urlencoded-decoded-key"}');
+    setRequestBody(req, makeRaw(encodedJsonKey), 'application/x-www-form-urlencoded');
+    expect(req.bodyForAssert).toEqual({ from: 'urlencoded-decoded-key' });
+  });
+
+  it('hits urlencoded decoded-key invalid JSON fallback', () => {
+    const req = makeReq();
+    const encodedInvalidJsonKey = encodeURIComponent('{bad json}');
+    setRequestBody(req, makeRaw(encodedInvalidJsonKey), 'application/x-www-form-urlencoded');
+    expect(req.bodyForAssert).toEqual({ '{bad json}': '' });
+  });
+
+  it('hits unknown ct recovery call site', () => {
+    const req = makeReq();
+    setRequestBody(req, makeRaw('{"from":"unknown-ct"}'), 'application/octet-stream');
+    expect(req.bodyForAssert).toEqual({ from: 'unknown-ct' });
   });
 });

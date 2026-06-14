@@ -68,7 +68,7 @@ const buildExecutionContext = (options: CommandOptions): D1MigrateExecutionConte
   const dbName = getDbName(projectRoot, options);
   const env = typeof options['env'] === 'string' ? options['env'].trim() : undefined;
   const config =
-    (typeof options['env'] === 'string' ? options['env'].trim() : undefined) ??
+    (typeof options['config'] === 'string' ? options['config'].trim() : undefined) ??
     (typeof options['wranglerConfig'] === 'string'
       ? options['wranglerConfig'].trim()
       : undefined) ??

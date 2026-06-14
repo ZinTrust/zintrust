@@ -35,7 +35,7 @@ const intEnv = (key: string, fallback: number): number => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
-const csvEnvSet = (key: string): Set<string> =>
+export const csvEnvSet = (key: string): Set<string> =>
   new Set(
     Env.get(key, '')
       .split(',')
@@ -53,7 +53,7 @@ type DrainTarget = {
  * - `WORKER_DRAIN_QUEUES`: if set, only these queues are drained.
  * - `WORKER_DRAIN_EXCLUDE_QUEUES`: these queues are always skipped.
  */
-const filterDrainTargetsByEnv = (targets: DrainTarget[]): DrainTarget[] => {
+export const filterDrainTargetsByEnv = (targets: DrainTarget[]): DrainTarget[] => {
   const onlyQueues = csvEnvSet('WORKER_DRAIN_QUEUES');
   const excludeQueues = csvEnvSet('WORKER_DRAIN_EXCLUDE_QUEUES');
 
@@ -89,7 +89,7 @@ export type AppWorkerDefinition = Readonly<{
  * start/stop — a worker explicitly `stopped` there is skipped; otherwise the manifest's
  * `autoStart` decides.
  */
-const resolveDrainTargets = async (
+export const resolveDrainTargets = async (
   appWorkerDefinitions: AppWorkerDefinition[],
   workerModules: ReadonlyArray<WorkerModule>
 ): Promise<DrainTarget[]> => {

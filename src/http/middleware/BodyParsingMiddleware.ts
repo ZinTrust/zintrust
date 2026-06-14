@@ -179,7 +179,7 @@ const parseJsonBody = (text: string, contentType: string, res: IResponse): unkno
  * and primitives are left unchanged. This minimizes false positives for
  * legitimate text or binary payloads that happen to start with `{`.
  */
-const tryRecoverTextJsonBody = (body: string): string | Record<string, unknown> => {
+export const tryRecoverTextJsonBody = (body: string): string | Record<string, unknown> => {
   const trimmed = body.trim();
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     try {
@@ -194,7 +194,7 @@ const tryRecoverTextJsonBody = (body: string): string | Record<string, unknown> 
   return body;
 };
 
-const setRequestBody = (
+export const setRequestBody = (
   req: IRequest,
   rawResult: ReadBodyResult & { ok: true },
   contentType: string
@@ -278,7 +278,7 @@ const reuseExistingRawBody = (
  * Returns the parsed object on success, or null if the string is not
  * a valid JSON object literal (plain object `{...}`, not array or primitive).
  */
-const tryParseJsonObject = (text: string): Record<string, unknown> | null => {
+export const tryParseJsonObject = (text: string): Record<string, unknown> | null => {
   const trimmed = text.trim();
   if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
   try {

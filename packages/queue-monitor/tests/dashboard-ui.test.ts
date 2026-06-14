@@ -87,7 +87,7 @@ describe('queue monitor dashboard UI', () => {
     });
 
     expect(html).toContain("const queue = job.queue || currentQueue || '';");
-    expect(html).toContain("const id = job.id == null ? '' : String(job.id);");
+    expect(html).toContain("const id = String(job.id ?? '');");
     expect(html).toContain(
       "const timestamp = Number.isFinite(job.timestamp) ? String(job.timestamp) : '';"
     );

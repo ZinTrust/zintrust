@@ -248,7 +248,7 @@ const resolveSqlRequest = async (
  * D1 rejects JS objects and needs integer-valued numbers serialized for TEXT
  * column compatibility, Dates as ISO strings, while blobs must be untouched.
  */
-const normalizeParams = (params: unknown[]): unknown[] => {
+export const normalizeParams = (params: unknown[]): unknown[] => {
   if (!Array.isArray(params)) return params;
   return params.map((value) => {
     if (typeof value === 'number' && Number.isInteger(value)) return String(value);
