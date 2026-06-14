@@ -131,6 +131,7 @@ export default defineConfig(
     rules: {
       'no-restricted-imports': 'off',
       'no-empty': 'off',
+      'max-nested-callbacks': 'off',
     },
   },
   {
