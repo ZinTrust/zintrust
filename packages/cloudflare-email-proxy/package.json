@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cloudflare-email-proxy",
-  "version": "2.4.1",
+  "version": "2.7.0",
   "description": "Cloudflare email proxy package for ZinTrust.",
   "type": "module",
   "private": false,
