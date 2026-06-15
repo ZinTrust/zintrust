@@ -8,6 +8,7 @@ export type R2Config = {
   accessKeyId: string;
   secretAccessKey: string;
   endpoint?: string; // Cloudflare R2 endpoint (e.g., https://<accountid>.r2.cloudflarestorage.com)
+  url?: string; // Public base URL / custom domain mapped to the bucket root (e.g., https://r2.example.app)
   binding?: string; // Workers binding name (e.g., R2_BUCKET)
 };
 
@@ -160,7 +161,10 @@ export const R2Driver = Object.freeze({
       usePathStyle: true,
     };
 
-    return S3Driver.put(s3Config, key, content);
+    await S3Driver.put(s3Config, key, content);
+    // Return the public-facing URL (custom domain when configured), not the
+    // path-style signing URL produced by S3Driver.put.
+    return R2Driver.url(config, key);
   },
 
   async get(config: R2Config, key: string): Promise<Buffer> {
@@ -221,6 +225,12 @@ export const R2Driver = Object.freeze({
   },
 
   url(config: R2Config, key: string): string {
+    // Prefer an explicit public base URL (custom domain CNAME'd to the bucket root):
+    // no bucket segment, since the domain already resolves to the bucket. The signing
+    // `endpoint` (used by tempUrl/put/get) stays path-style and independent.
+    const publicBase = config.url?.trim() ?? '';
+    if (publicBase !== '') return `${publicBase.replace(/\/$/, '')}/${key}`;
+
     if (config.endpoint !== undefined && config.endpoint.trim() !== '') {
       return `${config.endpoint.replace(/\/$/, '')}/${config.bucket}/${key}`;
     }

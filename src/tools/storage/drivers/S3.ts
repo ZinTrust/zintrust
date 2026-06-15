@@ -10,6 +10,10 @@ export type S3Config = {
   secretAccessKey: string;
   endpoint?: string;
   usePathStyle?: boolean;
+  // Public base URL for serving objects (e.g. a custom domain mapped to the bucket
+  // root). When set, `url()` returns `${url}/${key}` with no bucket segment. This is
+  // independent of `endpoint`, which remains the path-style S3 API signing host.
+  url?: string;
 };
 
 export type GS3Cred = {
@@ -296,6 +300,11 @@ export const S3Driver = Object.freeze({
   },
 
   url(config: S3Config, key: string): string {
+    // Prefer an explicit public base URL (custom domain mapped to the bucket root):
+    // no bucket segment, since the domain already resolves to the bucket.
+    const publicBase = config.url?.trim() ?? '';
+    if (publicBase !== '') return `${publicBase.replace(/\/$/, '')}/${key}`;
+
     const endpoint = config.endpoint?.trim() ?? '';
     if (endpoint !== '') return `${endpoint.replace(/\/$/, '')}/${config.bucket}/${key}`;
     return `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`;

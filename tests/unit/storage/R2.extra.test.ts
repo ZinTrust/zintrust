@@ -35,7 +35,8 @@ describe('R2Driver', () => {
       secretAccessKey: 's',
     } as any;
 
-    await expect(R2Driver.put(cfg, 'k', 'c')).resolves.toEqual('ok');
+    // put delegates the upload to S3Driver but returns the public-facing URL.
+    await expect(R2Driver.put(cfg, 'k', 'c')).resolves.toEqual('https://r2.local/b/k');
     expect(mockPut).toHaveBeenCalled();
 
     await expect(R2Driver.get(cfg, 'k')).resolves.toBeInstanceOf(Buffer);
@@ -53,6 +54,18 @@ describe('R2Driver', () => {
     expect(R2Driver.url(cfg, 'file.txt')).toBe('https://r2.example.com/mybucket/file.txt');
 
     expect(R2Driver.url({ bucket: 'b' } as any, 'x')).toBe('https://b.r2.cloudflarestorage.com/x');
+  });
+
+  it('url uses the public base URL with no bucket segment when configured', () => {
+    const cfg = {
+      bucket: 'vizo',
+      endpoint: 'https://account.r2.cloudflarestorage.com',
+      url: 'https://r2.example.app/',
+    } as any;
+    // Public custom domain is mapped to the bucket root: no "vizo/" segment.
+    expect(R2Driver.url(cfg, 'merchant/doc/dm92hjcg.png')).toBe(
+      'https://r2.example.app/merchant/doc/dm92hjcg.png'
+    );
   });
 
   it('tempUrl throws when endpoint missing and delegates when provided', () => {
