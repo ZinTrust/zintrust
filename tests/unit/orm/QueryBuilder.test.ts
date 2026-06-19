@@ -164,14 +164,18 @@ describe('QueryBuilder', () => {
     const builder = QueryBuilder.create('users');
     builder.join('posts', 'users.id = posts.user_id');
 
-    expect(builder.getJoins()).toEqual([{ table: 'posts', on: 'users.id = posts.user_id' }]);
+    expect(builder.getJoins()).toEqual([
+      { table: 'posts', on: 'users.id = posts.user_id', type: 'INNER' },
+    ]);
   });
 
   it('should add left joins', () => {
     const builder = QueryBuilder.create('users');
     builder.leftJoin('posts', 'users.id = posts.user_id');
 
-    expect(builder.getJoins()).toEqual([{ table: 'posts', on: 'users.id = posts.user_id' }]);
+    expect(builder.getJoins()).toEqual([
+      { table: 'posts', on: 'users.id = posts.user_id', type: 'LEFT' },
+    ]);
   });
 
   it('should execute get()', async () => {
