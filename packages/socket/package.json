@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/socket",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "Unified socket runtime for ZinTrust.",
   "private": false,
   "type": "module",
