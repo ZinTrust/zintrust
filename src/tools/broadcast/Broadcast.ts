@@ -1,4 +1,5 @@
 import { isArray, isNonEmptyString, isObject } from '@/helper';
+import { delay } from '@common/index';
 import { InMemoryDriver } from '@broadcast/drivers/InMemory';
 import { PusherDriver } from '@broadcast/drivers/Pusher';
 import { RedisDriver } from '@broadcast/drivers/Redis';
@@ -82,6 +83,8 @@ export type BroadcastPublishResult = Readonly<{
 type BroadcastTransportAttemptResult = Readonly<{
   result: BroadcastPublishResult | null;
   error?: unknown;
+  status?: number;
+  transient?: boolean;
 }>;
 
 type HttpBridgeRuntimeConfig = Readonly<{
@@ -108,6 +111,30 @@ type SocketPublishModule = Readonly<{
 
 const INTERNAL_SOCKET_SECRET_HEADER = 'x-zintrust-socket-secret';
 const DEFAULT_BROADCAST_EVENTS_PATH_TEMPLATE = '/apps/{appId}/events';
+
+// A POST that returns one of these never completed at the application origin, so
+// re-sending it cannot duplicate a delivered event. 520-524 are the edge->origin
+// (e.g. Cloudflare) statuses: a 522 means the edge could not connect to the origin,
+// not that the broadcast was processed. Genuine application responses (2xx and 4xx
+// such as 401/403/422) reached the origin and are never retried.
+const TRANSIENT_PUBLISH_STATUSES = new Set([
+  408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524,
+]);
+
+const resolveInternalPublishRetryConfig = (): Readonly<{
+  maxAttempts: number;
+  baseDelayMs: number;
+}> => ({
+  maxAttempts: Math.max(1, Env.getInt('BROADCAST_INTERNAL_PUBLISH_RETRIES', 3)),
+  baseDelayMs: Math.max(0, Env.getInt('BROADCAST_INTERNAL_PUBLISH_RETRY_BASE_MS', 200)),
+});
+
+// exponential backoff + full jitter
+const computeRetryDelayMs = (baseDelayMs: number, attempt: number): number => {
+  const exponential = baseDelayMs * Math.pow(2, attempt - 1);
+  const jitter = baseDelayMs === 0 ? 0 : Math.floor(Math.random() * baseDelayMs);
+  return exponential + jitter;
+};
 
 const pickFirstNonEmpty = (...values: readonly string[]): string => {
   for (const value of values) {
@@ -379,7 +406,7 @@ const logTransportFallback = (
   });
 };
 
-const requestInternalPublishEndpoint = async (
+const attemptInternalPublishEndpoint = async (
   endpoint: string,
   secret: string,
   payload: {
@@ -424,7 +451,12 @@ const requestInternalPublishEndpoint = async (
         body: responseBody,
       });
 
-      return { result: null, error };
+      return {
+        result: null,
+        error,
+        status: response.status,
+        transient: TRANSIENT_PUBLISH_STATUSES.has(response.status),
+      };
     }
 
     const resolvedChannels =
@@ -453,8 +485,49 @@ const requestInternalPublishEndpoint = async (
       error: describeError(error),
     });
 
-    return { result: null, error };
+    // A thrown error means the POST never completed at the application origin, so
+    // it is safe to retry.
+    return { result: null, error, transient: true };
   }
+};
+
+const requestInternalPublishEndpoint = async (
+  endpoint: string,
+  secret: string,
+  payload: {
+    channels: readonly string[];
+    event: string;
+    data: unknown;
+    socket_id?: string;
+  }
+): Promise<BroadcastTransportAttemptResult> => {
+  const { maxAttempts, baseDelayMs } = resolveInternalPublishRetryConfig();
+  let lastAttempt: BroadcastTransportAttemptResult = { result: null };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    lastAttempt = await attemptInternalPublishEndpoint(endpoint, secret, payload);
+
+    if (lastAttempt.result !== null) {
+      return lastAttempt;
+    }
+
+    // Non-transient failures (application 4xx, etc.) reached the origin; do not retry.
+    if (lastAttempt.transient !== true || attempt >= maxAttempts) {
+      break;
+    }
+
+    const delayMs = computeRetryDelayMs(baseDelayMs, attempt);
+    Logger.warn('Broadcast internal publish retrying transient failure.', {
+      endpoint,
+      attempt,
+      maxAttempts,
+      delayMs,
+      status: lastAttempt.status,
+    });
+    await delay(delayMs);
+  }
+
+  return lastAttempt;
 };
 
 const tryInternalPublishEndpoints = async (
