@@ -72,7 +72,7 @@ export const DenoAdapter = Object.freeze({
       },
 
       async startServer(port: number = 3000, host: string = '0.0.0.0'): Promise<void> {
-        return DenoAdapter.startServer(this as unknown as RuntimeAdapter, port, host);
+        return DenoAdapter.startServer(this, port, host);
       },
     };
   },
@@ -170,7 +170,7 @@ async function handleDenoRequest(
 
     return responseData;
   } catch (error) {
-    Logger.error('Deno handler error', error as Error);
+    Logger.error('Deno handler error', error);
     const errorResponse = ErrorResponse.create(
       500,
       'Internal Server Error',
@@ -244,7 +244,7 @@ function getDenoEnvironment(): {
   [key: string]: unknown;
 } {
   // @ts-ignore - Deno.env is available in Deno runtime
-  const env = (typeof Deno === 'undefined' ? {} : Deno.env.toObject?.() ?? {}) as Record<
+  const env = (typeof Deno === 'undefined' ? {} : (Deno.env.toObject?.() ?? {})) as Record<
     string,
     string
   >;

@@ -446,7 +446,7 @@ const resData = (responseData: ResData, request: PlatformRequest): MockResponse 
       emitResponseListeners(this._listeners, event, args);
     },
     _writer: null as StreamWriter | null,
-    _listeners: {} as Record<string, unknown[]>,
+    _listeners: {},
   };
 };
 

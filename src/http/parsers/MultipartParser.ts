@@ -187,10 +187,12 @@ export const parseMultipartFormData = (
  */
 export const MultipartParser = Object.freeze({
   /**
-   * Check if content-type is multipart/form-data
+   * Check if content-type is multipart/form-data.
+   * The check is case-insensitive so callers can preserve the original
+   * content-type value (and its case-sensitive boundary) for parsing.
    */
   isMultipart(contentType: string): boolean {
-    return contentType.includes('multipart/form-data');
+    return contentType.toLowerCase().includes('multipart/form-data');
   },
 
   /**

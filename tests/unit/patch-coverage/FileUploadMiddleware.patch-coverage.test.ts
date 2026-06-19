@@ -39,12 +39,14 @@ describe('patch coverage: FileUploadMiddleware', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('returns 415 when multipart but no provider is registered', async () => {
+  it('throws config error when multipart streams but no provider is registered', async () => {
     MultipartParserRegistry.clear();
 
     const next = vi.fn(async () => undefined);
+    // Pipeable (Node-style) request with no buffered body: requires a streaming parser.
     const req = {
       getHeader: () => 'multipart/form-data; boundary=abc',
+      getRaw: () => ({ pipe: () => undefined }) as any,
     } as unknown as IRequest;
     const res = makeRes();
 
@@ -56,6 +58,45 @@ describe('patch coverage: FileUploadMiddleware', () => {
     expect(res.getStatus()).toBe(200);
     expect(res._json).toBeUndefined();
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('parses a buffered binary body with the built-in parser (no provider needed)', async () => {
+    MultipartParserRegistry.clear();
+
+    // Boundary contains uppercase chars: must be preserved (case-sensitive).
+    const boundary = 'BoUnDaRy123';
+    const multipartBody = Buffer.from(
+      `--${boundary}\r\n` +
+        'Content-Disposition: form-data; name="title"\r\n\r\n' +
+        'hello world\r\n' +
+        `--${boundary}\r\n` +
+        'Content-Disposition: form-data; name="doc[reg_cer]"; filename="cert.png"\r\n' +
+        'Content-Type: image/png\r\n\r\n' +
+        'BINARY\r\n' +
+        `--${boundary}--\r\n`
+    );
+
+    const next = vi.fn(async () => undefined);
+    let body: unknown = {};
+    const req = {
+      getHeader: () => `multipart/form-data; boundary=${boundary}`,
+      getRaw: () => ({ body: multipartBody }) as any,
+      getBody: () => body,
+      setBody: (nextBody: unknown) => {
+        body = nextBody;
+      },
+    } as unknown as IRequest;
+    const res = makeRes();
+
+    await fileUploadMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    const parsedBody = body as Record<string, any>;
+    expect(parsedBody['title']).toBe('hello world');
+    // Original bracket field name and its dotted alias both present.
+    expect(parsedBody['__files']['doc[reg_cer]']).toBeDefined();
+    expect(parsedBody['__files']['doc.reg_cer']).toBeDefined();
+    expect(parsedBody['__files']['doc.reg_cer'][0].originalName).toBe('cert.png');
   });
 
   it('parses multipart via provider and merges fields/files into body', async () => {
@@ -82,7 +123,7 @@ describe('patch coverage: FileUploadMiddleware', () => {
     let body: unknown = { existing: true };
     const req = {
       getHeader: () => 'multipart/form-data; boundary=abc',
-      getRaw: () => ({}) as any,
+      getRaw: () => ({ pipe: () => undefined }) as any,
       getBody: () => body,
       setBody: (nextBody: unknown) => {
         body = nextBody;
@@ -110,7 +151,7 @@ describe('patch coverage: FileUploadMiddleware', () => {
     const next = vi.fn(async () => undefined);
     const req = {
       getHeader: () => 'multipart/form-data; boundary=abc',
-      getRaw: () => ({}) as any,
+      getRaw: () => ({ pipe: () => undefined }) as any,
       getBody: () => ({ foo: 'bar' }),
       setBody: vi.fn(),
     } as unknown as IRequest;
@@ -135,7 +176,7 @@ describe('patch coverage: FileUploadMiddleware', () => {
     const next = vi.fn(async () => undefined);
     const req = {
       getHeader: () => 'multipart/form-data; boundary=abc',
-      getRaw: () => ({}) as any,
+      getRaw: () => ({ pipe: () => undefined }) as any,
       getBody: () => undefined,
       setBody: vi.fn(),
     } as unknown as IRequest;

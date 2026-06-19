@@ -87,6 +87,34 @@ describe('CloudflareAdapter', () => {
     expect(String(result.body)).toBe('done');
   });
 
+  it('handle should read multipart bodies as a binary Buffer (not text)', async () => {
+    let receivedBody: unknown;
+    const adapter = CloudflareAdapter.create({
+      handler: async (req, res) => {
+        receivedBody = (req as unknown as { body?: unknown }).body;
+        (res as unknown as { end: (chunk: string) => void }).end('ok');
+      },
+    });
+
+    const multipart = Buffer.from('--Bd\r\nbinary\x00bytes\r\n--Bd--\r\n');
+    const textSpy = vi.fn(async () => 'should-not-be-called');
+    const event = {
+      method: 'POST',
+      url: 'https://example.test/upload',
+      headers: new Headers({ 'content-type': 'multipart/form-data; boundary=Bd' }),
+      text: textSpy,
+      arrayBuffer: async () =>
+        multipart.buffer.slice(multipart.byteOffset, multipart.byteOffset + multipart.byteLength),
+      body: null,
+    } as unknown as import('@/runtime/adapters/CloudflareAdapter').CloudflareRequest;
+
+    await adapter.handle(event);
+
+    expect(textSpy).not.toHaveBeenCalled();
+    expect(Buffer.isBuffer(receivedBody)).toBe(true);
+    expect((receivedBody as Buffer).equals(multipart)).toBe(true);
+  });
+
   it('handle should preserve status set through the framework response wrapper', async () => {
     const adapter = CloudflareAdapter.create({
       handler: async (_req, res) => {

@@ -107,6 +107,32 @@ export const CloudflareAdapter = Object.freeze({
 });
 
 /**
+ * Read the Cloudflare request body in a content-type aware way.
+ *
+ * Multipart bodies are read as a binary Buffer (via arrayBuffer) so uploaded
+ * files are not corrupted by text decoding. All other bodies are read as text,
+ * preserving the previous behavior for JSON / urlencoded / text payloads.
+ */
+async function readCloudflareRequestBody(
+  request: CloudflareRequest,
+  platformRequest: PlatformRequest
+): Promise<Buffer | string | null> {
+  if (request.method === 'GET' || request.method === 'HEAD') return null;
+
+  const rawContentType = platformRequest.headers['content-type'];
+  const contentType = Array.isArray(rawContentType)
+    ? (rawContentType[0] ?? '')
+    : (rawContentType ?? '');
+
+  if (contentType.toLowerCase().includes('multipart/form-data')) {
+    const arrayBuffer = await request.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  return request.text();
+}
+
+/**
  * Handle Cloudflare request
  */
 async function handleCloudflareRequest(
@@ -121,9 +147,10 @@ async function handleCloudflareRequest(
     // Parse incoming request
     const platformRequest = adapter.parseRequest(request);
 
-    // Read request body
-    const body =
-      request.method !== 'GET' && request.method !== 'HEAD' ? await request.text() : null;
+    // Read request body. Multipart bodies may contain binary bytes, so read them
+    // as an ArrayBuffer and keep a binary Buffer — converting to text first would
+    // corrupt uploaded files. Other content types remain text for downstream parsing.
+    const body = await readCloudflareRequestBody(request, platformRequest);
     platformRequest.body = body;
 
     // Create mock Node.js request/response objects

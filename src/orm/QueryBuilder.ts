@@ -114,7 +114,7 @@ interface QueryState {
   offsetValue?: number;
   orderByClauses: Array<{ column: string; direction: 'ASC' | 'DESC' }>;
   randomOrder: boolean;
-  joins: Array<{ table: string; on: string }>;
+  joins: Array<{ table: string; on: string; type: 'INNER' | 'LEFT' }>;
   softDelete?: { column: string; mode: SoftDeleteMode };
   eagerLoads: string[];
   eagerLoadConstraints: EagerLoadConstraints;
@@ -641,6 +641,28 @@ const buildLimitOffsetClause = (limit?: number, offset?: number): string => {
   return sql;
 };
 
+// Matches `left OP right` where both sides are identifier paths (e.g.
+// `users.id = profiles.user_id`). Operator alternation lists the two-char
+// operators before their single-char prefixes so `<=`/`>=`/`<>` win the match.
+const JOIN_CONDITION =
+  /^([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*(=|!=|<>|<=|>=|<|>)\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)$/;
+
+const buildJoinClause = (joins: QueryState['joins'], dialect?: string): string =>
+  joins
+    .map(({ table, on, type }) => {
+      assertSafeIdentifierPath(table, 'join table');
+      const match = JOIN_CONDITION.exec(on.trim());
+      if (!match) {
+        throw ErrorFactory.createDatabaseError('Unsafe SQL join condition');
+      }
+      const [, left, op, right] = match;
+      return ` ${type} JOIN ${escapeIdentifier(table, dialect)} ON ${escapeIdentifier(
+        left,
+        dialect
+      )} ${op} ${escapeIdentifier(right, dialect)}`;
+    })
+    .join('');
+
 const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown[] } => {
   if (state.tableName.length > 0) {
     assertSafeIdentifierPath(state.tableName, 'table name');
@@ -649,8 +671,9 @@ const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown
   const columns = buildSelectClause(state.selectColumns, state.dialect);
   const fromClause =
     state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName, state.dialect)}` : '';
+  const joinClause = buildJoinClause(state.joins, state.dialect);
   const where = compileWhere(getEffectiveWhereConditions(state), state.dialect);
-  const sql = `SELECT ${columns}${fromClause}${where.sql}${buildOrderByClause(
+  const sql = `SELECT ${columns}${fromClause}${joinClause}${where.sql}${buildOrderByClause(
     state.orderByClauses,
     state.randomOrder,
     state.dialect
@@ -1053,10 +1076,13 @@ function attachSoftDeleteMethods(builder: IQueryBuilder, state: QueryState): voi
 
 function attachJoinOrderPagingMethods(builder: IQueryBuilder, state: QueryState): void {
   builder.join = (tableJoin, on) => {
-    state.joins.push({ table: tableJoin, on });
+    state.joins.push({ table: tableJoin, on, type: 'INNER' });
     return builder;
   };
-  builder.leftJoin = (tableJoin, on) => builder.join(tableJoin, on);
+  builder.leftJoin = (tableJoin, on) => {
+    state.joins.push({ table: tableJoin, on, type: 'LEFT' });
+    return builder;
+  };
   builder.orderBy = (column, direction = 'ASC') => {
     applyOrderByClause(state, column, direction);
     return builder;

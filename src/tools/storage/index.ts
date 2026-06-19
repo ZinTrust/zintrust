@@ -24,6 +24,7 @@ const normalizers: Record<string, (raw: Record<string, unknown>) => Record<strin
     accessKeyId: String(raw['accessKeyId'] ?? raw['key'] ?? ''),
     secretAccessKey: String(raw['secretAccessKey'] ?? raw['secret'] ?? ''),
     endpoint: typeof raw['endpoint'] === 'string' ? raw['endpoint'] : undefined,
+    url: typeof raw['url'] === 'string' ? raw['url'] : undefined,
     usePathStyle: Boolean(raw['usePathStyle'] ?? raw['usePathStyleUrl'] ?? false),
   }),
   r2: (raw) => ({

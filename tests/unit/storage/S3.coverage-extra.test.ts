@@ -100,6 +100,24 @@ describe('S3Driver extra coverage', () => {
     expect(signed).toContain('X-Amz-Signature=');
   });
 
+  it('url uses public base URL (no bucket segment) while tempUrl still signs the endpoint', () => {
+    const cfg = {
+      bucket: 'mybucket',
+      region: 'us-east-1',
+      accessKeyId: 'AK',
+      secretAccessKey: 'SK',
+      endpoint: 'https://minio.local:9000/',
+      url: 'https://cdn.example.com/',
+    };
+
+    // Public URL: served from the custom domain root, no bucket segment.
+    expect(S3Driver.url(cfg, 'a/b.txt')).toBe('https://cdn.example.com/a/b.txt');
+
+    // Signing endpoint stays path-style and independent of the public URL.
+    const signed = S3Driver.tempUrl(cfg, 'a/b.txt', { expiresIn: 60, method: 'GET' });
+    expect(signed).toContain('https://minio.local:9000/mybucket/a/b.txt?');
+  });
+
   it('uses AWS_SESSION_TOKEN when set', async () => {
     process.env['AWS_ACCESS_KEY_ID'] = 'AKIA';
     process.env['AWS_SECRET_ACCESS_KEY'] = 'SECRET';
