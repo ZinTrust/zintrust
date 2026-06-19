@@ -65,8 +65,35 @@ const isPipeable = (req: IRequest): boolean => {
  * e.g. `doc[reg_cer]` -> `doc.reg_cer`, `doc[reg_cer][file]` -> `doc.reg_cer.file`.
  * Empty brackets (`files[]`) collapse to the base name (`files`).
  */
-const toDottedName = (name: string): string =>
-  name.replaceAll(/\[([^\]]*)\]/g, (_match, inner: string) => (inner === '' ? '' : `.${inner}`));
+const toDottedName = (name: string): string => {
+  let result = '';
+  let cursor = 0;
+
+  while (cursor < name.length) {
+    const openBracket = name.indexOf('[', cursor);
+    if (openBracket === -1) {
+      result += name.slice(cursor);
+      break;
+    }
+
+    result += name.slice(cursor, openBracket);
+
+    const closeBracket = name.indexOf(']', openBracket + 1);
+    if (closeBracket === -1) {
+      result += name.slice(openBracket);
+      break;
+    }
+
+    const inner = name.slice(openBracket + 1, closeBracket);
+    if (inner !== '') {
+      result += `.${inner}`;
+    }
+
+    cursor = closeBracket + 1;
+  }
+
+  return result;
+};
 
 /**
  * Add dotted-notation aliases for any bracket-notation keys, without removing

@@ -72,4 +72,29 @@ describe('QueryBuilder Extended Advanced', () => {
     expect(builder.getOrderBy()).toEqual({ column: 'name', direction: 'ASC' });
     expect(builder.getJoins()).toHaveLength(1);
   });
+
+  it('renders an INNER JOIN clause in the compiled SQL', () => {
+    const sql = QueryBuilder.create('account_keys')
+      .select('account_keys.wrapped_private_key', 'users.daily_limit')
+      .where('user_id', '=', 'u1')
+      .join('users', 'account_keys.user_id = users.id')
+      .toSQL();
+
+    expect(sql).toContain('INNER JOIN "users" ON "account_keys"."user_id" = "users"."id"');
+    expect(sql.indexOf('JOIN')).toBeLessThan(sql.indexOf('WHERE'));
+  });
+
+  it('renders a LEFT JOIN clause distinct from inner joins', () => {
+    const sql = QueryBuilder.create('users')
+      .leftJoin('profiles', 'users.id = profiles.user_id')
+      .toSQL();
+
+    expect(sql).toContain('LEFT JOIN "profiles" ON "users"."id" = "profiles"."user_id"');
+  });
+
+  it('rejects an unsafe join condition', () => {
+    expect(() =>
+      QueryBuilder.create('users').join('profiles', 'users.id = profiles.user_id; DROP TABLE users').toSQL()
+    ).toThrow();
+  });
 });
