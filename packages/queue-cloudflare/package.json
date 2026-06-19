@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-cloudflare",
-  "version": "2.9.0",
+  "version": "3.0.0",
   "description": "Cloudflare Queues driver for ZinTrust.",
   "private": false,
   "type": "module",
