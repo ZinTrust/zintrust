@@ -22,6 +22,8 @@ const resetBroadcastEnv = (): void => {
   delete process.env['ZINTRUST_SOCKET_HOST'];
   delete process.env['ZINTRUST_SOCKET_PORT'];
   delete process.env['X_ZINTRUST_SOCKET_SEC'];
+  delete process.env['BROADCAST_INTERNAL_PUBLISH_RETRIES'];
+  delete process.env['BROADCAST_INTERNAL_PUBLISH_RETRY_BASE_MS'];
 };
 
 const setBroadcastEnv = (values: Record<string, string>): void => {
@@ -219,7 +221,11 @@ describe('Broadcast (later + now patch coverage)', () => {
   });
 
   it('retries the alternate loopback host before falling back to the in-process socket transport', async () => {
-    setBroadcastEnv({ BASE_URL: 'http://127.0.0.1:7777', PUSHER_APP_ID: 'app-1' });
+    setBroadcastEnv({
+      BASE_URL: 'http://127.0.0.1:7777',
+      PUSHER_APP_ID: 'app-1',
+      BROADCAST_INTERNAL_PUBLISH_RETRIES: '1',
+    });
 
     const fetchMock = vi
       .fn()
@@ -364,7 +370,11 @@ describe('Broadcast (later + now patch coverage)', () => {
   });
 
   it('tries localhost and ipv6 loopback aliases before falling back to the driver', async () => {
-    setBroadcastEnv({ APP_URL: 'http://localhost:7788', PUSHER_APP_ID: 'loopback-app' });
+    setBroadcastEnv({
+      APP_URL: 'http://localhost:7788',
+      PUSHER_APP_ID: 'loopback-app',
+      BROADCAST_INTERNAL_PUBLISH_RETRIES: '1',
+    });
     const fetchMock = vi.fn().mockRejectedValue('boom');
     const loggerWarn = vi.fn();
     vi.doMock('@config/logger', () => ({
@@ -399,6 +409,79 @@ describe('Broadcast (later + now patch coverage)', () => {
       'Broadcast publish transport failed; falling back.',
       expect.objectContaining({ transport: 'internal-http', error: 'boom' })
     );
+  });
+
+  it('retries the same endpoint on a transient edge status before succeeding', async () => {
+    setBroadcastEnv({
+      BASE_URL: 'http://127.0.0.1:7766',
+      PUSHER_APP_ID: 'retry-app',
+      BROADCAST_INTERNAL_PUBLISH_RETRIES: '3',
+      BROADCAST_INTERNAL_PUBLISH_RETRY_BASE_MS: '0',
+    });
+    const loggerWarn = vi.fn();
+    vi.doMock('@config/logger', () => ({
+      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
+    }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(createJsonResponse('origin unreachable', 522))
+      .mockResolvedValueOnce(createJsonResponse('origin unreachable', 522))
+      .mockResolvedValueOnce(
+        createJsonResponse(JSON.stringify({ ok: true, event: 'evt', channels: ['alpha'] }))
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+    ).resolves.toMatchObject({
+      transport: 'internal-http',
+      channels: ['alpha'],
+      endpoint: 'http://127.0.0.1:7766/apps/retry-app/events',
+    });
+
+    // The first endpoint is retried twice through the 522 blip before succeeding,
+    // i.e. all three calls hit the same primary endpoint rather than failing over.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://127.0.0.1:7766/apps/retry-app/events',
+      expect.any(Object)
+    );
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'Broadcast internal publish retrying transient failure.',
+      expect.objectContaining({ status: 522, attempt: 1, maxAttempts: 3 })
+    );
+  });
+
+  it('does not retry a non-transient application status', async () => {
+    setBroadcastEnv({
+      BASE_URL: 'http://127.0.0.1:7755',
+      PUSHER_APP_ID: 'no-retry-app',
+      BROADCAST_INTERNAL_PUBLISH_RETRIES: '3',
+      BROADCAST_INTERNAL_PUBLISH_RETRY_BASE_MS: '0',
+    });
+    installSocketMock(async () => ({
+      ok: true,
+      transport: 'node' as const,
+      channels: ['alpha'],
+      event: 'evt',
+      deliveries: 1,
+    }));
+    const fetchMock = vi.fn(async () => createJsonResponse('forbidden', 403));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { Broadcast } = await import('@broadcast/Broadcast');
+    await expect(
+      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+    ).resolves.toMatchObject({
+      transport: 'socket',
+      attemptedTransports: ['internal-http', 'socket'],
+    });
+
+    // 403 reached the origin, so each loopback endpoint is hit exactly once (no
+    // per-endpoint retry) before falling back: two endpoints => two calls, not six.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to driver when forced socket delivery is unavailable', async () => {
@@ -437,6 +520,7 @@ describe('Broadcast (later + now patch coverage)', () => {
     setBroadcastEnv({
       BROADCAST_INTERNAL_URL: 'http://[::1]:7799',
       BROADCAST_APP_ID: 'persist-app',
+      BROADCAST_INTERNAL_PUBLISH_RETRIES: '1',
     });
     const fetchMock = vi
       .fn()
