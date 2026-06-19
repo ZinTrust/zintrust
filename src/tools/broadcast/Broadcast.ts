@@ -1,9 +1,9 @@
 import { isArray, isNonEmptyString, isObject } from '@/helper';
-import { delay } from '@common/index';
 import { InMemoryDriver } from '@broadcast/drivers/InMemory';
 import { PusherDriver } from '@broadcast/drivers/Pusher';
 import { RedisDriver } from '@broadcast/drivers/Redis';
 import { RedisHttpsDriver } from '@broadcast/drivers/RedisHttps';
+import { delay } from '@common/index';
 import broadcastConfig from '@config/broadcast';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
@@ -132,7 +132,8 @@ const resolveInternalPublishRetryConfig = (): Readonly<{
 // exponential backoff + full jitter
 const computeRetryDelayMs = (baseDelayMs: number, attempt: number): number => {
   const exponential = baseDelayMs * Math.pow(2, attempt - 1);
-  const jitter = baseDelayMs === 0 ? 0 : Math.floor(Math.random() * baseDelayMs);
+  const num = Math.random(); // NOSONAR
+  const jitter = baseDelayMs === 0 ? 0 : Math.floor(num * baseDelayMs);
   return exponential + jitter;
 };
 
@@ -499,35 +500,36 @@ const requestInternalPublishEndpoint = async (
     event: string;
     data: unknown;
     socket_id?: string;
-  }
+  },
+  attempt = 1,
+  retryConfig?: Readonly<{ maxAttempts: number; baseDelayMs: number }>
 ): Promise<BroadcastTransportAttemptResult> => {
-  const { maxAttempts, baseDelayMs } = resolveInternalPublishRetryConfig();
-  let lastAttempt: BroadcastTransportAttemptResult = { result: null };
+  const { maxAttempts, baseDelayMs } = retryConfig ?? resolveInternalPublishRetryConfig();
+  const result = await attemptInternalPublishEndpoint(endpoint, secret, payload);
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    lastAttempt = await attemptInternalPublishEndpoint(endpoint, secret, payload);
-
-    if (lastAttempt.result !== null) {
-      return lastAttempt;
-    }
-
-    // Non-transient failures (application 4xx, etc.) reached the origin; do not retry.
-    if (lastAttempt.transient !== true || attempt >= maxAttempts) {
-      break;
-    }
-
-    const delayMs = computeRetryDelayMs(baseDelayMs, attempt);
-    Logger.warn('Broadcast internal publish retrying transient failure.', {
-      endpoint,
-      attempt,
-      maxAttempts,
-      delayMs,
-      status: lastAttempt.status,
-    });
-    await delay(delayMs);
+  if (result.result !== null) {
+    return result;
   }
 
-  return lastAttempt;
+  // Non-transient failures (application 4xx, etc.) reached the origin; do not retry.
+  if (result.transient !== true || attempt >= maxAttempts) {
+    return result;
+  }
+
+  const delayMs = computeRetryDelayMs(baseDelayMs, attempt);
+  Logger.warn('Broadcast internal publish retrying transient failure.', {
+    endpoint,
+    attempt,
+    maxAttempts,
+    delayMs,
+    status: result.status,
+  });
+  await delay(delayMs);
+
+  return requestInternalPublishEndpoint(endpoint, secret, payload, attempt + 1, {
+    maxAttempts,
+    baseDelayMs,
+  });
 };
 
 const tryInternalPublishEndpoints = async (
