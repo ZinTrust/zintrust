@@ -35,7 +35,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@zintrust/core": "2.7.2",
+    "@zintrust/core": "2.7.3",
     "bullmq": "^5.77.6",
     "dotenv": "^17.2.3",
     "ioredis": "^5.11.0"
