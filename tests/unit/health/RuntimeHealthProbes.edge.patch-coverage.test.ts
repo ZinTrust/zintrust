@@ -32,7 +32,7 @@ describe('RuntimeHealthProbes edge cases', () => {
     const { RuntimeHealthProbes } = await import('@/../src/health/RuntimeHealthProbes');
 
     await expect(RuntimeHealthProbes.pingKvCache(10)).rejects.toThrow(
-      'Configured KV binding not found'
+      'Configured KV binding "CACHE" not found'
     );
   });
 
