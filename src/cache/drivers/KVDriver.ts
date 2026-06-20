@@ -12,8 +12,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
  * Create a new KV driver instance
  */
 const create = (): CacheDriver => {
-  // In Cloudflare Workers, the KV namespace is usually bound to a variable in the environment
-  const kv = Cloudflare.getKVBinding('CACHE');
+  const kv = Cloudflare.getKVBinding();
 
   return {
     async get<T>(key: string): Promise<T | null> {
@@ -24,7 +23,7 @@ const create = (): CacheDriver => {
 
     async set<T>(key: string, value: T, ttl?: number): Promise<void> {
       if (kv === null) {
-        Logger.warn('KV binding "CACHE" not found. Cache set ignored.');
+        Logger.warn('Configured KV binding not found. Cache set ignored.');
         return;
       }
 

@@ -35,7 +35,7 @@ describe('KVDriver', () => {
     await expect(driver.has('k')).resolves.toBe(false);
     await expect(driver.delete('k')).resolves.toBeUndefined();
 
-    expect(loggerWarn).toHaveBeenCalledWith('KV binding "CACHE" not found. Cache set ignored.');
+    expect(loggerWarn).toHaveBeenCalledWith('Configured KV binding not found. Cache set ignored.');
   });
 
   it('uses KV namespace when env.CACHE is present (get/set/delete/has)', async () => {

@@ -48,9 +48,9 @@ const pingKvCache = async (timeoutMs = 2000): Promise<number | null> => {
 
   const start = Date.now();
 
-  const kv = Cloudflare.getKVBinding('CACHE');
+  const kv = Cloudflare.getKVBinding();
   if (kv === null) {
-    throw ErrorFactory.createConfigError('KV binding "CACHE" not found');
+    throw ErrorFactory.createConfigError('Configured KV binding "CACHE" not found');
   }
 
   const key = `__runtime_health__:kv:${Date.now()}`;
