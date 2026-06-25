@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { createRedisRpcClient } from './client.ts';
-import { listenRedisRpcServer } from './server.ts';
-import { rpcServerOptions } from './env.ts';
-import { createBullMqRpcQueue, createQueueMonitorRpcDriver, createRedisRpcService, createWorkerRpcRuntime } from './adapters.ts';
+import { createRedisRpcClient } from './src/client.ts';
+import { listenRedisRpcServer } from './src/server.ts';
+import { rpcServerOptions } from './src/env.ts';
+import { createBullMqRpcQueue, createQueueMonitorRpcDriver, createRedisRpcService, createWorkerRpcRuntime } from './src/adapters.ts';
 
 const settings = rpcServerOptions();
 const secret = settings.secret || 'redis-rpc-test-secret';

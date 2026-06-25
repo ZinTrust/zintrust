@@ -101,7 +101,7 @@ Set both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` to make supported ZinTrust p
 From the repository:
 
 ```bash
-tsx packages/redis-rpc/server.ts
+tsx packages/redis-rpc/src/server.ts
 ```
 
 From a ZinTrust project with `@zintrust/redis-rpc` installed:

@@ -4,6 +4,7 @@
     "module": "ES2022",
     "lib": ["es2023", "dom", "esnext.disposable"],
     "moduleResolution": "bundler",
+    "rootDir": "./src",
     "skipLibCheck": true,
     "types": ["node"],
     "outDir": "./dist",
@@ -13,6 +14,6 @@
     "composite": false,
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
-  "include": ["*.ts"],
-  "exclude": ["node_modules", "dist", "test-*.mjs"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
