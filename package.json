@@ -402,10 +402,10 @@
       "axios": "^1.16.1"
     },
     "@actions/github": {
-      "undici": "^6.24.0"
+      "undici": "^6.27.0"
     },
     "@actions/http-client": {
-      "undici": "^6.24.0"
+      "undici": "^6.27.0"
     },
     "miniflare": {
       "undici": "^7.28.0"
