@@ -1,0 +1,29 @@
+ZinTrust Redis RPC — Dual License
+
+Copyright (c) 2026 ZinTrust (https://zintrust.com)
+
+You may use `@zintrust/redis-rpc` only under ONE of the following licenses.
+
+## Option 1: Apache License 2.0 (Community Use)
+
+The Apache License, Version 2.0 (see LICENSE-APACHE-2.0) applies when your use
+qualifies as **Community Use**:
+
+- Personal, educational, or evaluation use
+- Non-production environments (local development, CI, automated testing, staging)
+- Open-source projects released under an OSI-approved open-source license
+- Commercial organizations with fewer than 100 full-time employees **and** less than
+  US$1,000,000 in annual gross revenue
+
+## Option 2: ZinTrust Commercial License
+
+If your use does **not** qualify as Community Use, or you want additional rights
+(indemnification, SLA, priority support, trademark use, or OEM redistribution terms),
+you need a written Commercial License from ZinTrust. See COMMERCIAL-LICENSE.md.
+
+Contact: https://zintrust.com/licensing
+
+## No license by default
+
+If you do not have a Commercial License and your use does not qualify as Community
+Use, you are not authorized to use this software.

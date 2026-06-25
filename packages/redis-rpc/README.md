@@ -305,3 +305,14 @@ npm --prefix packages/redis-rpc run test
 ```
 
 The smoke test starts the RPC server, verifies Redis `PING`, adds jobs, exercises queue lifecycle calls, reads queue monitor snapshots, removes jobs, drains, cleans, and obliterates the temporary queue.
+
+## Licensing
+
+`@zintrust/redis-rpc` is dual-licensed:
+
+- **Apache License 2.0** for [Community Use](LICENSE): development, testing, staging, open-source projects, and commercial organizations with fewer than 100 employees and less than US$1M annual gross revenue.
+- **ZinTrust Commercial License** for production commercial use outside those limits, or when you need enterprise terms (SLA, indemnification, OEM). See [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
+
+Full Apache 2.0 text: [LICENSE-APACHE-2.0](LICENSE-APACHE-2.0). License chooser: [LICENSE](LICENSE).
+
+Contact: https://zintrust.com/licensing

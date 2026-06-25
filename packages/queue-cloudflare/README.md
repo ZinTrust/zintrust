@@ -24,12 +24,17 @@ const queue = CloudflareQueues.create({
   },
 });
 
-const job = await queue.add('email-queue', 'send-email', { to: 'user@example.com' }, {
-  attempts: 5,
-  backoff: { type: 'exponential', delay: 1000 },
-  priority: 2,
-  delay: 30000,
-});
+const job = await queue.add(
+  'email-queue',
+  'send-email',
+  { to: 'user@example.com' },
+  {
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 1000 },
+    priority: 2,
+    delay: 30000,
+  }
+);
 
 await queue.getJob('email-queue', job.id);
 await queue.getJobCounts('email-queue', 'waiting', 'active', 'completed', 'failed');
@@ -40,18 +45,16 @@ Inside a Cloudflare Worker, bind the queue in `wrangler.jsonc`:
 ```jsonc
 {
   "queues": {
-    "producers": [
-      { "queue": "email-queue", "binding": "EMAIL_QUEUE" }
-    ],
+    "producers": [{ "queue": "email-queue", "binding": "EMAIL_QUEUE" }],
     "consumers": [
       {
         "queue": "email-queue",
         "max_batch_size": 10,
         "max_retries": 3,
-        "dead_letter_queue": "email-dlq"
-      }
-    ]
-  }
+        "dead_letter_queue": "email-dlq",
+      },
+    ],
+  },
 }
 ```
 
@@ -63,32 +66,32 @@ Add the state bindings when using BullMQ-like metadata:
     {
       "binding": "QUEUE_DB",
       "database_name": "zintrust-queue",
-      "database_id": "<database-id>"
-    }
+      "database_id": "<database-id>",
+    },
   ],
   "kv_namespaces": [
     {
       "binding": "QUEUE_KV",
-      "id": "<namespace-id>"
-    }
+      "id": "<namespace-id>",
+    },
   ],
   "durable_objects": {
     "bindings": [
       {
         "name": "QUEUE_COORDINATOR",
-        "class_name": "CloudflareQueueCoordinator"
-      }
-    ]
+        "class_name": "CloudflareQueueCoordinator",
+      },
+    ],
   },
   "migrations": [
     {
       "tag": "queue-cloudflare-v1",
-      "new_sqlite_classes": ["CloudflareQueueCoordinator"]
-    }
+      "new_sqlite_classes": ["CloudflareQueueCoordinator"],
+    },
   ],
   "triggers": {
-    "crons": ["* * * * *"]
-  }
+    "crons": ["* * * * *"],
+  },
 }
 ```
 
@@ -153,6 +156,3 @@ Environment fallbacks:
 - `CLOUDFLARE_API_BASE_URL`
 
 The driver registers as both `cloudflare` and `cloudflare-queues`.
-
-For the BullMQ-compatible state-layer roadmap, see
-[BULLMQ_COMPATIBILITY_PLAN.md](./BULLMQ_COMPATIBILITY_PLAN.md).
