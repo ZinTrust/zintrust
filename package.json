@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.7.4",
+  "version": "2.8.0",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -263,7 +263,7 @@
     "idea": "npm --prefix ideas run deploy",
     "idea:dry-run": "npm --prefix ideas run deploy:dry-run",
     "idea:dev": "npm --prefix ideas run dev",
-    "deploy": "node scripts/run-local-wrangler.mjs --cwd docs-website -- wrangler types && node scripts/run-local-wrangler.mjs --cwd docs-website -- wrangler deploy --env ${WRANGLER_ENV:-production}",
+    "deploy": "npm run dbl && node scripts/run-local-wrangler.mjs --cwd docs-website -- wrangler types && node scripts/run-local-wrangler.mjs --cwd docs-website -- wrangler deploy --env ${WRANGLER_ENV:-production}",
     "deploy:wk": "wrangler deploy --env worker",
     "deploy:d1": "wrangler deploy --env d1-proxy",
     "deploy:kv": "wrangler deploy --env kv-proxy",

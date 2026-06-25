@@ -152,7 +152,7 @@ describe('createRedisRpcBackend stale active recovery', () => {
     mockState.moveToActive.mockResolvedValue([{ name: 'email', data: { ok: true } }, 'next-1']);
     mockState.fromJSON.mockReturnValue(dequeuedJob);
 
-    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/backend.ts');
+    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/src/backend.ts');
     const backend = createRedisRpcBackend({ prefix: 'bull' });
 
     await expect(
@@ -205,7 +205,7 @@ describe('createRedisRpcBackend stale active recovery', () => {
     mockState.moveToActive.mockResolvedValue([{ name: 'report', data: { ok: true } }, 'next-2']);
     mockState.fromJSON.mockReturnValue(dequeuedJob);
 
-    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/backend.ts');
+    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/src/backend.ts');
     const backend = createRedisRpcBackend({ prefix: 'bull' });
 
     await expect(
@@ -262,7 +262,7 @@ describe('createRedisRpcBackend stale active recovery', () => {
     };
     mockState.getJob.mockResolvedValue(job);
 
-    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/backend.ts');
+    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/src/backend.ts');
     const backend = createRedisRpcBackend({ prefix: 'bull' });
 
     await expect(
@@ -303,7 +303,7 @@ describe('createRedisRpcBackend stale active recovery', () => {
     mockState.getJobs.mockResolvedValue([staleJob]);
     mockState.getJobCounts.mockResolvedValue({ active: 0, failed: 1 });
 
-    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/backend.ts');
+    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/src/backend.ts');
     const backend = createRedisRpcBackend({ prefix: 'bull' });
 
     await expect(
@@ -340,7 +340,7 @@ describe('createRedisRpcBackend stale active recovery', () => {
       .mockResolvedValueOnce([staleJob])
       .mockResolvedValueOnce([{ id: 'recent-1', name: 'recent' }]);
 
-    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/backend.ts');
+    const { createRedisRpcBackend } = await import('../../../../packages/redis-rpc/src/backend.ts');
     const backend = createRedisRpcBackend({ prefix: 'bull' });
 
     await expect(
