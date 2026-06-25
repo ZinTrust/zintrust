@@ -132,7 +132,7 @@ const readWorkerManifestGlobalKeys = (): string[] => {
 
     const csv = raw
       .split(',')
-      .map((key) => key.trim())
+      .map((key: string) => key.trim())
       .filter(Boolean);
     if (csv.length > 0) return Array.from(new Set(csv));
   }

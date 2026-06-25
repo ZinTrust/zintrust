@@ -66,8 +66,8 @@ export const readWorkerManifestGlobalKeys = (): string[] => {
     const csvKeys = normalizeKeyList(
       raw
         .split(',')
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0)
+        .map((value: string) => value.trim())
+        .filter((value: string) => value.length > 0)
     );
     if (csvKeys.length > 0) {
       return csvKeys;
