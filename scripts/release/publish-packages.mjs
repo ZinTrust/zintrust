@@ -312,6 +312,16 @@ async function assertCoreShimHasRequiredExports() {
     'trace.d.ts': ['export declare const ShutdownTrace: {'],
     'cloudflare.d.ts': ['export declare const Cloudflare: any;'],
     'redis.d.ts': ['export declare function createRedisConnection(...args: any[]): any;'],
+    'helper.d.ts': [
+      'export declare function isArray(value: unknown): value is unknown[];',
+      'export declare function isObject(value: unknown): value is Record<string, unknown>;',
+      'export declare function isNonEmptyString(value: unknown): value is string;',
+      'export declare function isNullish<T>(value: T | null | undefined): value is null | undefined;',
+      'export declare function isUndefinedOrNull(value: unknown): boolean;',
+      'export declare function isNull(value: unknown): boolean;',
+      'export declare function isUndefined(value: unknown): boolean;',
+    ],
+    'tasks.d.ts': ['export declare const BackgroundTaskScheduler: any;'],
     'mail.d.ts': ['export declare const MailDriverRegistry: any;'],
     'database.d.ts': [
       'export declare const DatabaseAdapterRegistry: any;',
@@ -426,11 +436,23 @@ function getPublishedVersion(packageName) {
   throw new Error(`npm view failed for ${packageName}: ${flattenForTableCell(combined).trim()}`);
 }
 
-function verifyCorePublishedOrThrow(coreVersion) {
+async function verifyCorePublishedOrThrow(coreVersion, { attempts = 1, delayMs = 0 } = {}) {
   // Only useful for real publishing; dry-run can be used to validate packaging without network assumptions.
   if (isDryRun) return;
-  const published = isPublishedOnNpm({ packageName: '@zintrust/core', version: coreVersion });
-  if (!published) throw new Error(`@zintrust/core@${coreVersion} is not published on npm`);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const published = isPublishedOnNpm({ packageName: '@zintrust/core', version: coreVersion });
+    if (published) return;
+
+    if (attempt < attempts) {
+      process.stdout.write(
+        `@zintrust/core@${coreVersion} is not visible on npm yet; retrying in ${Math.round(delayMs / 1000)}s (${attempt}/${attempts})\n`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw new Error(`@zintrust/core@${coreVersion} is not published on npm`);
 }
 
 async function writePublishReport({ failures, successes, checkIssues, reportPath }) {
@@ -796,6 +818,10 @@ async function createCoreShim(coreVersion) {
         types: './helper.d.ts',
         import: './helper.js',
       },
+      './tasks': {
+        types: './tasks.d.ts',
+        import: './tasks.js',
+      },
       './storage': {
         types: './storage.d.ts',
         import: './storage.js',
@@ -907,6 +933,7 @@ export declare function isArray(value: unknown): value is unknown[];
 export declare function isFunction(value: unknown): value is (...args: any[]) => any;
 export declare function isNonEmptyString(value: unknown): value is string;
 export declare function isObject(value: unknown): value is Record<string, unknown>;
+export declare function isNullish<T>(value: T | null | undefined): value is null | undefined;
 export type SocketAuthorizationDecision = any;
 export declare const SocketFeature: {
   getSettings: (...args: any[]) => SocketFeatureSettings;
@@ -1569,6 +1596,10 @@ export function isNonEmptyString(value) {
 
 export function isObject(value) {
   return value !== null && typeof value === 'object';
+}
+
+export function isNullish(value) {
+  return value === null || value === undefined;
 }
 
 export function resolveDeduplicationLockKey(queueName, deduplicationId) {
@@ -2234,6 +2265,7 @@ export const RemoteSignedJson = {
 export declare function isArray(value: unknown): value is unknown[];
 export declare function isObject(value: unknown): value is Record<string, unknown>;
 export declare function isNonEmptyString(value: unknown): value is string;
+export declare function isNullish<T>(value: T | null | undefined): value is null | undefined;
 export declare function isUndefinedOrNull(value: unknown): boolean;
 export declare function isNull(value: unknown): boolean;
 export declare function isUndefined(value: unknown): boolean;
@@ -2244,11 +2276,22 @@ export declare function isUndefined(value: unknown): boolean;
 export function isArray(value) { return Array.isArray(value); }
 export function isObject(value) { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 export function isNonEmptyString(value) { return typeof value === 'string' && value.trim().length > 0; }
+export function isNullish(value) { return value === null || value === undefined; }
 export function isNull(value) { return value === null || value === '' || value === 'null'; }
 export function isUndefined(value) { return value === undefined; }
 export function isUndefinedOrNull(value) { return isUndefined(value) || isNull(value); }
 `;
   await fs.writeFile(path.join(shimDir, 'helper.js'), helperJs);
+
+  const tasksDts = `
+export declare const BackgroundTaskScheduler: any;
+`;
+  await fs.writeFile(path.join(shimDir, 'tasks.d.ts'), tasksDts);
+
+  const tasksJs = `
+export const BackgroundTaskScheduler = {};
+`;
+  await fs.writeFile(path.join(shimDir, 'tasks.js'), tasksJs);
 
   const storageDts = `
 export declare const StorageDriverRegistry: any;
@@ -2287,7 +2330,10 @@ async function main() {
   removeDevRoutesForCiReleaseBuilds();
 
   if (verifyCoreOnNpm || onlyUnpublished) {
-    verifyCorePublishedOrThrow(version);
+    await verifyCorePublishedOrThrow(version, {
+      attempts: onlyUnpublished ? 10 : 1,
+      delayMs: onlyUnpublished ? 30_000 : 0,
+    });
   }
 
   const packageDirs = await getPackageDirsToPublish();
