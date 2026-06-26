@@ -22,6 +22,7 @@ type MetricsState = {
 let statePromise: Promise<MetricsState> | null = null;
 
 const DEFAULT_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
+const PROM_CLIENT_PACKAGE = 'prom-client';
 
 const createNoopState = (): MetricsState => {
   const noopCounter = { inc: () => undefined } as unknown as Counter<string>;
@@ -47,9 +48,7 @@ async function ensureState(): Promise<MetricsState> {
   statePromise = (async () => {
     let client: PromClientModule;
     try {
-      // Variable specifier so bundlers do not inline prom-client into the Workers bundle.
-      const promClientPkg = 'prom-client';
-      client = (await import(promClientPkg)) as PromClientModule;
+      client = (await import(/* @vite-ignore */ PROM_CLIENT_PACKAGE)) as PromClientModule;
     } catch {
       // prom-client is intentionally optional at runtime.
       return createNoopState();

@@ -38,7 +38,7 @@ export const buildRedisUrl = (config?: RedisBroadcastDriverConfig): string => {
 export const getRedisUrl = (config?: RedisBroadcastDriverConfig): string | null => {
   const fromEnv = Env.get('REDIS_URL', '');
   const hasProcess = typeof process === 'object' && process !== null;
-  const fallback = hasProcess ? process.env?.['REDIS_URL'] ?? '' : '';
+  const fallback = hasProcess ? (process.env?.['REDIS_URL'] ?? '') : '';
   const trimmed = fromEnv.trim();
   const url = (trimmed.length > 0 ? fromEnv : String(fallback)).trim();
 
@@ -57,6 +57,8 @@ type QueueRedisDriverModule = {
   BullMQRedisQueue?: QueueDriver;
 };
 
+const QUEUE_REDIS_PACKAGE = '@zintrust/queue-redis';
+
 const resolveLocalQueueRedisEntry = (): string | null => {
   const cwd =
     typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
@@ -68,7 +70,7 @@ const resolveLocalQueueRedisEntry = (): string | null => {
 
 const importQueueRedisModule = async <TModule>(): Promise<TModule | undefined> => {
   try {
-    return (await import('@zintrust/queue-redis')) as unknown as TModule;
+    return (await import(/* @vite-ignore */ QUEUE_REDIS_PACKAGE)) as unknown as TModule;
   } catch {
     const localEntry = resolveLocalQueueRedisEntry();
     if (localEntry === null) return undefined;

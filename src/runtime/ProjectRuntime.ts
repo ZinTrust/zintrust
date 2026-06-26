@@ -29,6 +29,13 @@ const getNodeRuntimeCandidates = (projectRoot: string): string[] => [
   path.join(projectRoot, 'src', 'zintrust.runtime.js'),
 ];
 
+const WORKER_RUNTIME_CANDIDATES = [
+  '@/zintrust.runtime.wg',
+  '@/zintrust.runtime',
+  '../zintrust.runtime.wg.js',
+  '../zintrust.runtime.js',
+] as const;
+
 const mergeProjectRuntime = (
   current: ProjectRuntimeModule | undefined,
   next: ProjectRuntimeModule
@@ -77,33 +84,19 @@ const tryImportNodeRuntimeCandidate = async (
 const tryImportWorkerRuntimeLiteralCandidates = async (): Promise<
   ProjectRuntimeModule | undefined
 > => {
-  try {
-    return cacheProjectRuntime((await import('@/zintrust.runtime.wg')) as Record<string, unknown>);
-  } catch {
-    // continue
+  for (const candidate of WORKER_RUNTIME_CANDIDATES) {
+    try {
+      return cacheProjectRuntime(
+        // These files are generated in consuming projects and are legitimately absent
+        // when a browser bundle only imports unrelated helpers such as Logger.
+        (await import(/* @vite-ignore */ candidate)) as Record<string, unknown>
+      );
+    } catch {
+      // continue
+    }
   }
 
-  try {
-    return cacheProjectRuntime((await import('@/zintrust.runtime')) as Record<string, unknown>);
-  } catch {
-    // continue
-  }
-
-  try {
-    return cacheProjectRuntime(
-      (await import('../' + 'zintrust.runtime.wg.js')) as Record<string, unknown>
-    );
-  } catch {
-    // continue
-  }
-
-  try {
-    return cacheProjectRuntime(
-      (await import('../' + 'zintrust.runtime.js')) as Record<string, unknown>
-    );
-  } catch {
-    return undefined;
-  }
+  return undefined;
 };
 
 export const ProjectRuntime = Object.freeze({

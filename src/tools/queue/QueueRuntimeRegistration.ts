@@ -14,6 +14,8 @@ import { QueueReliabilityOrchestrator } from '@tools/queue/QueueReliabilityOrche
 import { InMemoryQueue } from '@tools/queue/drivers/InMemory';
 import { Queue } from '@tools/queue/Queue';
 
+const QUEUE_REDIS_PACKAGE = '@zintrust/queue-redis';
+
 /**
  * Register queue drivers from runtime config.
  *
@@ -24,7 +26,7 @@ import { Queue } from '@tools/queue/Queue';
  */
 const registerRedisDriverIfAvailable = async (): Promise<boolean> => {
   try {
-    const mod = (await import('@zintrust/queue-redis')) as unknown as {
+    const mod = (await import(/* @vite-ignore */ QUEUE_REDIS_PACKAGE)) as unknown as {
       RedisQueue?: typeof Queue;
       BullMQRedisQueue?: typeof Queue;
     };

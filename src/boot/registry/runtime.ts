@@ -21,7 +21,11 @@ import { registerMasterRoutes, tryImportOptional } from '@registry/registerRoute
 import type { IShutdownManager } from '@registry/type';
 import { registerWorkerShutdownHook } from '@registry/worker';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
-import { SocketFeature, type SocketRouteRegistrar, type SocketRuntime } from '@sockets/SocketRuntime';
+import {
+  SocketFeature,
+  type SocketRouteRegistrar,
+  type SocketRuntime,
+} from '@sockets/SocketRuntime';
 import { SocketRuntimeRegistry } from '@sockets/SocketRuntimeRegistry';
 import { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notification/NotificationRuntimeRegistration';
@@ -504,6 +508,7 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
 };
 
 let runtimeQueueMonitor: ReturnType<IQueueMonitor['create']> | null = null;
+const QUEUE_REDIS_PACKAGE = '@zintrust/queue-redis';
 
 const initializeWorkers = async (router: IRouter): Promise<void> => {
   const workers = await loadWorkersModule({ allowWhenDisabled: true });
@@ -523,7 +528,9 @@ const resolveLocalQueueRedisEntry = (): string | null => {
 
 const loadQueueHttpGatewayModule = async (): Promise<IQueueHttpGatewayModule | undefined> => {
   try {
-    return (await import('@zintrust/queue-redis')) as unknown as IQueueHttpGatewayModule;
+    return (await import(
+      /* @vite-ignore */ QUEUE_REDIS_PACKAGE
+    )) as unknown as IQueueHttpGatewayModule;
   } catch {
     const localEntry = resolveLocalQueueRedisEntry();
     if (localEntry === null) return undefined;
