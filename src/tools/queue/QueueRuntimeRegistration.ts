@@ -1,5 +1,5 @@
-import { Logger } from '@config/logger';
 import { Env } from '@config/env';
+import { Logger } from '@config/logger';
 import type { QueueConfig } from '@config/queue';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
@@ -8,11 +8,10 @@ import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 import { detectRuntime } from '@runtime/detectRuntime';
 import { DatabaseQueue } from '@tools/queue/drivers/Database';
-import { autoRegisterJobStateTrackerPersistenceFromEnv } from '@tools/queue/JobStateTrackerDbPersistence';
-import { QueueReliabilityOrchestrator } from '@tools/queue/QueueReliabilityOrchestrator';
-
 import { InMemoryQueue } from '@tools/queue/drivers/InMemory';
+import { autoRegisterJobStateTrackerPersistenceFromEnv } from '@tools/queue/JobStateTrackerDbPersistence';
 import { Queue } from '@tools/queue/Queue';
+import { QueueReliabilityOrchestrator } from '@tools/queue/QueueReliabilityOrchestrator';
 
 const QUEUE_REDIS_PACKAGE = '@zintrust/queue-redis';
 const ZEDGI_PACKAGE = '@zintrust/zedgi';
@@ -87,9 +86,7 @@ const registerRedisDriverIfAvailable = async (): Promise<boolean> => {
   return false;
 };
 
-const registerZedgiQueueDriverIfAvailable = async (
-  config: QueueConfig
-): Promise<boolean> => {
+const registerZedgiQueueDriverIfAvailable = async (config: QueueConfig): Promise<boolean> => {
   try {
     const mod = (await import(/* @vite-ignore */ ZEDGI_PACKAGE)) as unknown as {
       ZedgiQueueDriver?: {

@@ -9,7 +9,7 @@ import {
   readWorkersFallbackBool,
   readWorkersFallbackInt,
   readWorkersFallbackString,
-} from '@common/ExternalServiceUtils';
+} from '@common/EnvFallbackUtils';
 import { Env } from '@config/env';
 import type {
   CacheConfigInput,

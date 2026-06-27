@@ -6,10 +6,10 @@
 
 import {
   parseJsonObjectEnv,
-  readEnvString,
   readWorkersFallbackInt as readSharedWorkersFallbackInt,
   readWorkersFallbackString as readSharedWorkersFallbackString,
-} from '@common/ExternalServiceUtils';
+} from '@common/EnvFallbackUtils';
+import { readEnvString } from '@common/ExternalServiceUtils';
 import { Env } from '@config/env';
 import type {
   DatabaseConfigShape,
