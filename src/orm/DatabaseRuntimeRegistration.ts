@@ -5,6 +5,7 @@
  * instances that can be selected via `useDatabase(undefined, name)`.
  */
 
+import { Logger } from '@config/logger';
 import type {
   DatabaseConfigShape,
   DatabaseConnectionConfig,
@@ -33,6 +34,16 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
         password: cfg.password,
         readHosts: cfg.readHosts,
       };
+    case 'postgres-zedgi':
+    case 'pg-zedgi':
+      return {
+        driver: 'postgres-zedgi',
+        database: cfg.database,
+        username: cfg.username,
+        password: cfg.password,
+        ssl: cfg.ssl,
+        ...(cfg.header === undefined ? {} : { header: cfg.header }),
+      } as OrmDatabaseConfig;
     case 'mysql':
       return {
         driver: 'mysql',
@@ -43,6 +54,15 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
         password: cfg.password,
         readHosts: cfg.readHosts,
       };
+    case 'mysql-zedgi':
+      return {
+        driver: 'mysql-zedgi',
+        database: cfg.database,
+        username: cfg.username,
+        password: cfg.password,
+        ssl: cfg.ssl,
+        ...(cfg.header === undefined ? {} : { header: cfg.header }),
+      } as OrmDatabaseConfig;
     case 'sqlserver':
       return {
         driver: 'sqlserver',
@@ -66,8 +86,6 @@ const registerConnections = (connections: DatabaseConnections): void => {
     DatabaseConnectionRegistry.set(name, toOrmConfig(runtimeCfg));
   }
 };
-
-import { Logger } from '@config/logger';
 
 /**
  * Register all connections from runtime config.

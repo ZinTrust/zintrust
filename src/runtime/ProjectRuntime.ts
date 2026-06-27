@@ -84,15 +84,17 @@ const tryImportNodeRuntimeCandidate = async (
 const tryImportWorkerRuntimeLiteralCandidates = async (): Promise<
   ProjectRuntimeModule | undefined
 > => {
-  for (const candidate of WORKER_RUNTIME_CANDIDATES) {
-    try {
-      return cacheProjectRuntime(
-        // These files are generated in consuming projects and are legitimately absent
-        // when a browser bundle only imports unrelated helpers such as Logger.
-        (await import(/* @vite-ignore */ candidate)) as Record<string, unknown>
-      );
-    } catch {
-      // continue
+  const attempts = await Promise.allSettled(
+    WORKER_RUNTIME_CANDIDATES.map(async (candidate) => {
+      // These files are generated in consuming projects and are legitimately absent
+      // when a browser bundle only imports unrelated helpers such as Logger.
+      return (await import(/* @vite-ignore */ candidate)) as Record<string, unknown>;
+    })
+  );
+
+  for (const attempt of attempts) {
+    if (attempt.status === 'fulfilled') {
+      return cacheProjectRuntime(attempt.value);
     }
   }
 

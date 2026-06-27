@@ -4,7 +4,12 @@
  * Sealed namespace for immutability
  */
 
-import { Cloudflare } from '@config/cloudflare';
+import {
+  parseJsonObjectEnv,
+  readEnvString,
+  readWorkersFallbackInt as readSharedWorkersFallbackInt,
+  readWorkersFallbackString as readSharedWorkersFallbackString,
+} from '@common/ExternalServiceUtils';
 import { Env } from '@config/env';
 import type {
   DatabaseConfigShape,
@@ -26,46 +31,14 @@ const isNodeProcess = (): boolean => {
   return typeof process !== 'undefined' && typeof process.cwd === 'function';
 };
 
-const readEnvString = (key: string, fallback: string = ''): string => {
-  const anyEnv = Env as { get?: (k: string, d?: string) => string };
-  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, fallback) : fallback;
-  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
-
-  if (typeof process !== 'undefined') {
-    const raw = process.env?.[key];
-    if (typeof raw === 'string' && raw.trim() !== '') return raw;
-  }
-
-  return fromEnv ?? '';
-};
-
-const readWorkersEnvString = (key: string): string => {
-  const workerValue = Cloudflare.getWorkersVar(key);
-  if (workerValue !== null && workerValue.trim() !== '') return workerValue;
-  return '';
-};
-
-const readWorkersFallbackString = (workersKey: string, fallbackKey: string): string => {
-  const workerValue = readWorkersEnvString(workersKey);
-  if (workerValue.trim() !== '') return workerValue;
-
-  // Also check if the fallback key is present in the Workers bindings (e.g. DB_PASSWORD)
-  const fallbackWorkerValue = readWorkersEnvString(fallbackKey);
-  if (fallbackWorkerValue.trim() !== '') return fallbackWorkerValue;
-
-  return readEnvString(fallbackKey, '');
-};
+const readWorkersFallbackString = (workersKey: string, fallbackKey: string): string =>
+  readSharedWorkersFallbackString(workersKey, fallbackKey, '', true);
 
 const readWorkersFallbackInt = (
   workersKey: string,
   fallbackKey: string,
   fallback: number
-): number => {
-  const raw = readWorkersFallbackString(workersKey, fallbackKey);
-  if (raw.trim() === '') return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
+): number => readSharedWorkersFallbackInt(workersKey, fallbackKey, fallback, true);
 
 const isExplicitEnvValue = (key: string): boolean => {
   if (!isNodeProcess()) return false;
@@ -261,6 +234,34 @@ const connections = {
       connectionTimeout: Env.getInt('DB_CONNECTION_TIMEOUT', 10000),
     },
   },
+  'postgres-zedgi': {
+    driver: 'postgres-zedgi' as const,
+    database:
+      readWorkersFallbackString('WORKERS_PG_DATABASE', 'DB_DATABASE_POSTGRESQL') ||
+      Env.DB_DATABASE_POSTGRESQL,
+    username:
+      readWorkersFallbackString('WORKERS_PG_USER', 'DB_USERNAME_POSTGRESQL') ||
+      Env.DB_USERNAME_POSTGRESQL,
+    password:
+      readWorkersFallbackString('WORKERS_PG_PASSWORD', 'DB_PASSWORD_POSTGRESQL') ||
+      Env.DB_PASSWORD_POSTGRESQL,
+    ssl: Env.getBool('DB_SSL', false),
+    header: parseJsonObjectEnv('ZEDGI_POSTGRES_HEADER'),
+  },
+  'pg-zedgi': {
+    driver: 'pg-zedgi' as const,
+    database:
+      readWorkersFallbackString('WORKERS_PG_DATABASE', 'DB_DATABASE_POSTGRESQL') ||
+      Env.DB_DATABASE_POSTGRESQL,
+    username:
+      readWorkersFallbackString('WORKERS_PG_USER', 'DB_USERNAME_POSTGRESQL') ||
+      Env.DB_USERNAME_POSTGRESQL,
+    password:
+      readWorkersFallbackString('WORKERS_PG_PASSWORD', 'DB_PASSWORD_POSTGRESQL') ||
+      Env.DB_PASSWORD_POSTGRESQL,
+    ssl: Env.getBool('DB_SSL', false),
+    header: parseJsonObjectEnv('ZEDGI_POSTGRES_HEADER'),
+  },
   mysql: {
     driver: 'mysql' as const,
     host: readWorkersFallbackString('WORKERS_MYSQL_HOST', 'DB_HOST') || Env.DB_HOST,
@@ -279,6 +280,14 @@ const connections = {
       min: Env.getInt('DB_POOL_MIN', 5),
       max: Env.getInt('DB_POOL_MAX', 20),
     },
+  },
+  'mysql-zedgi': {
+    driver: 'mysql-zedgi' as const,
+    database: readWorkersFallbackString('WORKERS_MYSQL_DATABASE', 'DB_DATABASE') || Env.DB_DATABASE,
+    username: readWorkersFallbackString('WORKERS_MYSQL_USER', 'DB_USERNAME') || Env.DB_USERNAME,
+    password: readWorkersFallbackString('WORKERS_MYSQL_PASSWORD', 'DB_PASSWORD') || Env.DB_PASSWORD,
+    ssl: Env.getBool('DB_SSL', false),
+    header: parseJsonObjectEnv('ZEDGI_MYSQL_HEADER'),
   },
   sqlserver: {
     driver: 'sqlserver' as const,

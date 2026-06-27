@@ -15,6 +15,7 @@ import { InMemoryQueue } from '@tools/queue/drivers/InMemory';
 import { Queue } from '@tools/queue/Queue';
 
 const QUEUE_REDIS_PACKAGE = '@zintrust/queue-redis';
+const ZEDGI_PACKAGE = '@zintrust/zedgi';
 
 /**
  * Register queue drivers from runtime config.
@@ -86,6 +87,53 @@ const registerRedisDriverIfAvailable = async (): Promise<boolean> => {
   return false;
 };
 
+const registerZedgiQueueDriverIfAvailable = async (
+  config: QueueConfig
+): Promise<boolean> => {
+  try {
+    const mod = (await import(/* @vite-ignore */ ZEDGI_PACKAGE)) as unknown as {
+      ZedgiQueueDriver?: {
+        create: (config: unknown) => Parameters<typeof Queue.register>[1];
+      };
+    };
+
+    if (mod.ZedgiQueueDriver !== undefined) {
+      Queue.register('queue-zedgi', mod.ZedgiQueueDriver.create(config.drivers['queue-zedgi']));
+      return true;
+    }
+  } catch {
+    try {
+      const cwd =
+        typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+      if (cwd.trim() === '') return false;
+
+      const localEntry = path.join(cwd, 'dist', 'packages', 'zedgi', 'src', 'index.js');
+      if (!existsSync(localEntry)) return false;
+
+      const url = pathToFileURL(localEntry).href;
+      const localMod = (await import(url)) as unknown as {
+        ZedgiQueueDriver?: {
+          create: (config: unknown) => Parameters<typeof Queue.register>[1];
+        };
+      };
+
+      if (localMod.ZedgiQueueDriver !== undefined) {
+        Queue.register(
+          'queue-zedgi',
+          localMod.ZedgiQueueDriver.create(config.drivers['queue-zedgi'])
+        );
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+
+    return false;
+  }
+
+  return false;
+};
+
 export async function registerQueuesFromRuntimeConfig(config: QueueConfig): Promise<void> {
   autoRegisterJobStateTrackerPersistenceFromEnv();
 
@@ -104,6 +152,15 @@ export async function registerQueuesFromRuntimeConfig(config: QueueConfig): Prom
     if (!registered) {
       throw ErrorFactory.createConfigError(
         'Redis queue driver is not registered. Install queue:redis via zin plugin install.'
+      );
+    }
+  }
+
+  if (defaultName === 'queue-zedgi') {
+    const registered = await registerZedgiQueueDriverIfAvailable(config);
+    if (!registered) {
+      throw ErrorFactory.createConfigError(
+        'Zedgi queue driver is not registered. Install @zintrust/zedgi.'
       );
     }
   }

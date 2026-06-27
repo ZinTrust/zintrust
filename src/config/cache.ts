@@ -4,9 +4,19 @@
  * Sealed namespace for immutability
  */
 
-import { Cloudflare } from '@config/cloudflare';
+import {
+  parseJsonObjectEnv,
+  readWorkersFallbackBool,
+  readWorkersFallbackInt,
+  readWorkersFallbackString,
+} from '@common/ExternalServiceUtils';
 import { Env } from '@config/env';
-import type { CacheConfigInput, CacheDriverConfig, RedisCacheDriverConfig } from '@config/type';
+import type {
+  CacheConfigInput,
+  CacheDriverConfig,
+  RedisCacheDriverConfig,
+  ZedgiRedisCacheDriverConfig,
+} from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
@@ -39,45 +49,6 @@ const getCacheDriver = (config: CacheConfigInput, name?: string): CacheDriverCon
   throw ErrorFactory.createConfigError(
     `Cache default store not configured: ${storeName || '<empty>'}`
   );
-};
-
-const readWorkersEnvString = (key: string): string => {
-  const workerValue = Cloudflare.getWorkersVar(key);
-  if (workerValue !== null && workerValue.trim() !== '') return workerValue;
-  return '';
-};
-
-const readWorkersFallbackString = (
-  workersKey: string,
-  fallbackKey: string,
-  fallback = ''
-): string => {
-  const workerValue = readWorkersEnvString(workersKey);
-  if (workerValue.trim() !== '') return workerValue;
-  return Env.get(fallbackKey, fallback);
-};
-
-const readWorkersFallbackInt = (
-  workersKey: string,
-  fallbackKey: string,
-  fallback: number
-): number => {
-  const raw = readWorkersFallbackString(workersKey, fallbackKey, String(fallback));
-  if (raw.trim() === '') return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const readWorkersFallbackBool = (
-  workersKey: string,
-  fallbackKey: string,
-  fallback: boolean
-): boolean => {
-  const workerValue = readWorkersEnvString(workersKey);
-  if (workerValue.trim() !== '') {
-    return workerValue === 'true' || workerValue === '1';
-  }
-  return Env.getBool(fallbackKey, fallback);
 };
 
 const createRedisCacheDriver = (): RedisCacheDriverConfig => ({
@@ -114,12 +85,25 @@ const createRedisCacheDriver = (): RedisCacheDriverConfig => ({
   ),
 });
 
+const createZedgiRedisCacheDriver = (): ZedgiRedisCacheDriverConfig => ({
+  driver: 'redis-zedgi' as const,
+  password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD', ''),
+  database: readWorkersFallbackInt(
+    'WORKERS_REDIS_CACHE_DB',
+    'REDIS_CACHE_DB',
+    Env.getInt('REDIS_DB', 0)
+  ),
+  ttl: Env.getInt('CACHE_REDIS_TTL', 3600),
+  header: parseJsonObjectEnv('ZEDGI_REDIS_HEADER'),
+});
+
 const createBaseCacheDrivers = (): CacheConfigInput['drivers'] => ({
   memory: {
     driver: 'memory' as const,
     ttl: Env.getInt('CACHE_MEMORY_TTL', 3600),
   },
   redis: createRedisCacheDriver(),
+  'redis-zedgi': createZedgiRedisCacheDriver(),
   mongodb: {
     driver: 'mongodb' as const,
     uri: Env.get('MONGO_URI'),

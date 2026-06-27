@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "2.8.2",
+  "version": "2.8.3",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -424,6 +424,7 @@
     "qs": "^6.15.2"
   },
   "dependencies": {
+    "@zedgi/zedgi-client": "^1.0.3",
     "@cloudflare/containers": "^0.3.7",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.79.0",
