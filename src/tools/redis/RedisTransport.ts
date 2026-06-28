@@ -5,7 +5,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { parseCustomHeadersFromEnv } from '@orm/adapters/SqlProxyAdapterUtils';
 import { SignedRequest } from '@security/SignedRequest';
 
-export type RedisTransportMode = 'direct' | 'proxy' | 'rpc';
+export type RedisTransportMode = 'direct' | 'proxy' | 'rpc' | 'zedgi';
 
 export type RedisTransportOptions = Readonly<{
   subsystem?: string;
@@ -25,6 +25,9 @@ type RpcSettings = Readonly<{
   secret?: string;
   timeoutMs: number;
 }>;
+
+/** Settings bag for any non-direct transport mode (proxy, rpc, or zedgi). */
+type RedisTransportSettings = ProxySettings | RpcSettings | { config: RedisConfig };
 
 type RedisProxyConnection = {
   [x: string]: unknown;
@@ -50,6 +53,35 @@ type RedisProxyConnection = {
     once: (event: string, handler: (...args: unknown[]) => void) => unknown;
     off: (event: string, handler: (...args: unknown[]) => void) => unknown;
   };
+};
+
+// Zedgi executor registry for static provider registration
+let zedgiRedisExecutor:
+  | ((config: Record<string, unknown>, command: string, args: unknown[]) => Promise<unknown>)
+  | undefined;
+
+export const registerZedgiRedisExecutor = (executor: typeof zedgiRedisExecutor): void => {
+  zedgiRedisExecutor = typeof executor === 'function' ? executor : undefined;
+};
+
+export const isZedgiRedisExecutorRegistered = (): boolean => zedgiRedisExecutor !== undefined;
+
+const isZedgiRedisEnabled = (): boolean =>
+  zedgiRedisExecutor !== undefined && readEnvBool('USE_ZEDGI', false);
+
+const requestZedgiCommand = async (
+  settings: unknown,
+  command: string,
+  args: unknown[]
+): Promise<unknown> => {
+  if (zedgiRedisExecutor === undefined) {
+    throw ErrorFactory.createConfigError('Zedgi Redis executor is not registered');
+  }
+  return zedgiRedisExecutor(
+    (settings as { config?: Record<string, unknown> }).config ?? {},
+    command,
+    args
+  );
 };
 
 const loggedSelections = new Set<string>();
@@ -287,10 +319,13 @@ const requestRpcPipeline = async (
 
 const requestRedisCommand = async <T>(
   mode: Exclude<RedisTransportMode, 'direct'>,
-  settings: ProxySettings | RpcSettings,
+  settings: RedisTransportSettings,
   command: string,
   args: unknown[]
 ): Promise<T> => {
+  if (mode === 'zedgi') {
+    return requestZedgiCommand(settings, command, args) as Promise<T>;
+  }
   return mode === 'rpc'
     ? requestRpcCommand(settings as RpcSettings, command, args)
     : requestProxyCommand(settings as ProxySettings, command, args);
@@ -316,6 +351,7 @@ const logTransportSelection = (
     port: mode === 'direct' ? config.port : undefined,
     proxyUrl: mode === 'proxy' ? resolveProxyBaseUrl() : undefined,
     rpcUrl: mode === 'rpc' ? readEnvString('REDIS_RPC_URL', '') : undefined,
+    zedgiUrl: mode === 'zedgi' ? readEnvString('ZEDGI_URL', '') : undefined,
   });
 };
 
@@ -332,7 +368,7 @@ const normalizeScanResponse = (value: unknown): [string, string[]] => {
 };
 
 const createScanStream = (
-  settings: ProxySettings | RpcSettings,
+  settings: RedisTransportSettings,
   mode: Exclude<RedisTransportMode, 'direct'>,
   options?: { match?: string; count?: number }
 ): {
@@ -399,7 +435,7 @@ const createScanStream = (
 };
 
 const createPipeline = (
-  settings: ProxySettings | RpcSettings,
+  settings: RedisTransportSettings,
   mode: Exclude<RedisTransportMode, 'direct'>,
   transaction = false
 ): {
@@ -411,7 +447,7 @@ const createPipeline = (
   const target = {
     async exec(): Promise<Array<[Error | null, unknown]>> {
       if (mode === 'rpc') {
-        return requestRpcPipeline(settings, commands, transaction);
+        return requestRpcPipeline(settings as RpcSettings, commands, transaction);
       }
 
       const results: Array<[Error | null, unknown]> = [];
@@ -448,6 +484,7 @@ const createPipeline = (
 };
 
 export const resolveRedisTransportMode = (): RedisTransportMode => {
+  if (isZedgiRedisEnabled()) return 'zedgi';
   if (isRedisRpcEnabled()) return 'rpc';
   return readEnvBool('USE_REDIS_PROXY', false) ? 'proxy' : 'direct';
 };
@@ -457,7 +494,14 @@ export const createRedisProxyConnection = (
   options?: RedisTransportOptions
 ): RedisProxyConnection => {
   const mode = resolveRedisTransportMode();
-  const settings = mode === 'rpc' ? resolveRpcSettings() : resolveProxySettings();
+  let settings: RedisTransportSettings;
+  if (mode === 'zedgi') {
+    settings = { config };
+  } else if (mode === 'rpc') {
+    settings = resolveRpcSettings();
+  } else {
+    settings = resolveProxySettings();
+  }
   if (mode === 'direct') {
     throw ErrorFactory.createConfigError(
       'Redis proxy connection requested while direct mode is active.'
@@ -518,9 +562,9 @@ export const ensureRedisTransportMode = (
   options?: RedisTransportOptions
 ): RedisTransportMode => {
   const mode = resolveRedisTransportMode();
-  if (mode === 'proxy' && options?.requireDirect === true) {
+  if ((mode === 'proxy' || mode === 'zedgi') && options?.requireDirect === true) {
     throw ErrorFactory.createConfigError(
-      `Redis subsystem '${options.subsystem ?? 'redis'}' requires a direct Redis connection, but proxy mode is enabled.`
+      `Redis subsystem '${options.subsystem ?? 'redis'}' requires a direct Redis connection, but ${mode} mode is enabled.`
     );
   }
 

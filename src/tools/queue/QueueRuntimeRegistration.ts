@@ -24,7 +24,22 @@ const ZEDGI_PACKAGE = '@zintrust/zedgi';
  * - If the configured default is registered, it is ALSO registered as 'default'.
  * - Unknown/unregistered driver names still throw when selected.
  */
+
+const isDriverRegistered = (name: string): boolean => {
+  try {
+    Queue.get(name);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const registerRedisDriverIfAvailable = async (): Promise<boolean> => {
+  if (isDriverRegistered('redis')) {
+    return true;
+  }
+
+  // Fall back to dynamic import only if not already registered
   try {
     const mod = (await import(/* @vite-ignore */ QUEUE_REDIS_PACKAGE)) as unknown as {
       RedisQueue?: typeof Queue;
@@ -87,6 +102,11 @@ const registerRedisDriverIfAvailable = async (): Promise<boolean> => {
 };
 
 const registerZedgiQueueDriverIfAvailable = async (config: QueueConfig): Promise<boolean> => {
+  if (isDriverRegistered('queue-zedgi')) {
+    return true;
+  }
+
+  // Fall back to dynamic import only if not already registered
   try {
     const mod = (await import(/* @vite-ignore */ ZEDGI_PACKAGE)) as unknown as {
       ZedgiQueueDriver?: {

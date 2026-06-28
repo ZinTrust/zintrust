@@ -1,7 +1,6 @@
 import { createZedgiClient, type ZedgiClient, type ZedgiClientOptions } from '@zedgi/zedgi-client';
 import { Env } from '@zintrust/core/config';
 import { ErrorFactory } from '@zintrust/core/errors';
-import { Logger } from '@zintrust/core/logger';
 import type { ZedgiDatabaseConfig, ZedgiQueueConfig, ZedgiRedisCacheConfig } from './types.js';
 
 type ZedgiCredential = Record<string, unknown>;
@@ -168,10 +167,8 @@ export const ZedgiRuntime = Object.freeze({
   async warm(): Promise<void> {
     try {
       await ensureClient().redis().ping();
-    } catch (error) {
-      Logger.warn('[zedgi] Warm-up ping failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+    } catch {
+      // warm-up ping failed silently
     }
   },
 

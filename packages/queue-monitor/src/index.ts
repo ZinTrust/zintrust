@@ -31,7 +31,7 @@ export {
   QueueMonitoringStream,
 } from './QueueMonitoringService.js';
 
-export { createBullMQDriver } from './driver.js';
+export { createBullMQDriver, registerZedgiMonitorDriver } from './driver.js';
 export type { JobPayload, QueueDriver, RecoverActiveJobResult } from './driver.js';
 export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics.js';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker.js';

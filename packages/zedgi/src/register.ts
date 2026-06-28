@@ -1,6 +1,8 @@
 import { ZedgiCacheDriver } from './ZedgiCacheDriver.js';
 import { ZedgiDatabaseAdapter } from './ZedgiDatabaseAdapter.js';
+import { createZedgiMonitorDriver } from './ZedgiMonitorDriver.js';
 import { ZedgiQueueDriver } from './ZedgiQueueDriver.js';
+import { createZedgiRedisExecutor } from './ZedgiRedisExecutor.js';
 import { ZedgiRuntime } from './ZedgiRuntime.js';
 import type { ZedgiDatabaseConfig, ZedgiQueueConfig, ZedgiRedisCacheConfig } from './types.js';
 
@@ -75,4 +77,26 @@ if (typeof core.Queue?.register === 'function') {
 
 if (core.Env?.getBool?.('USE_ZEDGI', false) === true) {
   ZedgiRuntime.initialize();
+
+  // Register Zedgi Redis executor for core Redis transport
+  try {
+    const redisModule = (await import('@zintrust/core/redis')) as never;
+    const registerRedisExec = (redisModule as Record<string, unknown>).registerZedgiRedisExecutor;
+    if (typeof registerRedisExec === 'function') {
+      registerRedisExec(createZedgiRedisExecutor());
+    }
+  } catch {
+    // @zintrust/core/redis may not be available in all environments
+  }
+
+  // Register Zedgi monitor driver for queue-monitor
+  try {
+    const monitorModule = (await import('@zintrust/queue-monitor')) as never;
+    const registerMonitor = (monitorModule as Record<string, unknown>).registerZedgiMonitorDriver;
+    if (typeof registerMonitor === 'function') {
+      registerMonitor(createZedgiMonitorDriver);
+    }
+  } catch {
+    // @zintrust/queue-monitor may not be available in all environments
+  }
 }

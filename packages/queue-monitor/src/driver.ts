@@ -46,7 +46,11 @@ export type RetryJobResult =
   | { ok: false; status: 'not_retryable'; reason?: string };
 
 export type RecoverActiveJobResult =
-  | { ok: true; status: 'failed' | 'removed' | 'removed_after_delayed_retry' | 'moved'; state?: string }
+  | {
+      ok: true;
+      status: 'failed' | 'removed' | 'removed_after_delayed_retry' | 'moved';
+      state?: string;
+    }
   | { ok: false; status: 'missing' | 'not_active' | 'not_recoverable'; reason?: string };
 
 export type QueueDriver = {
@@ -68,8 +72,25 @@ type RedisRpcClient = {
   monitor: <T = unknown>(method: string, payload?: Record<string, unknown>) => Promise<T>;
 };
 
+// Zedgi monitor driver registry
+let registeredZedgiMonitorDriverFactory: ((config: unknown) => QueueDriver) | undefined;
+
+export const registerZedgiMonitorDriver = (
+  factory: typeof registeredZedgiMonitorDriverFactory
+): void => {
+  registeredZedgiMonitorDriverFactory = typeof factory === 'function' ? factory : undefined;
+};
+
 const shouldUseRedisRpcMonitorDriver = (): boolean =>
   Env.USE_REDIS_PROXY === true && Env.get('REDIS_RPC_URL', '').trim() !== '';
+
+const resolveActiveQueueConnection = (): string =>
+  Env.get('QUEUE_CONNECTION', Env.get('QUEUE_DRIVER', '')).trim().toLowerCase();
+
+const shouldUseZedgiMonitorDriver = (): boolean =>
+  registeredZedgiMonitorDriverFactory !== undefined &&
+  Env.getBool('USE_ZEDGI', false) &&
+  resolveActiveQueueConnection() === 'queue-zedgi';
 
 const resolveRpcBaseUrl = (): string => {
   const configured = Env.get('REDIS_RPC_URL', '').trim();
@@ -590,6 +611,13 @@ const createBullMQClose = (queues: Map<string, Queue>) => async (): Promise<void
 };
 
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
+  if (shouldUseZedgiMonitorDriver()) {
+    if (registeredZedgiMonitorDriverFactory === undefined) {
+      throw ErrorFactory.createConfigError('Zedgi monitor driver factory is not registered');
+    }
+    return registeredZedgiMonitorDriverFactory(config);
+  }
+
   if (shouldUseRedisRpcMonitorDriver()) return createRedisRpcDriver();
 
   const queues = new Map<string, Queue>();
