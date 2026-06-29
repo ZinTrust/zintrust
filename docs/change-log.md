@@ -1,3 +1,17 @@
+# 2026-06-28
+
+- Changed `QUEUE_MONITOR_AUTO_REFRESH` default from `true` to `false`. The queue-monitor dashboard no longer auto-refreshes by default; users must click "Resume auto refresh" to enable SSE polling. This prevents ~205 Redis round-trips per 5-second poll cycle when the dashboard is open but unattended. Set `QUEUE_MONITOR_AUTO_REFRESH=true` to restore the prior default.
+
+- Added deep analysis of Redis request patterns for `/queue-monitor` and `/workers` dashboards (`docs/redis-request-analysis-queue-monitor-workers.md`). With 18 queues, the combined dashboards issue ~223 Redis round-trips on initial load and every 5 seconds during steady-state SSE polling, primarily from BullMQ `getJobCounts()` (1 `EVAL` round-trip per queue), recent job fetching, and lock analytics scanning.
+
+- **Redis pipelining**: `createBullMQGetJobCountsMany()` in `packages/queue-monitor/src/driver.ts` now batches all `LLEN`/`ZCARD` commands into a single Redis pipeline round-trip (18 queues → 1 round-trip instead of 18 per-queue `EVAL` calls). Falls back to per-queue `getJobCounts()` gracefully when pipelining is unavailable.
+
+- **Pub/sub event-driven queue counts**: New `QueueEventStore` singleton (`packages/queue-monitor/src/QueueEventStore.ts`) maintains in-memory `JobCounts` synced via BullMQ `QueueEvents` pub/sub. `QueueMonitor.create().getSnapshot()` transparently returns from memory when active, eliminating all `getJobCountsMany()` Redis calls during steady-state polling. Falls back to 30s polling when Redis RPC proxy is active. Configurable via `QUEUE_EVENT_STORE_POLLING`.
+
+- **Global snapshot cache**: Added module-level 1-second TTL cache (`QUEUE_MONITOR_SNAPSHOT_CACHE_MS`) in `@zintrust/queue-monitor`. All `QueueMonitor` instances share this cache, so when `/workers` and `/queue-monitor` dashboards poll within the same second, only one hits Redis.
+
+- **Document corrections**: Fixed BullMQ key types in the analysis doc (`wait`/`active` are lists, `completed`/`failed` are ZSETs). Corrected the false "double fetch on initial workers page load" claim. Added intra-dashboard deduplication details. Updated burst/poll totals to distinguish logical operations from round-trips.
+
 # 2026-05-31
 
 - Added `@zintrust/redis-rpc` — a new backend-owned RPC server that bridges Cloudflare Workers and other TCP-less runtimes to Redis and BullMQ over HTTP. Start it with `zin redis-rpc` or `zin s redis-rpc`. It activates automatically in queue, cache, and worker subsystems when both `USE_REDIS_PROXY=true` and `REDIS_RPC_URL` are set, replacing the older Redis HTTP command proxy for queue-aware workloads.

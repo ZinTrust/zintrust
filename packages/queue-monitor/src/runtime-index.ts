@@ -96,7 +96,7 @@ const DEFAULTS = {
   enabled: true,
   basePath: '/queue-monitor',
   middleware: [],
-  autoRefresh: true,
+  autoRefresh: false,
   refreshIntervalMs: 5000,
 };
 
