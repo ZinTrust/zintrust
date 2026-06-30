@@ -543,7 +543,10 @@ const initializeQueueHttpGateway = async (router: IRouter): Promise<void> => {
   try {
     const module = await loadQueueHttpGatewayModule();
     if (module === undefined) {
-      Logger.warn('Queue HTTP gateway module is unavailable (@zintrust/queue-redis not found)');
+      const USE_ZEDGI = readEnvString('USE_ZEDGI').trim().toLowerCase();
+      if (USE_ZEDGI !== 'true') {
+        Logger.warn('Queue HTTP gateway module is unavailable (@zintrust/queue-redis not found)');
+      }
       return;
     }
 
