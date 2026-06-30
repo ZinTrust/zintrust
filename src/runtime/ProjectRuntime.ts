@@ -60,7 +60,7 @@ const getCachedProjectRuntime = (): ProjectRuntimeModule | undefined => {
 };
 
 const hasLoadedServiceManifest = (runtime: ProjectRuntimeModule | undefined): boolean => {
-  return Array.isArray(runtime?.serviceManifest);
+  return Array.isArray(runtime?.serviceManifest) && runtime.serviceManifest.length > 0;
 };
 
 const tryImportNodeRuntimeCandidate = async (
@@ -94,6 +94,11 @@ const tryImportWorkerRuntimeLiteralCandidates = async (): Promise<
 
   for (const attempt of attempts) {
     if (attempt.status === 'fulfilled') {
+      const normalized = normalizeProjectRuntimeModule(attempt.value);
+      if (normalized.serviceManifest?.length === 0 && normalized.activeService === undefined) {
+        continue;
+      }
+
       return cacheProjectRuntime(attempt.value);
     }
   }
