@@ -625,6 +625,20 @@ const persistModelState = async (
   await persistExistingModel(config, db, attrs, dirtyFields);
 };
 
+const mergeDirtyFieldsAfterSaving = (
+  trackedDirtyFields: string[],
+  attrs: Record<string, unknown>,
+  original: Record<string, unknown>
+): string[] => {
+  const keys = new Set(trackedDirtyFields);
+  for (const key of Object.keys(attrs)) {
+    if (attrs[key] !== original[key]) {
+      keys.add(key);
+    }
+  }
+  return [...keys];
+};
+
 const performModelSave = async (
   model: IModel,
   config: ModelConfig,
@@ -636,15 +650,19 @@ const performModelSave = async (
     updateOriginal: (v: Record<string, unknown>) => void;
     clearDirty: () => void;
     getDirtyFields: () => string[];
+    getOriginal: () => Record<string, unknown>;
   }
 ): Promise<boolean> => {
   const db = getDb();
   if (db === undefined) throw ErrorFactory.createDatabaseError('Database not initialized');
 
   const isCreate = context.isExists === false;
-  const dirtyFields = context.getDirtyFields();
   await runObservers(config, 'saving', model);
   await runObservers(config, isCreate ? 'creating' : 'updating', model);
+
+  const dirtyFields = isCreate
+    ? context.getDirtyFields()
+    : mergeDirtyFieldsAfterSaving(context.getDirtyFields(), attrs, context.getOriginal());
 
   applySaveTimestamps(config, attrs, isCreate);
   await persistModelState(config, db, attrs, isCreate, dirtyFields);
@@ -689,6 +707,7 @@ type LifecycleApiContext = {
   exists: () => boolean;
   setExists: (value: boolean) => void;
   setOriginal: (value: Record<string, unknown>) => void;
+  getOriginal: () => Record<string, unknown>;
 };
 
 const createAttributeApi = (
@@ -772,6 +791,7 @@ const createLifecycleApi = (
       updateOriginal: context.setOriginal,
       clearDirty: () => context.dirtyFields.clear(),
       getDirtyFields: () => [...context.dirtyFields],
+      getOriginal: context.getOriginal,
     }),
   delete: async (): Promise<boolean> =>
     performModelDelete(context.getModel(), config, getDb, context.exists()),
@@ -883,6 +903,7 @@ export const createModel = (
       setOriginal: (value) => {
         original = value;
       },
+      getOriginal: () => original,
     }),
   } as IModel;
 

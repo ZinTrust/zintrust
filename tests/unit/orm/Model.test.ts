@@ -703,6 +703,130 @@ describe('Model', () => {
     expect(qb.__getLastBuilder()?.update).toHaveBeenCalledWith({ secret: 'enc:next' });
   });
 
+  it('persists observer-driven sibling columns in updating hook on UPDATE', async (): Promise<void> => {
+    const updating = vi.fn((model: IModel) => {
+      model.setAttribute('email', 'observer-set@example.com');
+    });
+
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'name', 'email'],
+      hidden: [],
+      casts: {},
+      timestamps: false,
+      observers: [{ updating }],
+    });
+
+    const model = Test.hydrate({ id: 42, name: 'original', email: 'original@example.com' });
+    model.setAttribute('name', 'changed');
+
+    await expect(model.save()).resolves.toBe(true);
+
+    expect(updating).toHaveBeenCalledTimes(1);
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.where).toHaveBeenCalledWith('id', '=', 42);
+    expect(qb.__getLastBuilder()?.update).toHaveBeenCalledWith({
+      name: 'changed',
+      email: 'observer-set@example.com',
+    });
+  });
+
+  it('persists observer-driven sibling columns in saving hook on UPDATE', async (): Promise<void> => {
+    const saving = vi.fn((model: IModel) => {
+      model.setAttribute('email', 'saving-set@example.com');
+    });
+
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'name', 'email'],
+      hidden: [],
+      casts: {},
+      timestamps: false,
+      observers: [{ saving }],
+    });
+
+    const model = Test.hydrate({ id: 42, name: 'original', email: 'original@example.com' });
+    model.setAttribute('name', 'changed');
+
+    await expect(model.save()).resolves.toBe(true);
+
+    expect(saving).toHaveBeenCalledTimes(1);
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.where).toHaveBeenCalledWith('id', '=', 42);
+    expect(qb.__getLastBuilder()?.update).toHaveBeenCalledWith({
+      name: 'changed',
+      email: 'saving-set@example.com',
+    });
+  });
+
+  it('persists mutator side-effect sibling column on UPDATE via post-hook diff', async (): Promise<void> => {
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'secret', 'secret_plain'],
+      hidden: [],
+      casts: {},
+      timestamps: false,
+      mutators: {
+        secret: (value, attrs: Record<string, unknown>) => {
+          attrs['secret_plain'] = String(value).replace(/^enc:/, '');
+          return `enc:${String(value).replace(/^enc:/, '')}`;
+        },
+      },
+    });
+
+    const model = Test.hydrate({
+      id: 99,
+      secret: 'enc:old',
+      secret_plain: 'old',
+    });
+    model.setAttribute('secret', 'next');
+
+    await expect(model.save()).resolves.toBe(true);
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.where).toHaveBeenCalledWith('id', '=', 99);
+    expect(qb.__getLastBuilder()?.update).toHaveBeenCalledWith({
+      secret: 'enc:next',
+      secret_plain: 'next',
+    });
+  });
+
+  it('CREATE path writes all attributes regardless of diff computation', async (): Promise<void> => {
+    const creating = vi.fn((model: IModel) => {
+      model.setAttribute('email', 'observer-set@example.com');
+    });
+
+    const Test = Model.define({
+      ...baseConfig,
+      fillable: ['id', 'name', 'email'],
+      hidden: [],
+      casts: {},
+      timestamps: false,
+      observers: [{ creating }],
+    });
+
+    const model = Test.make({ name: 'new-model' });
+    await expect(model.save()).resolves.toBe(true);
+
+    expect(creating).toHaveBeenCalledTimes(1);
+
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+    expect(qb.__getLastBuilder()?.insert).toHaveBeenCalledWith({
+      name: 'new-model',
+      email: 'observer-set@example.com',
+    });
+  });
+
   it('runs observer hooks on save and delete', async (): Promise<void> => {
     const saving = vi.fn();
     const creating = vi.fn();

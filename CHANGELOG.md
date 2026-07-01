@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-01
+
+### Core
+
+- Fix `performModelSave` dirty-fields snapshot timing: observer-driven and mutator side-effect sibling columns now persist on UPDATE. Previously, `dirtyFields` was captured before `saving`/`updating` observers ran, so any `setAttribute` call inside a pre-persist hook was invisible to the UPDATE persist step. The fix runs observers first, then merges the tracked dirty set with an `attrs`-vs-`original` diff for UPDATE paths. CREATE paths are unaffected (inserts already write the full `attrs` object).
+
 ## 2026-06-13
 
 ### Core v2.6.0
