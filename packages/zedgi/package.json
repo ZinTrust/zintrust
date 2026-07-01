@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/zedgi",
-  "version": "2.8.5",
+  "version": "2.9.0",
   "description": "Zedgi HTTPS transport drivers for ZinTrust cache, database, and queue.",
   "private": false,
   "type": "module",
