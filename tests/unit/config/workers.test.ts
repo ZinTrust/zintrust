@@ -310,4 +310,35 @@ describe('workers config', () => {
       );
     }
   });
+
+  it('covers zedgi connection routing in createRedisConnection', async () => {
+    (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule = {
+      Redis: MockRedis,
+    };
+
+    const { createRedisConnection } = await import('@config/workers');
+    const { registerZedgiRedisExecutor } = await import('@/tools/redis/RedisTransport');
+
+    vi.stubEnv('USE_ZEDGI', 'true');
+    registerZedgiRedisExecutor(vi.fn());
+
+    // 1. queue-monitor subsystem: should allow proxy (returns Proxy connection)
+    const clientMonitor = createRedisConnection(
+      { host: 'localhost', port: 6379 },
+      3,
+      { subsystem: 'queue-monitor' }
+    );
+    expect(clientMonitor).not.toBeInstanceOf(MockRedis);
+
+    // 2. queue-bullmq subsystem: should skip proxy and use direct connection (returns MockRedis)
+    const clientBullMQ = createRedisConnection(
+      { host: 'localhost', port: 6379 },
+      3,
+      { subsystem: 'queue-bullmq' }
+    );
+    expect(clientBullMQ).toBeInstanceOf(MockRedis);
+
+    // Clean up
+    registerZedgiRedisExecutor(undefined);
+  });
 });

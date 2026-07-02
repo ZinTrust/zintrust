@@ -356,4 +356,83 @@ describe('patch coverage: RedisTransport', () => {
       },
     });
   });
+
+  it('covers zedgi mode executor registration, command execution, and errors', async () => {
+    mockLogger(vi.fn());
+    mockEnv({
+      USE_ZEDGI: true,
+      ZEDGI_URL: 'http://zedgi.local',
+      REDIS_PROXY_KEY_ID: '',
+      REDIS_PROXY_SECRET: '',
+      REDIS_PROXY_TIMEOUT_MS: 1500,
+    });
+
+    const {
+      registerZedgiRedisExecutor,
+      isZedgiRedisExecutorRegistered,
+      resolveRedisTransportMode,
+      createRedisProxyConnection,
+      ensureRedisTransportMode,
+    } = await import('@/tools/redis/RedisTransport');
+
+    expect(isZedgiRedisExecutorRegistered()).toBe(false);
+
+    // Test throws if executor is not registered but zedgi mode is resolved
+    expect(resolveRedisTransportMode()).toBe('direct');
+
+    const executor = vi.fn().mockResolvedValue('zedgi-ok');
+    registerZedgiRedisExecutor(executor);
+    expect(isZedgiRedisExecutorRegistered()).toBe(true);
+
+    expect(resolveRedisTransportMode()).toBe('zedgi');
+
+    // Test ensureRedisTransportMode throws with requireDirect
+    expect(() =>
+      ensureRedisTransportMode(redisConfig, { subsystem: 'cache', requireDirect: true })
+    ).toThrow(/requires a direct Redis connection, but zedgi mode is enabled/);
+
+    const client = createRedisProxyConnection(redisConfig, { subsystem: 'cache' });
+    expect(client.setMaxListeners(10)).toBe(client);
+    expect(client.getMaxListeners()).toBe(Infinity);
+    expect(client.disconnect()).toBeUndefined();
+    await expect(client['set']('cache:key', 'value')).resolves.toBe('zedgi-ok');
+    expect(executor).toHaveBeenCalledWith(
+      expect.objectContaining(redisConfig),
+      'SET',
+      ['cache:key', 'value']
+    );
+
+    // Test throws if createRedisProxyConnection is called in direct mode
+    registerZedgiRedisExecutor(undefined);
+    expect(resolveRedisTransportMode()).toBe('direct');
+    expect(() => createRedisProxyConnection(redisConfig, { subsystem: 'cache' })).toThrow(
+      /Redis proxy connection requested while direct mode is active/
+    );
+    registerZedgiRedisExecutor(executor);
+
+    // Test scanStream
+    const executorScan = vi.fn()
+      .mockResolvedValueOnce(['0', ['a', 'b']])
+      .mockResolvedValueOnce(['0', []]);
+    registerZedgiRedisExecutor(executorScan);
+    await waitForStreamEnd(client.scanStream({ match: 'queue:*', count: 5 }));
+
+    // Test pipeline
+    const executorPipeline = vi.fn().mockResolvedValue('pipeline-item');
+    registerZedgiRedisExecutor(executorPipeline);
+    const pipeline = client.pipeline();
+    pipeline['set']('a', '1').get('a');
+    const results = await pipeline.exec();
+    expect(results).toEqual([
+      [null, 'pipeline-item'],
+      [null, 'pipeline-item'],
+    ]);
+
+    // Test requestZedgiCommand error branch when executor is cleared/undefined
+    registerZedgiRedisExecutor(executor);
+    const clientForError = createRedisProxyConnection(redisConfig, { subsystem: 'cache' });
+    registerZedgiRedisExecutor(undefined);
+    await expect(clientForError['set']('a', '1')).rejects.toThrow('Zedgi Redis executor is not registered');
+  });
 });
+
