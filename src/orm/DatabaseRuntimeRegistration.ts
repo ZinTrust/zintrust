@@ -25,8 +25,10 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
     case 'd1-remote':
       return { driver: 'd1-remote' };
     case 'postgresql':
+    case 'mysql':
+    case 'sqlserver':
       return {
-        driver: 'postgresql',
+        driver: cfg.driver,
         host: cfg.host,
         port: cfg.port,
         database: cfg.database,
@@ -36,43 +38,15 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
       };
     case 'postgres-zedgi':
     case 'pg-zedgi':
-      return {
-        driver: 'postgres-zedgi',
-        database: cfg.database,
-        username: cfg.username,
-        password: cfg.password,
-        ssl: cfg.ssl,
-        ...(cfg.header === undefined ? {} : { header: cfg.header }),
-      } as OrmDatabaseConfig;
-    case 'mysql':
-      return {
-        driver: 'mysql',
-        host: cfg.host,
-        port: cfg.port,
-        database: cfg.database,
-        username: cfg.username,
-        password: cfg.password,
-        readHosts: cfg.readHosts,
-      };
     case 'mysql-zedgi':
       return {
-        driver: 'mysql-zedgi',
+        driver: cfg.driver === 'pg-zedgi' ? 'postgres-zedgi' : cfg.driver,
         database: cfg.database,
         username: cfg.username,
         password: cfg.password,
         ssl: cfg.ssl,
         ...(cfg.header === undefined ? {} : { header: cfg.header }),
       } as OrmDatabaseConfig;
-    case 'sqlserver':
-      return {
-        driver: 'sqlserver',
-        host: cfg.host,
-        port: cfg.port,
-        database: cfg.database,
-        username: cfg.username,
-        password: cfg.password,
-        readHosts: cfg.readHosts,
-      };
     default:
       // Exhaustive check (kept for future driver additions)
       return cfg satisfies never;

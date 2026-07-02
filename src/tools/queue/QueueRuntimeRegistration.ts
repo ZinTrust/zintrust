@@ -34,18 +34,27 @@ const isDriverRegistered = (name: string): boolean => {
   }
 };
 
+const getLocalPackageUrl = (pkgFolder: string): string | null => {
+  try {
+    const cwd =
+      typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+    if (cwd.trim() === '') return null;
+
+    const localEntry = path.join(cwd, 'dist', 'packages', pkgFolder, 'src', 'index.js');
+    if (!existsSync(localEntry)) return null;
+
+    return pathToFileURL(localEntry).href;
+  } catch {
+    return null;
+  }
+};
+
 const registerRedisDriverIfAvailable = async (): Promise<boolean> => {
   if (isDriverRegistered('redis')) {
     return true;
   }
 
-  // Fall back to dynamic import only if not already registered
-  try {
-    const mod = (await import(/* @vite-ignore */ QUEUE_REDIS_PACKAGE)) as unknown as {
-      RedisQueue?: typeof Queue;
-      BullMQRedisQueue?: typeof Queue;
-    };
-
+  const tryRegister = (mod: { RedisQueue?: typeof Queue; BullMQRedisQueue?: typeof Queue }): boolean => {
     if (mod.RedisQueue !== undefined) {
       Queue.register('redis', mod.RedisQueue as unknown as Parameters<typeof Queue.register>[1]);
       return true;
@@ -58,38 +67,34 @@ const registerRedisDriverIfAvailable = async (): Promise<boolean> => {
       );
       return true;
     }
+    return false;
+  };
+
+  // Fall back to dynamic import only if not already registered
+  try {
+    const mod = (await import(/* @vite-ignore */ QUEUE_REDIS_PACKAGE)) as unknown as {
+      RedisQueue?: typeof Queue;
+      BullMQRedisQueue?: typeof Queue;
+    };
+
+    if (tryRegister(mod)) {
+      return true;
+    }
   } catch {
     // Fall back to local dist build output when running inside the core repo Docker image.
     // In that environment, `@zintrust/queue-redis` is not installed in node_modules,
     // but the compiled package is available at `dist/packages/queue-redis`.
     try {
-      const cwd =
-        typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
-      if (cwd.trim() === '') return false;
+      const url = getLocalPackageUrl('queue-redis');
+      if (url !== null) {
+        const localMod = (await import(url)) as unknown as {
+          RedisQueue?: typeof Queue;
+          BullMQRedisQueue?: typeof Queue;
+        };
 
-      const localEntry = path.join(cwd, 'dist', 'packages', 'queue-redis', 'src', 'index.js');
-      if (!existsSync(localEntry)) return false;
-
-      const url = pathToFileURL(localEntry).href;
-      const localMod = (await import(url)) as unknown as {
-        RedisQueue?: typeof Queue;
-        BullMQRedisQueue?: typeof Queue;
-      };
-
-      if (localMod.RedisQueue !== undefined) {
-        Queue.register(
-          'redis',
-          localMod.RedisQueue as unknown as Parameters<typeof Queue.register>[1]
-        );
-        return true;
-      }
-
-      if (localMod.BullMQRedisQueue !== undefined) {
-        Queue.register(
-          'redis',
-          localMod.BullMQRedisQueue as unknown as Parameters<typeof Queue.register>[1]
-        );
-        return true;
+        if (tryRegister(localMod)) {
+          return true;
+        }
       }
     } catch {
       // ignore
@@ -106,6 +111,18 @@ const registerZedgiQueueDriverIfAvailable = async (config: QueueConfig): Promise
     return true;
   }
 
+  const tryRegister = (mod: {
+    ZedgiQueueDriver?: {
+      create: (config: unknown) => Parameters<typeof Queue.register>[1];
+    };
+  }): boolean => {
+    if (mod.ZedgiQueueDriver !== undefined) {
+      Queue.register('queue-zedgi', mod.ZedgiQueueDriver.create(config.drivers['queue-zedgi']));
+      return true;
+    }
+    return false;
+  };
+
   // Fall back to dynamic import only if not already registered
   try {
     const mod = (await import(/* @vite-ignore */ ZEDGI_PACKAGE)) as unknown as {
@@ -114,32 +131,22 @@ const registerZedgiQueueDriverIfAvailable = async (config: QueueConfig): Promise
       };
     };
 
-    if (mod.ZedgiQueueDriver !== undefined) {
-      Queue.register('queue-zedgi', mod.ZedgiQueueDriver.create(config.drivers['queue-zedgi']));
+    if (tryRegister(mod)) {
       return true;
     }
   } catch {
     try {
-      const cwd =
-        typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
-      if (cwd.trim() === '') return false;
-
-      const localEntry = path.join(cwd, 'dist', 'packages', 'zedgi', 'src', 'index.js');
-      if (!existsSync(localEntry)) return false;
-
-      const url = pathToFileURL(localEntry).href;
-      const localMod = (await import(url)) as unknown as {
-        ZedgiQueueDriver?: {
-          create: (config: unknown) => Parameters<typeof Queue.register>[1];
+      const url = getLocalPackageUrl('zedgi');
+      if (url !== null) {
+        const localMod = (await import(url)) as unknown as {
+          ZedgiQueueDriver?: {
+            create: (config: unknown) => Parameters<typeof Queue.register>[1];
+          };
         };
-      };
 
-      if (localMod.ZedgiQueueDriver !== undefined) {
-        Queue.register(
-          'queue-zedgi',
-          localMod.ZedgiQueueDriver.create(config.drivers['queue-zedgi'])
-        );
-        return true;
+        if (tryRegister(localMod)) {
+          return true;
+        }
       }
     } catch {
       // ignore
