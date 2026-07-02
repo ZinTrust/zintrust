@@ -881,18 +881,12 @@ const dispatchMonitor = async (
     }
     case 'events':
     case 'getEvents': {
-      const queueName = requireString(
-        firstDefined(args[0], payload.queueName, payload.queue),
-        'queueName'
-      );
+      const queueName = queueNameFromPayload(payload);
       getQueueEvents(state, queueName);
       return state.eventLogs.get(queueName) ?? [];
     }
     case 'getRecentJobsForQueue': {
-      const queueName = requireString(
-        firstDefined(args[0], payload.queueName, payload.queue),
-        'queueName'
-      );
+      const queueName = queueNameFromPayload(payload);
       await recoverStaleActiveJobs(
         state,
         queueName,

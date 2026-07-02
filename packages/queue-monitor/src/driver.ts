@@ -46,7 +46,11 @@ export type RetryJobResult =
   | { ok: false; status: 'not_retryable'; reason?: string };
 
 export type RecoverActiveJobResult =
-  | { ok: true; status: 'failed' | 'removed' | 'removed_after_delayed_retry' | 'moved'; state?: string }
+  | {
+      ok: true;
+      status: 'failed' | 'removed' | 'removed_after_delayed_retry' | 'moved';
+      state?: string;
+    }
   | { ok: false; status: 'missing' | 'not_active' | 'not_recoverable'; reason?: string };
 
 export type QueueDriver = {
@@ -68,8 +72,25 @@ type RedisRpcClient = {
   monitor: <T = unknown>(method: string, payload?: Record<string, unknown>) => Promise<T>;
 };
 
+// Zedgi monitor driver registry
+let registeredZedgiMonitorDriverFactory: ((config: unknown) => QueueDriver) | undefined;
+
+export const registerZedgiMonitorDriver = (
+  factory: typeof registeredZedgiMonitorDriverFactory
+): void => {
+  registeredZedgiMonitorDriverFactory = typeof factory === 'function' ? factory : undefined;
+};
+
 const shouldUseRedisRpcMonitorDriver = (): boolean =>
   Env.USE_REDIS_PROXY === true && Env.get('REDIS_RPC_URL', '').trim() !== '';
+
+const resolveActiveQueueConnection = (): string =>
+  Env.get('QUEUE_CONNECTION', Env.get('QUEUE_DRIVER', '')).trim().toLowerCase();
+
+const shouldUseZedgiMonitorDriver = (): boolean =>
+  registeredZedgiMonitorDriverFactory !== undefined &&
+  Env.getBool('USE_ZEDGI', false) &&
+  resolveActiveQueueConnection() === 'queue-zedgi';
 
 const resolveRpcBaseUrl = (): string => {
   const configured = Env.get('REDIS_RPC_URL', '').trim();
@@ -421,8 +442,71 @@ const createBullMQGetJobCounts =
     return queue.getJobCounts();
   };
 
+type PipelineLike = {
+  llen: (key: string) => unknown;
+  zcard: (key: string) => unknown;
+  exec: () => Promise<Array<[Error | null, unknown]> | null>;
+};
+
+const BULLMQ_COUNT_FIELDS = [
+  'waiting',
+  'active',
+  'completed',
+  'failed',
+  'delayed',
+  'paused',
+] as const;
+
+const BULLMQ_REDIS_COMMAND: Record<string, 'llen' | 'zcard'> = {
+  waiting: 'llen',
+  active: 'llen',
+  completed: 'zcard',
+  failed: 'zcard',
+  delayed: 'zcard',
+  paused: 'zcard',
+};
+
+const executePipelinedCounts = async (
+  redis: unknown,
+  uniqueQueueNames: string[]
+): Promise<Array<{ name: string; counts: Record<string, number> }>> => {
+  const prefix = getBullMQSafeQueueName();
+  const pipeline = (redis as { pipeline: () => PipelineLike }).pipeline();
+
+  for (const name of uniqueQueueNames) {
+    for (const field of BULLMQ_COUNT_FIELDS) {
+      const cmd = BULLMQ_REDIS_COMMAND[field];
+      const key = `${prefix}:${name}:${field}`;
+      pipeline[cmd](key);
+    }
+  }
+
+  const results = await pipeline.exec();
+  if (!results || results.length === 0) return emptyQueueStats(uniqueQueueNames);
+
+  const FIELD_COUNT = BULLMQ_COUNT_FIELDS.length;
+  const output: Array<{ name: string; counts: Record<string, number> }> = [];
+
+  for (let queueIndex = 0; queueIndex < uniqueQueueNames.length; queueIndex++) {
+    const name = uniqueQueueNames[queueIndex];
+    const counts: Record<string, number> = {};
+    const baseIndex = queueIndex * FIELD_COUNT;
+
+    for (let fieldIndex = 0; fieldIndex < FIELD_COUNT; fieldIndex++) {
+      const field = BULLMQ_COUNT_FIELDS[fieldIndex];
+      const resultIndex = baseIndex + fieldIndex;
+      const [err, val] = results[resultIndex] ?? [new Error('missing pipeline result'), 0];
+      counts[field] = err ? 0 : Number(val) || 0;
+    }
+
+    output.push({ name, counts });
+  }
+
+  return output;
+};
+
 const createBullMQGetJobCountsMany =
-  (getJobCounts: (queueName: string) => Promise<JobCounts>) =>
+  (getJobCounts: (queueName: string) => Promise<JobCounts>, redis: unknown) =>
   async (
     queueNames: string[]
   ): Promise<Array<{ name: string; counts: Record<string, number> }>> => {
@@ -454,12 +538,18 @@ const createBullMQGetJobCountsMany =
       return [];
     }
 
-    const stats = await Promise.all(
-      uniqueQueueNames.map(async (name) => {
-        const counts = await getJobCounts(name);
-        return { name, counts };
-      })
-    );
+    const stats = await executePipelinedCounts(redis, uniqueQueueNames).catch((error) => {
+      Logger.warn(
+        '[queue-monitor] Pipelined job counts failed; falling back to per-queue getJobCounts',
+        error
+      );
+      return Promise.all(
+        uniqueQueueNames.map(async (name) => {
+          const counts = await getJobCounts(name);
+          return { name, counts };
+        })
+      );
+    });
 
     if (QUEUE_MONITOR_LOGGING_ENABLED) {
       Logger.info('[queue-monitor] getJobCountsMany complete', {
@@ -590,6 +680,13 @@ const createBullMQClose = (queues: Map<string, Queue>) => async (): Promise<void
 };
 
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
+  if (shouldUseZedgiMonitorDriver()) {
+    if (registeredZedgiMonitorDriverFactory === undefined) {
+      throw ErrorFactory.createConfigError('Zedgi monitor driver factory is not registered');
+    }
+    return registeredZedgiMonitorDriverFactory(config);
+  }
+
   if (shouldUseRedisRpcMonitorDriver()) return createRedisRpcDriver();
 
   const queues = new Map<string, Queue>();
@@ -602,7 +699,7 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     enqueue: createBullMQEnqueue(getQueue),
     getJob: createBullMQGetJob(getQueue),
     getJobCounts: createBullMQGetJobCounts(getQueue),
-    getJobCountsMany: createBullMQGetJobCountsMany(createBullMQGetJobCounts(getQueue)),
+    getJobCountsMany: createBullMQGetJobCountsMany(createBullMQGetJobCounts(getQueue), redis),
     getRecentJobs: createBullMQGetRecentJobs(getQueue),
     retryJob: createBullMQRetryJob(getQueue, createBullMQGetJob(getQueue)),
     recoverActiveJob: createBullMQRecoverActiveJob(getQueue, createBullMQGetJob(getQueue)),

@@ -462,8 +462,13 @@ export const createRedisConnection = (
 ): IORedis => {
   const subsystem = options?.subsystem ?? '';
   const skipProxy = BULLMQ_SUBSYSTEMS.has(subsystem);
-  const mode = skipProxy ? 'direct' : ensureRedisTransportMode(config, options);
-  if (mode === 'proxy' || mode === 'rpc') {
+  const mode = skipProxy && subsystem !== 'queue-monitor' ? 'direct' : ensureRedisTransportMode(config, options);
+  // In zedgi mode, allow proxy connection for queue-monitor since we have a Zedgi-native driver
+  const allowProxyForZedgi = mode === 'zedgi' && subsystem === 'queue-monitor';
+  if (mode === 'proxy' || mode === 'rpc' || mode === 'zedgi') {
+    if (skipProxy && !allowProxyForZedgi) {
+      return createDirectRedisConnection(config, maxRetries, options);
+    }
     return createRedisProxyConnection(config, options) as unknown as IORedis;
   }
 

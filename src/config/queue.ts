@@ -4,7 +4,12 @@
  * Sealed namespace for immutability
  */
 
-import { Cloudflare } from '@config/cloudflare';
+import {
+  parseJsonObjectEnv,
+  readWorkersFallbackBool,
+  readWorkersFallbackInt,
+  readWorkersFallbackString,
+} from '@common/EnvFallbackUtils';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { MiddlewaresType } from '@config/middleware';
@@ -18,6 +23,7 @@ import type {
   RabbitMqQueueDriverConfig,
   RedisQueueDriverConfig,
   SqsQueueDriverConfig,
+  ZedgiQueueDriverConfig,
 } from '@config/type';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
@@ -81,45 +87,6 @@ const getQueueDriver = (
   return driverConfig.drivers[driverName];
 };
 
-const readWorkersEnvString = (key: string): string => {
-  const workerValue = Cloudflare.getWorkersVar(key);
-  if (workerValue !== null && workerValue.trim() !== '') return workerValue;
-  return '';
-};
-
-const readWorkersFallbackString = (
-  workersKey: string,
-  fallbackKey: string,
-  fallback = ''
-): string => {
-  const workerValue = readWorkersEnvString(workersKey);
-  if (workerValue.trim() !== '') return workerValue;
-  return Env.get(fallbackKey, fallback);
-};
-
-const readWorkersFallbackInt = (
-  workersKey: string,
-  fallbackKey: string,
-  fallback: number
-): number => {
-  const raw = readWorkersFallbackString(workersKey, fallbackKey, String(fallback));
-  if (raw.trim() === '') return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const readWorkersFallbackBool = (
-  workersKey: string,
-  fallbackKey: string,
-  fallback: boolean
-): boolean => {
-  const workerValue = readWorkersEnvString(workersKey);
-  if (workerValue.trim() !== '') {
-    return workerValue === 'true' || workerValue === '1';
-  }
-  return Env.getBool(fallbackKey, fallback);
-};
-
 const createRedisQueueDriver = (): RedisQueueDriverConfig => {
   return {
     driver: 'redis' as const,
@@ -152,6 +119,19 @@ const createRedisQueueDriver = (): RedisQueueDriverConfig => {
       'REDIS_MAX_LOADING_RETRY_TIME',
       Env.REDIS_MAX_LOADING_RETRY_TIME
     ),
+  };
+};
+
+const createZedgiQueueDriver = (): ZedgiQueueDriverConfig => {
+  return {
+    driver: 'queue-zedgi' as const,
+    password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
+    database: readWorkersFallbackInt(
+      'WORKERS_REDIS_QUEUE_DB',
+      'REDIS_QUEUE_DB',
+      ZintrustLang.REDIS_DEFAULT_DB
+    ),
+    header: parseJsonObjectEnv('ZEDGI_QUEUE_HEADER') ?? parseJsonObjectEnv('ZEDGI_REDIS_HEADER'),
   };
 };
 
@@ -202,6 +182,7 @@ export const createBaseDrivers = (): QueueDriversConfig => ({
     connection: Env.get('QUEUE_DB_CONNECTION', 'default'),
   },
   redis: createRedisQueueDriver(),
+  'queue-zedgi': createZedgiQueueDriver(),
   rabbitmq: createRabbitMqQueueDriver(),
   sqs: createSqsQueueDriver(),
 });

@@ -36,7 +36,11 @@ const testState = vi.hoisted(() => {
 });
 
 vi.mock('@zintrust/core/config', () => ({
-  Env: { get: vi.fn((_key: string, fallback?: string) => fallback ?? '') },
+  Env: {
+    get: vi.fn((_key: string, fallback?: string) => fallback ?? ''),
+    getInt: vi.fn((_key: string, fallback = 0) => fallback),
+    getBool: vi.fn((_key: string, fallback = false) => fallback),
+  },
   queueConfig: {
     monitor: { basePath: '/api', middleware: [] },
     drivers: {
@@ -301,10 +305,7 @@ describe('queue-monitor retry API', () => {
       response.res
     );
 
-    expect(testState.currentDriver.recoverActiveJob).toHaveBeenCalledWith(
-      'emails',
-      'job-active'
-    );
+    expect(testState.currentDriver.recoverActiveJob).toHaveBeenCalledWith('emails', 'job-active');
     expect(response.statusCode).toBe(200);
     expect(response.payload).toEqual({ ok: true, status: 'failed', state: 'failed' });
   });

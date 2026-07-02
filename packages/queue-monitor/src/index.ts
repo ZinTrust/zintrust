@@ -19,6 +19,7 @@ import {
   type RetrySnapshot,
 } from './driver.js';
 import { createMetrics, type Metrics } from './metrics.js';
+import { QueueEventStore } from './QueueEventStore.js';
 import {
   emptyLockAnalytics,
   getRecentJobsForSelection,
@@ -31,7 +32,9 @@ export {
   QueueMonitoringStream,
 } from './QueueMonitoringService.js';
 
-export { createBullMQDriver } from './driver.js';
+export { QueueEventStore } from './QueueEventStore.js';
+
+export { createBullMQDriver, registerZedgiMonitorDriver } from './driver.js';
 export type { JobPayload, QueueDriver, RecoverActiveJobResult } from './driver.js';
 export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics.js';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker.js';
@@ -116,7 +119,7 @@ const DEFAULTS = {
   enabled: true,
   basePath: '/queue-monitor',
   middleware: [],
-  autoRefresh: true,
+  autoRefresh: false,
   refreshIntervalMs: 5000,
 };
 
@@ -453,15 +456,33 @@ function buildSettings(config: QueueMonitorConfig): {
   };
 }
 
+const tryStartEventStore = (
+  queues: string[],
+  redisConfig: RedisConfig,
+  driver: QueueDriver
+): void => {
+  if (queues.length === 0) return;
+  QueueEventStore.start({ queues, redisConfig, driver }).catch((error) => {
+    Logger.warn('[queue-monitor] QueueEventStore start failed; using polling fallback', error);
+  });
+};
+
 function createGetSnapshot(
   driver: QueueDriver,
   startedAt: string,
   knownQueues:
     | ReadonlyArray<string>
     | (() => Promise<ReadonlyArray<string>> | ReadonlyArray<string>)
-    | undefined
+    | undefined,
+  redisConfig: RedisConfig
 ) {
   return async (): Promise<QueueMonitorSnapshot> => {
+    // If QueueEventStore is active, return in-memory counts directly —
+    // no Redis round-trips needed for queue counts.
+    if (QueueEventStore.isActive()) {
+      return QueueEventStore.getSnapshot();
+    }
+
     const persistedQueues = await resolveKnownQueues(knownQueues).catch((error) => {
       Logger.warn(
         '[queue-monitor] Known queue resolution failed; using no configured queues',
@@ -480,6 +501,9 @@ function createGetSnapshot(
       (left, right) => left.localeCompare(right)
     );
 
+    // Start QueueEventStore in the background for subsequent calls.
+    tryStartEventStore(queues, redisConfig, driver);
+
     const QUEUE_MONITOR_LOGGING_ENABLED = Env.getBool('QUEUE_MONITOR_LOGGING_ENABLED', false);
     if (QUEUE_MONITOR_LOGGING_ENABLED) {
       Logger.info('[queue-monitor] snapshot queue list resolved', {
@@ -489,6 +513,7 @@ function createGetSnapshot(
         usedRedisDiscovery: shouldDiscoverQueues,
         skippedRedisDiscovery: !shouldDiscoverQueues,
         hasBatchCounts: typeof driver.getJobCountsMany === 'function',
+        eventStoreActive: QueueEventStore.isActive(),
       });
     }
     const batchStartedAt = Date.now();
@@ -717,6 +742,32 @@ function registerEventsApi(
   );
 }
 
+// Module-level snapshot cache shared across all QueueMonitor instances.
+// This deduplicates Redis queries when both /workers and /queue-monitor dashboards
+// are open simultaneously — both call getSnapshot() but only the first within the
+// TTL window actually hits Redis.
+type SnapshotCacheEntry = {
+  data: QueueMonitorSnapshot;
+  ts: number;
+};
+
+let snapshotCache: SnapshotCacheEntry | null = null;
+const SNAPSHOT_CACHE_TTL_MS = Math.max(0, Env.getInt('QUEUE_MONITOR_SNAPSHOT_CACHE_MS', 1000));
+
+const wrapWithSnapshotCache = (
+  rawGetSnapshot: () => Promise<QueueMonitorSnapshot>
+): (() => Promise<QueueMonitorSnapshot>) => {
+  return async (): Promise<QueueMonitorSnapshot> => {
+    const now = Date.now();
+    if (snapshotCache && now - snapshotCache.ts < SNAPSHOT_CACHE_TTL_MS) {
+      return snapshotCache.data;
+    }
+    const data = await rawGetSnapshot();
+    snapshotCache = { data, ts: now };
+    return data;
+  };
+};
+
 export const QueueMonitor = Object.freeze({
   create(config: QueueMonitorConfig): QueueMonitorApi {
     const settings = buildSettings(config);
@@ -741,7 +792,9 @@ export const QueueMonitor = Object.freeze({
       refreshIntervalMs: settings.refreshIntervalMs,
     });
 
-    const getSnapshot = createGetSnapshot(driver, startedAt, config.knownQueues);
+    const getSnapshot = wrapWithSnapshotCache(
+      createGetSnapshot(driver, startedAt, config.knownQueues, redisConfig)
+    );
     const getLocks = createGetLocks(redisConfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 

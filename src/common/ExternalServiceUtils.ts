@@ -6,6 +6,13 @@
 import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+export {
+  parseJsonObjectEnv,
+  readWorkersEnvString,
+  readWorkersFallbackBool,
+  readWorkersFallbackInt,
+  readWorkersFallbackString,
+} from '@common/EnvFallbackUtils';
 
 export type TracedFetchTraceOptions = {
   source?: string;

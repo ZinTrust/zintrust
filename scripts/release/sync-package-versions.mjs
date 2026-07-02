@@ -502,6 +502,16 @@ function syncRootLockEntry(rootLock, rootPkg, dependencyVersions) {
     }
   }
 
+  if (!rootLock.packages.dist || typeof rootLock.packages.dist !== 'object') {
+    rootLock.packages.dist = {
+      name: rootPkg.name,
+      version: rootPkg.version,
+      license: rootPkg.license,
+      peer: true,
+    };
+    didChange = true;
+  }
+
   if (syncDistLockEntry(rootLock.packages.dist, rootPkg, dependencyVersions)) {
     didChange = true;
   }

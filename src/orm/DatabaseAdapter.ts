@@ -5,6 +5,8 @@
 
 import type { SupportedDriver } from '@migrations/enum';
 
+export type ExternalDatabaseDriver = 'mysql-zedgi' | 'postgres-zedgi' | 'pg-zedgi';
+
 /**
  * Read-replication constraint for a D1 session.
  *
@@ -60,7 +62,7 @@ export interface ID1DatabaseSession {
 
 export interface DatabaseConfig {
   d1?: ID1Database;
-  driver: SupportedDriver;
+  driver: SupportedDriver | ExternalDatabaseDriver;
   database?: string;
   host?: string;
   port?: number;

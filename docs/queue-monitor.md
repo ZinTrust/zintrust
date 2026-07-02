@@ -63,14 +63,14 @@ BULLMQ_REMOVE_ON_COMPLETE=10 BULLMQ_BACKOFF_DELAY=500
 
 These settings control how the Queue Monitor dashboard is exposed:
 
-| Environment Variable         | Default          | Description                                                         | Example       |
-| ---------------------------- | ---------------- | ------------------------------------------------------------------- | ------------- |
-| `QUEUE_MONITOR_ENABLED`      | `false`          | Enables Queue Monitor route registration                            | `true`        |
-| `QUEUE_MONITOR_BASE_PATH`    | `/queue-monitor` | Base path for the dashboard and monitor endpoints                   | `/ops/queues` |
-| `QUEUE_MONITOR_MIDDLEWARE`   | empty            | Comma-separated route middleware keys used to protect the dashboard | `auth,jwt`    |
-| `QUEUE_MONITOR_AUTO_REFRESH` | `true`           | Enables dashboard auto-refresh by default                           | `false`       |
-| `QUEUE_MONITOR_REFRESH_MS`   | `5000`           | Auto-refresh interval in milliseconds                               | `10000`       |
-| `QUEUE_MONITOR_RECOVER_ACTIVE_LOCK_MS` | `30000` | BullMQ lock TTL used by the manual Recover action for stale active jobs | `45000` |
+| Environment Variable                   | Default          | Description                                                             | Example       |
+| -------------------------------------- | ---------------- | ----------------------------------------------------------------------- | ------------- |
+| `QUEUE_MONITOR_ENABLED`                | `false`          | Enables Queue Monitor route registration                                | `true`        |
+| `QUEUE_MONITOR_BASE_PATH`              | `/queue-monitor` | Base path for the dashboard and monitor endpoints                       | `/ops/queues` |
+| `QUEUE_MONITOR_MIDDLEWARE`             | empty            | Comma-separated route middleware keys used to protect the dashboard     | `auth,jwt`    |
+| `QUEUE_MONITOR_AUTO_REFRESH`           | `false`          | Enables dashboard auto-refresh by default                               | `false`       |
+| `QUEUE_MONITOR_REFRESH_MS`             | `5000`           | Auto-refresh interval in milliseconds                                   | `10000`       |
+| `QUEUE_MONITOR_RECOVER_ACTIVE_LOCK_MS` | `30000`          | BullMQ lock TTL used by the manual Recover action for stale active jobs | `45000`       |
 
 `QUEUE_MONITOR_MIDDLEWARE` accepts registered route middleware keys from your app, for example `auth` or `auth,jwt`, and also supports dynamic route middleware keys such as `rateLimit:1000:1`. ZinTrust validates these values during config load and throws if any configured value does not match a known route middleware key or supported dynamic middleware key.
 

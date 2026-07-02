@@ -117,7 +117,14 @@ export interface SecretsManagerInstance {
   clearCache(key?: string): void;
 }
 
-export type QueueDriverName = 'sync' | 'database' | 'redis' | 'rabbitmq' | 'sqs' | 'memory';
+export type QueueDriverName =
+  | 'sync'
+  | 'database'
+  | 'redis'
+  | 'queue-zedgi'
+  | 'rabbitmq'
+  | 'sqs'
+  | 'memory';
 
 export type SyncQueueDriverConfig = {
   driver: 'sync';
@@ -147,6 +154,13 @@ export type RedisQueueDriverConfig = {
   maxLoadingRetryTime?: number;
 };
 
+export type ZedgiQueueDriverConfig = {
+  driver: 'queue-zedgi';
+  password?: string;
+  database: number;
+  header?: Record<string, unknown>;
+};
+
 export type RabbitMqQueueDriverConfig = {
   driver: 'rabbitmq';
   host: string;
@@ -172,6 +186,7 @@ export type QueueDriversConfig = {
   memory: MemoryCacheDriverConfig;
   database: DatabaseQueueDriverConfig;
   redis: RedisQueueDriverConfig;
+  'queue-zedgi': ZedgiQueueDriverConfig;
   rabbitmq: RabbitMqQueueDriverConfig;
   sqs: SqsQueueDriverConfig;
 };
@@ -339,6 +354,15 @@ export type PostgresqlConnectionConfig = {
   };
 };
 
+export type PostgresZedgiConnectionConfig = {
+  driver: 'postgres-zedgi' | 'pg-zedgi';
+  database: string;
+  username: string;
+  password: string;
+  ssl: boolean;
+  header?: Record<string, unknown>;
+};
+
 export type MysqlConnectionConfig = {
   driver: 'mysql';
   host: string;
@@ -352,6 +376,15 @@ export type MysqlConnectionConfig = {
     min: number;
     max: number;
   };
+};
+
+export type MysqlZedgiConnectionConfig = {
+  driver: 'mysql-zedgi';
+  database: string;
+  username: string;
+  password: string;
+  ssl?: boolean;
+  header?: Record<string, unknown>;
 };
 
 export type SqlserverConnectionConfig = {
@@ -375,7 +408,9 @@ export type D1RemoteConnectionConfig = {
 export type DatabaseConnectionConfig =
   | SqliteConnectionConfig
   | PostgresqlConnectionConfig
+  | PostgresZedgiConnectionConfig
   | MysqlConnectionConfig
+  | MysqlZedgiConnectionConfig
   | SqlserverConnectionConfig
   | D1ConnectionConfig
   | D1RemoteConnectionConfig;
@@ -424,6 +459,14 @@ export type RedisCacheDriverConfig = {
   maxLoadingRetryTime?: number;
 };
 
+export type ZedgiRedisCacheDriverConfig = {
+  driver: 'redis-zedgi';
+  password?: string;
+  database?: number;
+  ttl: number;
+  header?: Record<string, unknown>;
+};
+
 export type MongoCacheDriverConfig = {
   driver: 'mongodb';
   uri: string;
@@ -444,6 +487,7 @@ export type KvRemoteCacheDriverConfig = {
 export type CacheDriverConfig =
   | MemoryCacheDriverConfig
   | RedisCacheDriverConfig
+  | ZedgiRedisCacheDriverConfig
   | MongoCacheDriverConfig
   | KvCacheDriverConfig
   | KvRemoteCacheDriverConfig;

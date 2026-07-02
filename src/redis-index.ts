@@ -18,3 +18,11 @@ export {
 export type { RedisConfig } from '@config/type';
 export { createRedisConnection } from '@config/workers';
 export type { RedisTransportOptions } from '@tools/redis/RedisTransport';
+
+// Redis transport and Zedgi integration
+export {
+  isZedgiRedisExecutorRegistered,
+  registerZedgiRedisExecutor,
+  resolveRedisTransportMode,
+  type RedisTransportMode,
+} from '@tools/redis/RedisTransport';

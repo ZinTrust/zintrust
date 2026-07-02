@@ -60,6 +60,15 @@ const baseRegistrations = Object.freeze([
     isEnabled: () => isSelected(['DB_CONNECTION'], ['sqlite']) || looksLikeSqlitePath(),
   },
   {
+    packageName: '@zintrust/zedgi',
+    specifier: '@zintrust/zedgi/register',
+    isEnabled: () =>
+      readEnvBool('USE_ZEDGI') ||
+      isSelected(['DB_CONNECTION'], ['mysql-zedgi', 'postgres-zedgi', 'pg-zedgi']) ||
+      isSelected(['CACHE_CONNECTION', 'CACHE_DRIVER'], ['redis-zedgi']) ||
+      isSelected(['QUEUE_DRIVER'], ['queue-zedgi']),
+  },
+  {
     packageName: '@zintrust/queue-redis',
     specifier: '@zintrust/queue-redis/register',
     isEnabled: () =>

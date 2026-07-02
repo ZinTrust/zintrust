@@ -5,6 +5,7 @@
  * instances that can be selected via `useDatabase(undefined, name)`.
  */
 
+import { Logger } from '@config/logger';
 import type {
   DatabaseConfigShape,
   DatabaseConnectionConfig,
@@ -24,28 +25,10 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
     case 'd1-remote':
       return { driver: 'd1-remote' };
     case 'postgresql':
-      return {
-        driver: 'postgresql',
-        host: cfg.host,
-        port: cfg.port,
-        database: cfg.database,
-        username: cfg.username,
-        password: cfg.password,
-        readHosts: cfg.readHosts,
-      };
     case 'mysql':
-      return {
-        driver: 'mysql',
-        host: cfg.host,
-        port: cfg.port,
-        database: cfg.database,
-        username: cfg.username,
-        password: cfg.password,
-        readHosts: cfg.readHosts,
-      };
     case 'sqlserver':
       return {
-        driver: 'sqlserver',
+        driver: cfg.driver,
         host: cfg.host,
         port: cfg.port,
         database: cfg.database,
@@ -53,6 +36,17 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
         password: cfg.password,
         readHosts: cfg.readHosts,
       };
+    case 'postgres-zedgi':
+    case 'pg-zedgi':
+    case 'mysql-zedgi':
+      return {
+        driver: cfg.driver === 'pg-zedgi' ? 'postgres-zedgi' : cfg.driver,
+        database: cfg.database,
+        username: cfg.username,
+        password: cfg.password,
+        ssl: cfg.ssl,
+        ...(cfg.header === undefined ? {} : { header: cfg.header }),
+      } as OrmDatabaseConfig;
     default:
       // Exhaustive check (kept for future driver additions)
       return cfg satisfies never;
@@ -66,8 +60,6 @@ const registerConnections = (connections: DatabaseConnections): void => {
     DatabaseConnectionRegistry.set(name, toOrmConfig(runtimeCfg));
   }
 };
-
-import { Logger } from '@config/logger';
 
 /**
  * Register all connections from runtime config.

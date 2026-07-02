@@ -25,6 +25,7 @@ vi.mock('@zintrust/core', () => ({
 vi.mock('@zintrust/core/logger', () => ({
   Logger: {
     info: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 
@@ -43,6 +44,7 @@ vi.mock('bullmq', () => ({
 vi.mock('../src/connection', () => ({
   createRedisConnection: vi.fn(() => ({
     scan: vi.fn(async () => ['0', []]),
+    pipeline: undefined,
   })),
 }));
 
