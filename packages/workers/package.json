@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/workers",
-  "version": "3.0.0",
+  "version": "2.8.8",
   "description": "Worker orchestration and background job management for ZinTrust.",
   "private": false,
   "type": "module",

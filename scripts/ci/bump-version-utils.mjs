@@ -51,7 +51,9 @@ export function detectBump(messages, strategy) {
   };
 
   for (const message of messages) {
-    if (isReleaseCommit(message)) continue;
+    if (isReleaseCommit(message)) {
+      break;
+    }
     const next = detectCommitBump(message);
     if (next === 'none') continue;
 
