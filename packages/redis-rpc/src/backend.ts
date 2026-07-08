@@ -239,6 +239,43 @@ const createConnection = (state: BackendState, extra: RedisOptions = {}): Redis 
   return connection;
 };
 
+/**
+ * When the caller supplies a `payload.db` that differs from the default state's
+ * Redis DB, return (or lazily create) an isolated sub-state that targets that DB.
+ *
+ * Each sub-state has its own queues/queueEvents/eventLogs Maps so BullMQ Queue
+ * objects for different databases are never shared or confused. All sub-states
+ * share the top-level `connections` Set for unified shutdown cleanup.
+ */
+const resolveStateForDb = (
+  state: BackendState,
+  dbStates: Map<number, BackendState>,
+  payload: RpcPayload
+): BackendState => {
+  const requestedDb =
+    typeof payload.db === 'number' && Number.isFinite(payload.db) ? payload.db : undefined;
+
+  // No override, or same as server default → use main state unchanged.
+  if (requestedDb === undefined || requestedDb === state.connectionOptions.db) return state;
+
+  // Return existing derived state for this DB if already created.
+  const existing = dbStates.get(requestedDb);
+  if (existing) return existing;
+
+  // Lazily create an isolated state for this DB index.
+  const derived: BackendState = {
+    prefix: state.prefix,
+    connectionOptions: { ...state.connectionOptions, db: requestedDb },
+    queues: new Map(),
+    queueEvents: new Map(),
+    eventLogs: new Map(),
+    connections: state.connections, // shared — unified cleanup on close()
+    services: state.services,
+  };
+  dbStates.set(requestedDb, derived);
+  return derived;
+};
+
 const queueOptions = (state: BackendState): QueueOptions => ({
   connection: createConnection(state),
   prefix: state.prefix,
@@ -1000,6 +1037,9 @@ export const createRedisRpcBackend = (
     services: new Map(Object.entries(options.services ?? {})),
   };
 
+  // Per-DB isolated states keyed by integer DB index.
+  const dbStates = new Map<number, BackendState>();
+
   const backend: RedisRpcBackend = Object.freeze({
     prefix: state.prefix,
     dispatch: async (service, method, payload = {}) => {
@@ -1008,10 +1048,10 @@ export const createRedisRpcBackend = (
       const body = requireRecord(payload, 'payload');
 
       if (normalizedService === 'queue' || normalizedService === 'bullmq')
-        return dispatchQueue(state, normalizedMethod, body);
+        return dispatchQueue(resolveStateForDb(state, dbStates, body), normalizedMethod, body);
       if (normalizedService === 'worker') return dispatchWorker(state, normalizedMethod, body);
       if (normalizedService === 'queue-monitor')
-        return dispatchMonitor(state, normalizedMethod, body);
+        return dispatchMonitor(resolveStateForDb(state, dbStates, body), normalizedMethod, body);
       if (normalizedService === 'redis') return dispatchRedis(state, normalizedMethod, body);
       return dispatchCustom(backend, state, normalizedService, normalizedMethod, body);
     },

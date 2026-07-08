@@ -29,6 +29,26 @@ const getSecret = (): string =>
 
 export const isRedisRpcConfigured = (): boolean => getBaseUrl().length > 0;
 
+/**
+ * Resolve the target Redis database index from env
+ * (REDIS_QUEUE_DB → REDIS_DB → undefined).
+ * Returns undefined when no explicit DB is configured,
+ * which means the RPC backend uses its own server default.
+ */
+const getQueueDb = (): number | undefined => {
+  const queueDb = Env.getInt('REDIS_QUEUE_DB', -1);
+  if (queueDb >= 0) return queueDb;
+  const redisDb = Env.getInt('REDIS_DB', -1);
+  if (redisDb >= 0) return redisDb;
+  return undefined;
+};
+
+/** Merge target DB into any queue RPC payload when configured. */
+const queuePayload = <T extends Record<string, unknown>>(extra: T): T & { db?: number } => {
+  const db = getQueueDb();
+  return db === undefined ? extra : { db, ...extra };
+};
+
 const call = async <T = unknown>(
   service: string,
   method: string,
@@ -61,10 +81,14 @@ export const pullJob = async (
   queueName: string,
   visibilityTimeoutMs: number
 ): Promise<PulledJob | undefined> => {
-  const result = await call<PulledJob | undefined | null>('queue', 'dequeue', {
-    queueName,
-    visibilityTimeoutMs,
-  });
+  const result = await call<PulledJob | undefined | null>(
+    'queue',
+    'dequeue',
+    queuePayload({
+      queueName,
+      visibilityTimeoutMs,
+    })
+  );
   return result ?? undefined;
 };
 
@@ -74,13 +98,13 @@ export const ackJob = async (
   jobId: string,
   returnValue?: unknown
 ): Promise<void> => {
-  await call('queue', 'ack', { queueName, jobId, returnValue });
+  await call('queue', 'ack', queuePayload({ queueName, jobId, returnValue }));
 };
 
 /** Mark a pulled job failed. */
 export const failJob = async (queueName: string, jobId: string, reason: string): Promise<void> => {
   try {
-    await call('queue', 'fail', { queueName, jobId, reason });
+    await call('queue', 'fail', queuePayload({ queueName, jobId, reason }));
   } catch (error) {
     Logger.warn('[worker-runtime] failJob RPC failed', { queueName, jobId, error });
   }
