@@ -85,7 +85,8 @@ const shouldUseRedisRpcMonitorDriver = (): boolean =>
   Env.USE_REDIS_PROXY === true && Env.get('REDIS_RPC_URL', '').trim() !== '';
 
 const resolveActiveQueueConnection = (): string =>
-  Env.get('QUEUE_CONNECTION', Env.get('QUEUE_DRIVER', '')).trim().toLowerCase();
+  Env.get('QUEUE_CONNECTION', '').trim().toLowerCase() ||
+  Env.get('QUEUE_DRIVER', '').trim().toLowerCase();
 
 const shouldUseZedgiMonitorDriver = (): boolean =>
   registeredZedgiMonitorDriverFactory !== undefined &&

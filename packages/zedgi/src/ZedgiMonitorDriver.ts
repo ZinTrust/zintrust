@@ -13,6 +13,7 @@ type RedisConfig = {
   db?: number;
   database?: number;
   header?: Record<string, unknown>;
+  profile?: string;
 };
 
 const createZedgiEnqueue =
@@ -152,6 +153,7 @@ const createZedgiMonitorDriver = (config: RedisConfig): QueueDriver => {
     password: config.password,
     database: config.db ?? config.database,
     header: config.header,
+    profile: config.profile,
   });
 
   return {

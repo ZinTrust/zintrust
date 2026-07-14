@@ -159,6 +159,7 @@ export type ZedgiQueueDriverConfig = {
   password?: string;
   database: number;
   header?: Record<string, unknown>;
+  profile?: string;
 };
 
 export type RabbitMqQueueDriverConfig = {

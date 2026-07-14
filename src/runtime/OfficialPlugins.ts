@@ -24,6 +24,9 @@ const isSelected = (keys: ReadonlyArray<string>, expected: ReadonlyArray<string>
   return value !== '' && expected.includes(value);
 };
 
+const isQueueSelected = (expected: ReadonlyArray<string>): boolean =>
+  isSelected(['QUEUE_CONNECTION', 'QUEUE_DRIVER'], expected);
+
 const looksLikeSqlitePath = (): boolean => {
   const raw = readEnvString('DB_PATH', 'DB_DATABASE');
   if (raw === '') return false;
@@ -66,30 +69,29 @@ const baseRegistrations = Object.freeze([
       readEnvBool('USE_ZEDGI') ||
       isSelected(['DB_CONNECTION'], ['mysql-zedgi', 'postgres-zedgi', 'pg-zedgi']) ||
       isSelected(['CACHE_CONNECTION', 'CACHE_DRIVER'], ['redis-zedgi']) ||
-      isSelected(['QUEUE_DRIVER'], ['queue-zedgi']),
+      isQueueSelected(['queue-zedgi']),
   },
   {
     packageName: '@zintrust/queue-redis',
     specifier: '@zintrust/queue-redis/register',
     isEnabled: () =>
-      isSelected(['QUEUE_DRIVER'], ['redis']) ||
+      isQueueSelected(['redis']) ||
       isSelected(['BROADCAST_CONNECTION', 'BROADCAST_DRIVER'], ['redis', 'redishttps']),
   },
   {
     packageName: '@zintrust/queue-rabbitmq',
     specifier: '@zintrust/queue-rabbitmq/register',
-    isEnabled: () => isSelected(['QUEUE_DRIVER'], ['rabbitmq']),
+    isEnabled: () => isQueueSelected(['rabbitmq']),
   },
   {
     packageName: '@zintrust/queue-sqs',
     specifier: '@zintrust/queue-sqs/register',
-    isEnabled: () => isSelected(['QUEUE_DRIVER'], ['sqs']),
+    isEnabled: () => isQueueSelected(['sqs']),
   },
   {
     packageName: '@zintrust/queue-cloudflare',
     specifier: '@zintrust/queue-cloudflare/register',
-    isEnabled: () =>
-      isSelected(['QUEUE_DRIVER'], ['cloudflare', 'cloudflare-queues', 'cf-queues']),
+    isEnabled: () => isQueueSelected(['cloudflare', 'cloudflare-queues', 'cf-queues']),
   },
   {
     packageName: '@zintrust/cache-redis',

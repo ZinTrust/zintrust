@@ -12,6 +12,7 @@ const trackedEnvKeys = [
   'MAIL_CONNECTION',
   'MAIL_DRIVER',
   'QUEUE_DRIVER',
+  'QUEUE_CONNECTION',
   'QUEUE_MONITOR_ENABLED',
   'SOCKET_ENABLED',
   'STORAGE_CONNECTION',
@@ -92,5 +93,16 @@ describe('OfficialPlugins selection', () => {
 
     expect(OfficialPlugins.getPackages('base')).toContain('@zintrust/queue-cloudflare');
     expect(OfficialPlugins.getAutoImports('base')).toContain('@zintrust/queue-cloudflare/register');
+  });
+
+  it('selects Zedgi when requested as the queue connection', async () => {
+    process.env['QUEUE_CONNECTION'] = 'queue-zedgi';
+    process.env['QUEUE_DRIVER'] = 'redis';
+
+    const { OfficialPlugins } = await import('@/runtime/OfficialPlugins');
+
+    expect(OfficialPlugins.getPackages('base')).toContain('@zintrust/zedgi');
+    expect(OfficialPlugins.getAutoImports('base')).toContain('@zintrust/zedgi/register');
+    expect(OfficialPlugins.getPackages('base')).not.toContain('@zintrust/queue-redis');
   });
 });

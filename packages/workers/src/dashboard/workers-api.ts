@@ -12,6 +12,7 @@ import type {
   QueueData,
   RawWorkerData,
   WorkerConfiguration,
+  QueueDataDriver,
   WorkerData,
   WorkerDriver,
   WorkerHealth,
@@ -552,15 +553,22 @@ const normalizeDriver = (driver: string): WorkerDriver => {
   return 'memory';
 };
 
-const normalizeQueueDriver = (driver: string): WorkerDriver => {
+const normalizeQueueDriver = (driver: string): QueueDataDriver => {
+  if (driver === 'queue-zedgi' || driver === 'zedgi') return 'zedgi';
   return normalizeDriver(driver);
 };
 
-const resolveConfiguredQueueDriver = (): WorkerDriver => {
-  return normalizeQueueDriver(Env.get('QUEUE_DRIVER', 'redis'));
+const resolveActiveQueueConnection = (): string => {
+  const connection = Env.get('QUEUE_CONNECTION', '').trim();
+  if (connection !== '') return connection;
+  return Env.get('QUEUE_DRIVER', 'redis');
 };
 
-const buildEmptyQueueData = (driver: WorkerDriver): QueueData => {
+const resolveConfiguredQueueDriver = (): QueueDataDriver => {
+  return normalizeQueueDriver(resolveActiveQueueConnection());
+};
+
+const buildEmptyQueueData = (driver: QueueDataDriver): QueueData => {
   return {
     driver,
     totalQueues: 0,
@@ -780,10 +788,12 @@ async function getQueueData(): Promise<QueueData> {
   const queueDriver = resolveConfiguredQueueDriver();
 
   try {
-    // Get queue statistics based on QUEUE_DRIVER
+    // Get queue statistics based on the active queue connection.
     switch (queueDriver) {
       case 'redis':
         return await getRedisQueueData();
+      case 'zedgi':
+        return await getZedgiQueueData();
       case 'database':
         return await getDatabaseQueueData();
       default:
@@ -795,10 +805,67 @@ async function getQueueData(): Promise<QueueData> {
   }
 }
 
+type QueueMonitorRedisConfig = {
+  host?: string;
+  port?: number;
+  db?: number;
+  password?: string;
+  header?: Record<string, unknown>;
+  profile?: string;
+};
+
+const getKnownWorkerQueues = async (): Promise<string[]> => {
+  const manifestQueues = getWorkerManifestQueueNames();
+  if (shouldUseRedisRpcWorkerApi() && manifestQueues.length > 0) {
+    return manifestQueues;
+  }
+
+  const records = await WorkerFactory.listPersistedRecords();
+  return Array.from(
+    new Set(
+      records
+        .map((record) => record.queueName)
+        .filter((queueName): queueName is string => typeof queueName === 'string')
+    )
+  ).sort((left, right) => left.localeCompare(right));
+};
+
+const summarizeQueueMonitor = async (
+  driver: QueueDataDriver,
+  redis: QueueMonitorRedisConfig
+): Promise<QueueData> => {
+  const { QueueMonitor } = await import('@zintrust/queue-monitor');
+  const monitor = QueueMonitor.create({
+    knownQueues: getKnownWorkerQueues,
+    redis,
+  });
+  const snapshot = await monitor.getSnapshot();
+
+  let totalJobs = 0;
+  let processingJobs = 0;
+  let failedJobs = 0;
+
+  for (const queue of snapshot.queues) {
+    totalJobs +=
+      (queue.counts.waiting || 0) +
+      (queue.counts.active || 0) +
+      (queue.counts.completed || 0) +
+      (queue.counts.failed || 0);
+    processingJobs += queue.counts.active || 0;
+    failedJobs += queue.counts.failed || 0;
+  }
+
+  return {
+    driver,
+    totalQueues: snapshot.queues.length,
+    totalJobs,
+    processingJobs,
+    failedJobs,
+  };
+};
+
 async function getRedisQueueData(): Promise<QueueData> {
   try {
-    // Use existing queue monitor infrastructure
-    const { QueueMonitor } = await import('@zintrust/queue-monitor');
     const { queueConfig: FreshQeueConfig } = await import('@zintrust/core/config');
 
     const redisConfig = FreshQeueConfig.drivers.redis;
@@ -806,53 +873,12 @@ async function getRedisQueueData(): Promise<QueueData> {
       throw ErrorFactory.createConfigError('Redis driver not configured');
     }
 
-    const monitor = QueueMonitor.create({
-      knownQueues: async () => {
-        const manifestQueues = getWorkerManifestQueueNames();
-        if (shouldUseRedisRpcWorkerApi() && manifestQueues.length > 0) {
-          return manifestQueues;
-        }
-
-        const records = await WorkerFactory.listPersistedRecords();
-        return Array.from(
-          new Set(
-            records
-              .map((record) => record.queueName)
-              .filter((queueName) => typeof queueName === 'string')
-          )
-        ).sort((left, right) => left.localeCompare(right));
-      },
-      redis: {
-        host: redisConfig.host || 'localhost',
-        port: redisConfig.port || 6379,
-        db: redisConfig.database || 1,
-        password: redisConfig.password,
-      },
+    return await summarizeQueueMonitor('redis', {
+      host: redisConfig.host || 'localhost',
+      port: redisConfig.port || 6379,
+      db: redisConfig.database || 1,
+      password: redisConfig.password,
     });
-    const snapshot = await monitor.getSnapshot();
-
-    let totalJobs = 0;
-    let processingJobs = 0;
-    let failedJobs = 0;
-
-    // Aggregate stats from all queues
-    for (const queue of snapshot.queues) {
-      totalJobs +=
-        (queue.counts.waiting || 0) +
-        (queue.counts.active || 0) +
-        (queue.counts.completed || 0) +
-        (queue.counts.failed || 0);
-      processingJobs += queue.counts.active || 0;
-      failedJobs += queue.counts.failed || 0;
-    }
-
-    return {
-      driver: 'redis',
-      totalQueues: snapshot.queues.length,
-      totalJobs,
-      processingJobs,
-      failedJobs,
-    };
   } catch (error) {
     if (shouldUseRedisRpcWorkerApi()) {
       Logger.debug('Error fetching Redis queue data:', error);
@@ -866,6 +892,26 @@ async function getRedisQueueData(): Promise<QueueData> {
       processingJobs: 0,
       failedJobs: 0,
     };
+  }
+}
+
+async function getZedgiQueueData(): Promise<QueueData> {
+  try {
+    const { queueConfig: FreshQeueConfig } = await import('@zintrust/core/config');
+    const zedgiConfig = FreshQeueConfig.drivers['queue-zedgi'];
+    if (zedgiConfig?.driver !== 'queue-zedgi') {
+      throw ErrorFactory.createConfigError('Zedgi queue driver not configured');
+    }
+
+    return await summarizeQueueMonitor('zedgi', {
+      db: zedgiConfig.database,
+      password: zedgiConfig.password,
+      header: zedgiConfig.header,
+      profile: (zedgiConfig as { profile?: string }).profile,
+    });
+  } catch (error) {
+    Logger.debug('Error fetching Zedgi queue data:', error);
+    return buildEmptyQueueData('zedgi');
   }
 }
 

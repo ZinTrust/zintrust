@@ -31,6 +31,10 @@ ZEDGI_REDIS_HEADER=
 ZEDGI_QUEUE_HEADER=
 ZEDGI_MYSQL_HEADER=
 ZEDGI_POSTGRES_HEADER=
+
+# Optional Redis credential profile for queues. Falls back to ZEDGI_REDIS_PROFILE.
+ZEDGI_QUEUE_PROFILE=
+ZEDGI_REDIS_PROFILE=
 ```
 
 ## Drivers
@@ -40,6 +44,7 @@ CACHE_DRIVER=redis-zedgi
 DB_CONNECTION=mysql-zedgi
 # or DB_CONNECTION=postgres-zedgi
 # or DB_CONNECTION=pg-zedgi
+QUEUE_CONNECTION=queue-zedgi
 QUEUE_DRIVER=queue-zedgi
 ```
 
@@ -55,11 +60,22 @@ The package uses one shared Zedgi client/options object so account key, signing 
 `queue-zedgi` supports:
 
 - `enqueue`
+- `dequeue`
+- `ack`
+- `fail`
 - `length`
 - `drain`
-- `ack`
 
-Pull-based `dequeue` is intentionally unsupported because the Zedgi queue API does not currently expose a safe visibility-timeout claim operation. Use `queue-zedgi` for producers and monitoring, and run workers against the same Redis service directly.
+Pull-based workers use Zedgi's Redis RPC BullMQ-intent operations, so `queue-zedgi`
+can be used for producers, monitoring, and consumers. When `QUEUE_CONNECTION` and
+`QUEUE_DRIVER` are both present, ZinTrust resolves `QUEUE_CONNECTION` first; set it
+to `queue-zedgi` to keep workers, monitors, and producers on the same Zedgi-backed
+Redis target.
+
+When `ZEDGI_QUEUE_PROFILE` is set, the queue driver uses that named Redis
+credential profile. ZinTrust registers the profile with the configured Redis DB
+(`REDIS_QUEUE_DB` or `WORKERS_REDIS_QUEUE_DB`) so BullMQ keys are read from the
+intended logical database.
 
 ## Registration
 

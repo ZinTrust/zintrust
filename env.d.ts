@@ -139,6 +139,7 @@ declare namespace NodeJS {
     PUSHER_APP_KEY?: string | undefined;
     PUSHER_APP_SECRET?: string | undefined;
     PUSHER_USE_TLS?: string | undefined;
+    QUEUE_CONNECTION?: string | undefined;
     QUEUE_DATA_TIMEOUT_MS?: string | undefined;
     QUEUE_DB_CONNECTION?: string | undefined;
     QUEUE_DRIVER?: string | undefined;
@@ -266,5 +267,6 @@ declare namespace NodeJS {
     WORKERS_HEALTH_CHECK_INTERVAL?: string | undefined;
     XSS_ENABLED?: string | undefined;
     XSS_REPORT_URI?: string | undefined;
+    ZEDGI_QUEUE_PROFILE?: string | undefined;
   }
 }

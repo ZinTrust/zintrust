@@ -22,7 +22,7 @@ import { Logger } from '@config/logger';
 import { BackgroundTaskScheduler } from '@runtime/BackgroundTaskScheduler';
 import { ensureDraining, isDraining, type AppWorkerDefinition } from '@worker-runtime/drain';
 import type { WorkerModule } from '@worker-runtime/processor-registry';
-import { isRedisRpcConfigured } from '@worker-runtime/rpc-client';
+import { isWorkerQueueRuntimeConfigured } from '@worker-runtime/rpc-client';
 
 type PingRequest = {
   getHeader?: (name: string) => string | string[] | undefined;
@@ -57,7 +57,7 @@ export const triggerWorkerPing = async (
   appWorkerDefinitions: AppWorkerDefinition[],
   workerModules: ReadonlyArray<WorkerModule>
 ): Promise<void> => {
-  if (!isRedisRpcConfigured()) {
+  if (!isWorkerQueueRuntimeConfigured()) {
     return;
   }
   const url = Env.get('WORKER_PING_URL', '').trim();
@@ -102,7 +102,7 @@ export const handlePing = (
     res.setStatus(401).json({ ok: false, error: 'Invalid worker ping secret' });
     return;
   }
-  if (!Env.getBool('WORKER_ENABLED', false) || !isRedisRpcConfigured()) {
+  if (!Env.getBool('WORKER_ENABLED', false) || !isWorkerQueueRuntimeConfigured()) {
     res.json({ ok: true, status: 'disabled' });
     return;
   }

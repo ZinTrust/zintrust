@@ -123,6 +123,7 @@ const createRedisQueueDriver = (): RedisQueueDriverConfig => {
 };
 
 const createZedgiQueueDriver = (): ZedgiQueueDriverConfig => {
+  const profile = Env.get('ZEDGI_QUEUE_PROFILE', Env.get('ZEDGI_REDIS_PROFILE', '')).trim();
   return {
     driver: 'queue-zedgi' as const,
     password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
@@ -132,6 +133,7 @@ const createZedgiQueueDriver = (): ZedgiQueueDriverConfig => {
       ZintrustLang.REDIS_DEFAULT_DB
     ),
     header: parseJsonObjectEnv('ZEDGI_QUEUE_HEADER') ?? parseJsonObjectEnv('ZEDGI_REDIS_HEADER'),
+    ...(profile === '' ? {} : { profile }),
   };
 };
 
@@ -164,6 +166,12 @@ const createSqsQueueDriver = (): SqsQueueDriverConfig => ({
   region: Env.AWS_REGION,
   queueUrl: Env.get('AWS_SQS_QUEUE_URL'),
 });
+
+const resolveDefaultQueueDriver = (): QueueDriverName => {
+  const connection = Env.get('QUEUE_CONNECTION', '').trim();
+  if (connection !== '') return connection as QueueDriverName;
+  return Env.get('QUEUE_DRIVER', 'sync') as QueueDriverName;
+};
 
 /**
  * Helper: Create base driver configurations from environment
@@ -253,7 +261,7 @@ const createQueueConfig = (): {
   const overrides: QueueConfigOverrides =
     StartupConfigFileRegistry.get<QueueConfigOverrides>(StartupConfigFile.Queue) ?? {};
 
-  const baseDefault = Env.get('QUEUE_DRIVER', 'sync') as QueueDriverName;
+  const baseDefault = resolveDefaultQueueDriver();
   const baseDrivers = createBaseDrivers();
 
   const baseFailed = {

@@ -11,6 +11,12 @@ const redisClient = {
   incrby: vi.fn(async () => 2),
   decrby: vi.fn(async () => 1),
   call: vi.fn(async () => 'OK'),
+  hook: vi.fn(async (name: string) => {
+    if (name === 'bull:dequeue') {
+      return { id: 'job-1', payload: { hello: 'world' }, attempts: 0 };
+    }
+    return true;
+  }),
 };
 const mysqlClient = {
   ping: vi.fn(async () => ({ pong: true })),
@@ -100,6 +106,32 @@ describe('@zintrust/zedgi drivers', () => {
     expect(JSON.stringify(options.credentials)).not.toContain('port');
   });
 
+  it('uses explicit Zedgi Redis credential profiles with the configured DB', async () => {
+    const { ZedgiRuntime } = await import('@/../packages/zedgi/src/ZedgiRuntime');
+
+    await ZedgiRuntime.queue('jobs', {
+      driver: 'queue-zedgi',
+      password: 'redis-secret',
+      database: 2,
+      profile: 'queue-db-2',
+      header: { tenant: 'app' },
+    }).count();
+
+    expect(createZedgiClient).toHaveBeenCalledTimes(1);
+    const options = createZedgiClient.mock.calls[0]?.[0] as {
+      credentials: Record<string, Record<string, Record<string, unknown>>>;
+    };
+    expect(options.credentials.redis['queue-db-2']).toEqual({
+      password: 'redis-secret',
+      db: 2,
+      header: { tenant: 'app' },
+    });
+    expect(createZedgiClient.mock.results[0]?.value.queue).toHaveBeenCalledWith(
+      'jobs',
+      'queue-db-2'
+    );
+  });
+
   it('maps cache operations to Zedgi redis calls', async () => {
     const { ZedgiCacheDriver } = await import('@/../packages/zedgi/src/ZedgiCacheDriver');
     const driver = ZedgiCacheDriver.create({ driver: 'redis-zedgi', ttl: 30, database: 0 });
@@ -144,17 +176,48 @@ describe('@zintrust/zedgi drivers', () => {
     ]);
   });
 
-  it('keeps queue dequeue unsupported and maps producer/management calls', async () => {
+  it('maps queue producer, consumer, and management calls through Zedgi', async () => {
     const { ZedgiQueueDriver } = await import('@/../packages/zedgi/src/ZedgiQueueDriver');
-    const driver = ZedgiQueueDriver.create({ driver: 'queue-zedgi', database: 1 });
+    const driver = ZedgiQueueDriver.create({
+      driver: 'queue-zedgi',
+      password: 'redis-secret',
+      database: 1,
+      profile: 'queue-db-1',
+      header: { tenant: 'app' },
+    });
 
     await expect(driver.enqueue('jobs', { hello: 'world' })).resolves.toBe('job-1');
     await expect(driver.length('jobs')).resolves.toBe(3);
+    await expect(driver.dequeue('jobs')).resolves.toEqual({
+      id: 'job-1',
+      payload: { hello: 'world' },
+      attempts: 0,
+    });
     await driver.ack('jobs', 'job-1');
+    await driver.fail?.('jobs', 'job-2', 'boom');
     await driver.drain('jobs');
-    await expect(driver.dequeue('jobs')).rejects.toHaveProperty('code', 'CONFIG_ERROR');
 
     expect(queueClient.add).toHaveBeenCalled();
-    expect(queueClient.removeJob).toHaveBeenCalledWith('job-1');
+    expect(redisClient.hook).toHaveBeenCalledWith('bull:dequeue', {
+      target: 'jobs',
+      visibilityTimeoutMs: 30000,
+    });
+    expect(redisClient.hook).toHaveBeenCalledWith('bull:ack', {
+      target: 'jobs',
+      args: ['job-1', 'acknowledged'],
+    });
+    expect(redisClient.hook).toHaveBeenCalledWith('bull:fail', {
+      target: 'jobs',
+      args: ['job-2', 'boom'],
+    });
+
+    const options = createZedgiClient.mock.calls[0]?.[0] as {
+      credentials: Record<string, Record<string, Record<string, unknown>>>;
+    };
+    expect(options.credentials.redis['queue-db-1']).toEqual({
+      password: 'redis-secret',
+      db: 1,
+      header: { tenant: 'app' },
+    });
   });
 });
