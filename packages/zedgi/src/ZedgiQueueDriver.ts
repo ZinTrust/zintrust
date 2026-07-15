@@ -36,8 +36,44 @@ const resolveJobId = (result: unknown, fallback: string): string => {
   return fallback;
 };
 
+type ZedgiRedisRpcClient = {
+  hook?: <T = unknown>(name: string, payload?: Record<string, unknown>) => Promise<T>;
+};
+
+type ConsumerCapableQueueClient = QueueClient & {
+  dequeue?: <T = unknown>(visibilityTimeoutMs?: number) => Promise<QueueMessage<T> | undefined>;
+  ack?: (id: string, returnValue?: unknown) => Promise<unknown>;
+  fail?: (id: string, reason?: string) => Promise<unknown>;
+};
+
+const resolveVisibilityTimeoutMs = (): number =>
+  Env.getInt(
+    'QUEUE_ZEDGI_VISIBILITY_TIMEOUT_MS',
+    Env.getInt('QUEUE_REDIS_VISIBILITY_TIMEOUT_MS', 30_000)
+  );
+
+const callQueueRpc = async <T>(
+  config: ZedgiQueueConfig,
+  queueName: string,
+  method: 'dequeue' | 'ack' | 'fail',
+  payload: Record<string, unknown>
+): Promise<T> => {
+  const redis = ZedgiRuntime.redis(config) as ZedgiRedisRpcClient;
+  if (typeof redis.hook === 'function') {
+    return redis.hook<T>(`bull:${method}`, {
+      target: queueName,
+      ...payload,
+    });
+  }
+
+  throw ErrorFactory.createConfigError(
+    'Zedgi Redis RPC hook support is required for queue consumption'
+  );
+};
+
 const createDriver = (config: ZedgiQueueConfig): QueueDriver => {
-  const queue = (name: string): QueueClient => ZedgiRuntime.queue(name, config);
+  const queue = (name: string): ConsumerCapableQueueClient =>
+    ZedgiRuntime.queue(name, config) as ConsumerCapableQueueClient;
 
   return {
     async enqueue(queueName: string, payload: BullMQPayload): Promise<string> {
@@ -50,14 +86,40 @@ const createDriver = (config: ZedgiQueueConfig): QueueDriver => {
       return resolveJobId(result, fallbackJobId);
     },
 
-    async dequeue<T = unknown>(_queueName: string): Promise<QueueMessage<T> | undefined> {
-      throw ErrorFactory.createConfigError(
-        'queue-zedgi does not support pull-based dequeue yet because the Zedgi queue API does not expose a safe visibility-timeout claim operation. Use it for enqueue and monitoring, or run workers against the same Redis service.'
-      );
+    async dequeue<T = unknown>(queueName: string): Promise<QueueMessage<T> | undefined> {
+      const visibilityTimeoutMs = resolveVisibilityTimeoutMs();
+      const client = queue(queueName);
+      if (typeof client.dequeue === 'function') {
+        return client.dequeue<T>(visibilityTimeoutMs);
+      }
+
+      return callQueueRpc<QueueMessage<T> | undefined>(config, queueName, 'dequeue', {
+        visibilityTimeoutMs,
+      });
     },
 
     async ack(queueName: string, id: string): Promise<void> {
-      await queue(queueName).removeJob(id);
+      const client = queue(queueName);
+      if (typeof client.ack === 'function') {
+        await client.ack(id, 'acknowledged');
+        return;
+      }
+
+      await callQueueRpc(config, queueName, 'ack', { args: [id, 'acknowledged'] });
+    },
+
+    async fail(
+      queueName: string,
+      id: string,
+      reason = 'failed by queue-zedgi worker'
+    ): Promise<void> {
+      const client = queue(queueName);
+      if (typeof client.fail === 'function') {
+        await client.fail(id, reason);
+        return;
+      }
+
+      await callQueueRpc(config, queueName, 'fail', { args: [id, reason] });
     },
 
     async length(queueName: string): Promise<number> {

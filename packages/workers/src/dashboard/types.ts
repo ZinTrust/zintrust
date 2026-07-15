@@ -6,6 +6,7 @@ export interface WorkerConfiguration {
 }
 
 export type WorkerDriver = 'database' | 'redis' | 'memory';
+export type QueueDataDriver = WorkerDriver | 'zedgi';
 
 export type WorkerStatus = 'running' | 'stopped' | 'error' | 'paused';
 
@@ -88,7 +89,7 @@ export interface WorkersListResponse {
 
 // Queue Data Types
 export interface QueueData {
-  driver: WorkerDriver;
+  driver: QueueDataDriver;
   totalQueues: number;
   totalJobs: number;
   processingJobs: number;

@@ -20,6 +20,7 @@ export type ZedgiQueueConfig = {
   password?: string;
   database?: number;
   header?: Record<string, unknown>;
+  profile?: string;
 };
 
 export type CacheDriver = {
@@ -62,6 +63,7 @@ export type QueueDriver = {
   enqueue(queue: string, payload: BullMQPayload): Promise<string>;
   dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined>;
   ack(queue: string, id: string): Promise<void>;
+  fail?(queue: string, id: string, reason?: string): Promise<void>;
   length(queue: string): Promise<number>;
   drain(queue: string): Promise<void>;
 };

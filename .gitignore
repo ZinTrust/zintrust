@@ -125,3 +125,5 @@ rpc-system/
 packages/queue-cloudflare/BULLMQ_COMPATIBILITY_PLAN.md
 gig/
 tmp-*
+
+bio/

@@ -20,7 +20,7 @@ import { resolveProcessor } from '@worker-runtime/processor-registry';
 import {
   ackJob,
   failJob,
-  isRedisRpcConfigured,
+  isWorkerQueueRuntimeConfigured,
   listWorkers,
   pullJob,
 } from '@worker-runtime/rpc-client';
@@ -99,7 +99,9 @@ export const resolveDrainTargets = async (
     statusByQueue = new Map(
       registered
         .filter(
-          (entry) => typeof entry.queueName === 'string' && entry.source === 'redis-rpc-registry'
+          (entry) =>
+            typeof entry.queueName === 'string' &&
+            (entry.source === undefined || entry.source === 'redis-rpc-registry')
         )
         .map((entry) => [entry.queueName, entry.status ?? 'stopped'])
     );
@@ -216,7 +218,7 @@ const runDrainLoop = async (
   appWorkerDefinitions: AppWorkerDefinition[],
   workerModules: ReadonlyArray<WorkerModule>
 ): Promise<void> => {
-  if (!Env.getBool('WORKER_ENABLED', false) || !isRedisRpcConfigured()) {
+  if (!Env.getBool('WORKER_ENABLED', false) || !isWorkerQueueRuntimeConfigured()) {
     return;
   }
 

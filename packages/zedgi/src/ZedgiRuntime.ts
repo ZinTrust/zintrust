@@ -141,6 +141,14 @@ const redisCredentialFromConfig = (
   return credential;
 };
 
+const resolveCredentialProfile = (config: unknown): string | undefined => {
+  if (config === null || typeof config !== 'object') return undefined;
+  const profile = (config as { profile?: unknown }).profile;
+  if (typeof profile !== 'string') return undefined;
+  const normalized = profile.trim();
+  return normalized === '' ? undefined : normalized;
+};
+
 const sqlCredentialFromConfig = (
   config: ZedgiDatabaseConfig,
   fallbackHeaderKey: string
@@ -177,6 +185,13 @@ export const ZedgiRuntime = Object.freeze({
   },
 
   redis(config: Partial<ZedgiRedisCacheConfig | ZedgiQueueConfig> = {}) {
+    const explicitProfile = resolveCredentialProfile(config);
+    if (explicitProfile !== undefined) {
+      const credential = redisCredentialFromConfig(config, 'ZEDGI_REDIS_HEADER');
+      registerProfile('redis', explicitProfile, credential);
+      return ensureClient().redis(explicitProfile);
+    }
+
     const credential = memoizeCredential(
       'redis',
       'redis',
@@ -187,6 +202,13 @@ export const ZedgiRuntime = Object.freeze({
   },
 
   queue(name: string, config: Partial<ZedgiQueueConfig | ZedgiRedisCacheConfig> = {}) {
+    const explicitProfile = resolveCredentialProfile(config);
+    if (explicitProfile !== undefined) {
+      const credential = redisCredentialFromConfig(config, 'ZEDGI_QUEUE_HEADER');
+      registerProfile('redis', explicitProfile, credential);
+      return ensureClient().queue(name, explicitProfile);
+    }
+
     const credential = memoizeCredential(
       'redis',
       'redis',

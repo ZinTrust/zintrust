@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/db-d1",
-  "version": "2.9.0",
+  "version": "3.0.0",
   "description": "Cloudflare D1 database adapter for ZinTrust.",
   "private": false,
   "type": "module",
