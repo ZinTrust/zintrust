@@ -39,7 +39,7 @@
   ],
   "dependencies": {
     "@eslint/js": "^10.0.1",
-    "brace-expansion": "^5.0.6",
+    "brace-expansion": "^5.0.7",
     "globals": "^17.6.0",
     "typescript-eslint": "^8.60.0"
   },
