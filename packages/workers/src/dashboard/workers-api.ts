@@ -134,14 +134,14 @@ const mergeManifestWorkers = (
   backendWorkers: WorkerData[],
   manifest: WorkerData[] = manifestWorkers()
 ): WorkerData[] => {
-  const manifestQueues = new Set(manifest.map((worker) => worker.queueName));
   const byName = new Map<string, WorkerData>();
   for (const worker of manifest) {
     byName.set(worker.name, worker);
   }
   for (const worker of backendWorkers) {
-    const isPlaceholder =
-      worker.name === `${worker.queueName}:redis-rpc` && manifestQueues.has(worker.queueName);
+    // Redis RPC queue-discovery placeholders use `<queueName>:redis-rpc` names.
+    // They are not valid lifecycle identities (colon fails worker-name validation).
+    const isPlaceholder = worker.name === `${worker.queueName}:redis-rpc`;
     if (isPlaceholder) continue;
     byName.set(worker.name, { ...byName.get(worker.name), ...worker });
   }

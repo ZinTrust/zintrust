@@ -168,62 +168,53 @@ const maybeSetKernelTraceRoute = (
   OpenTelemetry.setHttpRoute(traceSpan.span, method, routeLabel);
 };
 
-const runKernelPipeline = async (
-  router: IRouter,
-  globalMiddleware: Middleware[],
-  routeMiddleware: Record<string, Middleware>,
+const runMiddlewareChain = async (
+  middleware: Middleware[],
   req: IRequest,
   res: IResponse,
-  context: IRequestContext,
-  traceSpan: KernelTraceSpan | undefined
-): Promise<string> => {
-  const route = resolveRouteWithPreflightFallback(router, req.getMethod(), req.getPath());
-  if (route === null) {
-    const routeLabel = 'not_found';
-    maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
-    const handleNotFound = ErrorRouting.handleNotFound as (
-      request: IRequest,
-      response: IResponse,
-      requestId?: string
-    ) => Promise<void>;
-    await handleNotFound(req, res, context.requestId);
-    return routeLabel;
-  }
-
-  // Safe type guard to ensure route.routePath is a non-empty string before calling .trim()
-  const hasNonEmptyRoutePath = (r: unknown): r is { routePath: string } => {
-    if (typeof r !== 'object' || r === null) return false;
-    const rp = (r as { routePath?: unknown }).routePath;
-    return typeof rp === 'string' && rp.trim() !== '';
-  };
-
-  const routeLabel = hasNonEmptyRoutePath(route) ? route.routePath : req.getPath();
-
-  maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
-
-  // Use a typed view of the matched route to avoid unsafe member access
-  const matchedRoute = route as {
-    params?: Record<string, unknown>;
-    handler: (req: IRequest, res: IResponse) => Promise<void> | void;
-    routePath?: string;
-  };
-
-  // Coerce route params (which may be undefined or non-string) into the
-  // expected Record<string, string> shape required by Request.setParams.
-  const safeParams: Record<string, string> = {};
-  if (typeof matchedRoute.params === 'object' && matchedRoute.params !== null) {
-    for (const [k, v] of Object.entries(matchedRoute.params)) {
-      if (v === undefined || v === null) continue;
-      safeParams[k] = typeof v === 'string' ? v : String(v);
+  terminal: () => Promise<void>
+): Promise<void> => {
+  let index = 0;
+  const next = async (): Promise<void> => {
+    if (index < middleware.length) {
+      const mw = middleware[index++];
+      await mw(req, res, next);
+      return;
     }
+    await terminal();
+  };
+  await next();
+};
+
+// Safe type guard to ensure route.routePath is a non-empty string before calling .trim()
+const hasNonEmptyRoutePath = (r: unknown): r is { routePath: string } => {
+  if (typeof r !== 'object' || r === null) return false;
+  const rp = (r as { routePath?: unknown }).routePath;
+  return typeof rp === 'string' && rp.trim() !== '';
+};
+
+type MatchedRoute = {
+  params?: Record<string, unknown>;
+  handler: (req: IRequest, res: IResponse) => Promise<void> | void;
+  routePath?: string;
+};
+
+const coerceRouteParams = (params: Record<string, unknown> | undefined): Record<string, string> => {
+  const safeParams: Record<string, string> = {};
+  if (typeof params !== 'object' || params === null) return safeParams;
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null) continue;
+    safeParams[k] = typeof v === 'string' ? v : String(v);
   }
-  req.setParams(safeParams);
+  return safeParams;
+};
 
-  const routeMiddlewareNames = getRouteMiddlewareNames(matchedRoute);
-  req.context['traceRouteMiddleware'] = routeMiddlewareNames;
-
+const resolveWrappedRouteMiddleware = (
+  routeMiddlewareNames: string[],
+  routeMiddleware: Record<string, Middleware>
+): Middleware[] => {
   const traceMiddlewareEmitter = getTraceMiddlewareEmitter();
-  const resolvedRouteMiddleware = routeMiddlewareNames
+  return routeMiddlewareNames
     .map((name) => ({ name, middleware: routeMiddleware[name] }))
     .filter(
       (entry): entry is { name: string; middleware: Middleware } =>
@@ -244,20 +235,63 @@ const runKernelPipeline = async (
 
       return wrapped;
     });
+};
 
-  const middlewareToRun = [...globalMiddleware, ...resolvedRouteMiddleware];
+const runNotFoundPipeline = async (
+  globalMiddleware: Middleware[],
+  req: IRequest,
+  res: IResponse,
+  context: IRequestContext,
+  traceSpan: KernelTraceSpan | undefined
+): Promise<string> => {
+  // Run global middleware (including HttpWatcher) so routing 404s are still observed.
+  // Route middleware is intentionally skipped — there is no matched route.
+  const routeLabel = 'not_found';
+  maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
+  req.context['traceRouteMiddleware'] = [];
+  const handleNotFound = ErrorRouting.handleNotFound as (
+    request: IRequest,
+    response: IResponse,
+    requestId?: string
+  ) => Promise<void>;
 
-  let index = 0;
-  const next = async (): Promise<void> => {
-    if (index < middlewareToRun.length) {
-      const mw = middlewareToRun[index++];
-      await mw(req, res, next);
-      return;
-    }
+  await runMiddlewareChain(globalMiddleware, req, res, async () => {
+    await handleNotFound(req, res, context.requestId);
+  });
+  return routeLabel;
+};
+
+const runKernelPipeline = async (
+  router: IRouter,
+  globalMiddleware: Middleware[],
+  routeMiddleware: Record<string, Middleware>,
+  req: IRequest,
+  res: IResponse,
+  context: IRequestContext,
+  traceSpan: KernelTraceSpan | undefined
+): Promise<string> => {
+  const route = resolveRouteWithPreflightFallback(router, req.getMethod(), req.getPath());
+  if (route === null) {
+    return runNotFoundPipeline(globalMiddleware, req, res, context, traceSpan);
+  }
+
+  const matchedRoute = route as MatchedRoute;
+  const routeLabel = hasNonEmptyRoutePath(matchedRoute) ? matchedRoute.routePath : req.getPath();
+  maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
+
+  req.setParams(coerceRouteParams(matchedRoute.params));
+
+  const routeMiddlewareNames = getRouteMiddlewareNames(matchedRoute);
+  req.context['traceRouteMiddleware'] = routeMiddlewareNames;
+
+  const middlewareToRun = [
+    ...globalMiddleware,
+    ...resolveWrappedRouteMiddleware(routeMiddlewareNames, routeMiddleware),
+  ];
+
+  await runMiddlewareChain(middlewareToRun, req, res, async () => {
     await matchedRoute.handler(req, res);
-  };
-
-  await next();
+  });
   return routeLabel;
 };
 

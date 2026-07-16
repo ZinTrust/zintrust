@@ -38,6 +38,9 @@ export default {
   // Contains-based ignore list for URLs such as /queue-monitor/api/events or /workers/main.js.
   ignorePaths: ['/workers/events', '/queue-monitor', '.js', '.css'],
 
+  // When false, inbound HTTP 404 request entries are not persisted to trace storage.
+  captureNotFound: Env.getBool('TRACE_CAPTURE_NOT_FOUND', true),
+
   slowQueryThreshold: Env.getInt('TRACE_SLOW_QUERY_MS', 100),
 
   logMinLevel: Env.get('TRACE_LOG_LEVEL', 'info') as 'debug' | 'info' | 'warn' | 'error' | 'fatal',

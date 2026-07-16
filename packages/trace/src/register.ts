@@ -217,6 +217,7 @@ type TraceEnvValues = {
   traceServiceTagRaw: string;
   appNameRaw: string;
   appKeyRaw: string;
+  captureNotFoundRaw: string;
   captureCachePayloadsRaw: string;
   captureQueryBindingsRaw: string;
   contentDispatchDriverRaw: string;
@@ -248,6 +249,7 @@ const readTraceEnvValues = (Env: TraceEnvApi): TraceEnvValues => {
     traceServiceTagRaw: Env.get('TRACE_SERVICE_TAG', '').trim(),
     appNameRaw: Env.get('APP_NAME', '').trim(),
     appKeyRaw: Env.get('APP_KEY', '').trim(),
+    captureNotFoundRaw: Env.get('TRACE_CAPTURE_NOT_FOUND', '').trim(),
     captureCachePayloadsRaw: Env.get('TRACE_CACHE_PAYLOADS', '').trim(),
     captureQueryBindingsRaw: Env.get('TRACE_QUERY_BINDINGS', '').trim(),
     contentDispatchDriverRaw: Env.get('TRACE_CONTENT_QUEUE_DRIVER', '').trim(),
@@ -493,6 +495,10 @@ const buildTraceRuntimeConfig = (
   const logMinLevel = (
     values.logMinLevelRaw === '' ? startupOverrides?.logMinLevel : values.logMinLevelRaw
   ) as 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  const captureNotFound = resolveBooleanOverride(
+    values.captureNotFoundRaw,
+    startupOverrides?.captureNotFound
+  );
   const captureCachePayloads = resolveBooleanOverride(
     values.captureCachePayloadsRaw,
     startupOverrides?.captureCachePayloads
@@ -519,6 +525,7 @@ const buildTraceRuntimeConfig = (
     proxy: buildTraceProxyConfig(startupOverrides, values),
     ...withNumberProperty('pruneAfterHours', pruneAfterHours),
     ...withNumberProperty('slowQueryThreshold', slowQueryThreshold),
+    ...withBooleanProperty('captureNotFound', captureNotFound),
     ...withBooleanProperty('captureCachePayloads', captureCachePayloads),
     ...withBooleanProperty('captureQueryBindings', captureQueryBindings),
     contentDispatch: buildTraceContentDispatchConfig(startupOverrides, values),

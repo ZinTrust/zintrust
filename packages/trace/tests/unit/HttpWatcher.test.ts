@@ -157,6 +157,54 @@ describe('HttpWatcher', () => {
     );
   });
 
+  it('tags 404 responses as not_found without marking them failed', async () => {
+    vi.resetModules();
+
+    const { HttpWatcher } = await import('../../src/watchers/HttpWatcher');
+    const storage = createStorage();
+    const config = {
+      watchers: { request: true },
+      ignoreRoutes: ['/trace'],
+      redaction: { keys: [], headers: [], body: [], query: [] },
+    } as any;
+
+    let registeredMiddleware:
+      | ((req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>)
+      | undefined;
+    HttpWatcher.register({
+      storage,
+      config,
+      registerMiddleware(
+        middleware: (req: unknown, res: unknown, next: () => Promise<void>) => Promise<void>
+      ) {
+        registeredMiddleware = middleware;
+      },
+    } as any);
+
+    const { response } = createResponse();
+    const request = createRequest('/missing-route');
+
+    await registeredMiddleware?.(request, response, async () => {
+      response.setStatus(404);
+      response.json({ error: 'Not found' });
+    });
+    await flushAsync();
+
+    expect(storage.writeEntry).toHaveBeenCalledTimes(1);
+    expect(storage.writeEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'request',
+        tags: expect.arrayContaining(['not_found']),
+        content: expect.objectContaining({
+          uri: '/missing-route',
+          responseStatus: 404,
+        }),
+      })
+    );
+    const written = storage.writeEntry.mock.calls[0]?.[0] as { tags?: string[] };
+    expect(written.tags ?? []).not.toContain('failed');
+  });
+
   it('records request entries when downstream handling throws and the outer layer sends a 500', async () => {
     vi.resetModules();
 

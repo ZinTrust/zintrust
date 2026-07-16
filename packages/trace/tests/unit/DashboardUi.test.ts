@@ -74,4 +74,16 @@ describe('buildDashboardHtml', () => {
     expect(html).toContain('.status-pill.status-5xx');
     expect(html).toContain('const statusBadgeHtml = (value) =>');
   });
+
+  it('uses path-based entry detail routes and linkable rows', () => {
+    const html = buildDashboardHtml('/trace', 'ZinTrust Test App');
+
+    expect(html).toContain("BASE_PATH + '/entries/'");
+    expect(html).toContain('const buildDetailHref = (uuid, tab) =>');
+    expect(html).toContain('const entryRowHtml = (entry, includeBatch) =>');
+    expect(html).toContain('class="row-entry-link"');
+    expect(html).toContain("window.addEventListener('popstate'");
+    expect(html).toContain('const parseLocation = () =>');
+    expect(html).toContain('.tag.not_found');
+  });
 });
