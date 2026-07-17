@@ -5,17 +5,25 @@ ZinTrust's Query Builder provides a fluent, type-safe interface for building SQL
 Primary entry points:
 
 ```typescript
-import { QueryBuilder } from '@zintrust/core';
+import { QueryBuilder, type IQueryBuilder, type JoinOnInput } from '@zintrust/core';
+// Workers / slim entry: same types from '@zintrust/core/runtime' or '@zintrust/core/orm'
 import { User } from '@app/Models/User';
 
 // Model-backed (preferred for app tables)
 const users = await User.query().where('active', true).get();
 
+// Static Model helpers return the same full IQueryBuilder (whereNotNull, exists, latestPer, …)
+const latest = await Message.whereIn('thread_id', ids)
+  .latestPer('thread_id', { orderBy: [['created_at', 'DESC']] })
+  .get();
+
 // Ad-hoc table + connection
 const rows = await QueryBuilder.create('users', db).where('id', '=', 1).first();
 ```
 
-`Model.query()` returns an `IQueryBuilder` with soft-delete options applied when the model defines them. Use `QueryBuilder.create(table, db)` when you need a specific database instance (named connections, multi-db).
+`Model.query()` and Model static helpers (`where`, `join`, `whereNotExists`, …) all return the same full `IQueryBuilder`. Soft-delete options apply when the model defines them. Use `QueryBuilder.create(table, db)` when you need a specific database instance (named connections, multi-db).
+
+**Typing:** Do not cast builders for these APIs. If TypeScript still reports missing methods, upgrade `@zintrust/core` so `DefinedModel` / package re-exports match the runtime surface (see `JoinOnInput`, `LatestPerOptions` exports).
 
 ## Safety model
 
