@@ -68,18 +68,60 @@ describe('QueryBuilder type surface (DefinedModel + IQueryBuilder)', () => {
       .select('thread_id', 'COUNT(*) AS total')
       .groupBy('thread_id');
     expect(grouped.toSQL()).toContain('GROUP BY "thread_id"');
+  });
 
-    const viaStatic = Message.whereNotNull('deleted_for_all_at')
-      .whereNotExists((sub) =>
+  it('covers every new DefinedModel static wrapper end-to-end', () => {
+    // Each line must call the static helper on the model (not only builder methods),
+    // so patch coverage for createQueryBuilderMethods hits every new wrapper.
+    expect(Message.whereNull('deleted_for_all_at').toSQL()).toContain('IS NULL');
+    expect(Message.whereNotNull('read_at').toSQL()).toContain('IS NOT NULL');
+    expect(
+      Message.whereColumn('messages.thread_id', '=', 'threads.id').toSQL()
+    ).toContain('"messages"."thread_id" = "threads"."id"');
+
+    expect(
+      Message.whereExists((sub) =>
+        sub.from('posts').whereColumn('posts.user_id', '=', 'messages.user_id')
+      ).toSQL()
+    ).toContain('EXISTS (SELECT 1 FROM "posts"');
+
+    expect(
+      Message.whereNotExists((sub) =>
         sub
           .from('message_user_states')
           .whereColumn('message_user_states.message_id', '=', 'messages.id')
-      )
-      .latestPer('thread_id', { orderBy: [['created_at', 'DESC']] });
+      ).toSQL()
+    ).toContain('NOT EXISTS');
 
-    const staticSql = viaStatic.toSQL();
-    expect(staticSql).toContain('NOT EXISTS');
-    expect(staticSql).toContain('ROW_NUMBER()');
+    // Static from() rewrites the primary table on a fresh builder.
+    expect(Message.from('message_user_states').getTable()).toBe('message_user_states');
+
+    expect(
+      Message.join('states', (on) =>
+        on
+          .on('states.message_id', '=', 'messages.id')
+          .on('states.thread_id', '=', 'messages.thread_id')
+      ).toSQL()
+    ).toContain('INNER JOIN "states"');
+
+    expect(
+      Message.leftJoin('profiles', 'messages.user_id = profiles.user_id').toSQL()
+    ).toContain('LEFT JOIN "profiles"');
+
+    // Call static groupBy / latestPer directly (not only chained after select()).
+    expect(Message.groupBy('thread_id').toSQL()).toContain('GROUP BY "thread_id"');
+    expect(
+      Message.select('thread_id', 'COUNT(*) AS total').groupBy('thread_id').toSQL()
+    ).toContain('GROUP BY "thread_id"');
+
+    expect(
+      Message.latestPer('thread_id', {
+        orderBy: [
+          ['created_at', 'DESC'],
+          ['id', 'DESC'],
+        ],
+      }).toSQL()
+    ).toContain('ROW_NUMBER()');
   });
 
   it('keeps compile-time fixture assignable against live builders', () => {
