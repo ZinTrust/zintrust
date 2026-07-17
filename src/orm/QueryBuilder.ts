@@ -30,7 +30,38 @@ interface WhereGroupClause {
   conditions: WherePredicate[];
 }
 
-type WherePredicate = WhereClause | WhereGroupClause;
+interface WhereExistsClause {
+  kind: 'exists';
+  not: boolean;
+  boolean: 'AND' | 'OR';
+  table: string;
+  conditions: WherePredicate[];
+}
+
+interface WhereColumnCompareClause {
+  kind: 'column-compare';
+  boolean: 'AND' | 'OR';
+  left: string;
+  operator: string;
+  right: string;
+}
+
+type WherePredicate =
+  | WhereClause
+  | WhereGroupClause
+  | WhereExistsClause
+  | WhereColumnCompareClause;
+
+export interface IJoinOnBuilder {
+  on(left: string, operator: string, right: string): IJoinOnBuilder;
+}
+
+export type LatestPerOptions = {
+  orderBy: Array<[string, 'ASC' | 'DESC']>;
+  alias?: string;
+};
+
+export type JoinOnInput = string | ((on: IJoinOnBuilder) => unknown);
 
 /**
  * Result returned from INSERT operations
@@ -52,6 +83,11 @@ export interface QueryBuilderOptions {
 export interface PaginationOptions {
   baseUrl?: string;
   query?: PaginationQuery;
+  /**
+   * When joins are present, paginate totals use COUNT(DISTINCT …).
+   * Defaults to `<table>.id`. Pass an explicit safe identifier path when the primary key differs.
+   */
+  countDistinct?: string;
 }
 
 export type EagerLoadConstraint = (builder: IQueryBuilder) => IQueryBuilder;
@@ -69,13 +105,20 @@ export interface IQueryBuilder {
   whereNormalized(column: string, value: unknown, options?: NormalizedTextOptions): IQueryBuilder;
   orWhereNormalized(column: string, value: unknown, options?: NormalizedTextOptions): IQueryBuilder;
   whereNull(column: string): IQueryBuilder;
+  whereNotNull(column: string): IQueryBuilder;
   whereIn(column: string, values: unknown[]): IQueryBuilder;
   whereNotIn(column: string, values: unknown[]): IQueryBuilder;
+  whereColumn(left: string, operator: string, right: string): IQueryBuilder;
+  whereExists(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
+  whereNotExists(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
+  from(table: string): IQueryBuilder;
   withTrashed(): IQueryBuilder;
   onlyTrashed(): IQueryBuilder;
   withoutTrashed(): IQueryBuilder;
-  join(table: string, on: string): IQueryBuilder;
-  leftJoin(table: string, on: string): IQueryBuilder;
+  join(table: string, on: JoinOnInput): IQueryBuilder;
+  leftJoin(table: string, on: JoinOnInput): IQueryBuilder;
+  groupBy(...columns: string[]): IQueryBuilder;
+  latestPer(partitionBy: string | string[], options: LatestPerOptions): IQueryBuilder;
   orderBy(column: string, direction?: 'ASC' | 'DESC'): IQueryBuilder;
   inRandomOrder(): IQueryBuilder;
   limit(count: number): IQueryBuilder;
@@ -86,7 +129,7 @@ export interface IQueryBuilder {
   getLimit(): number | undefined;
   getOffset(): number | undefined;
   getOrderBy(): { column: string; direction: 'ASC' | 'DESC' } | undefined;
-  getJoins(): Array<{ table: string; on: string }>;
+  getJoins(): Array<{ table: string; on: string; type: 'INNER' | 'LEFT' }>;
   isReadOperation(): boolean;
   toSQL(): string;
   getParameters(): unknown[];
@@ -115,6 +158,12 @@ interface QueryState {
   orderByClauses: Array<{ column: string; direction: 'ASC' | 'DESC' }>;
   randomOrder: boolean;
   joins: Array<{ table: string; on: string; type: 'INNER' | 'LEFT' }>;
+  groupByColumns: string[];
+  latestPer?: {
+    partitionBy: string[];
+    orderBy: Array<{ column: string; direction: 'ASC' | 'DESC' }>;
+    alias: string;
+  };
   softDelete?: { column: string; mode: SoftDeleteMode };
   eagerLoads: string[];
   eagerLoadConstraints: EagerLoadConstraints;
@@ -265,7 +314,23 @@ const buildNormalizedColumnSql = (
 const isWhereGroupClause = (value: WherePredicate): value is WhereGroupClause =>
   'kind' in value && value.kind === 'group';
 
+const isWhereExistsClause = (value: WherePredicate): value is WhereExistsClause =>
+  'kind' in value && value.kind === 'exists';
+
+const isWhereColumnCompareClause = (value: WherePredicate): value is WhereColumnCompareClause =>
+  'kind' in value && value.kind === 'column-compare';
+
 const normalizeOperator = (operator: string): string => operator.trim().toUpperCase();
+
+const ALLOWED_COLUMN_COMPARE_OPERATORS = new Set(['=', '!=', '<>', '<', '<=', '>', '>=']);
+
+const assertSafeColumnCompareOperator = (operator: string): string => {
+  const normalized = operator.trim();
+  if (!ALLOWED_COLUMN_COMPARE_OPERATORS.has(normalized)) {
+    throw ErrorFactory.createDatabaseError('Unsafe SQL column comparison operator');
+  }
+  return normalized;
+};
 
 const ALLOWED_OPERATORS = new Set([
   '=',
@@ -520,6 +585,53 @@ const compileSingleWhereClause = (
   );
 };
 
+const compileColumnCompareClause = (
+  clause: WhereColumnCompareClause,
+  dialect?: string
+): { sql: string; parameters: unknown[] } => {
+  assertSafeIdentifierPath(clause.left, 'where column left');
+  assertSafeIdentifierPath(clause.right, 'where column right');
+  const operator = assertSafeColumnCompareOperator(clause.operator);
+  return {
+    sql: `${escapeIdentifier(clause.left, dialect)} ${operator} ${escapeIdentifier(
+      clause.right,
+      dialect
+    )}`,
+    parameters: [],
+  };
+};
+
+const compileExistsClause = (
+  clause: WhereExistsClause,
+  dialect?: string
+): { sql: string; parameters: unknown[] } => {
+  assertSafeIdentifierPath(clause.table, 'exists table');
+  const inner = compileWhereFragments(clause.conditions, dialect);
+  const whereSql = inner.sql.length > 0 ? ` WHERE ${inner.sql}` : '';
+  const keyword = clause.not ? 'NOT EXISTS' : 'EXISTS';
+  return {
+    sql: `${keyword} (SELECT 1 FROM ${escapeIdentifier(clause.table, dialect)}${whereSql})`,
+    parameters: inner.parameters,
+  };
+};
+
+const compileWherePredicate = (
+  condition: WherePredicate,
+  dialect?: string
+): { sql: string; parameters: unknown[]; grouped: boolean } => {
+  if (isWhereGroupClause(condition)) {
+    const compiled = compileWhereFragments(condition.conditions, dialect);
+    return { ...compiled, grouped: true };
+  }
+  if (isWhereExistsClause(condition)) {
+    return { ...compileExistsClause(condition, dialect), grouped: false };
+  }
+  if (isWhereColumnCompareClause(condition)) {
+    return { ...compileColumnCompareClause(condition, dialect), grouped: false };
+  }
+  return { ...compileSingleWhereClause(condition, dialect), grouped: false };
+};
+
 const compileWhereFragments = (
   conditions: WherePredicate[],
   dialect?: string
@@ -533,15 +645,13 @@ const compileWhereFragments = (
   const fragments: string[] = [];
 
   for (const condition of conditions) {
-    const compiled = isWhereGroupClause(condition)
-      ? compileWhereFragments(condition.conditions, dialect)
-      : compileSingleWhereClause(condition, dialect);
+    const compiled = compileWherePredicate(condition, dialect);
 
     if (compiled.sql.length === 0) continue;
 
     parameters.push(...compiled.parameters);
 
-    const fragment = isWhereGroupClause(condition) ? `(${compiled.sql})` : compiled.sql;
+    const fragment = compiled.grouped ? `(${compiled.sql})` : compiled.sql;
     const boolean = normalizeClauseBoolean(condition.boolean);
     fragments.push(fragments.length === 0 ? fragment : `${boolean} ${fragment}`);
   }
@@ -647,49 +757,239 @@ const buildLimitOffsetClause = (limit?: number, offset?: number): string => {
 const JOIN_CONDITION =
   /^([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*(=|!=|<>|<=|>=|<|>)\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)$/;
 
+type JoinOnTerm = { left: string; op: string; right: string };
+
+const parseJoinOnTerms = (on: string): JoinOnTerm[] => {
+  const parts = on
+    .split(/\s+AND\s+/i)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (parts.length === 0) {
+    throw ErrorFactory.createDatabaseError('Unsafe SQL join condition');
+  }
+
+  return parts.map((part) => {
+    const match = JOIN_CONDITION.exec(part);
+    if (!match) {
+      throw ErrorFactory.createDatabaseError('Unsafe SQL join condition');
+    }
+    const [, left, op, right] = match;
+    return { left: left ?? '', op: op ?? '=', right: right ?? '' };
+  });
+};
+
+const resolveJoinOnInput = (on: JoinOnInput): string => {
+  if (typeof on === 'string') {
+    // Validate early so bad ON strings fail at builder time, not only at compile.
+    const terms = parseJoinOnTerms(on);
+    return terms.map((term) => `${term.left} ${term.op} ${term.right}`).join(' AND ');
+  }
+
+  const terms: JoinOnTerm[] = [];
+  const joinOnBuilder: IJoinOnBuilder = Object.freeze({
+    on(left: string, operator: string, right: string): IJoinOnBuilder {
+      assertSafeIdentifierPath(left, 'join on left');
+      assertSafeIdentifierPath(right, 'join on right');
+      const op = assertSafeColumnCompareOperator(operator);
+      terms.push({ left: left.trim(), op, right: right.trim() });
+      return joinOnBuilder;
+    },
+  });
+
+  on(joinOnBuilder);
+
+  if (terms.length === 0) {
+    throw ErrorFactory.createDatabaseError('Join ON builder requires at least one on() term');
+  }
+
+  return terms.map((term) => `${term.left} ${term.op} ${term.right}`).join(' AND ');
+};
+
+const buildJoinOnSql = (on: string, dialect?: string): string => {
+  const terms = parseJoinOnTerms(on);
+  return terms
+    .map(
+      (term) =>
+        `${escapeIdentifier(term.left, dialect)} ${term.op} ${escapeIdentifier(term.right, dialect)}`
+    )
+    .join(' AND ');
+};
+
 const buildJoinClause = (joins: QueryState['joins'], dialect?: string): string =>
   joins
     .map(({ table, on, type }) => {
       assertSafeIdentifierPath(table, 'join table');
-      const match = JOIN_CONDITION.exec(on.trim());
-      if (!match) {
-        throw ErrorFactory.createDatabaseError('Unsafe SQL join condition');
-      }
-      const [, left, op, right] = match;
-      return ` ${type} JOIN ${escapeIdentifier(table, dialect)} ON ${escapeIdentifier(
-        left,
-        dialect
-      )} ${op} ${escapeIdentifier(right, dialect)}`;
+      return ` ${type} JOIN ${escapeIdentifier(table, dialect)} ON ${buildJoinOnSql(on, dialect)}`;
     })
     .join('');
 
-const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown[] } => {
+const buildGroupByClause = (columns: string[], dialect?: string): string => {
+  if (columns.length === 0) return '';
+
+  const parts = columns.map((column) => {
+    const col = column.trim();
+    assertSafeIdentifierPath(col, 'group by column');
+    return escapeIdentifier(col, dialect);
+  });
+
+  return ` GROUP BY ${parts.join(', ')}`;
+};
+
+const buildWindowOrderBySql = (
+  orderBy: Array<{ column: string; direction: 'ASC' | 'DESC' }>,
+  dialect?: string
+): string => {
+  if (orderBy.length === 0) {
+    throw ErrorFactory.createDatabaseError('latestPer requires at least one orderBy column');
+  }
+
+  return orderBy
+    .map((clause) => {
+      assertSafeIdentifierPath(clause.column, 'window order by column');
+      return `${escapeIdentifier(clause.column, dialect)} ${clause.direction}`;
+    })
+    .join(', ');
+};
+
+const buildWindowPartitionSql = (partitionBy: string[], dialect?: string): string => {
+  if (partitionBy.length === 0) {
+    throw ErrorFactory.createDatabaseError('latestPer requires at least one partition column');
+  }
+
+  return partitionBy
+    .map((column) => {
+      assertSafeIdentifierPath(column, 'window partition column');
+      return escapeIdentifier(column, dialect);
+    })
+    .join(', ');
+};
+
+const buildBaseSelectBody = (
+  state: QueryState,
+  columnsSql: string,
+  options: { includeOrderLimit: boolean; includeGroupBy: boolean }
+): { sql: string; parameters: unknown[] } => {
   if (state.tableName.length > 0) {
     assertSafeIdentifierPath(state.tableName, 'table name');
   }
 
-  const columns = buildSelectClause(state.selectColumns, state.dialect);
   const fromClause =
     state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName, state.dialect)}` : '';
   const joinClause = buildJoinClause(state.joins, state.dialect);
   const where = compileWhere(getEffectiveWhereConditions(state), state.dialect);
-  const sql = `SELECT ${columns}${fromClause}${joinClause}${where.sql}${buildOrderByClause(
+  const groupByClause = options.includeGroupBy
+    ? buildGroupByClause(state.groupByColumns, state.dialect)
+    : '';
+  const orderLimit = options.includeOrderLimit
+    ? `${buildOrderByClause(state.orderByClauses, state.randomOrder, state.dialect)}${buildLimitOffsetClause(
+        state.limitValue,
+        state.offsetValue
+      )}`
+    : '';
+
+  const sql = `SELECT ${columnsSql}${fromClause}${joinClause}${where.sql}${groupByClause}${orderLimit}`;
+  return { sql, parameters: where.parameters };
+};
+
+const buildLatestPerQuery = (state: QueryState): { sql: string; parameters: unknown[] } => {
+  const latest = state.latestPer;
+  if (latest === undefined) {
+    throw ErrorFactory.createDatabaseError('latestPer state is missing');
+  }
+
+  const baseColumns = buildSelectClause(state.selectColumns, state.dialect);
+  const partitionSql = buildWindowPartitionSql(latest.partitionBy, state.dialect);
+  const orderSql = buildWindowOrderBySql(latest.orderBy, state.dialect);
+  const aliasSql = escapeIdentifier(latest.alias, state.dialect);
+  const windowSql = `ROW_NUMBER() OVER (PARTITION BY ${partitionSql} ORDER BY ${orderSql}) AS ${aliasSql}`;
+  const innerColumns =
+    baseColumns === '*' || baseColumns.trim().length === 0
+      ? `*, ${windowSql}`
+      : `${baseColumns}, ${windowSql}`;
+
+  // Window wrap owns outer ORDER/LIMIT; inner keeps filters/joins only.
+  const inner = buildBaseSelectBody(state, innerColumns, {
+    includeOrderLimit: false,
+    includeGroupBy: false,
+  });
+
+  const outerOrderLimit = `${buildOrderByClause(
     state.orderByClauses,
     state.randomOrder,
     state.dialect
   )}${buildLimitOffsetClause(state.limitValue, state.offsetValue)}`;
-  return { sql, parameters: where.parameters };
+
+  const sql = `SELECT * FROM (${inner.sql}) AS ${escapeIdentifier(
+    '_zt_window',
+    state.dialect
+  )} WHERE ${aliasSql} = 1${outerOrderLimit}`;
+
+  return { sql, parameters: inner.parameters };
 };
 
-const buildCountQuery = (state: QueryState): { sql: string; parameters: unknown[] } => {
+const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown[] } => {
+  if (state.latestPer !== undefined) {
+    return buildLatestPerQuery(state);
+  }
+
+  const columns = buildSelectClause(state.selectColumns, state.dialect);
+  return buildBaseSelectBody(state, columns, {
+    includeOrderLimit: true,
+    includeGroupBy: true,
+  });
+};
+
+const buildCountQuery = (
+  state: QueryState,
+  options?: Pick<PaginationOptions, 'countDistinct'>
+): { sql: string; parameters: unknown[] } => {
   if (state.tableName.length > 0) {
     assertSafeIdentifierPath(state.tableName, 'table name');
   }
 
+  // GROUP BY / window queries: count rows of the unconstrained result set via subquery.
+  if (state.groupByColumns.length > 0 || state.latestPer !== undefined) {
+    const prevLimit = state.limitValue;
+    const prevOffset = state.offsetValue;
+    const prevOrder = state.orderByClauses;
+    const prevRandom = state.randomOrder;
+
+    state.limitValue = undefined;
+    state.offsetValue = undefined;
+    state.orderByClauses = [];
+    state.randomOrder = false;
+
+    const inner = buildSelectQuery(state);
+
+    state.limitValue = prevLimit;
+    state.offsetValue = prevOffset;
+    state.orderByClauses = prevOrder;
+    state.randomOrder = prevRandom;
+
+    const sql = `SELECT COUNT(*) AS total FROM (${inner.sql}) AS ${escapeIdentifier(
+      '_zt_count',
+      state.dialect
+    )}`;
+    return { sql, parameters: inner.parameters };
+  }
+
   const fromClause =
     state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName, state.dialect)}` : '';
+  const joinClause = buildJoinClause(state.joins, state.dialect);
   const where = compileWhere(getEffectiveWhereConditions(state), state.dialect);
-  const sql = `SELECT COUNT(*) AS total${fromClause}${where.sql}`;
+
+  let countExpr = 'COUNT(*)';
+  if (state.joins.length > 0) {
+    const distinctCol =
+      typeof options?.countDistinct === 'string' && options.countDistinct.trim().length > 0
+        ? options.countDistinct.trim()
+        : `${state.tableName}.id`;
+    assertSafeIdentifierPath(distinctCol, 'count distinct column');
+    countExpr = `COUNT(DISTINCT ${escapeIdentifier(distinctCol, state.dialect)})`;
+  }
+
+  const sql = `SELECT ${countExpr} AS total${fromClause}${joinClause}${where.sql}`;
   return { sql, parameters: where.parameters };
 };
 
@@ -735,11 +1035,115 @@ const createPredicateState = (dialect?: string): QueryState => ({
   orderByClauses: [],
   randomOrder: false,
   joins: [],
+  groupByColumns: [],
   eagerLoads: [],
   eagerLoadConstraints: {},
   eagerLoadCounts: [],
   dialect,
 });
+
+const applyWhereColumnCompare = (
+  state: QueryState,
+  left: string,
+  operator: string,
+  right: string,
+  boolean: 'AND' | 'OR' = 'AND'
+): void => {
+  assertSafeIdentifierPath(left, 'where column left');
+  assertSafeIdentifierPath(right, 'where column right');
+  const op = assertSafeColumnCompareOperator(operator);
+
+  state.whereConditions.push({
+    kind: 'column-compare',
+    boolean,
+    left: left.trim(),
+    operator: op,
+    right: right.trim(),
+  });
+};
+
+const applyWhereExists = (
+  state: QueryState,
+  callback: (builder: IQueryBuilder) => unknown,
+  not: boolean,
+  boolean: 'AND' | 'OR' = 'AND'
+): void => {
+  const subState = createPredicateState(state.dialect);
+  const subBuilder = createBuilder(subState);
+  callback(subBuilder);
+
+  const table = subState.tableName.trim();
+  if (table.length === 0) {
+    throw ErrorFactory.createDatabaseError('EXISTS subquery requires from(table)');
+  }
+  assertSafeIdentifierPath(table, 'exists table');
+
+  state.whereConditions.push({
+    kind: 'exists',
+    not,
+    boolean,
+    table,
+    conditions: subState.whereConditions,
+  });
+};
+
+const applyJoin = (
+  state: QueryState,
+  table: string,
+  on: JoinOnInput,
+  type: 'INNER' | 'LEFT'
+): void => {
+  assertSafeIdentifierPath(table, 'join table');
+  const onSql = resolveJoinOnInput(on);
+  state.joins.push({ table: table.trim(), on: onSql, type });
+};
+
+const applyGroupBy = (state: QueryState, columns: string[]): void => {
+  for (const column of columns) {
+    const col = String(column).trim();
+    assertSafeIdentifierPath(col, 'group by column');
+    state.groupByColumns.push(col);
+  }
+};
+
+const applyLatestPer = (
+  state: QueryState,
+  partitionBy: string | string[],
+  options: LatestPerOptions
+): void => {
+  const partitions = (Array.isArray(partitionBy) ? partitionBy : [partitionBy])
+    .map((column) => String(column).trim())
+    .filter((column) => column.length > 0);
+
+  if (partitions.length === 0) {
+    throw ErrorFactory.createDatabaseError('latestPer requires at least one partition column');
+  }
+  for (const column of partitions) {
+    assertSafeIdentifierPath(column, 'window partition column');
+  }
+
+  if (!Array.isArray(options.orderBy) || options.orderBy.length === 0) {
+    throw ErrorFactory.createDatabaseError('latestPer requires at least one orderBy column');
+  }
+
+  const orderBy = options.orderBy.map(([column, direction]) => {
+    const col = String(column).trim();
+    assertSafeIdentifierPath(col, 'window order by column');
+    return { column: col, direction: normalizeOrderDirection(direction) };
+  });
+
+  const aliasRaw =
+    typeof options.alias === 'string' && options.alias.trim().length > 0
+      ? options.alias.trim()
+      : 'rn';
+  assertSafeIdentifier(aliasRaw, 'window alias');
+
+  state.latestPer = {
+    partitionBy: partitions,
+    orderBy,
+    alias: aliasRaw,
+  };
+};
 
 const applyWhereGroup = (
   state: QueryState,
@@ -767,6 +1171,10 @@ const flattenWherePredicates = (conditions: WherePredicate[]): WhereClause[] => 
   for (const condition of conditions) {
     if (isWhereGroupClause(condition)) {
       flattened.push(...flattenWherePredicates(condition.conditions));
+      continue;
+    }
+    // Exists / column-compare predicates are not simple column clauses.
+    if (isWhereExistsClause(condition) || isWhereColumnCompareClause(condition)) {
       continue;
     }
     flattened.push(condition);
@@ -941,7 +1349,9 @@ async function executePaginate<T>(
   const safePage = normalizePaginationValue(page, 'page');
   const safePerPage = normalizePaginationValue(perPage, 'perPage');
 
-  const countQuery = buildCountQuery(state);
+  const countQuery = buildCountQuery(state, {
+    countDistinct: options?.countDistinct,
+  });
   const countRows = (await db.query(countQuery.sql, countQuery.parameters, true)) as Array<
     Record<string, unknown>
   >;
@@ -1037,12 +1447,31 @@ function attachWhereMethods(builder: IQueryBuilder, state: QueryState): void {
     return builder;
   };
   builder.whereNull = (column) => builder.where(column, 'IS', null);
+  builder.whereNotNull = (column) => builder.where(column, 'IS NOT', null);
   builder.whereIn = (column, values) => {
     builder.where(column, 'IN', values);
     return builder;
   };
   builder.whereNotIn = (column, values) => {
     builder.where(column, 'NOT IN', values);
+    return builder;
+  };
+  builder.whereColumn = (left, operator, right) => {
+    applyWhereColumnCompare(state, left, operator, right, 'AND');
+    return builder;
+  };
+  builder.whereExists = (callback) => {
+    applyWhereExists(state, callback, false, 'AND');
+    return builder;
+  };
+  builder.whereNotExists = (callback) => {
+    applyWhereExists(state, callback, true, 'AND');
+    return builder;
+  };
+  builder.from = (table) => {
+    const name = String(table).trim();
+    assertSafeIdentifierPath(name, 'table name');
+    state.tableName = name;
     return builder;
   };
 }
@@ -1076,11 +1505,19 @@ function attachSoftDeleteMethods(builder: IQueryBuilder, state: QueryState): voi
 
 function attachJoinOrderPagingMethods(builder: IQueryBuilder, state: QueryState): void {
   builder.join = (tableJoin, on) => {
-    state.joins.push({ table: tableJoin, on, type: 'INNER' });
+    applyJoin(state, tableJoin, on, 'INNER');
     return builder;
   };
   builder.leftJoin = (tableJoin, on) => {
-    state.joins.push({ table: tableJoin, on, type: 'LEFT' });
+    applyJoin(state, tableJoin, on, 'LEFT');
+    return builder;
+  };
+  builder.groupBy = (...columns) => {
+    applyGroupBy(state, columns);
+    return builder;
+  };
+  builder.latestPer = (partitionBy, options) => {
+    applyLatestPer(state, partitionBy, options);
     return builder;
   };
   builder.orderBy = (column, direction = 'ASC') => {
@@ -1914,6 +2351,7 @@ export const QueryBuilder = Object.freeze({
       orderByClauses: [],
       randomOrder: false,
       joins: [],
+      groupByColumns: [],
       eagerLoads: [],
       eagerLoadConstraints: {},
       eagerLoadCounts: [],

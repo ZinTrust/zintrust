@@ -10,7 +10,7 @@ This document covers advanced database topics in ZinTrust:
 It complements:
 
 - `docs/models.md` (model definition + connection usage)
-- `docs/query-builder.md` (query builder usage)
+- `docs/query-builder.md` (query builder usage — including `whereExists`, multi-term joins, `groupBy`, `latestPer`, join-aware `paginate`)
 - `docs/cloudflare.md` (Workers bindings, D1, KV)
 - `docs/cache.md` (cache drivers)
 

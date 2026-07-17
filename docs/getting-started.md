@@ -80,7 +80,7 @@ ZinTrust is a **minimal-core** backend framework built on:
 
 ### 🛡️ Secure by Default
 
-- No raw SQL - QueryBuilder enforces parameterized queries
+- No free-form SQL - QueryBuilder enforces safe identifiers + parameterized values (see [Query Builder](./query-builder.md) for exists, joins, groupBy, latestPer)
 - Automatic CSRF protection
 - JWT token management
 - XSS vulnerability prevention

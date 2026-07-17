@@ -33,36 +33,42 @@ The ORM and Query Builder use prepared statements for all queries, making your a
 
 All prepared statements are automatically parameterized—user input is never concatenated into SQL.
 
-### Interface Reference
+### Interface Reference (safe surface)
+
+QueryBuilder only accepts safe identifier paths and allow-listed operators. Values are bound; column-to-column comparisons and correlated subqueries use structured helpers (`whereColumn`, `whereExists` / `whereNotExists`, multi-term join ON builders, `groupBy`, `latestPer`). See [Query Builder](./query-builder.md) for full examples.
 
 ```typescript
 export interface IQueryBuilder {
-  where(column: string, operator: string, value?: unknown): IQueryBuilder;
-  whereIn(column: string, values: unknown[]): IQueryBuilder;
-  whereNotIn(column: string, values: unknown[]): IQueryBuilder;
-  whereNull(column: string): IQueryBuilder;
-  whereNotNull(column: string): IQueryBuilder;
+  select(...columns: string[]): IQueryBuilder;
+  where(column: string, operator: string | number | boolean | null, value?: unknown): IQueryBuilder;
   orWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
   whereGroup(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
   orWhereGroup(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
-  whereNormalized(
-    column: string,
-    value: unknown,
-    options?: NormalizedTextOptions
+  whereNormalized(column: string, value: unknown, options?: NormalizedTextOptions): IQueryBuilder;
+  whereNull(column: string): IQueryBuilder;
+  whereNotNull(column: string): IQueryBuilder;
+  whereIn(column: string, values: unknown[]): IQueryBuilder;
+  whereNotIn(column: string, values: unknown[]): IQueryBuilder;
+  whereColumn(left: string, operator: string, right: string): IQueryBuilder;
+  whereExists(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
+  whereNotExists(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
+  from(table: string): IQueryBuilder;
+  join(table: string, on: string | ((on: IJoinOnBuilder) => unknown)): IQueryBuilder;
+  leftJoin(table: string, on: string | ((on: IJoinOnBuilder) => unknown)): IQueryBuilder;
+  groupBy(...columns: string[]): IQueryBuilder;
+  latestPer(
+    partitionBy: string | string[],
+    options: { orderBy: Array<[string, 'ASC' | 'DESC']>; alias?: string }
   ): IQueryBuilder;
-  orWhereNormalized(
-    column: string,
-    value: unknown,
-    options?: NormalizedTextOptions
-  ): IQueryBuilder;
-  select(...columns: string[]): IQueryBuilder;
-  get(): Promise\<Record\<string, unknown>[]>;
-  first(): Promise\<Record\<string, unknown> | null>;
-  count(): Promise\<number>;
-  pluck(column: string): Promise\<unknown[]>;
-  insert(data: Record\<string, unknown>): Promise\<number>;
-  update(data: Record\<string, unknown>): Promise\<number>;
-  delete(): Promise\<number>;
+  orderBy(column: string, direction?: 'ASC' | 'DESC'): IQueryBuilder;
+  limit(count: number): IQueryBuilder;
+  offset(count: number): IQueryBuilder;
+  paginate(page: number, perPage: number, options?: PaginationOptions): Promise<Paginator>;
+  get(): Promise<Record<string, unknown>[]>;
+  first(): Promise<Record<string, unknown> | null>;
+  insert(data: Record<string, unknown>): Promise<InsertResult>;
+  update(data: Record<string, unknown>): Promise<void>;
+  delete(): Promise<void>;
 }
 ```
 
