@@ -1,6 +1,6 @@
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import ts from 'typescript';
+import * as ts from 'typescript';
 
 const TEMPLATES_ROOT = path.resolve(process.cwd(), 'src/templates');
 
@@ -96,27 +96,71 @@ function looksLikeTypeScriptTemplate(text: string): boolean {
   return /\b(import|export)\b/.test(text);
 }
 
-function getTypeScriptSyntaxErrors(filePath: string): Array<{ line: number; message: string }> {
+interface DiagnosticWithLocation {
+  file?: ts.SourceFile;
+  start?: number;
+  length?: number;
+  messageText: string | ts.DiagnosticMessageChain;
+}
+
+function formatDiagnosticMessage(messageText: string | ts.DiagnosticMessageChain): string {
+  if (typeof messageText === 'string') {
+    return messageText;
+  }
+  return messageText.messageText;
+}
+
+function processCandidateFile(
+  filePath: string
+): Array<{ file: string; line: number; message: string }> {
   const text = fs.readFileSync(filePath, 'utf8');
-  if (!looksLikeTypeScriptTemplate(text)) return [];
+  if (!looksLikeTypeScriptTemplate(text)) {
+    return [];
+  }
 
   const sourceFile = ts.createSourceFile(
     filePath,
     text,
-    ts.ScriptTarget.ESNext,
+    ts.ScriptTarget.Latest,
     true,
     ts.ScriptKind.TS
   );
-  const diagnostics = (sourceFile as ts.SourceFile & { parseDiagnostics?: ts.Diagnostic[] })
-    .parseDiagnostics;
-  if (!diagnostics || diagnostics.length === 0) return [];
 
-  const out: Array<{ line: number; message: string }> = [];
-  for (const d of diagnostics) {
-    const message = ts.flattenDiagnosticMessageText(d.messageText, '\n');
-    const pos = typeof d.start === 'number' ? d.start : 0;
-    const { line } = sourceFile.getLineAndCharacterOfPosition(pos);
-    out.push({ line: line + 1, message });
+  const rawDiagnostics = (
+    sourceFile as ts.SourceFile & { parseDiagnostics?: DiagnosticWithLocation[] }
+  ).parseDiagnostics;
+
+  if (rawDiagnostics === undefined || rawDiagnostics.length === 0) {
+    return [];
+  }
+
+  const results: Array<{ file: string; line: number; message: string }> = [];
+  const relPath = path.relative(process.cwd(), filePath);
+
+  for (const d of rawDiagnostics) {
+    const pos = d.start ?? 0;
+    const line = sourceFile.getLineAndCharacterOfPosition(pos).line + 1;
+    const message = formatDiagnosticMessage(d.messageText);
+    results.push({
+      file: relPath,
+      line,
+      message,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Syntax diagnostics for TypeScript template files.
+ */
+function getTypeScriptSyntaxErrors(
+  files: string[]
+): Array<{ file: string; line: number; message: string }> {
+  const out: Array<{ file: string; line: number; message: string }> = [];
+  for (const filePath of files) {
+    const fileErrors = processCandidateFile(filePath);
+    out.push(...fileErrors);
   }
   return out;
 }
@@ -129,7 +173,6 @@ function main(): void {
 
   const files = listFilesRecursive(TEMPLATES_ROOT).filter(isTemplateFile);
   const allOffenses: Array<{ file: string; line: number; spec: string; text: string }> = [];
-  const allSyntaxErrors: Array<{ file: string; line: number; message: string }> = [];
 
   for (const file of files) {
     const offenses = checkFile(file);
@@ -141,16 +184,9 @@ function main(): void {
         text: o.text,
       });
     }
-
-    const syntaxErrors = getTypeScriptSyntaxErrors(file);
-    for (const e of syntaxErrors) {
-      allSyntaxErrors.push({
-        file: path.relative(process.cwd(), file),
-        line: e.line,
-        message: e.message,
-      });
-    }
   }
+
+  const allSyntaxErrors = getTypeScriptSyntaxErrors(files);
 
   if (allSyntaxErrors.length > 0) {
     process.stderr.write('Template syntax check failed. TypeScript parse errors found:\n');
