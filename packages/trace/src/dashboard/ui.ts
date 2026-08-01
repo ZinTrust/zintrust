@@ -78,7 +78,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
     .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:22px 24px 16px}.section-head h3{margin:0;font-size:1.04rem}.section-head p{margin:6px 0 0;color:var(--muted);font-size:.92rem}.toolbar{display:flex;flex-wrap:wrap;gap:10px;padding:0 24px 18px}.control,.toolbar input,.toolbar select{height:44px;border-radius:13px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);padding:0 14px;min-width:0}.toolbar input,.toolbar select{flex:1 1 180px}.toolbar input::placeholder{color:var(--muted)}.btn{height:44px;border:none;border-radius:13px;padding:0 16px;cursor:pointer;font-weight:800}.btn-primary{background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff}.btn-danger{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.18)}.btn-ghost{background:var(--surface-soft);color:var(--text);border:1px solid var(--line)}
     .table-wrap{overflow:auto;padding:0 12px 12px}.table-wrap table{width:100%;border-collapse:separate;border-spacing:0;min-width:880px}th{padding:14px;color:var(--muted);font-size:.74rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--line)}td{padding:15px 14px;border-bottom:1px solid var(--line);vertical-align:top}.row-button{cursor:pointer}.row-button:hover td{background:rgba(56,189,248,.05)}.summary{font-size:.93rem;font-weight:700;line-height:1.4;color:var(--text)}.summary-sub{margin-top:6px;color:var(--muted);font-size:.82rem;line-height:1.4}.mono{font-family:var(--mono)}.empty{padding:44px 24px;color:var(--muted);line-height:1.65;text-align:center}.pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px 24px;color:var(--muted);flex-wrap:wrap}.pagination-controls{display:flex;gap:8px}.pagination button{height:40px;min-width:92px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer}.pagination button:disabled{opacity:.45;cursor:not-allowed}
     .activity-list{list-style:none;margin:0;padding:0 24px 24px}.activity-item{padding:14px 0;border-top:1px solid var(--line)}.activity-item:first-child{border-top:none}.activity-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.activity-time{color:var(--muted);font-size:.85rem}.activity-summary{margin-top:8px;color:var(--text);line-height:1.48}.back-link{display:inline-flex;align-items:center;gap:8px;margin:0 0 14px;color:var(--accent);font-weight:800;cursor:pointer}.detail-card{padding:24px}.detail-meta{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 20px;color:var(--muted);font-size:.9rem;overflow-wrap:anywhere}.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.detail-stack{display:grid;gap:16px;margin-top:18px}.detail-box{padding:16px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.detail-box h4{margin:0 0 10px;font-size:.92rem}.detail-box dl{margin:0;display:grid;gap:8px}.detail-box dt{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-box dd{margin:0;color:var(--text);line-height:1.45;overflow-wrap:anywhere}.trace-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 16px}.trace-tab{border:none;border-radius:12px;padding:10px 12px;background:transparent;color:var(--muted);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);font-weight:800}.trace-tab.active{background:rgba(56,189,248,.12);color:var(--text);box-shadow:inset 0 0 0 1px rgba(56,189,248,.28)}.trace-panel{display:grid;gap:14px}.trace-item{padding:18px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.trace-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.trace-item-summary{margin-top:10px;display:grid;gap:10px}.trace-note{color:var(--muted);line-height:1.6}.trace-disclosure{padding:0;overflow:hidden}.trace-disclosure[open]{padding-bottom:18px}.trace-disclosure .trace-item-summary{margin-top:0}.trace-disclosure-body{display:grid;gap:12px;padding:0 18px}.trace-summary{list-style:none;cursor:pointer;padding:18px}.trace-summary::-webkit-details-marker{display:none}.trace-summary-main{display:grid;gap:10px;min-width:0;flex:1}.trace-summary-copy{display:grid;gap:6px;min-width:0}.trace-summary-copy .summary,.trace-summary-copy .summary-sub{display:block;overflow-wrap:anywhere}.trace-disclosure-body .summary-sub{overflow-wrap:anywhere}
-    .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:.78rem;font-weight:800;margin:0 6px 6px 0;border:1px solid rgba(56,189,248,.18);text-decoration:none}button.tag{cursor:pointer}html[data-theme='light'] .tag{color:#075985}.tag.failed{background:rgba(239,68,68,.14);color:#fecaca;border-color:rgba(239,68,68,.2)}html[data-theme='light'] .tag.failed{color:#b91c1c}.tag.slow{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.slow{color:#92400e}.type-pill,.status-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border:1px solid transparent}.pill-request{background:rgba(56,189,248,.14);color:#93c5fd}.pill-request.method-get{background:rgba(34,197,94,.16);color:#bbf7d0}.pill-request.method-post{background:rgba(59,130,246,.16);color:#bfdbfe}.pill-request.method-other{background:rgba(245,158,11,.16);color:#fde68a}.pill-query{background:rgba(34,197,94,.12);color:#86efac}.pill-exception{background:rgba(239,68,68,.14);color:#fecaca}.pill-log{background:rgba(168,85,247,.14);color:#ddd6fe}.pill-job,.pill-batch{background:rgba(245,158,11,.14);color:#fde68a}.pill-cache{background:rgba(20,184,166,.12);color:#99f6e4}.pill-schedule,.pill-command{background:rgba(14,165,233,.14);color:#bae6fd}.pill-mail,.pill-notification{background:rgba(236,72,153,.14);color:#fbcfe8}.pill-auth{background:rgba(148,163,184,.16);color:#e2e8f0}.pill-event,.pill-model{background:rgba(74,222,128,.14);color:#bbf7d0}.pill-redis{background:rgba(239,68,68,.12);color:#fecaca}.pill-gate{background:rgba(99,102,241,.14);color:#c7d2fe}.pill-middleware{background:rgba(45,212,191,.12);color:#ccfbf1}.pill-dump,.pill-view{background:rgba(148,163,184,.14);color:#e2e8f0}.pill-client-request{background:rgba(59,130,246,.14);color:#bfdbfe}.status-pill{white-space:nowrap}.status-pill.status-2xx{background:rgba(34,197,94,.16);color:#bbf7d0;border-color:rgba(34,197,94,.24)}.status-pill.status-4xx{background:rgba(245,158,11,.16);color:#fde68a;border-color:rgba(245,158,11,.24)}.status-pill.status-5xx{background:rgba(239,68,68,.16);color:#fecaca;border-color:rgba(239,68,68,.24)}.status-pill.status-other{background:rgba(148,163,184,.14);color:#e2e8f0;border-color:rgba(148,163,184,.2)}html[data-theme='light'] .pill-request{color:#1d4ed8}html[data-theme='light'] .pill-request.method-get{color:#166534}html[data-theme='light'] .pill-request.method-post{color:#1d4ed8}html[data-theme='light'] .pill-request.method-other{color:#92400e}html[data-theme='light'] .pill-query{color:#166534}html[data-theme='light'] .pill-exception{color:#b91c1c}html[data-theme='light'] .pill-log{color:#6d28d9}html[data-theme='light'] .pill-job,html[data-theme='light'] .pill-batch{color:#92400e}html[data-theme='light'] .pill-cache{color:#115e59}html[data-theme='light'] .pill-schedule,html[data-theme='light'] .pill-command{color:#0c4a6e}html[data-theme='light'] .pill-mail,html[data-theme='light'] .pill-notification{color:#9d174d}html[data-theme='light'] .pill-auth,html[data-theme='light'] .pill-dump,html[data-theme='light'] .pill-view{color:#334155}html[data-theme='light'] .pill-event,html[data-theme='light'] .pill-model{color:#166534}html[data-theme='light'] .pill-redis{color:#991b1b}html[data-theme='light'] .pill-gate{color:#3730a3}html[data-theme='light'] .pill-middleware{color:#155e75}html[data-theme='light'] .pill-client-request{color:#1d4ed8}html[data-theme='light'] .status-pill.status-2xx{color:#166534}html[data-theme='light'] .status-pill.status-4xx{color:#92400e}html[data-theme='light'] .status-pill.status-5xx{color:#b91c1c}html[data-theme='light'] .status-pill.status-other{color:#334155}
+    .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:.78rem;font-weight:800;margin:0 6px 6px 0;border:1px solid rgba(56,189,248,.18);text-decoration:none}button.tag{cursor:pointer}html[data-theme='light'] .tag{color:#075985}.tag.failed{background:rgba(239,68,68,.14);color:#fecaca;border-color:rgba(239,68,68,.2)}html[data-theme='light'] .tag.failed{color:#b91c1c}.tag.not_found{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.not_found{color:#92400e}.tag.slow{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.slow{color:#92400e}.row-entry-link{color:inherit;text-decoration:none;display:block;min-width:0}.row-entry-link:hover{color:var(--accent)}.back-link{text-decoration:none}.type-pill,.status-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border:1px solid transparent}.pill-request{background:rgba(56,189,248,.14);color:#93c5fd}.pill-request.method-get{background:rgba(34,197,94,.16);color:#bbf7d0}.pill-request.method-post{background:rgba(59,130,246,.16);color:#bfdbfe}.pill-request.method-other{background:rgba(245,158,11,.16);color:#fde68a}.pill-query{background:rgba(34,197,94,.12);color:#86efac}.pill-exception{background:rgba(239,68,68,.14);color:#fecaca}.pill-log{background:rgba(168,85,247,.14);color:#ddd6fe}.pill-job,.pill-batch{background:rgba(245,158,11,.14);color:#fde68a}.pill-cache{background:rgba(20,184,166,.12);color:#99f6e4}.pill-schedule,.pill-command{background:rgba(14,165,233,.14);color:#bae6fd}.pill-mail,.pill-notification{background:rgba(236,72,153,.14);color:#fbcfe8}.pill-auth{background:rgba(148,163,184,.16);color:#e2e8f0}.pill-event,.pill-model{background:rgba(74,222,128,.14);color:#bbf7d0}.pill-redis{background:rgba(239,68,68,.12);color:#fecaca}.pill-gate{background:rgba(99,102,241,.14);color:#c7d2fe}.pill-middleware{background:rgba(45,212,191,.12);color:#ccfbf1}.pill-dump,.pill-view{background:rgba(148,163,184,.14);color:#e2e8f0}.pill-client-request{background:rgba(59,130,246,.14);color:#bfdbfe}.status-pill{white-space:nowrap}.status-pill.status-2xx{background:rgba(34,197,94,.16);color:#bbf7d0;border-color:rgba(34,197,94,.24)}.status-pill.status-4xx{background:rgba(245,158,11,.16);color:#fde68a;border-color:rgba(245,158,11,.24)}.status-pill.status-5xx{background:rgba(239,68,68,.16);color:#fecaca;border-color:rgba(239,68,68,.24)}.status-pill.status-other{background:rgba(148,163,184,.14);color:#e2e8f0;border-color:rgba(148,163,184,.2)}html[data-theme='light'] .pill-request{color:#1d4ed8}html[data-theme='light'] .pill-request.method-get{color:#166534}html[data-theme='light'] .pill-request.method-post{color:#1d4ed8}html[data-theme='light'] .pill-request.method-other{color:#92400e}html[data-theme='light'] .pill-query{color:#166534}html[data-theme='light'] .pill-exception{color:#b91c1c}html[data-theme='light'] .pill-log{color:#6d28d9}html[data-theme='light'] .pill-job,html[data-theme='light'] .pill-batch{color:#92400e}html[data-theme='light'] .pill-cache{color:#115e59}html[data-theme='light'] .pill-schedule,html[data-theme='light'] .pill-command{color:#0c4a6e}html[data-theme='light'] .pill-mail,html[data-theme='light'] .pill-notification{color:#9d174d}html[data-theme='light'] .pill-auth,html[data-theme='light'] .pill-dump,html[data-theme='light'] .pill-view{color:#334155}html[data-theme='light'] .pill-event,html[data-theme='light'] .pill-model{color:#166534}html[data-theme='light'] .pill-redis{color:#991b1b}html[data-theme='light'] .pill-gate{color:#3730a3}html[data-theme='light'] .pill-middleware{color:#155e75}html[data-theme='light'] .pill-client-request{color:#1d4ed8}html[data-theme='light'] .status-pill.status-2xx{color:#166534}html[data-theme='light'] .status-pill.status-4xx{color:#92400e}html[data-theme='light'] .status-pill.status-5xx{color:#b91c1c}html[data-theme='light'] .status-pill.status-other{color:#334155}
     .monitoring-wrap{padding:0 24px 24px}.tag-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.tag-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface-strong)}.tag-remove{border:none;background:rgba(239,68,68,.14);color:var(--danger);border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:1rem;line-height:1}.helper-text{color:var(--muted);line-height:1.6}
     .duration-chip{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;border:1px solid transparent;font-size:.8rem;font-weight:700;color:var(--text);white-space:nowrap}.duration-chip.vfast{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.28);color:#bbf7d0}.duration-chip.fast{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.24);color:#bae6fd}.duration-chip.slow{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.22);color:#fde68a}.duration-chip.vslow{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.24);color:#fecaca}html[data-theme='light'] .duration-chip.vfast{color:#166534}html[data-theme='light'] .duration-chip.fast{color:#1d4ed8}html[data-theme='light'] .duration-chip.slow{color:#92400e}html[data-theme='light'] .duration-chip.vslow{color:#b91c1c}
     .code-card{border-radius:16px;border:1px solid var(--code-border);background:var(--surface-soft);overflow:hidden}.code-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}.code-label{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.copy-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer;transition:border-color .16s ease,color .16s ease}.copy-button:hover{border-color:rgba(56,189,248,.35);color:var(--accent)}.copy-button[data-copied='true']{color:var(--success);border-color:rgba(34,197,94,.28)}.copy-button svg{width:16px;height:16px;display:block}.code-block{margin:0;padding:18px 20px;background:var(--code-bg);color:#dbeafe;border:0;overflow:auto;white-space:pre;line-height:1.72;font-family:var(--mono);font-size:.92rem}.code-block.wrap{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.code-block code{font-family:inherit}.html-preview-wrap{padding:14px;background:var(--surface-strong);border-top:1px solid var(--line)}.html-preview{display:block;width:100%;min-height:320px;border:1px solid var(--line);border-radius:14px;background:#fff}.inline-collapse{margin:0;border-top:1px solid var(--line);background:var(--surface-strong)}.inline-collapse summary{cursor:pointer;list-style:none;padding:14px 16px;font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.inline-collapse summary::-webkit-details-marker{display:none}.inline-collapse[open] summary{border-bottom:1px solid var(--line)}.inline-collapse .code-block{border-top:none}.tok-key{color:#93c5fd}.tok-string{color:#86efac}.tok-number{color:#f9a8d4}.tok-boolean{color:#facc15}.tok-null{color:#fb7185}.tok-punctuation{color:#94a3b8}.tok-sql-keyword{color:#f472b6;font-weight:700}.tok-sql-identifier{color:#93c5fd}.tok-sql-string{color:#86efac}.tok-sql-number{color:#facc15}.tok-sql-comment{color:#64748b;font-style:italic}html[data-theme='light'] .code-block{color:#0f172a}html[data-theme='light'] .tok-key{color:#1d4ed8}html[data-theme='light'] .tok-string{color:#15803d}html[data-theme='light'] .tok-number{color:#c026d3}html[data-theme='light'] .tok-boolean{color:#b45309}html[data-theme='light'] .tok-null{color:#dc2626}html[data-theme='light'] .tok-punctuation{color:#64748b}html[data-theme='light'] .tok-sql-keyword{color:#db2777}html[data-theme='light'] .tok-sql-identifier{color:#2563eb}html[data-theme='light'] .tok-sql-string{color:#15803d}html[data-theme='light'] .tok-sql-number{color:#b45309}html[data-theme='light'] .tok-sql-comment{color:#6b7280}
@@ -148,26 +148,70 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       monitoring: { title: 'Monitoring tags', subtitle: 'Pinned tags for trace pivots.' }
     };
 
-    const createInitialState = () => {
+    const normalizeBasePath = (value) => String(value || '').replace(/[/]+$/, '') || '';
+    const BASE_PATH = normalizeBasePath(BASE);
+
+    const relativeDashboardPath = () => {
+      let path = String(window.location.pathname || '/');
+      if (BASE_PATH !== '' && (path === BASE_PATH || path.startsWith(BASE_PATH + '/'))) {
+        path = path.slice(BASE_PATH.length) || '/';
+      }
+      path = path.replace(/[/]+$/, '');
+      return path === '' ? '/' : path;
+    };
+
+    const parseLocation = () => {
       const search = new URLSearchParams(window.location.search);
-      const page = search.get('page');
+      const segments = relativeDashboardPath().split('/').filter(Boolean);
       const entriesPage = Number.parseInt(search.get('entriesPage') || '1', 10);
+      let page = 'overview';
+      let detailUuid = '';
+      let detailTab = search.get('tab') || 'summary';
+
+      if (segments[0] === 'entries') {
+        page = 'entries';
+        if (typeof segments[1] === 'string' && segments[1].trim() !== '') {
+          try {
+            detailUuid = decodeURIComponent(segments[1]);
+          } catch {
+            detailUuid = segments[1];
+          }
+        }
+      } else if (segments[0] === 'monitoring') {
+        page = 'monitoring';
+      } else {
+        const queryPage = search.get('page');
+        if (queryPage && Object.prototype.hasOwnProperty.call(PAGE_COPY, queryPage)) {
+          page = queryPage;
+        }
+        const queryUuid = search.get('uuid') || search.get('entry');
+        if (typeof queryUuid === 'string' && queryUuid.trim() !== '') {
+          page = 'entries';
+          detailUuid = queryUuid.trim();
+        }
+      }
+
+      if (detailTab.trim() === '') detailTab = 'summary';
 
       return {
-        page: page && Object.prototype.hasOwnProperty.call(PAGE_COPY, page) ? page : 'overview',
+        page,
         entriesPage: Number.isFinite(entriesPage) && entriesPage > 0 ? entriesPage : 1,
         entriesFilter: {
           type: search.get('type') || '',
           tag: search.get('tag') || '',
           batchId: search.get('batchId') || ''
         },
+        detailUuid,
         detail: null,
         detailBatch: null,
-        detailTab: 'summary'
+        detailTab
       };
     };
 
+    const createInitialState = () => parseLocation();
+
     let state = createInitialState();
+    let lastSyncedUrl = '';
 
     const DETAIL_BATCH_PAGE_SIZE = 10;
     const DETAIL_BATCH_SCOPE_BY_TAB = Object.freeze({
@@ -334,32 +378,60 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       return '<span class="duration-chip ' + tone + '" title="' + toneLabel + '">' + escapeHtml(formatDuration(duration)) + '</span>';
     };
 
-    const buildEntriesHref = (params) => {
+    const appendEntriesFilterParams = (search, filter, entriesPage) => {
+      if (filter && filter.type) search.set('type', String(filter.type));
+      if (filter && filter.tag) search.set('tag', String(filter.tag));
+      if (filter && filter.batchId) search.set('batchId', String(filter.batchId));
+      if (Number.isFinite(entriesPage) && entriesPage > 1) search.set('entriesPage', String(entriesPage));
+    };
+
+    const buildEntriesHref = (params = {}) => {
       const search = new URLSearchParams();
-      search.set('page', 'entries');
-      if (params.type) search.set('type', String(params.type));
-      if (params.tag) search.set('tag', String(params.tag));
-      if (params.batchId) search.set('batchId', String(params.batchId));
-      return BASE + '?' + search.toString();
+      appendEntriesFilterParams(search, {
+        type: params.type || '',
+        tag: params.tag || '',
+        batchId: params.batchId || ''
+      }, params.entriesPage);
+      const qs = search.toString();
+      return BASE_PATH + '/entries' + (qs === '' ? '' : '?' + qs);
+    };
+
+    const buildDetailHref = (uuid, tab) => {
+      const search = new URLSearchParams();
+      if (tab && tab !== 'summary') search.set('tab', String(tab));
+      const qs = search.toString();
+      return BASE_PATH + '/entries/' + encodeURIComponent(String(uuid || '')) + (qs === '' ? '' : '?' + qs);
+    };
+
+    const buildUrlFromState = () => {
+      const detailUuid = state.detail && state.detail.uuid ? state.detail.uuid : state.detailUuid;
+      if (detailUuid) {
+        return buildDetailHref(detailUuid, state.detailTab);
+      }
+      if (state.page === 'entries') {
+        return buildEntriesHref({
+          type: state.entriesFilter.type,
+          tag: state.entriesFilter.tag,
+          batchId: state.entriesFilter.batchId,
+          entriesPage: state.entriesPage
+        });
+      }
+      if (state.page === 'monitoring') return BASE_PATH + '/monitoring';
+      return BASE_PATH || '/';
     };
 
     const tagsHtml = (tags) => (tags || []).map((tag) => {
-      const css = tag === 'failed' ? 'tag failed' : tag === 'slow' ? 'tag slow' : 'tag';
+      const css = tag === 'failed' ? 'tag failed' : tag === 'not_found' ? 'tag not_found' : tag === 'slow' ? 'tag slow' : 'tag';
       const href = buildEntriesHref({ tag });
       return '<a class="' + css + '" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '" href="' + escapeHtml(href) + '">' + escapeHtml(tag) + '</a>';
     }).join('');
 
-    const syncUrl = () => {
-      const search = new URLSearchParams();
-      if (state.page !== 'overview') search.set('page', state.page);
-      if (state.page === 'entries' || state.entriesFilter.type || state.entriesFilter.tag || state.entriesFilter.batchId) {
-        if (state.entriesFilter.type) search.set('type', state.entriesFilter.type);
-        if (state.entriesFilter.tag) search.set('tag', state.entriesFilter.tag);
-        if (state.entriesFilter.batchId) search.set('batchId', state.entriesFilter.batchId);
-        if (state.entriesPage > 1) search.set('entriesPage', String(state.entriesPage));
-      }
-      const nextUrl = search.toString() === '' ? BASE : BASE + '?' + search.toString();
-      window.history.replaceState(null, '', nextUrl);
+    const syncUrl = (mode = 'replace') => {
+      const nextUrl = buildUrlFromState();
+      if (nextUrl === lastSyncedUrl && mode !== 'push') return;
+      lastSyncedUrl = nextUrl;
+      if (mode === 'push') window.history.pushState(null, '', nextUrl);
+      else window.history.replaceState(null, '', nextUrl);
     };
 
     const batchSnippet = (batchId) => {
@@ -578,6 +650,20 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         entry.type === 'client_request' ? 'Outbound HTTP call' : ''
       ].find(Boolean) || 'Trace record';
       return '<span class="summary">' + summary + '</span><span class="summary-sub">' + escapeHtml(secondary) + '</span>';
+    };
+
+    const entryRowHtml = (entry, includeBatch) => {
+      const detailHref = buildDetailHref(entry.uuid);
+      const linkOpen = '<a class="row-entry-link" href="' + escapeHtml(detailHref) + '" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '">';
+      const linkClose = '</a>';
+      return '<tr class="row-button">'
+        + '<td data-label="Type">' + linkOpen + '<span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span>' + linkClose + '</td>'
+        + '<td data-label="Summary">' + linkOpen + entrySummaryHtml(entry) + linkClose + '</td>'
+        + '<td data-label="Tags">' + tagsHtml(entry.tags) + '</td>'
+        + '<td data-label="Duration">' + durationHtml(entry) + '</td>'
+        + (includeBatch ? '<td data-label="Batch" class="mono">' + batchSnippet(entry.batchId) + '</td>' : '')
+        + '<td data-label="Happened" class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td>'
+        + '</tr>';
     };
 
     const renderMetricBox = (title, items) => {
@@ -850,7 +936,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       };
 
       main.innerHTML = [
-        '<span class="back-link" data-action="close-detail"><- Back to entries</span>',
+        '<a class="back-link" href="' + escapeHtml(buildEntriesHref({ type: state.entriesFilter.type, tag: state.entriesFilter.tag, batchId: state.entriesFilter.batchId, entriesPage: state.entriesPage })) + '" data-action="close-detail"><- Back to entries</a>',
         '<section class="panel detail-card">',
         '<div>' + (entry.type === 'request'
           ? '<span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span> ' + statusBadgeHtml(content.responseStatus) + ' <span class="mono">' + escapeHtml(content.uri || '') + '</span> ' + tagsHtml(entry.tags)
@@ -880,7 +966,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         const recentRows = recent.data || [];
         const recentTable = recentRows.length === 0
           ? '<div class="empty">No trace entries recorded.</div>'
-          : '<div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Duration</th><th>Happened</th></tr></thead><tbody>' + recentRows.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td data-label="Type"><span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span></td><td data-label="Summary">' + entrySummaryHtml(entry) + '</td><td data-label="Tags">' + tagsHtml(entry.tags) + '</td><td data-label="Duration">' + durationHtml(entry) + '</td><td data-label="Happened" class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('') + '</tbody></table></div>';
+          : '<div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary</th><th>Tags</th><th>Duration</th><th>Happened</th></tr></thead><tbody>' + recentRows.map((entry) => entryRowHtml(entry, false)).join('') + '</tbody></table></div>';
         const activityList = recentRows.length === 0
           ? '<div class="empty">No recent activity.</div>'
           : '<ul class="activity-list">' + recentRows.slice(0, 5).map((entry) => '<li class="activity-item"><div class="activity-head"><span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span>' + durationHtml(entry) + '<span class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</span></div><div class="activity-summary">' + escapeHtml(entrySummaryText(entry)) + '</div></li>').join('') + '</ul>';
@@ -927,7 +1013,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         const total = Number(response.total || 0);
         const perPage = Number(response.perPage || 50);
         const totalPages = Math.max(1, Math.ceil(total / perPage));
-        const rows = data.map((entry) => '<tr class="row-button" data-action="show-detail" data-uuid="' + escapeHtml(entry.uuid) + '"><td data-label="Type"><span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span></td><td data-label="Summary">' + entrySummaryHtml(entry) + '</td><td data-label="Tags">' + tagsHtml(entry.tags) + '</td><td data-label="Duration">' + durationHtml(entry) + '</td><td data-label="Batch" class="mono">' + batchSnippet(entry.batchId) + '</td><td data-label="Happened" class="activity-time">' + escapeHtml(timeSince(entry.createdAt)) + '</td></tr>').join('');
+        const rows = data.map((entry) => entryRowHtml(entry, true)).join('');
 
         main.innerHTML = [
           '<section class="panel">',
@@ -961,7 +1047,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
 
       const entry = state.detail;
       main.innerHTML = [
-        '<span class="back-link" data-action="close-detail"><- Back to entries</span>',
+        '<a class="back-link" href="' + escapeHtml(buildEntriesHref({ type: state.entriesFilter.type, tag: state.entriesFilter.tag, batchId: state.entriesFilter.batchId, entriesPage: state.entriesPage })) + '" data-action="close-detail"><- Back to entries</a>',
         '<section class="panel detail-card">',
         '<div><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags) + '</div>',
         '<div class="detail-meta"><span>UUID <span class="mono">' + escapeHtml(entry.uuid) + '</span></span><span>Batch <span class="mono">' + escapeHtml(entry.batchId || '-') + '</span></span><span>' + durationHtml(entry) + '</span><span>' + escapeHtml(new Date(Number(entry.createdAt)).toISOString()) + '</span></div>',
@@ -997,7 +1083,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       }
     };
 
-    const render = async () => {
+    const render = async (options = {}) => {
       const main = document.getElementById('main');
       if (!main) return;
 
@@ -1011,7 +1097,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         button.classList.toggle('active', button.getAttribute('data-type') === activeShortcut);
       });
 
-      syncUrl();
+      if (!options.skipSync) syncUrl(options.historyMode || 'replace');
 
       if (state.page === 'overview') await renderOverview(main);
       if (state.page === 'entries') await renderEntries(main);
@@ -1019,18 +1105,21 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
     };
 
     const setPage = (page) => {
-      state = { ...state, page, entriesPage: 1, detail: null, detailBatch: null, detailTab: 'summary' };
-      render();
+      state = { ...state, page, entriesPage: 1, detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary' };
+      syncUrl('push');
+      render({ skipSync: true });
     };
 
     const setTypeShortcut = (type) => {
-      state = { ...state, page: 'entries', detail: null, detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { ...state.entriesFilter, type } };
-      render();
+      state = { ...state, page: 'entries', detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { ...state.entriesFilter, type } };
+      syncUrl('push');
+      render({ skipSync: true });
     };
 
     const filterByTag = (tag) => {
-      state = { ...state, page: 'entries', detail: null, detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { ...state.entriesFilter, tag, batchId: '' } };
-      render();
+      state = { ...state, page: 'entries', detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { ...state.entriesFilter, tag, batchId: '' } };
+      syncUrl('push');
+      render({ skipSync: true });
     };
 
     const syncFilters = () => {
@@ -1053,14 +1142,17 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       if (!window.confirm('Delete all trace entries?')) return;
       try {
         await api('/entries', { method: 'DELETE' });
-        state = { ...state, detail: null, detailBatch: null, detailTab: 'summary', entriesPage: 1 };
-        render();
+        state = { ...state, detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', entriesPage: 1 };
+        syncUrl('push');
+        render({ skipSync: true });
       } catch (error) {
         window.alert(error.message);
       }
     };
 
-    const showDetail = async (uuid) => {
+    const showDetail = async (uuid, options = {}) => {
+      const nextTab = options.tab || 'summary';
+      const historyMode = options.historyMode || 'push';
       try {
         const detailResult = await api('/entries/' + encodeURIComponent(uuid));
         const entry = detailResult.entry;
@@ -1069,11 +1161,40 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           const batch = await api('/batch/' + encodeURIComponent(entry.batchId) + '?countsOnly=true');
           detailBatch = createDetailBatchState(batch);
         }
-        state = { ...state, detail: entry, detailBatch, detailTab: 'summary', page: 'entries' };
-        render();
+        state = { ...state, detail: entry, detailUuid: entry.uuid || uuid, detailBatch, detailTab: nextTab, page: 'entries' };
+        syncUrl(historyMode);
+        render({ skipSync: true });
       } catch (error) {
         window.alert(error.message);
       }
+    };
+
+    const closeDetail = (historyMode = 'push') => {
+      state = { ...state, detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', page: 'entries' };
+      syncUrl(historyMode);
+      render({ skipSync: true });
+    };
+
+    const applyLocationState = async (historyMode = 'replace') => {
+      const next = parseLocation();
+      state = {
+        ...state,
+        page: next.page,
+        entriesPage: next.entriesPage,
+        entriesFilter: next.entriesFilter,
+        detailUuid: next.detailUuid,
+        detailTab: next.detailTab,
+        detail: next.detailUuid && state.detail && state.detail.uuid === next.detailUuid ? state.detail : null,
+        detailBatch: next.detailUuid && state.detail && state.detail.uuid === next.detailUuid ? state.detailBatch : null
+      };
+      if (next.detailUuid) {
+        if (!state.detail || state.detail.uuid !== next.detailUuid) {
+          await showDetail(next.detailUuid, { tab: next.detailTab, historyMode });
+          return;
+        }
+      }
+      syncUrl(historyMode);
+      render({ skipSync: true });
     };
 
     const loadDetailBatchTab = async (tab, page = 1) => {
@@ -1208,12 +1329,23 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           return;
         }
         state = { ...state, detailTab: tab };
-        render();
+        syncUrl('replace');
+        render({ skipSync: true });
         return;
       }
       if (action === 'clear-all') { clearAll(); return; }
-      if (action === 'show-detail') { showDetail(String(target.getAttribute('data-uuid') || '')); return; }
-      if (action === 'close-detail') { state = { ...state, detail: null, detailBatch: null, detailTab: 'summary' }; render(); return; }
+      if (action === 'show-detail') {
+        if (target instanceof HTMLAnchorElement && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)) return;
+        event.preventDefault();
+        showDetail(String(target.getAttribute('data-uuid') || ''));
+        return;
+      }
+      if (action === 'close-detail') {
+        if (target instanceof HTMLAnchorElement && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)) return;
+        event.preventDefault();
+        closeDetail('push');
+        return;
+      }
       if (action === 'detail-batch-prev' || action === 'detail-batch-next') {
         const detailBatch = detailBatchState();
         const nextPage = action === 'detail-batch-prev' ? Math.max(1, detailBatch.page - 1) : detailBatch.page + 1;
@@ -1224,7 +1356,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       }
       if (action === 'page-prev') { state = { ...state, entriesPage: Math.max(1, state.entriesPage - 1) }; render(); return; }
       if (action === 'page-next') { state = { ...state, entriesPage: state.entriesPage + 1 }; render(); return; }
-      if (action === 'clear-filters') { state = { ...state, detail: null, detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { type: '', tag: '', batchId: '' } }; render(); return; }
+      if (action === 'clear-filters') { state = { ...state, detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { type: '', tag: '', batchId: '' } }; syncUrl('push'); render({ skipSync: true }); return; }
       if (action === 'add-tag') { addTag(); return; }
       if (action === 'remove-tag') { removeTag(String(target.getAttribute('data-tag') || '')); return; }
       if (action === 'copy-code') { copyCode(String(target.getAttribute('data-copy-id') || ''), target); }
@@ -1242,7 +1374,16 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       if (target.id === 'f-type') syncFilters();
     });
 
-    render();
+    window.addEventListener('popstate', () => {
+      applyLocationState('replace');
+    });
+
+    if (state.detailUuid) {
+      showDetail(state.detailUuid, { tab: state.detailTab, historyMode: 'replace' });
+    } else {
+      lastSyncedUrl = buildUrlFromState();
+      render({ skipSync: true });
+    }
   })();
   </script>
 </body>

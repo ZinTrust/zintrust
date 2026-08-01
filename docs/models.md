@@ -329,7 +329,7 @@ await ExternalUser.db('external_db').create({ name: 'Jane', email: 'jane@example
 
 ## Querying
 
-The ORM uses a fluent `QueryBuilder` to construct SQL queries safely.
+The ORM uses a fluent `QueryBuilder` to construct SQL queries safely. Full API reference and advanced examples (exists/anti-joins, multi-term joins, `groupBy`, `latestPer`, join-aware pagination) live in [Query Builder](./query-builder.md).
 
 ### Basic Queries
 
@@ -342,7 +342,58 @@ const user = await User.find(1);
 
 // Where clauses
 const activeUsers = await User.query().where('is_active', true).where('age', '>', 18).get();
-````
+```
+
+### Advanced query patterns (examples)
+
+Prefer these structured APIs over raw SQL:
+
+```typescript
+// Latest message per conversation
+const latest = await Message.query()
+  .whereIn('thread_id', threadIds)
+  .whereNull('deleted_for_all_at')
+  .latestPer('thread_id', {
+    orderBy: [
+      ['created_at', 'DESC'],
+      ['id', 'DESC'],
+    ],
+  })
+  .get();
+
+// Cursor history excluding viewer-hidden rows
+const history = await Message.query()
+  .where('thread_id', '=', threadId)
+  .whereNotExists((sub) =>
+    sub
+      .from('message_user_states')
+      .whereColumn('message_user_states.message_id', '=', 'messages.id')
+      .where('user_id', '=', viewerId)
+      .whereNotNull('hidden_at')
+  )
+  .orderBy('created_at', 'DESC')
+  .limit(51)
+  .get();
+
+// Unread counts per thread
+const unread = await Message.query()
+  .select('thread_id', 'COUNT(*) AS total')
+  .whereIn('thread_id', threadIds)
+  .whereNull('read_at')
+  .groupBy('thread_id')
+  .get();
+
+// Multi-term join (pinned rows)
+const pinned = await MessageUserState.query()
+  .join('messages', (on) =>
+    on
+      .on('messages.id', '=', 'message_user_states.message_id')
+      .on('message_user_states.thread_id', '=', 'messages.thread_id')
+  )
+  .where('message_user_states.user_id', '=', viewerId)
+  .whereNotNull('message_user_states.pinned_at')
+  .get();
+```
 
 ### Relationships
 

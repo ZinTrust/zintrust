@@ -2,12 +2,6 @@
 
 [![Website](https://img.shields.io/badge/website-zintrust.com-blue)](https://zintrust.com)
 [![CI/CD Pipeline](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml)
-[![SonarQube Analysis](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml)
-[![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=ZinTrust_ZinTrust&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ZinTrust_ZinTrust)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ZinTrust_ZinTrust&metric=coverage)](https://sonarcloud.io/summary/new_code?id=ZinTrust_ZinTrust)
-[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=ZinTrust_ZinTrust&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=ZinTrust_ZinTrust)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=ZinTrust_ZinTrust&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=ZinTrust_ZinTrust)
-[![Security Scan](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/@zintrust/core.svg)](https://www.npmjs.com/package/@zintrust/core)
 
@@ -31,16 +25,7 @@ Click the **"Open in GitHub Codespaces"** button above to launch a pre-configure
 | Check        | Status                                                                                                                                                                                                                                                                                                                                           |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Build**    | [![CI/CD Pipeline](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml)                                                                                                                                                                                      |
-| **Quality**  | [![SonarQube Analysis](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml)                                                                                                                                                                    |
-| **Security** | [![Security Scan](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml)                                                                                                                                                                           |
-| **Docker**   | [![Publish Docker Image](https://github.com/ZinTrust/ZinTrust/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/docker-publish.yml) [![Docker Image](https://img.shields.io/badge/image-ghcr.io%2FZinTrust%2FZinTrust-blue)](https://github.com/ZinTrust/ZinTrust/pkgs/container/zintrust) |
 | **Tests**    | ![Tests Passing](https://img.shields.io/badge/tests-passing-brightgreen)                                                                                                                                                                                                                                                                         |
-
-### SonarCloud
-
-- Quality Gate + key measures: [https://sonarcloud.io/summary/new_code?id=ZinTrust_ZinTrust](https://sonarcloud.io/summary/new_code?id=ZinTrust_ZinTrust)
-
-If you want PR-specific “New Code” numbers in GitHub, rely on the SonarCloud PR Check (that’s where `pullRequest=...` links come from); the README badges above intentionally track the project overview so they stay stable.
 
 ## Features
 
@@ -54,7 +39,7 @@ If you want PR-specific “New Code” numbers in GitHub, rely on the SonarCloud
 ✅ **SQL Injection Prevention** – Parameterized queries by default
 ✅ **Multi-Cloud Ready** – Docker, AWS, Cloudflare Wrangler, Deno
 ✅ **Edge Compatible** – Run API on Cloudflare Workers, process jobs on Node.js
-✅ **Production Quality** – SonarQube integration, 90%+ test coverage
+✅ **Production Quality** – 90%+ test coverage
 
 ## Quick Start
 

@@ -12,6 +12,7 @@ const baseConfig: ITraceConfig = {
   ignoreRoutes: ['/trace'],
   ignorePaths: ['.js', '/queue-monitor'],
   slowQueryThreshold: 100,
+  captureNotFound: true,
   captureCachePayloads: false,
   captureQueryBindings: true,
   logMinLevel: 'info',
@@ -151,5 +152,50 @@ describe('TraceEntryFiltering', () => {
     TraceContext.setRequestContextImpl({
       current: () => ({}),
     });
+  });
+
+  it('drops 404 request entries when captureNotFound is false', async () => {
+    const storage = createStorage();
+    const wrapped = TraceEntryFiltering.wrapStorage(storage, {
+      ...baseConfig,
+      captureNotFound: false,
+    });
+
+    await wrapped.writeEntry({
+      uuid: 'entry-404',
+      batchId: 'batch-404',
+      type: EntryType.REQUEST,
+      content: {
+        method: 'GET',
+        uri: '/missing',
+        responseStatus: 404,
+      },
+      tags: ['not_found'],
+      isLatest: true,
+      createdAt: 4,
+    });
+
+    expect(storage.writeEntry).not.toHaveBeenCalled();
+  });
+
+  it('keeps 404 request entries when captureNotFound is true', async () => {
+    const storage = createStorage();
+    const wrapped = TraceEntryFiltering.wrapStorage(storage, baseConfig);
+
+    await wrapped.writeEntry({
+      uuid: 'entry-404-keep',
+      batchId: 'batch-404-keep',
+      type: EntryType.REQUEST,
+      content: {
+        method: 'GET',
+        uri: '/missing',
+        responseStatus: 404,
+      },
+      tags: ['not_found'],
+      isLatest: true,
+      createdAt: 5,
+    });
+
+    expect(storage.writeEntry).toHaveBeenCalledTimes(1);
   });
 });

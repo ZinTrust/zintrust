@@ -435,6 +435,11 @@ export interface ITraceConfig {
   ignoreRoutes: string[];
   ignorePaths: string[];
   slowQueryThreshold: number;
+  /**
+   * When true (default), inbound HTTP 404 responses are stored as request entries
+   * and tagged `not_found`. Set false to drop 404 request entries before persistence.
+   */
+  captureNotFound: boolean;
   captureCachePayloads: boolean;
   captureQueryBindings: boolean;
   logMinLevel: 'debug' | 'info' | 'warn' | 'error' | 'fatal';

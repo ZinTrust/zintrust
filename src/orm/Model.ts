@@ -14,6 +14,8 @@ import type {
   EagerLoadConstraints,
   IQueryBuilder,
   InsertResult,
+  JoinOnInput,
+  LatestPerOptions,
   NormalizedTextOptions,
   PaginationOptions,
   QueryBuilderOptions,
@@ -1005,7 +1007,8 @@ export type DefinedModel<T extends BoundModelMethods> = {
     options?: PaginationOptions
   ) => Promise<Paginator<IModel & T>>;
 
-  // QueryBuilder convenience methods
+  // QueryBuilder convenience methods — keep in sync with IQueryBuilder
+  // (src/orm/QueryBuilder.ts). Static helpers return the same full builder type.
   where: (
     column: string,
     operator: string | number | boolean | null,
@@ -1025,13 +1028,21 @@ export type DefinedModel<T extends BoundModelMethods> = {
     value: unknown,
     options?: NormalizedTextOptions
   ) => IQueryBuilder;
+  whereNull: (column: string) => IQueryBuilder;
+  whereNotNull: (column: string) => IQueryBuilder;
   whereIn: (column: string, values: unknown[]) => IQueryBuilder;
   whereNotIn: (column: string, values: unknown[]) => IQueryBuilder;
+  whereColumn: (left: string, operator: string, right: string) => IQueryBuilder;
+  whereExists: (callback: (builder: IQueryBuilder) => unknown) => IQueryBuilder;
+  whereNotExists: (callback: (builder: IQueryBuilder) => unknown) => IQueryBuilder;
+  from: (table: string) => IQueryBuilder;
   select: (...columns: string[]) => IQueryBuilder;
   selectAs: (column: string, alias: string) => IQueryBuilder;
   max: (column: string, alias?: string) => IQueryBuilder;
-  join: (table: string, on: string) => IQueryBuilder;
-  leftJoin: (table: string, on: string) => IQueryBuilder;
+  join: (table: string, on: JoinOnInput) => IQueryBuilder;
+  leftJoin: (table: string, on: JoinOnInput) => IQueryBuilder;
+  groupBy: (...columns: string[]) => IQueryBuilder;
+  latestPer: (partitionBy: string | string[], options: LatestPerOptions) => IQueryBuilder;
   orderBy: (column: string, direction?: 'ASC' | 'DESC') => IQueryBuilder;
   inRandomOrder: () => IQueryBuilder;
   limit: (count: number) => IQueryBuilder;
@@ -1413,13 +1424,25 @@ const createQueryBuilderMethods = (
       wrappedBuilder().whereNormalized(column, value, options),
     orWhereNormalized: (column: string, value: unknown, options?: NormalizedTextOptions) =>
       wrappedBuilder().orWhereNormalized(column, value, options),
+    whereNull: (column: string) => wrappedBuilder().whereNull(column),
+    whereNotNull: (column: string) => wrappedBuilder().whereNotNull(column),
     whereIn: (column: string, values: unknown[]) => wrappedBuilder().whereIn(column, values),
     whereNotIn: (column: string, values: unknown[]) => wrappedBuilder().whereNotIn(column, values),
+    whereColumn: (left: string, operator: string, right: string) =>
+      wrappedBuilder().whereColumn(left, operator, right),
+    whereExists: (callback: (builder: IQueryBuilder) => unknown) =>
+      wrappedBuilder().whereExists(callback),
+    whereNotExists: (callback: (builder: IQueryBuilder) => unknown) =>
+      wrappedBuilder().whereNotExists(callback),
+    from: (table: string) => wrappedBuilder().from(table),
     select: (...columns: string[]) => wrappedBuilder().select(...columns),
     selectAs: (column: string, alias: string) => wrappedBuilder().selectAs(column, alias),
     max: (column: string, alias?: string) => wrappedBuilder().max(column, alias),
-    join: (table: string, on: string) => wrappedBuilder().join(table, on),
-    leftJoin: (table: string, on: string) => wrappedBuilder().leftJoin(table, on),
+    join: (table: string, on: JoinOnInput) => wrappedBuilder().join(table, on),
+    leftJoin: (table: string, on: JoinOnInput) => wrappedBuilder().leftJoin(table, on),
+    groupBy: (...columns: string[]) => wrappedBuilder().groupBy(...columns),
+    latestPer: (partitionBy: string | string[], options: LatestPerOptions) =>
+      wrappedBuilder().latestPer(partitionBy, options),
     orderBy: (column: string, direction?: 'ASC' | 'DESC') =>
       wrappedBuilder().orderBy(column, direction),
     inRandomOrder: () => wrappedBuilder().inRandomOrder(),

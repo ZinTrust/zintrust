@@ -216,6 +216,7 @@ export const HttpWatcher: ITraceWatcher = Object.freeze({
 
         const content = buildEntry(request, response, start, config, responseCapture);
         const tags = AuthTag.append([]);
+        if (content.responseStatus === 404) tags.push('not_found');
         if (content.responseStatus >= 500) tags.push('failed');
 
         responseCapture.restore();

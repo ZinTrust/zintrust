@@ -11,7 +11,14 @@ export type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/Databas
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 
 export { QueryBuilder } from '@orm/QueryBuilder';
-export type { InsertResult, IQueryBuilder, PaginationOptions } from '@orm/QueryBuilder';
+export type {
+  IJoinOnBuilder,
+  InsertResult,
+  IQueryBuilder,
+  JoinOnInput,
+  LatestPerOptions,
+  PaginationOptions,
+} from '@orm/QueryBuilder';
 
 export { Schema as MigrationSchema } from '@migrations/schema';
 export type { Blueprint } from '@migrations/schema';

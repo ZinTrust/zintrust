@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-17
+
+### Core
+
+- Expand QueryBuilder structured SQL surface (no free-form fragments):
+  - `whereExists` / `whereNotExists` + subquery `from` + `whereColumn` / `whereNotNull`
+  - Multi-term join ON via `AND` strings or `join(table, (on) => on.on(…))` / `leftJoin`
+  - `groupBy(...columns)` with existing allow-listed aggregate `select` expressions
+  - `latestPer(partition, { orderBy, alias? })` (`ROW_NUMBER` window wrap for latest-per-group)
+  - Join-aware `paginate` totals (`COUNT(DISTINCT <table>.id)` or `countDistinct` option; subquery counts for `groupBy` / `latestPer`)
+- Align **type surface** with runtime APIs so IDEs/TS stop false-missing methods:
+  - `DefinedModel` static helpers now include `whereNotNull`, `whereColumn`, exists helpers, `from`, `groupBy`, `latestPer`, and `join`/`leftJoin` as `JoinOnInput`
+  - Re-export `IJoinOnBuilder`, `JoinOnInput`, `LatestPerOptions`, and `DefinedModel` from `@zintrust/core`, `@zintrust/core/orm`, `@zintrust/core/runtime`, and `@zintrust/core/database`
+  - Compile-time fixture `src/orm/QueryBuilderTypeSurface.fixture.ts` + unit smoke test
+- Document the APIs with examples in `docs/query-builder.md`, `docs/models.md`, and `docs/security.md`.
+
 ## 2026-07-01
 
 ### Core

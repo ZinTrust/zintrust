@@ -100,6 +100,12 @@ describe('TraceConfig', () => {
     expect(config.observeConnection).toBe('primary');
   });
 
+  it('defaults captureNotFound to true and accepts overrides', () => {
+    expect(TraceConfig.defaults().captureNotFound).toBe(true);
+    expect(TraceConfig.merge({}).captureNotFound).toBe(true);
+    expect(TraceConfig.merge({ captureNotFound: false }).captureNotFound).toBe(false);
+  });
+
   it('supports trace proxy and service-tag overrides', () => {
     const config = TraceConfig.merge({
       serviceTag: 'payments-api',

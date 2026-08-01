@@ -79,11 +79,15 @@ export {
   useEnsureDbConnected,
 } from '@zintrust/core/orm';
 export type {
+  DefinedModel,
   IDatabase,
+  IJoinOnBuilder,
   IModel,
   InsertResult,
   IQueryBuilder,
   IRelationship,
+  JoinOnInput,
+  LatestPerOptions,
   ModelConfig,
   ModelStatic,
   PaginationOptions,

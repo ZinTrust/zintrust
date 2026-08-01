@@ -149,6 +149,30 @@ describe('Kernel middleware order', () => {
     ]);
   });
 
+  it('runs global middleware for unmatched routes before the not-found handler', async () => {
+    const kernel = Kernel.create(mockRouter, mockContainer);
+    const events: string[] = [];
+
+    kernel.registerGlobalMiddleware(async (_req, _res, next) => {
+      events.push('global-before');
+      await next();
+      events.push('global-after');
+    });
+
+    kernel.registerRouteMiddleware('r1', async (_req, _res, next) => {
+      events.push('route-should-not-run');
+      await next();
+    });
+
+    vi.mocked(Router.match).mockReturnValue(null as any);
+    mockReq.getPath = vi.fn(() => '/does-not-exist') as any;
+
+    await kernel.handleRequest(mockReq, mockRes);
+
+    expect(events).toEqual(['global-before', 'global-after']);
+    expect(mockRes.setStatus).toHaveBeenCalledWith(404);
+  });
+
   it('does not call downstream middleware/handler when next() is not called', async () => {
     const kernel = Kernel.create(mockRouter, mockContainer);
     const events: string[] = [];

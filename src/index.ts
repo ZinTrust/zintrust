@@ -33,9 +33,16 @@ export { Database, resetDatabase, useDatabase, useEnsureDbConnected } from '@orm
 export type { IDatabase } from '@orm/Database';
 export { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 export { Model } from '@orm/Model';
-export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
+export type { DefinedModel, IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
-export type { IQueryBuilder, InsertResult, PaginationOptions } from '@orm/QueryBuilder';
+export type {
+  IJoinOnBuilder,
+  IQueryBuilder,
+  InsertResult,
+  JoinOnInput,
+  LatestPerOptions,
+  PaginationOptions,
+} from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
 export {
   BodyParsers,
