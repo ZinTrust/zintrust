@@ -429,7 +429,7 @@
     "@cloudflare/containers": "^0.3.7",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.81.3",
-    "chalk": "^5.6.2",
+    "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "inquirer": "^14.0.2",
     "ioredis": "^5.11.1",
