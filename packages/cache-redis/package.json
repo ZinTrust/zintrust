@@ -36,7 +36,7 @@
     "typescript"
   ],
   "dependencies": {
-    "redis": "^5.12.1"
+    "redis": "^6.2.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
