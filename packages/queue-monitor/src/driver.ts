@@ -3,6 +3,7 @@ import { ErrorFactory } from '@zintrust/core/errors';
 import { Logger } from '@zintrust/core/logger';
 import { getBullMQSafeQueueName } from '@zintrust/core/redis';
 import type { ConnectionOptions, Job, JobsOptions, Queue } from 'bullmq';
+import { UnrecoverableError } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection.js';
 
 let QueueCtor: typeof Queue | undefined;
@@ -629,11 +630,9 @@ const createBullMQRecoverActiveJob =
     }
 
     try {
-      job.discard();
-      const queueWithClient = queue as unknown as {
-        client: Promise<{ set: (...args: string[]) => Promise<unknown> }>;
+      const client = (await queue.getBackend().client) as {
+        set: (...args: string[]) => Promise<unknown>;
       };
-      const client = await queueWithClient.client;
       await client.set(
         queue.toKey(jobId) + ':lock',
         'pull-worker',
@@ -641,7 +640,7 @@ const createBullMQRecoverActiveJob =
         String(Math.max(1, Env.getInt('QUEUE_MONITOR_RECOVER_ACTIVE_LOCK_MS', 30_000)))
       );
       await job.moveToFailed(
-        new Error('manual queue-monitor stale active recovery'),
+        new UnrecoverableError('manual queue-monitor stale active recovery'),
         'pull-worker',
         false
       );
@@ -660,7 +659,16 @@ const createBullMQGetRecentJobs =
   async (queueName: string, limit = 100): Promise<Job[]> => {
     const queue = await getQueue(queueName);
     const jobs = await queue.getJobs(
-      ['completed', 'failed', 'active', 'waiting', 'delayed', 'paused'],
+      [
+        'completed',
+        'failed',
+        'active',
+        'waiting',
+        'delayed',
+        'prioritized',
+        'waiting-children',
+        'wait',
+      ],
       0,
       Math.max(0, limit - 1),
       true

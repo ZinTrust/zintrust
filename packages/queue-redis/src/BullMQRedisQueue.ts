@@ -363,12 +363,46 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         delay: 2000,
       },
 
-      // SCHEDULING: Recurring jobs
-      repeat: payloadData.repeat,
-
       // ORDERING: LIFO vs FIFO
       lifo: payloadData.lifo ?? false,
     };
+  };
+
+  const enqueueBullmqJob = async (
+    q: Queue,
+    queue: string,
+    payloadToSend: BullMQPayload,
+    jobOptions: JobsOptions,
+    repeat: BullMQPayload['repeat']
+  ): Promise<string> => {
+    // BullMQ 6 removed `repeat` from Queue.add; repeating jobs use upsertJobScheduler.
+    if (repeat !== undefined && (repeat.every !== undefined || repeat.cron !== undefined)) {
+      const schedulerId = jobOptions.jobId ?? generateUuid();
+      const job = await q.upsertJobScheduler(
+        schedulerId,
+        {
+          ...(repeat.every !== undefined ? { every: repeat.every } : {}),
+          ...(repeat.cron !== undefined ? { pattern: repeat.cron } : {}),
+          ...(repeat.limit !== undefined ? { limit: repeat.limit } : {}),
+        },
+        {
+          name: `${queue}-job`,
+          data: payloadToSend,
+          opts: {
+            attempts: jobOptions.attempts,
+            priority: jobOptions.priority,
+            removeOnComplete: jobOptions.removeOnComplete,
+            removeOnFail: jobOptions.removeOnFail,
+            backoff: jobOptions.backoff,
+            lifo: jobOptions.lifo,
+          },
+        }
+      );
+      return String(job.id);
+    }
+
+    const job = await q.add(`${queue}-job`, payloadToSend, jobOptions);
+    return String(job.id);
   };
 
   const validateDeduplicationId = (
@@ -584,10 +618,16 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
           getLockProviderForQueue(payloadData.uniqueVia);
         }
 
-        const job = await q.add(`${queue}-job`, deduplicationResult.payloadToSend, jobOptions);
-        Logger.debug(`BullMQ: Job enqueued to ${queue}`, { jobId: job.id, queue });
+        const jobId = await enqueueBullmqJob(
+          q,
+          queue,
+          deduplicationResult.payloadToSend,
+          jobOptions,
+          payloadData.repeat
+        );
+        Logger.debug(`BullMQ: Job enqueued to ${queue}`, { jobId, queue });
 
-        return String(job.id);
+        return jobId;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         // BullMQ throws when a job with the same jobId already exists.

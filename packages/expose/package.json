@@ -22,13 +22,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "cloudflared": "^0.7.1",
+    "cloudflared": "^0.7.3",
     "commander": "^15.0.0",
     "dotenv": "^17.4.2"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
-    "typescript": "^6.0.3"
+    "@types/node": "^26.4.0",
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "@zintrust/core": "*"

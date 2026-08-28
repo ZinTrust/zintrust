@@ -1236,7 +1236,7 @@ const waitForWorkerConnection = async (
         }
 
         // Check Redis connection
-        const client = (await worker.client) as unknown as {
+        const client = (await worker.getBackend().client) as unknown as {
           ping?: () => Promise<string> | Promise<unknown>;
         };
         const ping = client.ping;
