@@ -1,7 +1,6 @@
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-// TypeScript 7's `typescript` package no longer ships the compiler API.
-import ts from '@typescript/typescript6';
+import ts from 'typescript';
 
 const TEMPLATES_ROOT = path.resolve(process.cwd(), 'src/templates');
 

@@ -1,7 +1,6 @@
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-// TypeScript 7's `typescript` package no longer ships the compiler API.
-import ts from '@typescript/typescript6';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 type ImportHit = {
