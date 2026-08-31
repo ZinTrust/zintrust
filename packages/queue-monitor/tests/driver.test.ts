@@ -32,13 +32,16 @@ vi.mock('@zintrust/core/logger', () => ({
 vi.mock('bullmq', () => ({
   Queue: class {
     add = addMock;
-    client = Promise.resolve({ set: queueClientSetMock });
+    getBackend = () => ({
+      client: Promise.resolve({ set: queueClientSetMock }),
+    });
     getJob = getJobMock;
     getJobs = getJobsMock;
     getJobCounts = getJobCountsMock;
     toKey = (suffix: string) => `zintrust:emails:${suffix}`;
     close = closeMock;
   },
+  UnrecoverableError: class UnrecoverableError extends Error {},
 }));
 
 vi.mock('../src/connection', () => ({
@@ -157,11 +160,9 @@ describe('queue-monitor driver recoverActiveJob', () => {
     });
   });
 
-  it('discards retries, recreates the pull-worker lock, and fails active jobs', async () => {
-    const discard = vi.fn();
+  it('recreates the pull-worker lock and fails active jobs', async () => {
     const moveToFailed = vi.fn(async () => undefined);
     getJobMock.mockResolvedValueOnce({
-      discard,
       getState: vi.fn(async () => 'active'),
       moveToFailed,
     });
@@ -172,7 +173,6 @@ describe('queue-monitor driver recoverActiveJob', () => {
       status: 'failed',
     });
 
-    expect(discard).toHaveBeenCalledOnce();
     expect(queueClientSetMock).toHaveBeenCalledWith(
       'zintrust:emails:job-3:lock',
       'pull-worker',

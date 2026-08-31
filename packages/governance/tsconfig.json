@@ -10,6 +10,7 @@
     "declarationMap": false,
     "sourceMap": false,
     "composite": false,
+    "skipLibCheck": true,
     "types": ["node"],
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "paths": {}

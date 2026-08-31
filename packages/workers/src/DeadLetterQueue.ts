@@ -363,7 +363,7 @@ export const DeadLetterQueue = Object.freeze({
 
     try {
       const key = getDLQKey(queueName);
-      const entries = await redisClient.zrange(key, 0, -1);
+      const entries = await redisClient.zrange(key, 0, '-1');
 
       const entry = entries
         .map((e: string) => JSON.parse(e) as FailedJobEntry)
@@ -622,7 +622,7 @@ export const DeadLetterQueue = Object.freeze({
       const entriesByQueue = await Promise.all(
         keys.map(async (key: string) => {
           const queueName = key.replace(getDLQPrefix(), '');
-          const entries = await client.zrange(key, 0, -1);
+          const entries = await client.zrange(key, 0, '-1');
           return {
             queueName,
             count: entries.length,

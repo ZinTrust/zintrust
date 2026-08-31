@@ -40,10 +40,10 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@zintrust/db-d1": "2.9.0",
-    "@zintrust/db-mysql": "2.0.3",
-    "@zintrust/db-postgres": "2.9.0",
-    "@zintrust/db-sqlite": "2.9.0",
-    "@zintrust/db-sqlserver": "2.9.0"
+    "@zintrust/db-d1": "3.0.0",
+    "@zintrust/db-mysql": "3.0.0",
+    "@zintrust/db-postgres": "3.0.0",
+    "@zintrust/db-sqlite": "3.0.0",
+    "@zintrust/db-sqlserver": "3.0.0"
   }
 }

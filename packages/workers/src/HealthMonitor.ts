@@ -86,7 +86,7 @@ const verifyWorkerHealth = async (worker: Worker): Promise<boolean> => {
   const isRunning = await worker.isRunning();
   if (!isRunning) return false;
 
-  const client = (await worker.client) as unknown as {
+  const client = (await worker.getBackend().client) as unknown as {
     ping?: () => Promise<string> | Promise<unknown>;
   };
   const ping = client.ping;
@@ -380,7 +380,7 @@ const getSummary = async (): Promise<unknown> => {
   };
 
   for (const [name, state] of registry) {
-    const lastResult = state.history[state.history.length - 1];
+    const lastResult = state.history.at(-1);
     const status = lastResult?.status || 'unknown';
     if (status === 'healthy') summary.healthy++;
     else if (status === 'degraded') summary.degraded++;

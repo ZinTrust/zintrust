@@ -1,6 +1,6 @@
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import * as ts from 'typescript';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 type ImportHit = {

@@ -150,7 +150,8 @@ const createWorkersCrypto = (): RuntimeCrypto => {
 const createNodeFs = (): RuntimeFs => {
   return {
     supported: true,
-    readFileSync: (path: string, encoding?: BufferEncoding) => nodeFs.readFileSync(path, encoding),
+    readFileSync: (path: string, encoding?: BufferEncoding) =>
+      encoding === undefined ? nodeFs.readFileSync(path) : nodeFs.readFileSync(path, encoding),
     readdirSync: (path: string) => nodeFs.readdirSync(path),
     existsSync: (path: string) => nodeFs.existsSync(path),
   };

@@ -27,7 +27,7 @@ const DEFAULT_JOB_STATES: JobType[] = [
   'completed',
   'failed',
   'delayed',
-  'paused',
+  'wait',
   'prioritized',
   'waiting-children',
 ];

@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.1101.0"
+    "@aws-sdk/client-sqs": "^3.1120.0"
   },
   "overrides": {
     "fast-xml-parser": "5.8.0",

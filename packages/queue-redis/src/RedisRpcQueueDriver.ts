@@ -63,9 +63,16 @@ const createJobOptions = (payloadData: BullMQPayload): JobsOptions => ({
     type: Env.get('BULLMQ_BACKOFF_TYPE', 'exponential') as 'exponential' | 'fixed',
     delay: Env.getInt('BULLMQ_BACKOFF_DELAY', 2000),
   },
-  repeat: payloadData.repeat,
   lifo: payloadData.lifo ?? false,
 });
+
+const createRpcJobOptions = (payloadData: BullMQPayload): Record<string, unknown> => {
+  const options: Record<string, unknown> = { ...createJobOptions(payloadData) };
+  if (payloadData.repeat !== undefined) {
+    options['repeat'] = payloadData.repeat;
+  }
+  return options;
+};
 
 const resolveJobId = (result: unknown, fallback: string): string => {
   if (typeof result === 'object' && result !== null) {
@@ -127,7 +134,7 @@ export const RedisRpcQueueDriver: IQueueDriver = Object.freeze({
       'REDIS_RPC_TIMEOUT_MS',
       Env.getInt('QUEUE_HTTP_PROXY_TIMEOUT_MS', 10000)
     );
-    const options = createJobOptions({ ...payload, jobId: fallbackJobId });
+    const options = createRpcJobOptions({ ...payload, jobId: fallbackJobId });
 
     try {
       return await TimeoutManager.withTimeoutRetry(
@@ -135,7 +142,7 @@ export const RedisRpcQueueDriver: IQueueDriver = Object.freeze({
           const client = await createRpcClient();
           const result = await client.queue('add', {
             target: queue,
-            args: [`${queue}-job`, payload, options as Record<string, unknown>],
+            args: [`${queue}-job`, payload, options],
           });
           return resolveJobId(result, fallbackJobId);
         },
