@@ -381,7 +381,8 @@
     "follow-redirects": "^1.16.0",
     "@tootallnate/once": "3.0.1",
     "node-forge": "^1.4.0",
-    "fast-uri": "3.1.4",
+    "fast-uri": "3.1.6",
+    "nanoid": "^3.3.18",
     "fast-xml-parser": "5.8.0",
     "@babel/core": "^7.29.7",
     "protobufjs": "^7.6.5",
@@ -402,13 +403,13 @@
       "axios": "^1.18.0"
     },
     "@actions/github": {
-      "undici": "^6.27.0"
+      "undici": "^6.28.0"
     },
     "@actions/http-client": {
-      "undici": "^6.27.0"
+      "undici": "^6.28.0"
     },
     "miniflare": {
-      "undici": "^7.28.0"
+      "undici": "^7.29.0"
     },
     "http-proxy-agent": "7.0.2",
     "retry-request": "8.0.2",
