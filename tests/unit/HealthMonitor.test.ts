@@ -15,20 +15,26 @@ vi.mock('../../packages/workers/src/WorkerFactory', async (importOriginal) => {
   };
 });
 
-// Mock BullMQ Worker
+const pingMock = vi.fn().mockResolvedValue('PONG');
+
+// Mock BullMQ Worker (BullMQ 6 exposes Redis via getBackend().client)
 const mockWorker = {
   isPaused: vi.fn().mockReturnValue(false),
   isClosing: vi.fn().mockReturnValue(false),
   isRunning: vi.fn().mockReturnValue(true),
-  client: {
-    ping: vi.fn().mockResolvedValue('PONG'),
-  },
+  getBackend: vi.fn(() => ({
+    client: Promise.resolve({
+      ping: pingMock,
+    }),
+  })),
 } as unknown as Worker;
 
 describe('HealthMonitor', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    pingMock.mockReset();
+    pingMock.mockResolvedValue('PONG');
 
     // Reset internal state
     HealthMonitor.unregister('test-worker');
@@ -44,8 +50,7 @@ describe('HealthMonitor', () => {
     const workerName = 'failing-worker';
     const error = new Error('Redis Connection Lost');
 
-    // Mock ping to fail
-    ((await mockWorker.client!).ping as any).mockRejectedValue(error);
+    pingMock.mockRejectedValue(error);
 
     HealthMonitor.register(workerName, mockWorker, 'test-queue');
 
@@ -71,8 +76,7 @@ describe('HealthMonitor', () => {
   it('should recover from failure', async () => {
     const workerName = 'recovering-worker';
 
-    // Initially failing
-    ((await mockWorker.client!).ping as any).mockRejectedValue(new Error('Fail'));
+    pingMock.mockRejectedValue(new Error('Fail'));
     HealthMonitor.register(workerName, mockWorker, 'test-queue');
 
     // Force failure state
@@ -81,8 +85,7 @@ describe('HealthMonitor', () => {
     expect(WorkerFactory.updateStatus).toHaveBeenCalledWith(workerName, 'failed', 'Fail');
     (WorkerFactory.updateStatus as any).mockClear();
 
-    // Now recover
-    ((await mockWorker.client!).ping as any).mockResolvedValue('PONG');
+    pingMock.mockResolvedValue('PONG');
 
     // Advance time for next check
     await vi.advanceTimersByTimeAsync(10000);

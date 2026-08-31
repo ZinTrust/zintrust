@@ -381,9 +381,9 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       const job = await q.upsertJobScheduler(
         schedulerId,
         {
-          ...(repeat.every !== undefined ? { every: repeat.every } : {}),
-          ...(repeat.cron !== undefined ? { pattern: repeat.cron } : {}),
-          ...(repeat.limit !== undefined ? { limit: repeat.limit } : {}),
+          ...(repeat.every === undefined ? {} : { every: repeat.every }),
+          ...(repeat.cron === undefined ? {} : { pattern: repeat.cron }),
+          ...(repeat.limit === undefined ? {} : { limit: repeat.limit }),
         },
         {
           name: `${queue}-job`,
