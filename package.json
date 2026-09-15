@@ -423,7 +423,11 @@
     "brace-expansion": "^5.0.9",
     "postcss": "^8.5.18",
     "esbuild": "0.28.1",
-    "qs": "^6.15.2"
+    "qs": "^6.15.2",
+    "adm-zip": "^0.6.1",
+    "baseline-browser-mapping": "^2.11.0",
+    "browserslist": "^4.28.9",
+    "sharp": "^0.35.4"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",
@@ -435,7 +439,7 @@
     "inquirer": "^14.2.0",
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.24.2",
+    "mysql2": "^3.24.4",
     "pg": "^8.23.0",
     "redis": "^6.2.1",
     "tsx": "^4.23.12"

@@ -75,6 +75,8 @@ describe('QueryBuilder type surface (DefinedModel + IQueryBuilder)', () => {
     // so patch coverage for createQueryBuilderMethods hits every new wrapper.
     expect(Message.whereNull('deleted_for_all_at').toSQL()).toContain('IS NULL');
     expect(Message.whereNotNull('read_at').toSQL()).toContain('IS NOT NULL');
+    expect(Message.whereMatch('body', '"hello"').toSQL()).toContain('MATCH ?');
+    expect(Message.whereNotMatch('body', '"spam"').toSQL()).toContain('NOT MATCH ?');
     expect(
       Message.whereColumn('messages.thread_id', '=', 'threads.id').toSQL()
     ).toContain('"messages"."thread_id" = "threads"."id"');

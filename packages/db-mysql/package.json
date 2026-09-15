@@ -46,6 +46,6 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "mysql2": "^3.24.2"
+    "mysql2": "^3.24.4"
   }
 }
