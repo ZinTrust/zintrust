@@ -35,7 +35,7 @@ All prepared statements are automatically parameterized—user input is never co
 
 ### Interface Reference (safe surface)
 
-QueryBuilder only accepts safe identifier paths and allow-listed operators. Values are bound; column-to-column comparisons and correlated subqueries use structured helpers (`whereColumn`, `whereExists` / `whereNotExists`, multi-term join ON builders, `groupBy`, `latestPer`). See [Query Builder](./query-builder.md) for full examples.
+QueryBuilder only accepts safe identifier paths and allow-listed operators. Values are bound; column-to-column comparisons and correlated subqueries use structured helpers (`whereColumn`, `whereExists` / `whereNotExists`, multi-term join ON builders, `groupBy`, `latestPer`). SQLite/D1 FTS5 `MATCH` / `NOT MATCH` are allow-listed and parameterized; the bound string is still FTS query language, so applications must sanitize user tokens. See [Query Builder](./query-builder.md) for full examples.
 
 ```typescript
 export interface IQueryBuilder {
@@ -49,6 +49,8 @@ export interface IQueryBuilder {
   whereNotNull(column: string): IQueryBuilder;
   whereIn(column: string, values: unknown[]): IQueryBuilder;
   whereNotIn(column: string, values: unknown[]): IQueryBuilder;
+  whereMatch(column: string, query: string): IQueryBuilder;
+  whereNotMatch(column: string, query: string): IQueryBuilder;
   whereColumn(left: string, operator: string, right: string): IQueryBuilder;
   whereExists(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
   whereNotExists(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;

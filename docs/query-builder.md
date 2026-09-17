@@ -28,7 +28,7 @@ const rows = await QueryBuilder.create('users', db).where('id', '=', 1).first();
 ## Safety model
 
 - **Identifiers** (tables, columns, aliases, join sides, partition columns) must match safe identifier paths (`table`, `table.column`).
-- **Operators** are allow-listed (`=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, `LIKE`, `IN`, `IS`, …).
+- **Operators** are allow-listed (`=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, `LIKE`, `IN`, `IS`, `MATCH`, `NOT MATCH`, …).
 - **Values** are always bound (`?` placeholders). Column-to-column comparisons use `whereColumn` / join ON — never bind an identifier as a value.
 - There is **no** app-facing raw SQL fragment API on QueryBuilder. Prefer structured helpers (`whereExists`, `groupBy`, `latestPer`, allow-listed aggregates in `select`).
 
@@ -56,6 +56,26 @@ await Message.query().whereNotNull('read_at').get();
 await Message.query().whereIn('thread_id', threadIds).get();
 await Message.query().whereNotIn('status', ['spam', 'blocked']).get();
 ```
+
+### Full-text MATCH (SQLite / D1 FTS5)
+
+`MATCH` / `NOT MATCH` are allow-listed for sqlite-family dialects (`sqlite`, `d1`, `d1-remote`). The FTS query string is bound as a parameter — QueryBuilder does not concatenate it into SQL.
+
+```typescript
+const hits = await MessageSearchDoc.where('body', 'match', '"hello" AND "world"')
+  .limit(100)
+  .get();
+
+const same = await MessageSearchDoc.whereMatch('body', '"hello" AND "world"').limit(100).get();
+const excluded = await MessageSearchDoc.whereNotMatch('body', '"spam"').get();
+
+// Table-name MATCH (valid FTS5 form)
+await MessageSearchDoc.where('message_search_docs', 'match', '"hello"').get();
+```
+
+Postgres, MySQL, and SQL Server throw a database error if you use `MATCH`. Use `@@` / `AGAINST` only if a later dialect-specific operator is added.
+
+The **bound string** is still FTS query language (`AND`, `OR`, `"phrase"`, `column:term`, `*`). That is not SQL injection, but it is query-language injection. Sanitize user tokens in application code (strip non-letters/numbers, cap token count, wrap each token in FTS double quotes). QueryBuilder does not parse FTS syntax.
 
 ### Grouped predicates
 
@@ -345,6 +365,7 @@ qb.getWhereClauses(); // flattened simple where clauses (groups/exists omitted f
 | Need | API |
 | --- | --- |
 | Hide / exclude related rows | `whereNotExists` + `whereColumn` + `from` |
+| FTS5 search (SQLite / D1) | `whereMatch` / `where(..., 'match', ...)` |
 | Pinned / multi-key join | `join(table, (on) => on.on(…).on(…))` |
 | Counts per parent | `select('parent_id', 'COUNT(*) AS n').groupBy('parent_id')` |
 | Latest row per group | `latestPer(partition, { orderBy: […] })` |

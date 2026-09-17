@@ -108,6 +108,8 @@ export interface IQueryBuilder {
   whereNotNull(column: string): IQueryBuilder;
   whereIn(column: string, values: unknown[]): IQueryBuilder;
   whereNotIn(column: string, values: unknown[]): IQueryBuilder;
+  whereMatch(column: string, query: string): IQueryBuilder;
+  whereNotMatch(column: string, query: string): IQueryBuilder;
   whereColumn(left: string, operator: string, right: string): IQueryBuilder;
   whereExists(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
   whereNotExists(callback: (builder: IQueryBuilder) => unknown): IQueryBuilder;
@@ -352,7 +354,16 @@ const ALLOWED_OPERATORS = new Set([
   'IS',
   'IS NOT',
   'NOT',
+  'MATCH',
+  'NOT MATCH',
 ]);
+
+const MATCH_OPERATORS = new Set(['MATCH', 'NOT MATCH']);
+
+const isSqliteFamilyDialect = (dialect?: string): boolean => {
+  const d = (dialect ?? '').toLowerCase();
+  return d === 'sqlite' || d === 'd1' || d === 'd1-remote';
+};
 
 const assertSafeOperator = (operator: string): string => {
   const normalized = normalizeOperator(operator);
@@ -360,6 +371,23 @@ const assertSafeOperator = (operator: string): string => {
     throw ErrorFactory.createDatabaseError('Unsafe SQL operator');
   }
   return normalized;
+};
+
+const assertMatchOperator = (operator: string, value: unknown, dialect?: string): void => {
+  if (!MATCH_OPERATORS.has(operator)) {
+    return;
+  }
+
+  const dialectName = typeof dialect === 'string' ? dialect.trim() : '';
+  if (dialectName.length > 0 && !isSqliteFamilyDialect(dialectName)) {
+    throw ErrorFactory.createDatabaseError(
+      `MATCH is only supported on sqlite, d1, and d1-remote (got ${dialectName})`
+    );
+  }
+
+  if (typeof value !== 'string') {
+    throw ErrorFactory.createDatabaseError('MATCH operator requires a string value');
+  }
 };
 
 const assertSafeLimitOffset = (value: number, label: string): void => {
@@ -562,6 +590,7 @@ const compileSingleWhereClause = (
 } => {
   assertSafeIdentifierPath(clause.column, 'where column');
   const operator = assertSafeOperator(clause.operator);
+  assertMatchOperator(operator, clause.value, dialect);
   const columnSql =
     clause.expression === 'normalized-text'
       ? buildNormalizedColumnSql(clause.column, dialect, clause.normalization)
@@ -1017,6 +1046,7 @@ const applyWhereCondition = (
     }
     op = assertSafeOperator(operator);
     val = value;
+    assertMatchOperator(op, val, state.dialect);
   }
 
   state.whereConditions.push({
@@ -1454,6 +1484,14 @@ function attachWhereMethods(builder: IQueryBuilder, state: QueryState): void {
   };
   builder.whereNotIn = (column, values) => {
     builder.where(column, 'NOT IN', values);
+    return builder;
+  };
+  builder.whereMatch = (column, query) => {
+    builder.where(column, 'MATCH', query);
+    return builder;
+  };
+  builder.whereNotMatch = (column, query) => {
+    builder.where(column, 'NOT MATCH', query);
     return builder;
   };
   builder.whereColumn = (left, operator, right) => {

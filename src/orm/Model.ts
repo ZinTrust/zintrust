@@ -1032,6 +1032,8 @@ export type DefinedModel<T extends BoundModelMethods> = {
   whereNotNull: (column: string) => IQueryBuilder;
   whereIn: (column: string, values: unknown[]) => IQueryBuilder;
   whereNotIn: (column: string, values: unknown[]) => IQueryBuilder;
+  whereMatch: (column: string, query: string) => IQueryBuilder;
+  whereNotMatch: (column: string, query: string) => IQueryBuilder;
   whereColumn: (left: string, operator: string, right: string) => IQueryBuilder;
   whereExists: (callback: (builder: IQueryBuilder) => unknown) => IQueryBuilder;
   whereNotExists: (callback: (builder: IQueryBuilder) => unknown) => IQueryBuilder;
@@ -1428,6 +1430,10 @@ const createQueryBuilderMethods = (
     whereNotNull: (column: string) => wrappedBuilder().whereNotNull(column),
     whereIn: (column: string, values: unknown[]) => wrappedBuilder().whereIn(column, values),
     whereNotIn: (column: string, values: unknown[]) => wrappedBuilder().whereNotIn(column, values),
+    whereMatch: (column: string, matchQuery: string) =>
+      wrappedBuilder().whereMatch(column, matchQuery),
+    whereNotMatch: (column: string, matchQuery: string) =>
+      wrappedBuilder().whereNotMatch(column, matchQuery),
     whereColumn: (left: string, operator: string, right: string) =>
       wrappedBuilder().whereColumn(left, operator, right),
     whereExists: (callback: (builder: IQueryBuilder) => unknown) =>

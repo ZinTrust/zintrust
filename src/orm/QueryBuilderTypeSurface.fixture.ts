@@ -38,6 +38,8 @@ export const assertIQueryBuilderSurface = (qb: IQueryBuilder): IQueryBuilder => 
   return asBuilder(
     qb
       .whereNotNull('hidden_at')
+      .whereMatch('body', '"hello"')
+      .whereNotMatch('body', '"spam"')
       .whereColumn('messages.thread_id', '=', 'threads.id')
       .whereExists((sub) =>
         sub
@@ -73,6 +75,8 @@ export const assertDefinedModelStaticSurface = (
   const fromStatic = asBuilder(
     model
       .whereNotNull('deleted_for_all_at')
+      .whereMatch('body', '"hello"')
+      .whereNotMatch('body', '"spam"')
       .whereColumn('messages.id', '=', 'states.message_id')
       .whereNotExists((sub) =>
         sub

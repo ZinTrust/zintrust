@@ -197,16 +197,17 @@ await Model.raw(`
   END
 `);
 
-// Search
-const searchResults = await Model.raw(
-  `
-  SELECT users.* FROM users_fts
-  JOIN users ON users.id = users_fts.rowid
-  WHERE users_fts MATCH ?
-  ORDER BY rank
-`,
-  ['john']
-);
+// Search through Model / QueryBuilder (MATCH is sqlite-family only)
+import { Model } from '@zintrust/core';
+
+export const UserFts = Model.define({
+  table: 'users_fts',
+  fillable: ['name', 'email'],
+  hidden: [],
+  timestamps: false,
+});
+
+const searchResults = await UserFts.whereMatch('users_fts', 'john').get();
 ```
 
 ## Transactions

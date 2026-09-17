@@ -393,6 +393,11 @@ const pinned = await MessageUserState.query()
   .where('message_user_states.user_id', '=', viewerId)
   .whereNotNull('message_user_states.pinned_at')
   .get();
+
+// FTS5 MATCH (SQLite / D1) — query string is bound, not concatenated
+const hits = await MessageSearchDoc.whereMatch('body', '"hello" AND "world"')
+  .limit(100)
+  .get();
 ```
 
 ### Relationships

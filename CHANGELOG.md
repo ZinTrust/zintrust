@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-14
+
+### Core
+
+- Allow-list QueryBuilder FTS5 `MATCH` / `NOT MATCH` so `Model.where` / `Model.query()` can search SQLite and D1 FTS5 indexes without raw SQL. Values stay bound (`"body" MATCH ?`).
+- Add `whereMatch` / `whereNotMatch` on `IQueryBuilder` and `DefinedModel` static helpers.
+- Gate `MATCH` to sqlite-family dialects (`sqlite`, `d1`, `d1-remote`); other dialects throw a database error.
+- Document FTS query-language sanitization (bound string is still FTS syntax) in `docs/query-builder.md`, `docs/models.md`, `docs/security.md`, and `docs/package-db-sqlite.md`.
+
 ## 2026-07-17
 
 ### Core

@@ -131,5 +131,7 @@ sqliteDescribe('patch coverage: Model soft deletes + query wrappers', () => {
     expect(Users.orWhere('id', '=', 1)).toBeDefined();
     expect(Users.whereIn('id', [1, 2, 3])).toBeDefined();
     expect(Users.whereNotIn('id', [1, 2, 3])).toBeDefined();
+    expect(Users.whereMatch('body', 'hello')).toBeDefined();
+    expect(Users.whereNotMatch('body', 'hello')).toBeDefined();
   });
 });
