@@ -6,7 +6,7 @@ const restoreProcessEnv = (): void => {
   process.env = { ...ORIGINAL_ENV };
 };
 
-describe.sequential('Packed env consumer integration', () => {
+describe('Packed env consumer integration', { concurrent: false }, () => {
   afterEach(() => {
     restoreProcessEnv();
     (globalThis as { env?: Record<string, unknown> }).env = undefined;

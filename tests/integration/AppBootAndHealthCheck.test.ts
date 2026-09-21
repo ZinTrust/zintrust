@@ -17,7 +17,7 @@ const hasRoute = (
   return false;
 };
 
-describe.sequential('Application Boot and Health Check Integration', () => {
+describe('Application Boot and Health Check Integration', { concurrent: false }, () => {
   let Application: typeof import('@boot/Application').Application;
   let app: IApplication;
   let tempDir: string | undefined;

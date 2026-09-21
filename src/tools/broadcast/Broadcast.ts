@@ -331,7 +331,7 @@ const getInternalPublishConfig = (): Readonly<{
   const baseUrls: string[] = [];
   appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('BROADCAST_INTERNAL_URL', '')));
   appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('APP_URL', '')));
-  appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('BASE_URL', Env.BASE_URL ?? '')));
+  appendUnique(baseUrls, toAbsoluteBaseUrl(Env.get('BASE_URL', '')));
 
   const appId = resolveBroadcastAppId();
   const secret = resolveBroadcastSecret();

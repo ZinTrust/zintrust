@@ -208,17 +208,17 @@ describe('Logger Config', () => {
   it('ScopedLogger: should enqueue to cloud loggers for error/fatal and not for info', async () => {
     vi.resetModules();
 
-    vi.mock('@config/logging/KvLogger', () => ({
+    vi.doMock('@config/logging/KvLogger', () => ({
       KvLogger: {
         enqueue: forwardToGlobalSpy('__kvSpy'),
       },
     }));
-    vi.mock('@config/logging/SlackLogger', () => ({
+    vi.doMock('@config/logging/SlackLogger', () => ({
       SlackLogger: {
         enqueue: forwardToGlobalSpy('__slackSpy'),
       },
     }));
-    vi.mock('@config/logging/HttpLogger', () => ({
+    vi.doMock('@config/logging/HttpLogger', () => ({
       HttpLogger: {
         enqueue: forwardToGlobalSpy('__httpSpy'),
       },
@@ -250,17 +250,17 @@ describe('Logger Config', () => {
     (globalThis as any).__slackSpy = slackSpy;
     (globalThis as any).__httpSpy = httpSpy;
 
-    vi.mock('@config/logging/KvLogger', () => ({
+    vi.doMock('@config/logging/KvLogger', () => ({
       KvLogger: {
         enqueue: forwardToGlobalSpy('__kvSpy'),
       },
     }));
-    vi.mock('@config/logging/SlackLogger', () => ({
+    vi.doMock('@config/logging/SlackLogger', () => ({
       SlackLogger: {
         enqueue: forwardToGlobalSpy('__slackSpy'),
       },
     }));
-    vi.mock('@config/logging/HttpLogger', () => ({
+    vi.doMock('@config/logging/HttpLogger', () => ({
       HttpLogger: {
         enqueue: forwardToGlobalSpy('__httpSpy'),
       },

@@ -22,14 +22,26 @@ type StoreApi = {
 const createFallbackStorage = (): StoreApi => {
   let store: IRequestContext | undefined;
 
+  const restore = (prev: IRequestContext | undefined): void => {
+    store = prev;
+  };
+
   return {
     run<T>(ctx: IRequestContext, callback: () => T): T {
       const prev = store;
       store = ctx;
       try {
-        return callback();
-      } finally {
-        store = prev;
+        const result = callback();
+        if (result instanceof Promise) {
+          return result.finally(() => {
+            restore(prev);
+          }) as T;
+        }
+        restore(prev);
+        return result;
+      } catch (error) {
+        restore(prev);
+        throw error;
       }
     },
 

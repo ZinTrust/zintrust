@@ -5,7 +5,7 @@ import { join } from '@node-singletons/path';
 import { ConnectionManager } from '@orm/ConnectionManager';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-describe.sequential('Graceful shutdown integration', () => {
+describe('Graceful shutdown integration', { concurrent: false }, () => {
   let tempDir: string | undefined;
   let app: ReturnType<typeof Application.create>;
 
