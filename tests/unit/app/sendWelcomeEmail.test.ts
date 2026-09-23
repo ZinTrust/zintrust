@@ -27,7 +27,7 @@ describe('sendWelcomeEmail toolkit', () => {
     process.env.SENDGRID_API_KEY = 'test-key';
     process.env.MAIL_FROM_ADDRESS = 'noreply@example.com';
 
-    vi.mock('@mail/drivers/SendGrid', sendGridMockFactory);
+    vi.doMock('@mail/drivers/SendGrid', sendGridMockFactory);
 
     // Register SendGrid handler (Mail is registry-first)
     const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');

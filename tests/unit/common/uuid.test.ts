@@ -23,7 +23,7 @@ const restoreCrypto = (): void => {
 afterEach(() => {
   restoreCrypto();
   vi.resetModules();
-  vi.unmock('@node-singletons/crypto');
+  vi.doUnmock('@node-singletons/crypto');
 });
 
 const makeSequentialBuffer = (length: number, startAt: number): Buffer => {

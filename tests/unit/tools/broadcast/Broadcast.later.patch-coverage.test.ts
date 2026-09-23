@@ -89,6 +89,8 @@ describe('Broadcast (later + now patch coverage)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.doUnmock('@broadcast/BroadcastRegistry');
+    vi.doUnmock('@config/logger');
 
     queueMock.enqueue.mockResolvedValue('msg-1');
     vi.unstubAllGlobals();

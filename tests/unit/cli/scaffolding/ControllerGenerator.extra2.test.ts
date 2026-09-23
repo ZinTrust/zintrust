@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 describe('ControllerGenerator validation and error branches', () => {
   it('validateOptions returns errors for bad name, missing dir and invalid type', async () => {
     // Mock the FileGenerator module before importing ControllerGenerator
-    vi.mock('@cli/scaffolding/FileGenerator', () => ({
+    vi.doMock('@cli/scaffolding/FileGenerator', () => ({
       FileGenerator: {
         directoryExists: () => false,
         writeFile: () => true,
@@ -23,7 +23,7 @@ describe('ControllerGenerator validation and error branches', () => {
     expect(res.errors.some((e) => e.includes('Controllers directory does not exist'))).toBe(true);
     expect(res.errors.some((e) => e.includes('Invalid controller type'))).toBe(true);
 
-    vi.unmock('@cli/scaffolding/FileGenerator');
+    vi.doUnmock('@cli/scaffolding/FileGenerator');
   });
 
   it('generateController handles thrown errors gracefully', async () => {
@@ -32,7 +32,7 @@ describe('ControllerGenerator validation and error branches', () => {
     vi.resetModules();
     const tmpDir = `/tmp/zintrust-test-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-    vi.mock('@cli/scaffolding/FileGenerator', () => ({
+    vi.doMock('@cli/scaffolding/FileGenerator', () => ({
       FileGenerator: {
         directoryExists: () => true,
         writeFile: (_p: string, _c: string) => {
@@ -53,6 +53,6 @@ describe('ControllerGenerator validation and error branches', () => {
     expect(typeof result.message).toBe('string');
     expect(result.message.length).toBeGreaterThan(0);
 
-    vi.unmock('@cli/scaffolding/FileGenerator');
+    vi.doUnmock('@cli/scaffolding/FileGenerator');
   });
 });

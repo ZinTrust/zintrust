@@ -77,7 +77,7 @@ describe('Logger extra branches', () => {
     process.env.LOG_TO_FILE = 'true';
 
     // Provide a virtual mock for the file writer
-    vi.mock('@config/FileLogWriter', () => ({
+    vi.doMock('@config/FileLogWriter', () => ({
       FileLogWriter: { write: vi.fn(), cleanOnce: vi.fn().mockReturnValue([]) },
     }));
 

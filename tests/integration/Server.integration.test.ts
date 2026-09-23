@@ -58,7 +58,7 @@ const makeRes = () => {
 describe('Server integration - body parsing and oversized payloads', () => {
   it('parses application/x-www-form-urlencoded into arrays when keys repeat', async () => {
     vi.resetModules();
-    vi.unmock('@node-singletons/http');
+    vi.doUnmock('@node-singletons/http');
 
     const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
@@ -112,7 +112,7 @@ describe('Server integration - body parsing and oversized payloads', () => {
 
   it('returns 413 when body exceeds MAX_BODY_SIZE', async () => {
     vi.resetModules();
-    vi.unmock('@node-singletons/http');
+    vi.doUnmock('@node-singletons/http');
 
     process.env['MAX_BODY_SIZE'] = '10';
 
@@ -162,7 +162,7 @@ describe('Server integration - body parsing and oversized payloads', () => {
 
   it('handles mixed chunk types and sets raw text body for non-JSON content', async () => {
     vi.resetModules();
-    vi.unmock('@node-singletons/http');
+    vi.doUnmock('@node-singletons/http');
 
     const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();

@@ -23,7 +23,7 @@ vi.mock('@config/logger', () => ({
   Logger: loggerState,
 }));
 
-describe.sequential('Plugin provisioning integration', () => {
+describe('Plugin provisioning integration', { concurrent: false }, () => {
   let PluginManager: typeof import('@runtime/PluginManager').PluginManager;
   let tempDir: string | undefined;
   let originalCwd: string;

@@ -31,7 +31,7 @@ describe('adapter packages register.ts importCore fallbacks (coverage)', () => {
       } catch {
         return { file, ok: false };
       } finally {
-        vi.unmock('@zintrust/core');
+        vi.doUnmock('@zintrust/core');
         vi.resetModules();
       }
     };

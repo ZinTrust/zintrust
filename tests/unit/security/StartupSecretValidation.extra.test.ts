@@ -28,7 +28,7 @@ describe('StartupSecretValidation - extra branches', () => {
 
   test('respects validateSecrets=false via startup config mock', async () => {
     vi.resetModules();
-    vi.mock('@config/startup', () => ({ startupConfig: { validateSecrets: false } }));
+    vi.doMock('@config/startup', () => ({ startupConfig: { validateSecrets: false } }));
     const originalEnv = process.env;
     process.env = {
       ...originalEnv,

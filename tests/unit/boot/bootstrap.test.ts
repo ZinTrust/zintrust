@@ -90,7 +90,7 @@ describe('Bootstrap start flow', () => {
     } as any;
 
     // Use global hook so hoisted mock factory can reference the current mock instance
-    vi.mock('@boot/Application', () => ({
+    vi.doMock('@boot/Application', () => ({
       Application: { create: () => (globalThis as any).__mockApp },
     }));
 
@@ -102,14 +102,14 @@ describe('Bootstrap start flow', () => {
     const AppMod = await import('@boot/Application');
     expect(AppMod.Application.create()).toBe(mockApp);
 
-    vi.mock('@boot/Server', () => ({ Server: { create: () => (globalThis as any).__mockServer } }));
+    vi.doMock('@boot/Server', () => ({ Server: { create: () => (globalThis as any).__mockServer } }));
 
     // Sanity check mocked Server module
     const ServerMod = await import('@boot/Server');
     expect(typeof ServerMod.Server.create(mockApp, 3000, 'localhost').listen).toBe('function');
 
     // runtime detection
-    vi.mock('@config/app', () => ({
+    vi.doMock('@config/app', () => ({
       appConfig: { detectRuntime: () => 'nodejs' },
     }));
 
@@ -119,11 +119,11 @@ describe('Bootstrap start flow', () => {
       start: vi.fn(),
       stop: vi.fn().mockResolvedValue(undefined),
     };
-    vi.mock('@/scheduler/ScheduleRunner', () => ({ create: () => runner }));
-    vi.mock('@/schedules', () => ({ sch1: {} }));
+    vi.doMock('@/scheduler/ScheduleRunner', () => ({ create: () => runner }));
+    vi.doMock('@/schedules', () => ({ sch1: {} }));
 
     // stub logger
-    vi.mock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+    vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
     // import bootstrap module which runs start on import
     // vitest's vi.resetModules() in beforeEach ensures a fresh module instance
