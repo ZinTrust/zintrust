@@ -1,5 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const loginFlowState = vi.hoisted(() => ({
+  run: async (): Promise<unknown> => {
+    throw new Error('LoginFlow mock was not configured');
+  },
+}));
+
+const mockLoginFlow = (): void => {
+  vi.doMock('@auth/LoginFlow', () => ({
+    LoginFlow: {
+      create: () => ({
+        identify: () => ({
+          verify: () => ({
+            issue: () => ({
+              audit: () => ({
+                run: () => loginFlowState.run(),
+              }),
+            }),
+          }),
+        }),
+      }),
+    },
+  }));
+};
+
 beforeEach(() => {
   vi.resetAllMocks();
 });
@@ -98,23 +122,10 @@ describe('AuthController.login', () => {
       },
     }));
     vi.doMock('@auth/Auth', () => ({ Auth: { compare: vi.fn() } }));
-    vi.doMock('@auth/LoginFlow', () => ({
-      LoginFlow: {
-        create: () => ({
-          identify: () => ({
-            verify: () => ({
-              issue: () => ({
-                audit: () => ({
-                  run: async () => {
-                    throw { details: { error: { statusCode: 401 } } };
-                  },
-                }),
-              }),
-            }),
-          }),
-        }),
-      },
-    }));
+    loginFlowState.run = async () => {
+      throw { details: { error: { statusCode: 401 } } };
+    };
+    mockLoginFlow();
 
     const { AuthController } = await import('../../app/Controllers/AuthController');
 
@@ -145,27 +156,14 @@ describe('AuthController.login', () => {
       },
     }));
     vi.doMock('@auth/Auth', () => ({ Auth: { compare: vi.fn() } }));
-    vi.doMock('@auth/LoginFlow', () => ({
-      LoginFlow: {
-        create: () => ({
-          identify: () => ({
-            verify: () => ({
-              issue: () => ({
-                audit: () => ({
-                  run: async () => ({
-                    verified: {
-                      user: { id: 'u-1', name: 'User', email: 'u@example.com' },
-                      claims: { sub: 'u-1', deviceId: 'dev-u-1' },
-                    },
-                    issued: { nope: 'bad' },
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
+    loginFlowState.run = async () => ({
+      verified: {
+        user: { id: 'u-1', name: 'User', email: 'u@example.com' },
+        claims: { sub: 'u-1', deviceId: 'dev-u-1' },
       },
-    }));
+      issued: { nope: 'bad' },
+    });
+    mockLoginFlow();
 
     const { AuthController } = await import('../../app/Controllers/AuthController');
 
@@ -197,27 +195,14 @@ describe('AuthController.login', () => {
       },
     }));
     vi.doMock('@auth/Auth', () => ({ Auth: { compare: vi.fn() } }));
-    vi.doMock('@auth/LoginFlow', () => ({
-      LoginFlow: {
-        create: () => ({
-          identify: () => ({
-            verify: () => ({
-              issue: () => ({
-                audit: () => ({
-                  run: async () => ({
-                    verified: {
-                      user: { id: 'u-1', name: 'User', email: 'u@example.com' },
-                      claims: { sub: 'u-1' },
-                    },
-                    issued: { token: 'good', deviceId: 'dev-1', deviceSecret: 'hex:secret' },
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
+    loginFlowState.run = async () => ({
+      verified: {
+        user: { id: 'u-1', name: 'User', email: 'u@example.com' },
+        claims: { sub: 'u-1' },
       },
-    }));
+      issued: { token: 'good', deviceId: 'dev-1', deviceSecret: 'hex:secret' },
+    });
+    mockLoginFlow();
 
     const { AuthController } = await import('../../app/Controllers/AuthController');
 
@@ -255,27 +240,14 @@ describe('AuthController.login', () => {
       },
     }));
     vi.doMock('@auth/Auth', () => ({ Auth: { compare: vi.fn() } }));
-    vi.doMock('@auth/LoginFlow', () => ({
-      LoginFlow: {
-        create: () => ({
-          identify: () => ({
-            verify: () => ({
-              issue: () => ({
-                audit: () => ({
-                  run: async () => ({
-                    verified: {
-                      user: { id: 'u-2', name: 'User 2', email: 'u2@example.com' },
-                      claims: { sub: 'u-2' },
-                    },
-                    issued: 'plain-token',
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
+    loginFlowState.run = async () => ({
+      verified: {
+        user: { id: 'u-2', name: 'User 2', email: 'u2@example.com' },
+        claims: { sub: 'u-2' },
       },
-    }));
+      issued: 'plain-token',
+    });
+    mockLoginFlow();
 
     const { AuthController } = await import('../../app/Controllers/AuthController');
 
