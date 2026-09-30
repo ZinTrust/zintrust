@@ -337,11 +337,11 @@ describe('Broadcast (later + now patch coverage)', () => {
   });
 
   it('parses raw internal-http error bodies and falls back to the socket transport', async () => {
-    setBroadcastEnv({ BASE_URL: 'http://127.0.0.1:7788', PUSHER_APP_ID: 'internal-app' });
-    const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({
-      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
-    }));
+    setBroadcastEnv({
+      BASE_URL: 'http://127.0.0.1:7788',
+      PUSHER_APP_ID: 'internal-app',
+      BROADCAST_INTERNAL_PUBLISH_RETRIES: '1',
+    });
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => createJsonResponse('not-json', 500))
@@ -354,21 +354,35 @@ describe('Broadcast (later + now patch coverage)', () => {
       deliveries: 3,
     }));
 
-    const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
-    ).resolves.toMatchObject({
-      transport: 'socket',
-      attemptedTransports: ['internal-http', 'socket'],
+    const { Logger } = await import('@config/logger');
+    const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const removeSink = Logger.addSink((level, message, context) => {
+      if (level === 'warn') {
+        warnings.push({ message, context });
+      }
     });
 
-    expect(loggerWarn).toHaveBeenCalledWith(
-      'Broadcast publish transport failed; falling back.',
-      expect.objectContaining({
-        transport: 'internal-http',
-        body: { raw: 'not-json' },
-      })
-    );
+    try {
+      const { Broadcast } = await import('@broadcast/Broadcast');
+      await expect(
+        Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+      ).resolves.toMatchObject({
+        transport: 'socket',
+        attemptedTransports: ['internal-http', 'socket'],
+      });
+
+      expect(warnings).toContainEqual(
+        expect.objectContaining({
+          message: 'Broadcast publish transport failed; falling back.',
+          context: expect.objectContaining({
+            transport: 'internal-http',
+            body: { raw: 'not-json' },
+          }),
+        })
+      );
+    } finally {
+      removeSink();
+    }
   });
 
   it('tries localhost and ipv6 loopback aliases before falling back to the driver', async () => {

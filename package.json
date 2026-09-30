@@ -338,7 +338,7 @@
     "bg": "npm install -g /opt/homebrew/var/www/Sites/zintrust/dist",
     "check:workspace-versions": "node scripts/release/sync-package-versions.mjs --check",
     "release:sync-versions": "node scripts/release/sync-package-versions.mjs",
-    "release:update-deps": "npx npm-check-updates -u && npm install --no-audit --no-fund",
+    "release:update-deps": "node scripts/release/ensure-publish-install.mjs",
     "release:publish-packages": "npm run release:update-deps && node scripts/release/publish-packages.mjs",
     "release:publish-all": "npm run release:update-deps && npm run pub:ci && node scripts/release/publish-packages.mjs --verify-core-on-npm",
     "cag": "npm run cleanup:github-actions",
