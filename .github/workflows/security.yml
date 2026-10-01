@@ -47,7 +47,7 @@ jobs:
           HUSKY: 0
 
       - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/node@e2221410bff24446ba09102212d8bc75a567237d # master
+        uses: snyk/actions/node@b075801f26076be9bb50521154cafab73f44da0c # master
         continue-on-error: true # To allow the report to be generated even if vulnerabilities are found
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
