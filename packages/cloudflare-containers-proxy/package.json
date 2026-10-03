@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",
-    "@cloudflare/workers-types": "^5.20260923.1"
+    "@cloudflare/workers-types": "^5.20260930.2"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
