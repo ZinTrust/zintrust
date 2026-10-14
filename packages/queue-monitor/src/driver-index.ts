@@ -3,7 +3,7 @@
  * Contains only the core queue driver functionality for production Workers
  */
 
-export { createBullMQDriver, registerZedgiMonitorDriver } from './driver.js';
+export { createBullMQDriver, isWaitingJobState, registerZedgiMonitorDriver } from './driver.js';
 export type {
   JobCounts,
   JobPayload,
@@ -11,4 +11,5 @@ export type {
   RecoverActiveJobResult,
   RetryJobResult,
   RetrySnapshot,
+  WaitingJobActionResult,
 } from './driver.js';

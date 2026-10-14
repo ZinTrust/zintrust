@@ -1,3 +1,7 @@
+# 2026-10-14
+
+- Added queue-monitor Delete and Requeue actions for waiting jobs. Delete removes a job only while it is waiting. Requeue removes it and enqueues a fresh copy with a new job id. The dashboard buttons and `POST /api/delete-waiting/:queue/:jobId` and `POST /api/requeue-waiting/:queue/:jobId` are available for BullMQ, Redis RPC, and Zedgi monitor drivers. Non-waiting jobs return `409` and are left unchanged.
+
 # 2026-06-28
 
 - Changed `QUEUE_MONITOR_AUTO_REFRESH` default from `true` to `false`. The queue-monitor dashboard no longer auto-refreshes by default; users must click "Resume auto refresh" to enable SSE polling. This prevents ~205 Redis round-trips per 5-second poll cycle when the dashboard is open but unattended. Set `QUEUE_MONITOR_AUTO_REFRESH=true` to restore the prior default.

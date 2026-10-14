@@ -3,7 +3,9 @@ import type {
   QueueDriver,
   RecoverActiveJobResult,
   RetryJobResult,
+  WaitingJobActionResult,
 } from '@zintrust/queue-monitor/driver';
+import { isWaitingJobState } from '@zintrust/queue-monitor/driver';
 import type { Job } from 'bullmq';
 import { ZedgiRuntime } from './ZedgiRuntime.js';
 import type { ZedgiQueueConfig } from './types.js';
@@ -102,6 +104,46 @@ const createZedgiRetryJob =
     }
   };
 
+type ZedgiWaitingJob = {
+  id?: string;
+  name?: string;
+  state?: string;
+  data?: unknown;
+  opts?: Record<string, unknown>;
+};
+
+const waitingStateRejection = (state: unknown): WaitingJobActionResult => ({
+  ok: false,
+  status: 'not_waiting',
+  reason: `Job is ${typeof state === 'string' && state.trim() !== '' ? state : 'unknown'}, not waiting`,
+});
+
+const createZedgiDeleteWaitingJob =
+  (getQueueConfig: () => Partial<ZedgiQueueConfig>) =>
+  async (queueName: string, jobId: string): Promise<WaitingJobActionResult> => {
+    const queue = ZedgiRuntime.queue(queueName, getQueueConfig());
+    const job = (await queue.getJob(jobId)) as ZedgiWaitingJob | null;
+    if (!job) return { ok: false, status: 'missing' };
+    if (!isWaitingJobState(job.state)) return waitingStateRejection(job.state);
+    await queue.removeJob(jobId);
+    return { ok: true, status: 'removed' };
+  };
+
+const createZedgiRequeueWaitingJob =
+  (getQueueConfig: () => Partial<ZedgiQueueConfig>) =>
+  async (queueName: string, jobId: string): Promise<WaitingJobActionResult> => {
+    const queue = ZedgiRuntime.queue(queueName, getQueueConfig());
+    const job = (await queue.getJob(jobId)) as ZedgiWaitingJob | null;
+    if (!job) return { ok: false, status: 'missing' };
+    if (!isWaitingJobState(job.state)) return waitingStateRejection(job.state);
+    const opts = { ...job.opts };
+    delete opts['jobId'];
+    await queue.removeJob(jobId);
+    const added = await queue.add(job.name ?? `${queueName}-job`, job.data ?? {}, opts);
+    const newJobId = added?.id !== undefined && added.id !== null ? String(added.id) : undefined;
+    return { ok: true, status: 'requeued', newJobId };
+  };
+
 const createZedgiRecoverActiveJob =
   (getQueueConfig: () => Partial<ZedgiQueueConfig>) =>
   async (queueName: string, jobId: string): Promise<RecoverActiveJobResult> => {
@@ -164,6 +206,8 @@ const createZedgiMonitorDriver = (config: RedisConfig): QueueDriver => {
     getRecentJobs: createZedgiGetRecentJobs(getQueueConfig),
     retryJob: createZedgiRetryJob(getQueueConfig),
     recoverActiveJob: createZedgiRecoverActiveJob(getQueueConfig),
+    deleteWaitingJob: createZedgiDeleteWaitingJob(getQueueConfig),
+    requeueWaitingJob: createZedgiRequeueWaitingJob(getQueueConfig),
     getQueues: createZedgiGetQueues(getQueueConfig),
     close: createZedgiClose(),
   };

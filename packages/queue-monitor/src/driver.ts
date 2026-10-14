@@ -54,6 +54,11 @@ export type RecoverActiveJobResult =
     }
   | { ok: false; status: 'missing' | 'not_active' | 'not_recoverable'; reason?: string };
 
+export type WaitingJobActionResult =
+  | { ok: true; status: 'removed' }
+  | { ok: true; status: 'requeued'; newJobId?: string }
+  | { ok: false; status: 'missing' | 'not_waiting'; reason?: string };
+
 export type QueueDriver = {
   enqueue<T>(name: string, payload: T, options?: JobsOptions): Promise<string>;
   getJob(queueName: string, jobId: string): Promise<Job | undefined>;
@@ -64,6 +69,8 @@ export type QueueDriver = {
   getRecentJobs(queueName: string, limit?: number): Promise<Job[]>;
   retryJob(queueName: string, jobId: string, snapshot?: RetrySnapshot): Promise<RetryJobResult>;
   recoverActiveJob(queueName: string, jobId: string): Promise<RecoverActiveJobResult>;
+  deleteWaitingJob(queueName: string, jobId: string): Promise<WaitingJobActionResult>;
+  requeueWaitingJob(queueName: string, jobId: string): Promise<WaitingJobActionResult>;
   getQueues(): Promise<string[]>;
   close(): Promise<void>;
 };
@@ -228,6 +235,69 @@ const createRedisRpcRetryJob = async (
   return client.queue('retryJob', { target: queueName, args: [jobId] });
 };
 
+const WAITING_JOB_STATES = new Set(['waiting', 'wait', 'prioritized']);
+
+const normalizeJobState = (state: unknown): string =>
+  typeof state === 'string' ? state.trim().toLowerCase() : '';
+
+export const isWaitingJobState = (state: unknown): boolean =>
+  WAITING_JOB_STATES.has(normalizeJobState(state));
+
+const waitingStateRejection = (state: unknown): WaitingJobActionResult => ({
+  ok: false,
+  status: 'not_waiting',
+  reason: `Job is ${normalizeJobState(state) || 'unknown'}, not waiting`,
+});
+
+const cloneRequeueOptions = (opts: JobsOptions | undefined): JobsOptions => {
+  const next: JobsOptions = { ...(opts ?? {}) };
+  delete next.jobId;
+  return next;
+};
+
+const createRedisRpcDeleteWaitingJob = async (
+  queueName: string,
+  jobId: string
+): Promise<WaitingJobActionResult> => {
+  const client = await createRpcClient();
+  const job = await client.queue<RedisRpcJobSnapshot | null>('getJob', {
+    target: queueName,
+    args: [jobId],
+  });
+  if (!job) return { ok: false, status: 'missing' };
+  if (!isWaitingJobState(job.state)) return waitingStateRejection(job.state);
+  await client.queue('removeJob', { target: queueName, args: [jobId] });
+  return { ok: true, status: 'removed' };
+};
+
+const createRedisRpcRequeueWaitingJob = async (
+  queueName: string,
+  jobId: string
+): Promise<WaitingJobActionResult> => {
+  const client = await createRpcClient();
+  const job = await client.queue<{
+    state?: string;
+    name?: string;
+    data?: unknown;
+    opts?: JobsOptions;
+  } | null>('getJob', {
+    target: queueName,
+    args: [jobId],
+  });
+  if (!job) return { ok: false, status: 'missing' };
+  if (!isWaitingJobState(job.state)) return waitingStateRejection(job.state);
+  await client.queue('removeJob', { target: queueName, args: [jobId] });
+  const added = await client.queue<{ id?: string | number }>('add', {
+    target: queueName,
+    args: [job.name ?? `${queueName}-job`, job.data ?? {}, cloneRequeueOptions(job.opts)],
+  });
+  return {
+    ok: true,
+    status: 'requeued',
+    newJobId: added.id === undefined || added.id === null ? undefined : String(added.id),
+  };
+};
+
 type RedisRpcJobSnapshot = {
   id?: string | number;
   state?: string;
@@ -336,6 +406,8 @@ const createRedisRpcDriver = (): QueueDriver =>
     getRecentJobs: createRedisRpcRecentJobs,
     retryJob: createRedisRpcRetryJob,
     recoverActiveJob: createRedisRpcRecoverActiveJob,
+    deleteWaitingJob: createRedisRpcDeleteWaitingJob,
+    requeueWaitingJob: createRedisRpcRequeueWaitingJob,
     getQueues: createRedisRpcGetQueues,
     close: createRedisRpcClose,
   });
@@ -610,6 +682,40 @@ const createBullMQRetryJob =
     }
   };
 
+const createBullMQDeleteWaitingJob =
+  (getJob: (q: string, id: string) => Promise<Job | undefined>) =>
+  async (queueName: string, jobId: string): Promise<WaitingJobActionResult> => {
+    const job = await getJob(queueName, jobId);
+    if (!job) return { ok: false, status: 'missing' };
+    const state = await job.getState().catch(() => undefined);
+    if (!isWaitingJobState(state)) return waitingStateRejection(state);
+    await job.remove();
+    return { ok: true, status: 'removed' };
+  };
+
+const createBullMQRequeueWaitingJob =
+  (
+    getQueue: (name: string) => Promise<Queue>,
+    getJob: (q: string, id: string) => Promise<Job | undefined>
+  ) =>
+  async (queueName: string, jobId: string): Promise<WaitingJobActionResult> => {
+    const queue = await getQueue(queueName);
+    const job = await getJob(queueName, jobId);
+    if (!job) return { ok: false, status: 'missing' };
+    const state = await job.getState().catch(() => undefined);
+    if (!isWaitingJobState(state)) return waitingStateRejection(state);
+    const name = job.name;
+    const data = job.data;
+    const opts = cloneRequeueOptions(job.opts);
+    await job.remove();
+    const requeued = await queue.add(name, data, opts);
+    return {
+      ok: true,
+      status: 'requeued',
+      newJobId: requeued.id === undefined || requeued.id === null ? undefined : String(requeued.id),
+    };
+  };
+
 const createBullMQRecoverActiveJob =
   (
     getQueue: (name: string) => Promise<Queue>,
@@ -712,6 +818,8 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     getRecentJobs: createBullMQGetRecentJobs(getQueue),
     retryJob: createBullMQRetryJob(getQueue, createBullMQGetJob(getQueue)),
     recoverActiveJob: createBullMQRecoverActiveJob(getQueue, createBullMQGetJob(getQueue)),
+    deleteWaitingJob: createBullMQDeleteWaitingJob(createBullMQGetJob(getQueue)),
+    requeueWaitingJob: createBullMQRequeueWaitingJob(getQueue, createBullMQGetJob(getQueue)),
     getQueues: createBullMQGetQueues(redis, queues),
     close: createBullMQClose(queues),
   });

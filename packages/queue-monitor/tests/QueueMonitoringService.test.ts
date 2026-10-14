@@ -53,6 +53,8 @@ describe('QueueMonitoringService', () => {
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
+      deleteWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'removed' as const })),
+      requeueWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'requeued' as const })),
       getQueues: vi.fn(async () => ['alpha', 'beta']),
       close: vi.fn(async () => undefined),
     };
@@ -113,6 +115,8 @@ describe('QueueMonitoringService', () => {
       getRecentJobs: driverRecentJobs,
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
+      deleteWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'removed' as const })),
+      requeueWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'requeued' as const })),
       getQueues: vi.fn(async () => ['smartq']),
       close: vi.fn(async () => undefined),
     };
@@ -199,6 +203,8 @@ describe('QueueMonitoringService', () => {
       getRecentJobs: driverRecentJobs,
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
+      deleteWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'removed' as const })),
+      requeueWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'requeued' as const })),
       getQueues: vi.fn(async () => ['smartq']),
       close: vi.fn(async () => undefined),
     };
@@ -233,6 +239,8 @@ describe('QueueMonitoringService', () => {
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
+      deleteWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'removed' as const })),
+      requeueWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'requeued' as const })),
       getQueues: vi.fn(async () => ['alpha']),
       close: vi.fn(async () => undefined),
     };
@@ -291,6 +299,8 @@ describe('QueueMonitoringService', () => {
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
+      deleteWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'removed' as const })),
+      requeueWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'requeued' as const })),
       getQueues: vi.fn(async () => ['alpha']),
       close: vi.fn(async () => undefined),
     };
