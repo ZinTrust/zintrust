@@ -90,7 +90,15 @@ describe('Broadcast (later + now patch coverage)', () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.doUnmock('@broadcast/BroadcastRegistry');
-    vi.doUnmock('@config/logger');
+    vi.doMock('@config/logger', () => ({
+      Logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        fatal: vi.fn(),
+      },
+    }));
 
     queueMock.enqueue.mockResolvedValue('msg-1');
     vi.unstubAllGlobals();
@@ -354,6 +362,7 @@ describe('Broadcast (later + now patch coverage)', () => {
       deliveries: 3,
     }));
 
+    vi.doUnmock('@config/logger');
     const { Logger } = await import('@config/logger');
     const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
     const removeSink = Logger.addSink((level, message, context) => {
