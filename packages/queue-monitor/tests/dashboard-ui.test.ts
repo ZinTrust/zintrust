@@ -108,6 +108,20 @@ describe('queue monitor dashboard UI', () => {
     expect(html).toContain('class="retry-btn recover-btn"');
   });
 
+  it('renders delete and requeue actions for waiting jobs', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    });
+
+    expect(html).toContain("if (status === 'waiting' || status === 'wait' || status === 'prioritized')");
+    expect(html).toContain('deleteWaitingJob(');
+    expect(html).toContain('requeueWaitingJob(');
+    expect(html).toContain("/api/delete-waiting/");
+    expect(html).toContain("/api/requeue-waiting/");
+  });
+
   it('keeps HTTP refresh paths available alongside SSE', () => {
     const html = getDashboardHtml({
       basePath: '/queue-monitor',

@@ -22,6 +22,8 @@ const testState = vi.hoisted(() => {
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
+      deleteWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'removed' as const })),
+      requeueWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'requeued' as const })),
       getQueues: vi.fn(async () => []),
       close: vi.fn(async () => undefined),
     },
@@ -146,6 +148,11 @@ function getRecoverActiveHandler() {
   return route?.[2] as ((req: unknown, res: unknown) => Promise<void>) | undefined;
 }
 
+function getWaitingActionHandler(path: string) {
+  const route = testState.routerPost.mock.calls.find((call) => String(call[1]).includes(path));
+  return route?.[2] as ((req: unknown, res: unknown) => Promise<void>) | undefined;
+}
+
 describe('queue-monitor retry API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -163,6 +170,8 @@ describe('queue-monitor retry API', () => {
       getRecentJobs: vi.fn(async () => []),
       retryJob: vi.fn(async () => ({ ok: true as const, status: 'retried' as const })),
       recoverActiveJob: vi.fn(async () => ({ ok: true as const, status: 'failed' as const })),
+      deleteWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'removed' as const })),
+      requeueWaitingJob: vi.fn(async () => ({ ok: true as const, status: 'requeued' as const })),
       getQueues: vi.fn(async () => []),
       close: vi.fn(async () => undefined),
     };
@@ -356,6 +365,70 @@ describe('queue-monitor retry API', () => {
     expect(response.payload).toEqual({
       error: 'Job is failed, not active',
       status: 'not_active',
+    });
+  });
+
+  it('deletes a waiting job and rejects a non-waiting job', async () => {
+    const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
+    const handler = getWaitingActionHandler('/api/delete-waiting/');
+    expect(handler).toBeTypeOf('function');
+
+    const deleted = createJsonResponse();
+    await handler?.(
+      { getParam: (name: string) => (name === 'queue' ? 'golddbitor' : 'job-wait') },
+      deleted.res
+    );
+    expect(testState.currentDriver.deleteWaitingJob).toHaveBeenCalledWith('golddbitor', 'job-wait');
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.payload).toEqual({
+      ok: true,
+      status: 'removed',
+      message: 'Waiting job job-wait deleted',
+    });
+
+    testState.currentDriver.deleteWaitingJob = vi.fn(async () => ({
+      ok: false as const,
+      status: 'not_waiting' as const,
+      reason: 'Job is active, not waiting',
+    }));
+    const rejected = createJsonResponse();
+    await handler?.(
+      { getParam: (name: string) => (name === 'queue' ? 'golddbitor' : 'job-active') },
+      rejected.res
+    );
+    expect(rejected.statusCode).toBe(409);
+    expect(rejected.payload).toEqual({
+      error: 'Job is active, not waiting',
+      status: 'not_waiting',
+    });
+  });
+
+  it('requeues a waiting job as a new job id', async () => {
+    testState.currentDriver.requeueWaitingJob = vi.fn(async () => ({
+      ok: true as const,
+      status: 'requeued' as const,
+      newJobId: 'job-new',
+    }));
+
+    const monitor = QueueMonitor.create({ redis: { host: 'localhost', port: 6379 } });
+    monitor.registerRoutes({ basePath: '/api', middleware: [] } as never);
+    const handler = getWaitingActionHandler('/api/requeue-waiting/');
+    expect(handler).toBeTypeOf('function');
+
+    const response = createJsonResponse();
+    await handler?.(
+      { getParam: (name: string) => (name === 'queue' ? 'golddbitor' : 'job-wait') },
+      response.res
+    );
+
+    expect(testState.currentDriver.requeueWaitingJob).toHaveBeenCalledWith('golddbitor', 'job-wait');
+    expect(response.statusCode).toBe(200);
+    expect(response.payload).toEqual({
+      ok: true,
+      status: 'requeued',
+      message: 'Waiting job job-wait requeued as job-new',
+      newJobId: 'job-new',
     });
   });
 });

@@ -147,3 +147,10 @@ It provides real-time insights into:
 - Queue depths
 - Recent job details
 - Failure reasons
+
+Waiting jobs can be removed or copied back onto the queue from the dashboard:
+
+- **Delete** removes a job only when its live state is `waiting`, `wait`, or `prioritized`.
+- **Requeue** removes that waiting job and enqueues a fresh copy with a new job id. The original id is not reused.
+
+Both actions are also available as `POST /queue-monitor/api/delete-waiting/:queue/:jobId` and `POST /queue-monitor/api/requeue-waiting/:queue/:jobId`. A missing job returns `404`. A job that is no longer waiting returns `409` and is left unchanged. Failed and active jobs still use Retry and Recover.

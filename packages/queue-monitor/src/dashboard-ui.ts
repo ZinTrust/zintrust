@@ -125,6 +125,9 @@ html[data-theme="light"] .refresh-btn:hover { background: rgba(2, 132, 199, 0.16
 .retry-btn { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.2s; }
 .retry-btn:hover { background: rgba(59, 130, 246, 0.2); transform: scale(1.05); }
 .retry-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.requeue-btn { margin-right: 4px; }
+.delete-btn { background: rgba(239, 68, 68, 0.12); color: #f87171; border-color: rgba(239, 68, 68, 0.35); }
+.delete-btn:hover { background: rgba(239, 68, 68, 0.22); }
 .recover-btn { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.35); }
 .recover-btn:hover { background: rgba(245, 158, 11, 0.2); }
 
@@ -608,6 +611,10 @@ const getRenderJobsIdentityHelpersFunction = (): string => `
             }
             if (status === 'failed') {
                 return '<button class="retry-btn" onclick="retryJob(' + "'" + job.id + "'" + ', ' + "'" + (job.queue || currentQueue) + "'" + ')" title="Retry this job">↻ Retry</button>';
+            }
+            if (status === 'waiting' || status === 'wait' || status === 'prioritized') {
+                return '<button class="retry-btn requeue-btn" onclick="requeueWaitingJob(' + "'" + job.id + "'" + ', ' + "'" + (job.queue || currentQueue) + "'" + ')" title="Remove this waiting job and enqueue a fresh copy">Requeue</button>' +
+                    '<button class="retry-btn delete-btn" onclick="deleteWaitingJob(' + "'" + job.id + "'" + ', ' + "'" + (job.queue || currentQueue) + "'" + ')" title="Delete this waiting job">Delete</button>';
             }
             return '<span style="color: var(--muted); font-size: 11px;">—</span>';
         }
@@ -1107,6 +1114,49 @@ const getRecoverActiveJobFunction = (): string => `
             }
         }`;
 
+const getWaitingJobActionFunction = (
+  name: string,
+  path: string,
+  busyLabel: string,
+  doneLabel: string
+): string => `
+        async function ${name}(jobId, queueName) {
+            const confirmed = window.confirm('${busyLabel} job ' + jobId + ' on ' + queueName + '?');
+            if (!confirmed) return;
+            try {
+                const btn = event.target;
+                btn.disabled = true;
+                btn.textContent = '${busyLabel}...';
+
+                const res = await fetch(API_BASE + '${path}' + queueName + '/' + jobId, {
+                    method: 'POST'
+                });
+                const payload = await res.json().catch(() => null);
+
+                if (res.ok) {
+                    btn.textContent = payload && payload.newJobId ? '${doneLabel} ' + payload.newJobId : '${doneLabel}';
+                    setTimeout(() => {
+                        fetchData();
+                    }, 1000);
+                } else {
+                    btn.textContent = 'Failed';
+                    btn.disabled = false;
+                    window.alert((payload && (payload.error || payload.message)) || 'Request failed');
+                }
+            } catch (e) {
+                console.error('Failed waiting job action', e);
+                const btn = event.target;
+                btn.textContent = 'Failed';
+                btn.disabled = false;
+            }
+        }`;
+
+const getDeleteWaitingJobFunction = (): string =>
+  getWaitingJobActionFunction('deleteWaitingJob', '/api/delete-waiting/', 'Delete', 'Deleted');
+
+const getRequeueWaitingJobFunction = (): string =>
+  getWaitingJobActionFunction('requeueWaitingJob', '/api/requeue-waiting/', 'Requeue', 'Requeued');
+
 const getRetryJobFunction = (): string => `
         async function retryJob(jobId, queueName) {
             try {
@@ -1384,6 +1434,8 @@ const getDashboardScriptRender = (): string =>
     getToggleDetailsFunctions(),
     getRecoverActiveJobFunction(),
     getRetryJobFunction(),
+    getDeleteWaitingJobFunction(),
+    getRequeueWaitingJobFunction(),
   ].join('\n');
 
 const getDashboardScriptBootstrap = (): string => `

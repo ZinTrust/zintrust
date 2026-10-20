@@ -17,6 +17,7 @@ import {
   type QueueDriver,
   type RecoverActiveJobResult,
   type RetrySnapshot,
+  type WaitingJobActionResult,
 } from './driver.js';
 import { createMetrics, type Metrics } from './metrics.js';
 import { QueueEventStore } from './QueueEventStore.js';
@@ -35,7 +36,12 @@ export {
 export { QueueEventStore } from './QueueEventStore.js';
 
 export { createBullMQDriver, registerZedgiMonitorDriver } from './driver.js';
-export type { JobPayload, QueueDriver, RecoverActiveJobResult } from './driver.js';
+export type {
+  JobPayload,
+  QueueDriver,
+  RecoverActiveJobResult,
+  WaitingJobActionResult,
+} from './driver.js';
 export { createMetrics, type JobStatus, type JobSummary, type Metrics } from './metrics.js';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker.js';
 
@@ -437,6 +443,53 @@ async function handleRecoverActiveEndpoint(
   });
 }
 
+function extractJobRouteParams(req: RequestWithParams): { queueName: string; jobId: string } {
+  const queueName = extractQueueParam(req);
+  const jobId =
+    typeof req.getParam === 'function' ? req.getParam?.('jobId') : req.params?.['jobId'];
+  return {
+    queueName: queueName ?? '',
+    jobId: typeof jobId === 'string' ? jobId : '',
+  };
+}
+
+async function handleWaitingJobActionEndpoint(
+  req: RequestWithParams,
+  res: {
+    status: (code: number) => { json: (data: unknown) => void };
+    json: (data: unknown) => void;
+  },
+  action: (queueName: string, jobId: string) => Promise<WaitingJobActionResult>,
+  successMessage: (jobId: string, result: WaitingJobActionResult & { ok: true }) => string
+): Promise<void> {
+  const { queueName, jobId } = extractJobRouteParams(req);
+  if (!queueName || !jobId) {
+    res.status(400).json(fieldError('queue_name,job_id', 'Queue name and job ID must be provided'));
+    return;
+  }
+
+  const result = await action(queueName, jobId);
+  if (result.ok) {
+    res.json({
+      ok: true,
+      status: result.status,
+      message: successMessage(jobId, result),
+      ...(result.status === 'requeued' && result.newJobId ? { newJobId: result.newJobId } : {}),
+    });
+    return;
+  }
+
+  if (result.status === 'missing') {
+    res.status(404).json({ error: `Job ${jobId} no longer exists`, status: result.status });
+    return;
+  }
+
+  res.status(409).json({
+    error: result.reason ?? `Job ${jobId} cannot be changed in its current state`,
+    status: result.status,
+  });
+}
+
 function buildSettings(config: QueueMonitorConfig): {
   enabled: boolean;
   basePath: string;
@@ -628,6 +681,7 @@ function registerApiRoutes(
   registerLocksApi(router, settings, routeOptions, getLocks);
   registerRetryApi(router, settings, routeOptions, driver, metrics);
   registerRecoverActiveApi(router, settings, routeOptions, driver);
+  registerWaitingJobApi(router, settings, routeOptions, driver);
   registerEventsApi(router, settings, routeOptions, getSnapshot, getLocks, metrics, driver);
 }
 
@@ -704,6 +758,43 @@ function registerRetryApi(
   );
 }
 
+function registerWaitingJobApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: RouteOptions,
+  driver: QueueDriver
+): void {
+  Router.post(
+    router,
+    `${settings.basePath}/api/delete-waiting/:queue/:jobId`,
+    async (req: IRequest, res: IResponse) => {
+      await handleWaitingJobActionEndpoint(
+        req,
+        res,
+        (queueName, jobId) => driver.deleteWaitingJob(queueName, jobId),
+        (jobId) => `Waiting job ${jobId} deleted`
+      );
+    },
+    routeOptions
+  );
+  Router.post(
+    router,
+    `${settings.basePath}/api/requeue-waiting/:queue/:jobId`,
+    async (req: IRequest, res: IResponse) => {
+      await handleWaitingJobActionEndpoint(
+        req,
+        res,
+        (queueName, jobId) => driver.requeueWaitingJob(queueName, jobId),
+        (jobId, result) =>
+          result.status === 'requeued' && result.newJobId
+            ? `Waiting job ${jobId} requeued as ${result.newJobId}`
+            : `Waiting job ${jobId} requeued`
+      );
+    },
+    routeOptions
+  );
+}
+
 function registerRecoverActiveApi(
   router: IRouter,
   settings: { basePath: string },
@@ -735,7 +826,7 @@ function registerEventsApi(
   Router.get(
     router,
     `${settings.basePath}/api/events`,
-    async (req: IRequest, res: IResponse) => {
+    async (req: IRequest, res: IResponse): Promise<void> => {
       QueueMonitoringStream(res, req, getSnapshot, getLocks, metrics, driver, settings);
     },
     routeOptions
