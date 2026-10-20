@@ -116,14 +116,11 @@ scripts/bulletproof-auth-smoke.mjs
 containers/
 ideas/
 newstart/
-zupago-app2/
 final_result.txt
 exts/zintrust-vscode-extensions.md
 .npmrc
-
 rpc-system/
 packages/queue-cloudflare/BULLMQ_COMPATIBILITY_PLAN.md
 gig/
 tmp-*
-
 bio/
