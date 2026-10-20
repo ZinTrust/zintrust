@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@google-cloud/storage": "^8.0.1"
+    "@google-cloud/storage": "^8.2.0"
   },
   "overrides": {
     "@tootallnate/once": "3.0.1",
