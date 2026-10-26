@@ -376,6 +376,7 @@
     "packages/*"
   ],
   "overrides": {
+    "@opentelemetry/api": "$@opentelemetry/api",
     "ajv": "^8.18.0",
     "@eslint/plugin-kit": "^0.7.1",
     "follow-redirects": "^1.16.0",
@@ -450,7 +451,7 @@
     "@codecov/vite-plugin": "^2.0.1",
     "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.6.0",
-    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api": "~1.9.1",
     "@opentelemetry/resources": "^2.12.0",
     "@opentelemetry/sdk-node": "^0.223.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
