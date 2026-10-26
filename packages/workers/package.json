@@ -75,7 +75,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api": "~1.9.1",
     "hot-shots": "^17.1.0",
     "ioredis": "^6.0.0",
     "prom-client": "^15.1.3",

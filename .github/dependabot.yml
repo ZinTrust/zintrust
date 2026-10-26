@@ -10,6 +10,13 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'
+    groups:
+      opentelemetry:
+        patterns:
+          - '@opentelemetry/*'
+    ignore:
+      - dependency-name: '@opentelemetry/api'
+        versions: ['>=1.10.0']
 
   - package-ecosystem: 'github-actions'
     directory: '/'
