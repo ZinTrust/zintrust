@@ -401,10 +401,6 @@ describe('Broadcast (later + now patch coverage)', () => {
       BROADCAST_INTERNAL_PUBLISH_RETRIES: '1',
     });
     const fetchMock = vi.fn().mockRejectedValue('boom');
-    const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({
-      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
-    }));
     vi.stubGlobal('fetch', fetchMock);
     vi.doMock('@zintrust/socket', () => ({
       publishSocketEventFromServer: vi.fn(async () => {
@@ -412,28 +408,42 @@ describe('Broadcast (later + now patch coverage)', () => {
       }),
     }));
 
-    const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
-    ).resolves.toMatchObject({
-      transport: 'driver',
-      attemptedTransports: ['internal-http', 'socket', 'driver'],
+    const { Logger } = await import('@config/logger');
+    const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const removeSink = Logger.addSink((level, message, context) => {
+      if (level === 'warn') {
+        warnings.push({ message, context });
+      }
     });
 
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      'http://localhost:7788/apps/loopback-app/events',
-      expect.any(Object)
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      'http://127.0.0.1:7788/apps/loopback-app/events',
-      expect.any(Object)
-    );
-    expect(loggerWarn).toHaveBeenCalledWith(
-      'Broadcast publish transport failed; falling back.',
-      expect.objectContaining({ transport: 'internal-http', error: 'boom' })
-    );
+    try {
+      const { Broadcast } = await import('@broadcast/Broadcast');
+      await expect(
+        Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+      ).resolves.toMatchObject({
+        transport: 'driver',
+        attemptedTransports: ['internal-http', 'socket', 'driver'],
+      });
+
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        'http://localhost:7788/apps/loopback-app/events',
+        expect.any(Object)
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        'http://127.0.0.1:7788/apps/loopback-app/events',
+        expect.any(Object)
+      );
+      expect(warnings).toContainEqual(
+        expect.objectContaining({
+          message: 'Broadcast publish transport failed; falling back.',
+          context: expect.objectContaining({ transport: 'internal-http', error: 'boom' }),
+        })
+      );
+    } finally {
+      removeSink();
+    }
   });
 
   it('retries the same endpoint on a transient edge status before succeeding', async () => {
