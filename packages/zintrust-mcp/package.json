@@ -1,6 +1,6 @@
 {
   "name": "zintrust-mcp",
-  "version": "0.0.0",
+  "version": "3.2.0",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
@@ -20,5 +20,8 @@
     "@modelcontextprotocol/server": "^2.4.0",
     "agents": "^0.32.0",
     "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "@zintrust/core": "*"
   }
 }
