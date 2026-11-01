@@ -62,7 +62,7 @@ export default defineConfig(
       'tests/cli/test-factories-*/**',
       'vitest.config.ts',
       'eslint.config.mjs',
-      'worker-configuration.d.ts',
+      '**/worker-configuration.d.ts',
       'public/error-pages/error.js',
       '.scannerwork/**',
       'check_vi.ts',
@@ -110,6 +110,15 @@ export default defineConfig(
     files: ['packages/**/*.ts'],
     rules: {
       'no-restricted-imports': 'off',
+    },
+  },
+  // Cloudflare Worker ambient types come from the generated worker-configuration.d.ts.
+  {
+    files: ['packages/zintrust-mcp/**/*.ts'],
+    languageOptions: {
+      globals: {
+        ExecutionContext: 'readonly',
+      },
     },
   },
   // Tests can use vitest globals and local relative imports.

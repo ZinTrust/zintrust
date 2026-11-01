@@ -35,7 +35,7 @@ const CLI = {
 type CliTask = keyof typeof CLI;
 const CLI_TASKS = Object.keys(CLI) as [CliTask, ...CliTask[]];
 
-function errorResult(text: string) {
+function errorResult(text: string): { isError: true; content: { type: 'text'; text: string }[] } {
 	return { isError: true, content: [{ type: 'text' as const, text }] };
 }
 
