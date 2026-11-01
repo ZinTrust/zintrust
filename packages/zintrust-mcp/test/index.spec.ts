@@ -46,6 +46,23 @@ describe('zintrust-mcp worker', () => {
 		expect(await res.text()).toBe('ok');
 	});
 
+	it('describes the service at the root path', async () => {
+		const res = await SELF.fetch('https://mcp.zintrust.com/');
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ name: 'zintrust-mcp', mcp: '/mcp', health: '/health' });
+	});
+
+	it('describes the MCP endpoint to a plain GET', async () => {
+		const res = await SELF.fetch('https://mcp.zintrust.com/mcp', { headers: { accept: 'text/html' } });
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ name: 'zintrust-mcp', endpoint: '/mcp', method: 'POST', health: '/health' });
+	});
+
+	it('answers an SSE GET on /mcp with 405 since no server stream is offered', async () => {
+		const res = await SELF.fetch('https://mcp.zintrust.com/mcp', { headers: { accept: 'text/event-stream' } });
+		expect(res.status).toBe(405);
+	});
+
 	it('lists the three documented tools', async () => {
 		const response = await callMcp('tools/list');
 		const names = response.result?.tools?.map((tool) => tool.name).sort();

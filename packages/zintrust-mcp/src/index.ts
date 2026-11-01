@@ -112,6 +112,11 @@ export default {
 	fetch(request: Request, env: unknown, ctx: ExecutionContext): Promise<Response> | Response {
 		const url = new URL(request.url);
 		if (url.pathname === '/health') return new Response('ok');
+		if (url.pathname === '/') return Response.json({ name: 'zintrust-mcp', mcp: '/mcp', health: '/health' });
+		// SSE GETs stay with the MCP handler, which answers 405 because this server has no server-to-client stream.
+		if (url.pathname === '/mcp' && request.method === 'GET' && !request.headers.get('accept')?.includes('text/event-stream')) {
+			return Response.json({ name: 'zintrust-mcp', endpoint: '/mcp', method: 'POST', health: '/health' });
+		}
 		return handleMcp(request, env, ctx);
 	},
 };
