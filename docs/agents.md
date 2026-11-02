@@ -501,7 +501,7 @@ const log = Logger.scope('UserController');
 log.info('Lookup', { id });
 ```
 
-Sensitive fields are redacted automatically: `password`, `token`, `authorization`, `secret`, `apikey`, `api_key`, `jwt`, and `bearer`.
+Do not rely on automatic redaction to protect secrets: default text console output and `Logger.addSink` callbacks receive the original, unredacted context. Never pass credentials or tokens to the logger.
 
 Environment: `LOG_LEVEL` (`debug|info|warn|error`, default `info`), `LOG_FORMAT` (`text|json`, default `text`), `DISABLE_LOGGING=true`.
 
