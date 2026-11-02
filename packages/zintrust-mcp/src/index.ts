@@ -26,7 +26,7 @@ const CLI = {
 	'add mysql': 'zin add db:mysql',
 	'add sql server': 'zin add db:mssql',
 	'run on cloudflare workers': 'zin start --wg',
-	'cloudflare containers proxy': 'zin init:containers-proxy && zin docker -e staging',
+	'cloudflare containers proxy': 'zin init:containers-proxy && npm install @zintrust/cloudflare-containers-proxy && zin docker -e staging',
 	'run on aws lambda': 'zin start --lambda',
 	'run on deno': 'zin start --deno',
 	debug: 'zin debug',
