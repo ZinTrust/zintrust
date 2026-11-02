@@ -421,7 +421,7 @@ Full reference: [helpers](/helpers).
 import { Hash } from '@zintrust/core';
 
 const stored = await Hash.hash(plainPassword);       // bcrypt, 12 rounds
-const valid = await Hash.compare(plainPassword, stored);
+const valid = await Hash.verify(plainPassword, stored);
 ```
 
 `Auth.hash`, `Auth.compare`, `Auth.generateToken`, and `Auth.verifyToken` also exist. Do not invent other `Auth.*` methods such as `Auth.guard`, `Auth.user`, or `Auth.check`; they are not implemented.
