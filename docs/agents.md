@@ -82,7 +82,7 @@ Use the `zin` CLI to scaffold and run the project. Prefer scaffolding over hand-
 | Install a plugin | `zin plugin install <plugin-id>` |
 | Install a plugin (shortcut) | `zin add db:sqlite` |
 | Generate a JWT for dev | `zin jwt:dev` |
-| Generate env key | `zin key:env` |
+| Generate env key | `zin key:env <ENV_KEY>` |
 | Run the full QA suite | `zin qa` |
 | Auto-fix issues | `zin fix` |
 | Deploy | `zin deploy` |
