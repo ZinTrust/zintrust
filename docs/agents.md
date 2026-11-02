@@ -335,8 +335,13 @@ const ok = Validator.isValid(data, createUserSchema);
 try {
   Validator.validate(data, createUserSchema);
 } catch (error) {
-  if (error instanceof ValidationError) {
-    return error.toObject(); // field -> messages
+  if (
+    error instanceof Error &&
+    error.name === 'ValidationError' &&
+    'errors' in error &&
+    Array.isArray(error.errors)
+  ) {
+    return ValidationError.toObject(error.errors); // field -> messages
   }
   throw error;
 }
