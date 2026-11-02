@@ -76,7 +76,7 @@ Use the `zin` CLI to scaffold and run the project. Prefer scaffolding over hand-
 | Start dev server (Workers) | `zin s --wg` |
 | List routes | `zin routes` |
 | Run migrations | `zin migrate` |
-| Create a model | `zin cm <ModelName>` |
+| Create a model | `zin add model <ModelName>` |
 | Add a column to a migration | `zin am <column> <ModelName>` |
 | Scaffold any artifact | `zin add <type> <name>` |
 | Install a plugin | `zin plugin install <plugin-id>` |
