@@ -90,15 +90,7 @@ describe('Broadcast (later + now patch coverage)', () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.doUnmock('@broadcast/BroadcastRegistry');
-    vi.doMock('@config/logger', () => ({
-      Logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        fatal: vi.fn(),
-      },
-    }));
+    vi.doUnmock('@config/logger');
 
     queueMock.enqueue.mockResolvedValue('msg-1');
     vi.unstubAllGlobals();
@@ -401,10 +393,6 @@ describe('Broadcast (later + now patch coverage)', () => {
       BROADCAST_INTERNAL_PUBLISH_RETRIES: '1',
     });
     const fetchMock = vi.fn().mockRejectedValue('boom');
-    const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({
-      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
-    }));
     vi.stubGlobal('fetch', fetchMock);
     vi.doMock('@zintrust/socket', () => ({
       publishSocketEventFromServer: vi.fn(async () => {
@@ -412,28 +400,43 @@ describe('Broadcast (later + now patch coverage)', () => {
       }),
     }));
 
-    const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
-    ).resolves.toMatchObject({
-      transport: 'driver',
-      attemptedTransports: ['internal-http', 'socket', 'driver'],
+    vi.doUnmock('@config/logger');
+    const { Logger } = await import('@config/logger');
+    const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const removeSink = Logger.addSink((level, message, context) => {
+      if (level === 'warn') {
+        warnings.push({ message, context });
+      }
     });
 
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      'http://localhost:7788/apps/loopback-app/events',
-      expect.any(Object)
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      'http://127.0.0.1:7788/apps/loopback-app/events',
-      expect.any(Object)
-    );
-    expect(loggerWarn).toHaveBeenCalledWith(
-      'Broadcast publish transport failed; falling back.',
-      expect.objectContaining({ transport: 'internal-http', error: 'boom' })
-    );
+    try {
+      const { Broadcast } = await import('@broadcast/Broadcast');
+      await expect(
+        Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+      ).resolves.toMatchObject({
+        transport: 'driver',
+        attemptedTransports: ['internal-http', 'socket', 'driver'],
+      });
+
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        'http://localhost:7788/apps/loopback-app/events',
+        expect.any(Object)
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        'http://127.0.0.1:7788/apps/loopback-app/events',
+        expect.any(Object)
+      );
+      expect(warnings).toContainEqual(
+        expect.objectContaining({
+          message: 'Broadcast publish transport failed; falling back.',
+          context: expect.objectContaining({ transport: 'internal-http', error: 'boom' }),
+        })
+      );
+    } finally {
+      removeSink();
+    }
   });
 
   it('retries the same endpoint on a transient edge status before succeeding', async () => {
@@ -443,10 +446,6 @@ describe('Broadcast (later + now patch coverage)', () => {
       BROADCAST_INTERNAL_PUBLISH_RETRIES: '3',
       BROADCAST_INTERNAL_PUBLISH_RETRY_BASE_MS: '0',
     });
-    const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({
-      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
-    }));
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(createJsonResponse('origin unreachable', 522))
@@ -456,27 +455,42 @@ describe('Broadcast (later + now patch coverage)', () => {
       );
     vi.stubGlobal('fetch', fetchMock);
 
-    const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
-    ).resolves.toMatchObject({
-      transport: 'internal-http',
-      channels: ['alpha'],
-      endpoint: 'http://127.0.0.1:7766/apps/retry-app/events',
+    vi.doUnmock('@config/logger');
+    const { Logger } = await import('@config/logger');
+    const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const removeSink = Logger.addSink((level, message, context) => {
+      if (level === 'warn') {
+        warnings.push({ message, context });
+      }
     });
 
-    // The first endpoint is retried twice through the 522 blip before succeeding,
-    // i.e. all three calls hit the same primary endpoint rather than failing over.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
-      'http://127.0.0.1:7766/apps/retry-app/events',
-      expect.any(Object)
-    );
-    expect(loggerWarn).toHaveBeenCalledWith(
-      'Broadcast internal publish retrying transient failure.',
-      expect.objectContaining({ status: 522, attempt: 1, maxAttempts: 3 })
-    );
+    try {
+      const { Broadcast } = await import('@broadcast/Broadcast');
+      await expect(
+        Broadcast.publish({ channel: 'alpha', event: 'evt', data: {} })
+      ).resolves.toMatchObject({
+        transport: 'internal-http',
+        channels: ['alpha'],
+        endpoint: 'http://127.0.0.1:7766/apps/retry-app/events',
+      });
+
+      // The first endpoint is retried twice through the 522 blip before succeeding,
+      // i.e. all three calls hit the same primary endpoint rather than failing over.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        3,
+        'http://127.0.0.1:7766/apps/retry-app/events',
+        expect.any(Object)
+      );
+      expect(warnings).toContainEqual(
+        expect.objectContaining({
+          message: 'Broadcast internal publish retrying transient failure.',
+          context: expect.objectContaining({ status: 522, attempt: 1, maxAttempts: 3 }),
+        })
+      );
+    } finally {
+      removeSink();
+    }
   });
 
   it('does not retry a non-transient application status', async () => {
@@ -510,10 +524,6 @@ describe('Broadcast (later + now patch coverage)', () => {
   });
 
   it('falls back to driver when forced socket delivery is unavailable', async () => {
-    const loggerWarn = vi.fn();
-    vi.doMock('@config/logger', () => ({
-      Logger: { debug: vi.fn(), info: vi.fn(), warn: loggerWarn, error: vi.fn() },
-    }));
     vi.doMock('@broadcast/BroadcastRegistry', () => ({
       BroadcastRegistry: {
         has: () => true,
@@ -526,19 +536,33 @@ describe('Broadcast (later + now patch coverage)', () => {
       }),
     }));
 
-    const { Broadcast } = await import('@broadcast/Broadcast');
-    await expect(
-      Broadcast.publish({ channel: 'alpha', event: 'evt', data: {}, delivery: 'socket' })
-    ).resolves.toMatchObject({
-      transport: 'driver',
-      driver: 'inmemory',
-      attemptedTransports: expect.arrayContaining(['socket', 'driver']),
+    const { Logger } = await import('@config/logger');
+    const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const removeSink = Logger.addSink((level, message, context) => {
+      if (level === 'warn') {
+        warnings.push({ message, context });
+      }
     });
 
-    expect(loggerWarn).toHaveBeenCalledWith(
-      'Broadcast publish transport failed; falling back.',
-      expect.objectContaining({ transport: 'socket' })
-    );
+    try {
+      const { Broadcast } = await import('@broadcast/Broadcast');
+      await expect(
+        Broadcast.publish({ channel: 'alpha', event: 'evt', data: {}, delivery: 'socket' })
+      ).resolves.toMatchObject({
+        transport: 'driver',
+        driver: 'inmemory',
+        attemptedTransports: expect.arrayContaining(['socket', 'driver']),
+      });
+
+      expect(warnings).toContainEqual(
+        expect.objectContaining({
+          message: 'Broadcast publish transport failed; falling back.',
+          context: expect.objectContaining({ transport: 'socket' }),
+        })
+      );
+    } finally {
+      removeSink();
+    }
   });
 
   it('supports persistent scope and ipv6 broadcast internal urls', async () => {
