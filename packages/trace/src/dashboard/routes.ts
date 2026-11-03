@@ -18,6 +18,7 @@ import {
   addMonitoring,
   clearEntries,
   getBatch,
+  getClientHosts,
   getEntry,
   getMonitoring,
   getStats,
@@ -65,27 +66,29 @@ export const registerTraceRoutes = (
     },
     routeOptions
   );
-  // Serve the SPA for any /<basePath>/* sub-path (client-side routing)
-  Router.get(
-    router,
-    `${base}/*`,
-    (_req: unknown, res: HtmlResponse) => {
-      res.html(buildDashboardHtml(base, appConfig.name));
-    },
-    routeOptions
-  );
-
-  // REST API
+  // REST API (registered before the SPA catch-all, since routes match in registration order)
   Router.group(router, `${base}/api`, (r: IRouter) => {
     Router.get(r, '/entries', listEntries, routeOptions);
     Router.get(r, '/entries/:uuid', getEntry, routeOptions);
     Router.del(r, '/entries', clearEntries, routeOptions);
     Router.get(r, '/batch/:batchId', getBatch, routeOptions);
     Router.get(r, '/stats', getStats, routeOptions);
+    Router.get(r, '/client-hosts', getClientHosts, routeOptions);
     Router.get(r, '/monitoring', getMonitoring, routeOptions);
     Router.post(r, '/monitoring/:tag', addMonitoring, routeOptions);
     Router.del(r, '/monitoring/:tag', removeMonitoring, routeOptions);
   });
+
+  // Serve the SPA for any /<basePath>/<sub-path> (client-side routing, e.g. /trace/entries?type=log).
+  // `:path*` is the router's greedy param; a literal `*` is a regex quantifier and only matches "/".
+  Router.get(
+    router,
+    `${base}/:path*`,
+    (_req: unknown, res: HtmlResponse) => {
+      res.html(buildDashboardHtml(base, appConfig.name));
+    },
+    routeOptions
+  );
 };
 
 export const registerTraceDashboard = (

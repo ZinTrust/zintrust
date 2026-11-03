@@ -305,6 +305,17 @@ export async function clearEntries(_req: IRequest, res: IResponse): Promise<void
 // Monitoring handlers
 // ---------------------------------------------------------------------------
 
+export async function getClientHosts(_req: IRequest, res: IResponse): Promise<void> {
+  const storage = getStorage(res);
+  if (storage === null) return;
+  try {
+    const hosts = await storage.getClientHosts();
+    res.json({ ok: true, hosts });
+  } catch (err) {
+    res.setStatus(500).json({ error: (err as Error).message });
+  }
+}
+
 export async function getMonitoring(_req: IRequest, res: IResponse): Promise<void> {
   const storage = getStorage(res);
   if (storage === null) return;

@@ -9,6 +9,7 @@ import {
   type TraceClientRequestWatcherConfig,
 } from '../types';
 import { AuthTag } from '../utils/authTag';
+import { HostTag } from '../utils/hostTag';
 import { redactHeaders, redactUnknown } from '../utils/redact';
 import { RequestFilter } from '../utils/requestFilter';
 
@@ -167,6 +168,8 @@ const emit = ({
   const tags = AuthTag.append([method.toUpperCase()]);
   if ((responseStatus ?? 0) >= 400 || error) tags.push('failed');
   if (normalizedSource !== undefined) tags.push(normalizedSource);
+  const hostTag = HostTag.resolve(url);
+  if (hostTag !== undefined && !tags.includes(hostTag)) tags.push(hostTag);
   const content = buildClientRequestContent(
     {
       source,
