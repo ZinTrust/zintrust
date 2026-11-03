@@ -56,6 +56,51 @@ describe('extended trace watchers', () => {
     );
   });
 
+  it('tags outbound HTTP requests with their hostname and skips relative URLs', async () => {
+    vi.resetModules();
+
+    const { HttpClientWatcher } = await import('../../src/watchers/HttpClientWatcher');
+    const storage = createStorage();
+
+    HttpClientWatcher.register({
+      storage,
+      config: {
+        watchers: { clientRequest: true },
+        ignoreRoutes: [],
+        redaction: { keys: [], headers: [], body: [], query: [] },
+      },
+    } as never);
+
+    HttpClientWatcher.emit({
+      source: 'termii',
+      method: 'get',
+      url: 'https://API.Termii.test:8443/send?x=1',
+      requestHeaders: {},
+      responseStatus: 200,
+      responseHeaders: {},
+      duration: 4,
+    });
+    HttpClientWatcher.emit({
+      source: 'local',
+      method: 'get',
+      url: '/relative/path',
+      requestHeaders: {},
+      responseStatus: 200,
+      responseHeaders: {},
+      duration: 2,
+    });
+    await flushAsync();
+
+    const written = storage.writeEntry.mock.calls.map(
+      (call) => call[0] as { tags?: string[] }
+    );
+    expect(written[0]?.tags).toEqual(expect.arrayContaining(['host:api.termii.test']));
+    expect(written[0]?.tags?.some((tag) => tag.startsWith('host:') && tag.includes(':8443'))).toBe(
+      false
+    );
+    expect(written[1]?.tags?.some((tag) => tag.startsWith('host:'))).toBe(false);
+  });
+
   it('supports per-source outbound capture rules', async () => {
     vi.resetModules();
 

@@ -296,6 +296,11 @@ export interface QueryBatchEntriesResult {
   perPage: number;
 }
 
+export type TraceClientHost = {
+  host: string;
+  count: number;
+};
+
 export interface ITraceStorage {
   writeEntry(entry: ITraceEntry): Promise<void>;
   updateEntry(
@@ -316,6 +321,7 @@ export interface ITraceStorage {
   addMonitoring(tag: string): Promise<void>;
   removeMonitoring(tag: string): Promise<void>;
   stats(): Promise<Record<EntryTypeValue, number>>;
+  getClientHosts(): Promise<TraceClientHost[]>;
 }
 
 // ---------------------------------------------------------------------------

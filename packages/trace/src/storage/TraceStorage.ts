@@ -11,12 +11,17 @@ import type {
   QueryBatchEntriesOptions,
   QueryBatchEntriesResult,
   QueryEntriesOptions,
+  TraceClientHost,
 } from '../types';
+import { EntryType } from '../types';
 import { familyHash } from '../utils/familyHash';
+import { HOST_TAG_PREFIX } from '../utils/hostTag';
 
 const TABLE_ENTRIES = 'zin_trace_entries';
 const TABLE_TAGS = 'zin_trace_entries_tags';
 const TABLE_MONITORING = 'zin_trace_monitoring';
+const CLIENT_HOSTS_LIMIT = 500;
+
 
 const generateUuid = (): string => crypto.randomUUID();
 
@@ -513,6 +518,20 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     return output as Record<EntryTypeValue, number>;
   };
 
+  const getClientHosts = async (): Promise<TraceClientHost[]> => {
+    const rows = (await db.query(
+      `SELECT t.tag AS tag, COUNT(*) AS cnt FROM ${TABLE_TAGS} t ` +
+        `INNER JOIN ${TABLE_ENTRIES} e ON e.uuid = t.entry_uuid ` +
+        `WHERE e.type = ? AND t.tag LIKE ? ` +
+        `GROUP BY t.tag ORDER BY cnt DESC LIMIT ${CLIENT_HOSTS_LIMIT}`,
+      [EntryType.CLIENT_REQUEST, `${HOST_TAG_PREFIX}%`]
+    )) as Array<{ tag: string; cnt: number }>;
+    return rows.map((row) => ({
+      host: row.tag.slice(HOST_TAG_PREFIX.length),
+      count: Number(row.cnt),
+    }));
+  };
+
   return {
     writeEntry,
     updateEntry,
@@ -527,6 +546,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     addMonitoring,
     removeMonitoring,
     stats,
+    getClientHosts,
   };
 };
 
