@@ -132,6 +132,10 @@ const unsupportedGetMonitoring: ITraceStorage['getMonitoring'] = async () => {
   throw createUnsupportedReadError();
 };
 
+const unsupportedGetClientHosts: ITraceStorage['getClientHosts'] = async () => {
+  throw createUnsupportedReadError();
+};
+
 const unsupportedAddMonitoring: ITraceStorage['addMonitoring'] = async () => {
   throw createUnsupportedReadError();
 };
@@ -184,6 +188,7 @@ export const ProxyTraceStorage = Object.freeze({
       addMonitoring: unsupportedAddMonitoring,
       removeMonitoring: unsupportedRemoveMonitoring,
       stats: unsupportedStats,
+      getClientHosts: unsupportedGetClientHosts,
     });
   },
 });

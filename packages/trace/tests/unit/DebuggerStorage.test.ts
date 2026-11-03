@@ -121,6 +121,25 @@ describe('TraceStorage', () => {
     ]);
   });
 
+  it('groups client request entries by host tag', async () => {
+    const db = createDb();
+    vi.mocked(db.query).mockResolvedValueOnce([
+      { tag: 'host:api.termii.test', cnt: 3 },
+      { tag: 'host:hooks.example.test', cnt: '1' },
+    ]);
+    const storage = TraceStorage.resolveStorage(db);
+
+    const hosts = await storage.getClientHosts();
+
+    expect(hosts).toEqual([
+      { host: 'api.termii.test', count: 3 },
+      { host: 'hooks.example.test', count: 1 },
+    ]);
+    const [sql, params] = vi.mocked(db.query).mock.calls[0] as unknown as [string, unknown[]];
+    expect(sql).toContain('GROUP BY t.tag');
+    expect(params).toEqual(['client_request', 'host:%']);
+  });
+
   it('summarizes request entries without returning heavy bodies in list mode', async () => {
     const db = createDb('sqlite', {
       entryRows: [

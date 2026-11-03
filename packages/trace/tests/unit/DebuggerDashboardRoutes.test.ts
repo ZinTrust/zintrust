@@ -74,6 +74,7 @@ vi.mock('../../src/dashboard/handlers', () => ({
   getEntry: vi.fn(),
   getMonitoring: vi.fn(),
   getStats: vi.fn(),
+  getClientHosts: vi.fn(),
   listEntries: vi.fn(),
   removeMonitoring: vi.fn(),
   setHandlerStorage: vi.fn(),

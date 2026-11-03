@@ -49,6 +49,7 @@ export const TraceServiceTag = Object.freeze({
       addMonitoring: bindOrUnsupported(storage.addMonitoring?.bind(storage)),
       removeMonitoring: bindOrUnsupported(storage.removeMonitoring?.bind(storage)),
       stats: bindOrUnsupported(storage.stats?.bind(storage)),
+      getClientHosts: bindOrUnsupported(storage.getClientHosts?.bind(storage)),
     });
   },
 });
