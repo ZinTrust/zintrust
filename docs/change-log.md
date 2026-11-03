@@ -1,3 +1,8 @@
+# 2026-11-02
+
+- Enabled GitHub Sponsors for the repository and added GitHub Sponsors and Patreon links to the landing pages and documentation navigation.
+- Updated locked `minimatch` and `qs` dependencies to versions outside the reported denial-of-service advisory ranges.
+
 # 2026-10-14
 
 - Added queue-monitor Delete and Requeue actions for waiting jobs. Delete removes a job only while it is waiting. Requeue removes it and enqueues a fresh copy with a new job id. The dashboard buttons and `POST /api/delete-waiting/:queue/:jobId` and `POST /api/requeue-waiting/:queue/:jobId` are available for BullMQ, Redis RPC, and Zedgi monitor drivers. Non-waiting jobs return `409` and are left unchanged.
