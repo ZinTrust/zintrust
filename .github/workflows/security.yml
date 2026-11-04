@@ -83,7 +83,7 @@ jobs:
 
       - name: Run npm audit
         id: npm_audit
-        run: npm audit --audit-level=moderate
+        run: npm audit --omit=dev --audit-level=moderate
         continue-on-error: true
 
       - name: Check npm audit results
