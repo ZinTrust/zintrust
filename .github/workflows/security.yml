@@ -24,6 +24,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    env:
+      TRIVY_VERSION: v0.76.1
 
     steps:
       - name: Checkout code
@@ -53,9 +55,26 @@ jobs:
         with:
           args: --severity-threshold=high
 
+      - name: Install Trivy from GitHub release
+        run: |
+          set -euo pipefail
+          version="${TRIVY_VERSION#v}"
+          archive="trivy_${version}_Linux-64bit.tar.gz"
+          checksums="trivy_${version}_checksums.txt"
+          release_url="https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}"
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 "$release_url/$archive" -o "$RUNNER_TEMP/$archive"
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 "$release_url/$checksums" -o "$RUNNER_TEMP/$checksums"
+          (cd "$RUNNER_TEMP" && grep -F "  $archive" "$checksums" | sha256sum --check --status)
+          mkdir -p "$RUNNER_TEMP/trivy"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/trivy"
+          echo "$RUNNER_TEMP/trivy" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/trivy/trivy" --version
+
       - name: Run Trivy vulnerability scanner (Repo)
         uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
         with:
+          version: ${{ env.TRIVY_VERSION }}
+          skip-setup-trivy: true
           scan-type: 'fs'
           ignore-unfixed: true
           format: 'table'
