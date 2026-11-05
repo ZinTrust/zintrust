@@ -276,7 +276,7 @@ const getDashboardBody = (appName: string): string => `
     </div>
 `;
 
-const getDashboardScriptState = (options: DashboardUiOptions): string => String.raw`
+const getDashboardScriptState = (options: DashboardUiOptions): string => `
         const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
         const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs || 0))};
     const STREAM_RESET_MS = Math.max(15000, REFRESH_INTERVAL * 4);
