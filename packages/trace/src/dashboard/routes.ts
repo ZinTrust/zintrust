@@ -56,16 +56,13 @@ export const registerTraceRoutes = (
     (options.middleware?.length ?? 0) > 0
       ? ({ middleware: options.middleware } as RouteOptions)
       : undefined;
+  const serveDashboard = (_req: unknown, res: HtmlResponse): void => {
+    res.html(buildDashboardHtml(base, appConfig.name));
+  };
 
   // SPA shell
-  Router.get(
-    router,
-    base,
-    (_req: unknown, res: HtmlResponse) => {
-      res.html(buildDashboardHtml(base, appConfig.name));
-    },
-    routeOptions
-  );
+  Router.get(router, base, serveDashboard, routeOptions);
+  Router.get(router, `${base}/`, serveDashboard, routeOptions);
   // REST API (registered before the SPA catch-all, since routes match in registration order)
   Router.group(router, `${base}/api`, (r: IRouter) => {
     Router.get(r, '/entries', listEntries, routeOptions);
@@ -84,9 +81,7 @@ export const registerTraceRoutes = (
   Router.get(
     router,
     `${base}/:path*`,
-    (_req: unknown, res: HtmlResponse) => {
-      res.html(buildDashboardHtml(base, appConfig.name));
-    },
+    serveDashboard,
     routeOptions
   );
 };
