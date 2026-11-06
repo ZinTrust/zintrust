@@ -53,6 +53,11 @@ describe('registerTraceRoutes SPA routing', () => {
     expect(match?.routePath).toBe('/trace');
   });
 
+  it('serves the SPA shell for the trailing-slash base path', () => {
+    const match = Router.match(setup(), 'GET', '/trace/');
+    expect(match?.routePath).toBe('/trace/');
+  });
+
   it.each(['/trace/entries', '/trace/entries/abc', '/trace/batch/123'])(
     'serves the SPA shell for deep link %s (refresh-safe)',
     (path) => {

@@ -144,24 +144,6 @@ jobs:
             fi
           fi
 
-      - name: Detect src changes
-        id: src_changes
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE="${{ steps.changed_packages.outputs.diff_base }}"
-          if [ -z "${BASE}" ]; then
-            echo "src_changed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          COUNT=$(git diff --name-only "${BASE}...HEAD" -- src/ | wc -l | tr -d ' ')
-          if [ "${COUNT}" -gt 0 ]; then
-            echo "src_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "src_changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Sync package versions from core
         run: |
           npm run release:sync-versions
@@ -171,7 +153,7 @@ jobs:
         run: node scripts/ci/publishable-packages.mjs --changed "${{ steps.changed_packages.outputs.changed_package_dirs }}"
 
       - name: Dry-run publish
-        if: ${{ steps.version_check.outputs.should_publish == 'true' && (steps.src_changes.outputs.src_changed == 'true' || steps.version_check.outputs.is_unpublished == 'true') && github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
+        if: ${{ steps.version_check.outputs.should_publish == 'true' && github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run pub:ci -- --dry-run
@@ -189,7 +171,7 @@ jobs:
           npm run release:publish-packages -- --dry-run --continue-on-error --no-fail --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
 
       - name: Publish to npm
-        if: ${{ steps.version_check.outputs.should_publish == 'true' && (steps.src_changes.outputs.src_changed == 'true' || steps.version_check.outputs.is_unpublished == 'true') && (github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true')) }}
+        if: ${{ steps.version_check.outputs.should_publish == 'true' && (github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true')) }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run pub:ci
@@ -236,7 +218,7 @@ jobs:
           npm run release:publish-packages -- --continue-on-error --only-unpublished --only "$FAILED_DIRS"
 
       - name: Create tag and release (optional)
-        if: ${{ steps.version_check.outputs.should_publish == 'true' && (steps.src_changes.outputs.src_changed == 'true' || steps.version_check.outputs.is_unpublished == 'true') && github.event_name == 'workflow_run' }}
+        if: ${{ steps.version_check.outputs.should_publish == 'true' && github.event_name == 'workflow_run' }}
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
         run: |

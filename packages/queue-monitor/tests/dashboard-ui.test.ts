@@ -79,6 +79,21 @@ describe('queue monitor dashboard UI', () => {
     expect(html).not.toContain('tbody.appendChild(row);');
   });
 
+  it('keeps wide expanded job details scrollable within the detail section', () => {
+    const html = getDashboardHtml({
+      basePath: '/queue-monitor',
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    });
+
+    expect(html).toContain(
+      '.detail-content { font-family: monospace; font-size: 12px; line-height: 1.6; max-width: 100%; overflow-x: auto; }'
+    );
+    expect(html).toContain(
+      '.detail-content pre { margin: 0; width: max-content; min-width: 100%; white-space: pre; }'
+    );
+  });
+
   it('keys rendered jobs by queue, id, and timestamp so SSE updates do not collapse distinct history entries with the same job id', () => {
     const html = getDashboardHtml({
       basePath: '/queue-monitor',
