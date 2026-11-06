@@ -43,6 +43,6 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@types/busboy": "^1.5.4"
+    "@types/busboy": "^1.5.5"
   }
 }
