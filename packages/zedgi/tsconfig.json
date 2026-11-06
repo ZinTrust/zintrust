@@ -11,6 +11,7 @@
     "declarationMap": false,
     "sourceMap": false,
     "composite": false,
+    "types": ["node"],
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "paths": {}
   },
