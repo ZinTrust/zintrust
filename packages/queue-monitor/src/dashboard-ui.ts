@@ -94,7 +94,7 @@ tr:last-child td { border-bottom: none; }
 .expandable-row code:hover { text-decoration: underline; }
 .detail-row { background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); }
 .detail-cell { padding: 16px 20px !important; }
-.detail-content { font-family: monospace; font-size: 12px; line-height: 1.6; max-width: 100%; overflow-x: auto; }
+.detail-content { contain: inline-size; font-family: monospace; font-size: 12px; line-height: 1.6; max-width: 100%; overflow-x: auto; }
 .detail-content pre { margin: 0; width: max-content; min-width: 100%; white-space: pre; }
 .expand-icon { display: inline-block; margin-right: 6px; transition: transform 0.2s; user-select: none; }
 .expand-icon.expanded { transform: rotate(90deg); }

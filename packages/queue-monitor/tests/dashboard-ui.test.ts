@@ -87,7 +87,7 @@ describe('queue monitor dashboard UI', () => {
     });
 
     expect(html).toContain(
-      '.detail-content { font-family: monospace; font-size: 12px; line-height: 1.6; max-width: 100%; overflow-x: auto; }'
+      '.detail-content { contain: inline-size; font-family: monospace; font-size: 12px; line-height: 1.6; max-width: 100%; overflow-x: auto; }'
     );
     expect(html).toContain(
       '.detail-content pre { margin: 0; width: max-content; min-width: 100%; white-space: pre; }'
