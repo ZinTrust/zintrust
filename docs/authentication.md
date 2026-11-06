@@ -145,7 +145,7 @@ See: `bulletproof-auth` documentation page.
 
 ## Social login in the browser
 
-To add Google, GitHub, Microsoft, Apple, or other OAuth and OIDC sign-in to a ZinTrust app, use [universal-social-auth](https://usa.zintrust.com). It runs in the browser, keeps the client secret on your backend, and enforces PKCE, `state`, and OIDC `nonce` checks. The site has backend recipes for Express, Laravel, and Zintrust.
+To add Google, GitHub, Microsoft, Apple, or other OAuth and OIDC sign-in to a ZinTrust app, use [universal-social-auth](https://usa.zintrust.com). It runs in the browser, keeps the client secret on your backend, and enforces PKCE, `state`, and OIDC `nonce` checks. The site has backend recipes for Express, Laravel, and ZinTrust.
 
 ## API Key Authentication
 

@@ -22,7 +22,6 @@ const TABLE_TAGS = 'zin_trace_entries_tags';
 const TABLE_MONITORING = 'zin_trace_monitoring';
 const CLIENT_HOSTS_LIMIT = 500;
 
-
 const generateUuid = (): string => crypto.randomUUID();
 
 type EntryRow = {
@@ -31,7 +30,8 @@ type EntryRow = {
   batch_id: string;
   family_hash: string | null;
   type: string;
-  content: string;
+  content: string | null;
+  summary?: string | null;
   is_latest: number | boolean;
   created_at: number;
 };
@@ -122,16 +122,22 @@ const compactClientRequestContent = (content: string): Record<string, unknown> |
   return Object.keys(compact).length > 0 ? compact : undefined;
 };
 
+const compactContentFor = (type: string, content: string): Record<string, unknown> | undefined => {
+  if (type === 'request') return compactRequestContent(content);
+  if (type === 'client_request') return compactClientRequestContent(content);
+  return undefined;
+};
+
+// Computed on write so list queries can read a small column instead of the full payload.
+// Null when nothing can be compacted; list reads then fall back to the content column.
+const buildListSummary = (type: string, content: string): string | null => {
+  const compact = compactContentFor(type, content);
+  return compact ? JSON.stringify(compact) : null;
+};
+
 const summarizeEntryContent = (row: EntryRow): unknown => {
-  if (row.type === 'request') {
-    return compactRequestContent(row.content) ?? (JSON.parse(row.content) as unknown);
-  }
-
-  if (row.type === 'client_request') {
-    return compactClientRequestContent(row.content) ?? (JSON.parse(row.content) as unknown);
-  }
-
-  return JSON.parse(row.content) as unknown;
+  const content = row.content ?? 'null';
+  return compactContentFor(row.type, content) ?? (JSON.parse(content) as unknown);
 };
 
 type DatabaseWithDriver = IDatabase & {
@@ -182,16 +188,30 @@ const buildIgnoreInsert = (
   return `INSERT INTO ${table} (${columnList}) VALUES (${placeholders})`;
 };
 
+const summarizeEntryRow = (row: EntryRow): unknown =>
+  typeof row.summary === 'string'
+    ? (JSON.parse(row.summary) as unknown)
+    : summarizeEntryContent(row);
+
 const rowToEntry = (row: EntryRow, tags: string[], summary = false): ITraceEntry => ({
   uuid: row.uuid,
   batchId: row.batch_id,
   familyHash: row.family_hash ?? undefined,
   type: row.type as EntryTypeValue,
-  content: summary ? summarizeEntryContent(row) : (JSON.parse(row.content) as unknown),
+  content: summary ? summarizeEntryRow(row) : (JSON.parse(row.content ?? 'null') as unknown),
   tags,
   isLatest: Boolean(row.is_latest),
   createdAt: row.created_at,
 });
+
+// Summary mode selects the precomputed summary and loads full content only for rows without one.
+const entryListColumns = (summary: boolean, prefix: '' | 'e.'): string => {
+  const base = `${prefix}id, ${prefix}uuid, ${prefix}batch_id, ${prefix}family_hash, ${prefix}type`;
+  const tail = `${prefix}is_latest, ${prefix}created_at`;
+  if (!summary) return `${base}, ${prefix}content, ${tail}`;
+
+  return `${base}, ${prefix}summary, CASE WHEN ${prefix}summary IS NULL THEN ${prefix}content END AS content, ${tail}`;
+};
 
 const insertTags = async (db: IDatabase, uuid: string, tags: string[]): Promise<void> => {
   if (tags.length === 0) return;
@@ -205,9 +225,39 @@ const insertTags = async (db: IDatabase, uuid: string, tags: string[]): Promise<
   );
 };
 
-const buildEntryFilters = (
+// Totals and overview stats are cached briefly so repeated dashboard loads skip the GROUP BY and
+// COUNT scans. Page rows are never cached so new entries show up on the list immediately.
+const TOTALS_CACHE_TTL_MS = 5_000;
+const TOTALS_CACHE_MAX_ENTRIES = 200;
+
+const createTtlCache = (
+  ttlMs: number,
+  maxEntries: number
+): { getOrLoad: <T>(key: string, load: () => Promise<T>) => Promise<T> } => {
+  const entries = new Map<string, { value: unknown; expiresAt: number }>();
+
+  const getOrLoad = async <T>(key: string, load: () => Promise<T>): Promise<T> => {
+    const hit = entries.get(key);
+    if (hit && hit.expiresAt > Date.now()) return hit.value as T;
+
+    const value = await load();
+    entries.delete(key);
+    if (entries.size >= maxEntries) {
+      const oldest = entries.keys().next().value;
+      if (oldest !== undefined) entries.delete(oldest);
+    }
+    entries.set(key, { value, expiresAt: Date.now() + ttlMs });
+    return value;
+  };
+
+  return Object.freeze({ getOrLoad });
+};
+
+// Shared by the count and page queries. The tag condition is supplied by the caller because
+// the count joins the tags table while the page query uses EXISTS (see queryEntries).
+const buildEntryConditions = (
   opts: QueryEntriesOptions
-): { joinClause: string; whereClause: string; params: unknown[]; countParams: unknown[] } => {
+): { conditions: string[]; params: unknown[] } => {
   const conditions: string[] = [];
   const params: unknown[] = [];
 
@@ -228,16 +278,7 @@ const buildEntryFilters = (
     params.push(opts.to);
   }
 
-  let joinClause = '';
-  if (opts.tag) {
-    joinClause = `INNER JOIN ${TABLE_TAGS} t ON t.entry_uuid = e.uuid AND t.tag = ?`;
-    params.unshift(opts.tag);
-  }
-
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const countParams = opts.tag ? [opts.tag, ...params.slice(1)] : [...params];
-
-  return { joinClause, whereClause, params, countParams };
+  return { conditions, params };
 };
 
 const buildBatchCounts = async (
@@ -300,17 +341,21 @@ const loadTagsByUuid = async (db: IDatabase, uuids: string[]): Promise<Map<strin
 // The storage facade intentionally groups related DB operations in one factory.
 // eslint-disable-next-line max-lines-per-function
 const createStorage = (db: IDatabase): ITraceStorage => {
+  const totalsCache = createTtlCache(TOTALS_CACHE_TTL_MS, TOTALS_CACHE_MAX_ENTRIES);
+
   const writeEntry = async (entry: ITraceEntry): Promise<void> => {
     const uuid = entry.uuid || generateUuid();
+    const content = JSON.stringify(entry.content);
     await db.execute(
-      `INSERT INTO ${TABLE_ENTRIES} (uuid, batch_id, family_hash, type, content, is_latest, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ${TABLE_ENTRIES} (uuid, batch_id, family_hash, type, content, summary, is_latest, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         uuid,
         entry.batchId,
         entry.familyHash ?? null,
         entry.type,
-        JSON.stringify(entry.content),
+        content,
+        buildListSummary(entry.type, content),
         entry.isLatest ? 1 : 0,
         entry.createdAt,
       ]
@@ -327,7 +372,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     const params: unknown[] = [];
 
     if (patch.content !== undefined) {
-      sets.push('content = ?');
+      sets.push('content = ?', 'summary = NULL');
       params.push(JSON.stringify(patch.content));
     }
     if (patch.isLatest !== undefined) {
@@ -355,20 +400,39 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     const page = opts.page ?? 1;
     const perPage = opts.perPage ?? 50;
     const offset = (page - 1) * perPage;
-    const { joinClause, whereClause, params, countParams } = buildEntryFilters(opts);
+    const { conditions, params } = buildEntryConditions(opts);
+    const where = (extra: string[]): string => {
+      const all = [...extra, ...conditions];
+      return all.length > 0 ? `WHERE ${all.join(' AND ')}` : '';
+    };
+    const tagParams = opts.tag ? [opts.tag] : [];
 
-    const countResult = (await db.queryOne(
-      `SELECT COUNT(*) as cnt FROM ${TABLE_ENTRIES} e ${joinClause} ${whereClause}`,
-      countParams
-    )) as { cnt: number } | undefined;
-    const total = countResult?.cnt ?? 0;
+    // Tag count joins the tags index, so an absent tag costs almost nothing.
+    const total = await totalsCache.getOrLoad(
+      `count:${JSON.stringify({ tag: opts.tag ?? null, params })}`,
+      async () => {
+        const countResult = (await db.queryOne(
+          opts.tag
+            ? `SELECT COUNT(*) as cnt FROM ${TABLE_TAGS} t
+               INNER JOIN ${TABLE_ENTRIES} e ON e.uuid = t.entry_uuid
+               ${where(['t.tag = ?'])}`
+            : `SELECT COUNT(*) as cnt FROM ${TABLE_ENTRIES} e ${where([])}`,
+          [...tagParams, ...params]
+        )) as { cnt: number } | undefined;
+        return countResult?.cnt ?? 0;
+      }
+    );
+    if (total === 0) return { data: [], total };
 
+    // EXISTS (not JOIN) so the newest-first created_at walk can stop at LIMIT instead of
+    // sorting every tagged row.
     const rows = (await db.query(
-      `SELECT e.id, e.uuid, e.batch_id, e.family_hash, e.type, e.content, e.is_latest, e.created_at
-       FROM ${TABLE_ENTRIES} e ${joinClause} ${whereClause}
+      `SELECT ${entryListColumns(Boolean(opts.summary), 'e.')}
+       FROM ${TABLE_ENTRIES} e
+       ${where(opts.tag ? [`EXISTS (SELECT 1 FROM ${TABLE_TAGS} t WHERE t.entry_uuid = e.uuid AND t.tag = ?)`] : [])}
        ORDER BY e.created_at DESC, e.id DESC
        LIMIT ? OFFSET ?`,
-      [...params, perPage, offset]
+      [...tagParams, ...params, perPage, offset]
     )) as EntryRow[];
 
     const tagsByUuid = await loadTagsByUuid(
@@ -445,7 +509,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     }
 
     const rows = (await db.query(
-      `SELECT id, uuid, batch_id, family_hash, type, content, is_latest, created_at
+      `SELECT ${entryListColumns(Boolean(opts.summary), '')}
        FROM ${TABLE_ENTRIES}
        ${whereClause}
        ORDER BY created_at ASC, id ASC
@@ -506,17 +570,18 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     await db.execute(`DELETE FROM ${TABLE_MONITORING} WHERE tag = ?`, [tag]);
   };
 
-  const stats = async (): Promise<Record<EntryTypeValue, number>> => {
-    const rows = (await db.query(
-      `SELECT type, COUNT(*) as cnt FROM ${TABLE_ENTRIES} GROUP BY type`,
-      []
-    )) as Array<{ type: string; cnt: number }>;
-    const output: Record<string, number> = {};
-    for (const row of rows) {
-      output[row.type] = row.cnt;
-    }
-    return output as Record<EntryTypeValue, number>;
-  };
+  const stats = async (): Promise<Record<EntryTypeValue, number>> =>
+    totalsCache.getOrLoad('stats', async () => {
+      const rows = (await db.query(
+        `SELECT type, COUNT(*) as cnt FROM ${TABLE_ENTRIES} GROUP BY type`,
+        []
+      )) as Array<{ type: string; cnt: number }>;
+      const output: Record<string, number> = {};
+      for (const row of rows) {
+        output[row.type] = row.cnt;
+      }
+      return output as Record<EntryTypeValue, number>;
+    });
 
   const getClientHosts = async (): Promise<TraceClientHost[]> => {
     const rows = (await db.query(
