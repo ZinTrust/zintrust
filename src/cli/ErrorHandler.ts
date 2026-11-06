@@ -107,6 +107,24 @@ const displayWarning = (message: string): void => {
 };
 
 /**
+ * Print outcome lines directly to the console, bypassing LOG_LEVEL.
+ * Use for results an operator must always see, such as migrate:trace output.
+ */
+/* eslint-disable no-console */
+const visibleOutput = Object.freeze({
+  info: (message: string): void => {
+    console.log(`${chalk.blue('[i]')} ${message}`);
+  },
+  success: (message: string): void => {
+    console.log(`${chalk.green('[✓]')} ${message}`);
+  },
+  warn: (message: string): void => {
+    console.warn(`${chalk.yellow('[!]')} ${message}`);
+  },
+});
+/* eslint-enable no-console */
+
+/**
  * Display debug message (only if verbose)
  */
 const displayDebug = (message: string, verbose: boolean = false): void => {
@@ -127,4 +145,5 @@ export const ErrorHandler = Object.freeze({
   warn: displayWarning,
   debug: displayDebug,
   banner: displayBanner,
+  visible: visibleOutput,
 });

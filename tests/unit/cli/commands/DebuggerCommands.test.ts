@@ -68,6 +68,11 @@ vi.mock('@cli/ErrorHandler', () => ({
     warn: vi.fn(),
     success: vi.fn(),
     debug: vi.fn(),
+    visible: {
+      info: vi.fn(),
+      warn: vi.fn(),
+      success: vi.fn(),
+    },
   },
 }));
 
@@ -155,6 +160,9 @@ describe('TraceCommands', () => {
     vi.mocked(ErrorHandler.warn).mockReset();
     vi.mocked(ErrorHandler.success).mockReset();
     vi.mocked(ErrorHandler.debug).mockReset();
+    vi.mocked(ErrorHandler.visible.info).mockReset();
+    vi.mocked(ErrorHandler.visible.warn).mockReset();
+    vi.mocked(ErrorHandler.visible.success).mockReset();
     vi.mocked(createRequire).mockReturnValue({
       resolve: vi.fn(() => '/tmp/node_modules/@zintrust/trace/migrations/index.js'),
     } as never);
@@ -195,7 +203,7 @@ describe('TraceCommands', () => {
       dbName: 'trace',
       isLocal: true,
     });
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace D1 migrations applied.');
+    expect(ErrorHandler.visible.success).toHaveBeenCalledWith('Trace D1 migrations applied.');
   });
 
   it('runs trace migration status against an explicit connection', async () => {
@@ -221,8 +229,10 @@ describe('TraceCommands', () => {
 
     await cmd.execute({ status: true, connection: 'analytics' });
 
-    expect(ErrorHandler.info).toHaveBeenCalledWith(expect.stringContaining('Adapter: sqlite'));
-    expect(ErrorHandler.info).toHaveBeenCalledWith(
+    expect(ErrorHandler.visible.info).toHaveBeenCalledWith(
+      expect.stringContaining('Adapter: sqlite')
+    );
+    expect(ErrorHandler.visible.info).toHaveBeenCalledWith(
       expect.stringContaining('applied: 001_trace_init')
     );
   });
@@ -449,8 +459,8 @@ describe('TraceCommands', () => {
       dbName: 'trace',
       isLocal: true,
     });
-    expect(ErrorHandler.info).toHaveBeenCalledWith('applied trace migrations');
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace D1 migrations applied.');
+    expect(ErrorHandler.visible.info).toHaveBeenCalledWith('applied trace migrations');
+    expect(ErrorHandler.visible.success).toHaveBeenCalledWith('Trace D1 migrations applied.');
   });
 
   it('runs fresh, reset, rollback, and migrate branches for SQL-backed trace migrations', async () => {
@@ -479,10 +489,10 @@ describe('TraceCommands', () => {
     expect(resetAll).toHaveBeenCalled();
     expect(rollbackLastBatch).toHaveBeenCalledWith(1);
     expect(migrate).toHaveBeenCalled();
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace migrations applied (fresh).');
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace migrations reset.');
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace migrations rolled back (2).');
-    expect(ErrorHandler.success).toHaveBeenCalledWith('Trace migrations applied.');
+    expect(ErrorHandler.visible.success).toHaveBeenCalledWith('Trace migrations applied (fresh).');
+    expect(ErrorHandler.visible.success).toHaveBeenCalledWith('Trace migrations reset.');
+    expect(ErrorHandler.visible.success).toHaveBeenCalledWith('Trace migrations rolled back (2).');
+    expect(ErrorHandler.visible.success).toHaveBeenCalledWith('Trace migrations applied.');
   });
 
   it('throws a CLI error when the optional trace package is unavailable', async () => {
@@ -640,6 +650,6 @@ describe('TraceCommands', () => {
       connection: 'analytics',
     });
 
-    expect(ErrorHandler.info).toHaveBeenCalledWith('No trace migrations found.');
+    expect(ErrorHandler.visible.info).toHaveBeenCalledWith('No trace migrations found.');
   });
 });
