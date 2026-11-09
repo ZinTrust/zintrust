@@ -172,6 +172,10 @@ registerTraceRoutes(router, TraceStorage.resolveStorage(db), {
 });
 ```
 
+## Dashboard search and layout
+
+The Overview, Entries, and entry-detail pages can search trace entries, with optional field groups for Request, Response (body and status), Headers, URL, Error, SQL, and Meta. Leave every field unchecked to search the full stored entry content. Searches on request-related detail tabs are limited to entries in that request batch; the Monitoring search filters saved tags. Long unbroken values, including URLs, wrap within the dashboard layout.
+
 ## CLI commands
 
 When the package is installed, ZinTrust registers these commands:

@@ -3,7 +3,15 @@
  * No auth in this layer — caller mounts middleware as needed.
  */
 import type { IRequest, IResponse } from '@zintrust/core/http';
-import type { EntryTypeValue, ITraceEntry, ITraceStorage } from '../types';
+import type {
+  EntryTypeValue,
+  ITraceEntry,
+  ITraceStorage,
+  TraceSearchField,
+  TraceSearchOptions,
+} from '../types';
+import { TRACE_SEARCH_FIELDS } from '../types';
+
 
 // ---------------------------------------------------------------------------
 // Storage holder (set once from routes.ts)
@@ -55,6 +63,25 @@ const getNumericQueryParam = (req: IRequest, key: string): number | undefined =>
   }
 
   return undefined;
+};
+
+const MAX_SEARCH_LENGTH = 200;
+
+// Search text plus the field groups to match against; unknown field names are dropped.
+const parseSearchOptions = (req: IRequest): TraceSearchOptions => {
+  const search = (qp(req, 'search') ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
+  const requested = (qp(req, 'searchFields') ?? '')
+    .split(',')
+    .map((field) => field.trim());
+  const searchFields = requested.filter(
+    (field, index): field is TraceSearchField =>
+      (TRACE_SEARCH_FIELDS as readonly string[]).includes(field) && requested.indexOf(field) === index
+  );
+
+  return {
+    search: search || undefined,
+    searchFields: searchFields.length > 0 ? searchFields : undefined,
+  };
 };
 
 const DEFAULT_PER_PAGE = 50;
@@ -205,6 +232,7 @@ export async function listEntries(req: IRequest, res: IResponse): Promise<void> 
       batchId: qp(req, 'batchId'),
       from: getNumericQueryParam(req, 'from'),
       to: getNumericQueryParam(req, 'to'),
+      ...parseSearchOptions(req),
       page: Math.max(1, qpInt(req, 'page', 1)),
       perPage: resolvePerPage(req, type),
       summary: true,
@@ -267,6 +295,7 @@ export async function getBatch(req: IRequest, res: IResponse): Promise<void> {
         page,
         perPage,
         countsOnly,
+        ...parseSearchOptions(req),
       });
       res.json({ ok: true, ...result });
       return;

@@ -216,6 +216,10 @@ The ingest gateway exposes exactly these signed POST endpoints:
 
 The dashboard SPA will be available at `GET /trace` (or your chosen `basePath`).
 
+### Dashboard search
+
+The Overview, Entries, and entry-detail pages let you search trace entries and optionally limit matching to Request, Response (body and status), Headers, URL, Error, SQL, or Meta fields. Leave all fields unchecked to search the full stored entry content. Searches from request-related detail tabs are limited to related entries in that request batch; searches on Monitoring filter the saved tag list. Long unbroken values, including URLs, wrap within the dashboard layout.
+
 If you need custom storage wiring, keep using the low-level route registrar:
 
 ```ts
