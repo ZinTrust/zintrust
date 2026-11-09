@@ -176,6 +176,8 @@ registerTraceRoutes(router, TraceStorage.resolveStorage(db), {
 
 The Overview, Entries, and entry-detail pages can search trace entries, with optional field groups for Request, Response (body and status), Headers, URL, Error, SQL, and Meta. Leave every field unchecked to search the full stored entry content. Searches on request-related detail tabs are limited to entries in that request batch; the Monitoring search filters saved tags. Long unbroken values, including URLs, wrap within the dashboard layout.
 
+On SQLite and D1, `zin migrate:trace` creates a trigram full-text index (`zin_trace_entries_search`) for searches with at least 3 characters and no line breaks. Shorter or multiline searches continue to use the `LIKE` scan. Existing installs must run `zin migrate:trace` before FTS-indexed dashboard searches work; fallback `LIKE` searches do not require the index. The index increases disk use and adds write work; the exact cost depends on the trace data. [Cloudflare documents FTS5 support in D1](https://developers.cloudflare.com/d1/sql-api/sql-statements/). Other drivers keep the plain `LIKE` search.
+
 ## CLI commands
 
 When the package is installed, ZinTrust registers these commands:

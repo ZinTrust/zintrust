@@ -148,6 +148,9 @@ type DatabaseWithDriver = IDatabase & {
 
 const driverOf = (db: IDatabase): string => (db as DatabaseWithDriver).getType?.() ?? 'sqlite';
 
+const isSqliteFamilyDriver = (driver: string): boolean =>
+  driver === 'sqlite' || driver === 'd1' || driver === 'd1-remote';
+
 // Top-level JSON keys that hold each search field group's values across entry types.
 const SEARCH_FIELD_KEYS: Record<TraceSearchField, readonly string[]> = {
   request: ['payload', 'requestBody'],
@@ -161,7 +164,8 @@ const SEARCH_FIELD_KEYS: Record<TraceSearchField, readonly string[]> = {
 
 const LIKE_ESCAPE = '!';
 
-const escapeLikeTerm = (term: string): string => term.replace(/[!%_]/g, (ch) => `${LIKE_ESCAPE}${ch}`);
+const escapeLikeTerm = (term: string): string =>
+  term.replace(/[!%_]/g, (ch) => `${LIKE_ESCAPE}${ch}`);
 
 // JSON keys come from SEARCH_FIELD_KEYS (fixed identifiers, never user input), so inlining them is safe.
 const jsonValueExpr = (driver: string, column: string, key: string): string => {
@@ -173,17 +177,46 @@ const jsonValueExpr = (driver: string, column: string, key: string): string => {
   return `json_extract(${column}, '$.${key}')`;
 };
 
+// Trigram FTS5 index from migration 20261109120000 (sqlite-family only). Trigram cannot match terms
+// shorter than 3 characters, and group values are newline-joined, so terms with a newline use LIKE.
+const FTS_TABLE = 'zin_trace_entries_search';
+const FTS_ALL_COLUMN = 'all_content';
+const FTS_MIN_TERM_CHARS = 3;
+
+const canUseFtsSearch = (driver: string, term: string): boolean =>
+  isSqliteFamilyDriver(driver) &&
+  Array.from(term).length >= FTS_MIN_TERM_CHARS &&
+  !/[\r\n]/.test(term);
+
+// FTS5 column filter: `{col1 col2} : "phrase"`, with embedded double quotes doubled.
+const buildFtsCondition = (
+  idColumn: string,
+  term: string,
+  fields: TraceSearchField[]
+): { sql: string; params: unknown[] } => {
+  const columns = fields.length === 0 ? [FTS_ALL_COLUMN] : [...new Set(fields)];
+  const phrase = `"${term.replace(/"/g, '""')}"`;
+
+  return {
+    sql: `${idColumn} IN (SELECT rowid FROM ${FTS_TABLE} WHERE ${FTS_TABLE} MATCH ?)`,
+    params: [`{${columns.join(' ')}} : ${phrase}`],
+  };
+};
+
 const buildSearchCondition = (
   driver: string,
-  column: string,
+  refs: { id: string; column: string },
   opts: TraceSearchOptions
 ): { sql: string; params: unknown[] } | undefined => {
   const term = opts.search?.trim();
   if (!term) return undefined;
 
+  const fields = opts.searchFields ?? [];
+  if (canUseFtsSearch(driver, term)) return buildFtsCondition(refs.id, term, fields);
+
+  const column = refs.column;
   const pattern = `%${escapeLikeTerm(term)}%`;
   const op = driver === 'postgresql' ? 'ILIKE' : 'LIKE';
-  const fields = opts.searchFields ?? [];
   const keys = [...new Set(fields.flatMap((field) => SEARCH_FIELD_KEYS[field]))];
 
   if (keys.length === 0) {
@@ -331,7 +364,7 @@ const buildEntryConditions = (
     params.push(opts.to);
   }
 
-  const search = buildSearchCondition(driver, 'e.content', opts);
+  const search = buildSearchCondition(driver, { id: 'e.id', column: 'e.content' }, opts);
   if (search) {
     conditions.push(search.sql);
     params.push(...search.params);
@@ -377,7 +410,7 @@ const buildBatchEntryFilters = (
     params.push(...excludeTypes);
   }
 
-  const search = buildSearchCondition(driver, 'content', opts);
+  const search = buildSearchCondition(driver, { id: 'id', column: 'content' }, opts);
   if (search) {
     conditions.push(search.sql);
     params.push(...search.params);

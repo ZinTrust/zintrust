@@ -37,10 +37,7 @@ const createSearchDb = (driver = 'sqlite') => {
   };
 };
 
-const findCall = (
-  mock: { mock: { calls: unknown[][] } },
-  needle: string
-): [string, unknown[]] => {
+const findCall = (mock: { mock: { calls: unknown[][] } }, needle: string): [string, unknown[]] => {
   const call = mock.mock.calls.find((args) => String(args[0]).includes(needle));
   return (call ?? ['', []]) as [string, unknown[]];
 };
@@ -82,7 +79,7 @@ describe('trace search handler parsing', () => {
 });
 
 describe('trace search storage SQL', () => {
-  it('searches only the selected JSON keys for sqlite', async () => {
+  it('searches only the selected field groups through the FTS index for sqlite', async () => {
     const { db, query } = createSearchDb('sqlite');
     const storage = TraceStorage.resolveStorage(db as never);
 
@@ -93,14 +90,65 @@ describe('trace search storage SQL', () => {
       searchFields: ['response'],
     });
 
-    const [listSql, listParams] = findCall(query, 'json_extract(e.content');
-    expect(listSql).toContain("json_extract(e.content, '$.responseBody') LIKE ? ESCAPE '!'");
-    expect(listSql).toContain("json_extract(e.content, '$.responseStatus') LIKE ? ESCAPE '!'");
-    expect(listParams).toContain('%timeout%');
+    const [listSql, listParams] = findCall(query, 'zin_trace_entries_search');
+    expect(listSql).toContain(
+      'e.id IN (SELECT rowid FROM zin_trace_entries_search WHERE zin_trace_entries_search MATCH ?)'
+    );
+    expect(listSql).not.toContain('LIKE');
+    expect(listParams).toContain('{response} : "timeout"');
   });
 
-  it('escapes LIKE wildcards in the search term', async () => {
+  it('searches the whole entry content when no field group is selected for sqlite', async () => {
     const { db, query } = createSearchDb('sqlite');
+    const storage = TraceStorage.resolveStorage(db as never);
+
+    await storage.queryEntries({ page: 1, perPage: 10, search: 'timeout' });
+
+    const [, listParams] = findCall(query, 'zin_trace_entries_search');
+    expect(listParams).toContain('{all_content} : "timeout"');
+  });
+
+  it('deduplicates field groups and doubles embedded quotes in the FTS phrase', async () => {
+    const { db, query } = createSearchDb('d1');
+    const storage = TraceStorage.resolveStorage(db as never);
+
+    await storage.queryEntries({
+      page: 1,
+      perPage: 10,
+      search: 'say "hi"',
+      searchFields: ['url', 'url', 'error'],
+    });
+
+    const [, listParams] = findCall(query, 'zin_trace_entries_search');
+    expect(listParams).toContain('{url error} : "say ""hi"""');
+  });
+
+  it('falls back to LIKE for sqlite terms shorter than the trigram minimum', async () => {
+    const { db, query } = createSearchDb('sqlite');
+    const storage = TraceStorage.resolveStorage(db as never);
+
+    await storage.queryEntries({ page: 1, perPage: 10, search: 'ab', searchFields: ['url'] });
+
+    const [listSql, listParams] = findCall(query, "json_extract(e.content, '$.uri')");
+    expect(listSql).toContain("json_extract(e.content, '$.uri') LIKE ? ESCAPE '!'");
+    expect(listSql).not.toContain('MATCH');
+    expect(listParams).toContain('%ab%');
+  });
+
+  it('falls back to LIKE for sqlite terms containing a newline', async () => {
+    const { db, query } = createSearchDb('sqlite');
+    const storage = TraceStorage.resolveStorage(db as never);
+
+    await storage.queryEntries({ page: 1, perPage: 10, search: 'line\nbreak' });
+
+    const [listSql, listParams] = findCall(query, 'LIKE ?');
+    expect(listSql).toContain("e.content LIKE ? ESCAPE '!'");
+    expect(listSql).not.toContain('MATCH');
+    expect(listParams).toContain('%line\nbreak%');
+  });
+
+  it('escapes LIKE wildcards in the search term when the LIKE path is used', async () => {
+    const { db, query } = createSearchDb('mysql');
     const storage = TraceStorage.resolveStorage(db as never);
 
     await storage.queryEntries({ page: 1, perPage: 10, search: '50%_off!' });
@@ -156,9 +204,9 @@ describe('trace search storage SQL', () => {
       searchFields: ['request'],
     });
 
-    const [countSql, countParams] = findCall(queryOne, '$.payload');
-    expect(countSql).toContain("json_extract(content, '$.payload') LIKE ? ESCAPE '!'");
-    expect(countParams).toContain('%needle%');
+    const [countSql, countParams] = findCall(queryOne, 'zin_trace_entries_search');
+    expect(countSql).toContain('id IN (SELECT rowid FROM zin_trace_entries_search');
+    expect(countParams).toContain('{request} : "needle"');
   });
 });
 
