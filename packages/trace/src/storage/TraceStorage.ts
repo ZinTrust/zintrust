@@ -409,7 +409,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
 
     // Tag count joins the tags index, so an absent tag costs almost nothing.
     const total = await totalsCache.getOrLoad(
-      `count:${JSON.stringify({ tag: opts.tag ?? null, params })}`,
+      `count:${JSON.stringify({ tag: opts.tag ?? null, conditions, params })}`,
       async () => {
         const countResult = (await db.queryOne(
           opts.tag
