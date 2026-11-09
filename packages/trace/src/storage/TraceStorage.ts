@@ -246,7 +246,7 @@ const createTtlCache = (
       const oldest = entries.keys().next().value;
       if (oldest !== undefined) entries.delete(oldest);
     }
-    entries.set(key, { value, expiresAt: Date.now() + ttlMs });
+    if (value !== 0) entries.set(key, { value, expiresAt: Date.now() + ttlMs });
     return value;
   };
 
