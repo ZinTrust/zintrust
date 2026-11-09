@@ -394,7 +394,8 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
     });
 
     expect(writes[0].content).toContain('-- Generated from readonly_mig');
-    expect(writes[0].content.trim().split('\n').length).toBe(1); // Only header
+    expect(writes[0].content.trim().split('\n').length).toBe(2);
+    expect(writes[0].content).toContain('-- No statements');
   });
 
   it('captures drop / replace / pragma statements as mutating SQL (isMutatingSql branches)', async () => {

@@ -191,6 +191,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         '<input type="search" name="q" maxlength="' + SEARCH_MAX_LENGTH + '" placeholder="' + escapeHtml(placeholder) + '" aria-label="' + escapeHtml(placeholder) + '" value="' + escapeHtml(current.q || '') + '">',
         fieldsHtml,
         '<button type="submit" class="btn btn-primary">Search</button>',
+        scope === 'entries' && current.q ? '<button type="button" class="btn btn-ghost" data-action="clear-search">Reset search</button>' : '',
         '</form>'
       ].join('');
     };
@@ -1092,7 +1093,8 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           '</section>'
         ].join('');
       } catch (error) {
-        main.innerHTML = '<div class="panel empty">Error loading entries: ' + escapeHtml(error.message) + '</div>';
+        const resetHtml = state.entriesFilter.q ? '<div><button type="button" class="btn btn-ghost" data-action="clear-search">Reset search</button></div>' : '';
+        main.innerHTML = '<div class="panel empty">Error loading entries: ' + escapeHtml(error.message) + resetHtml + '</div>';
       }
     };
 
@@ -1501,6 +1503,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       if (action === 'page-prev') { state = { ...state, entriesPage: Math.max(1, state.entriesPage - 1) }; render(); return; }
       if (action === 'page-next') { state = { ...state, entriesPage: state.entriesPage + 1 }; render(); return; }
       if (action === 'clear-filters') { state = { ...state, detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { type: '', tag: '', batchId: '', q: '', fields: [] } }; syncUrl('push'); render({ skipSync: true }); return; }
+      if (action === 'clear-search') { state = { ...state, entriesPage: 1, entriesFilter: { ...state.entriesFilter, q: '', fields: [] } }; syncUrl('push'); render({ skipSync: true }); return; }
       if (action === 'add-tag') { addTag(); return; }
       if (action === 'remove-tag') { removeTag(String(target.getAttribute('data-tag') || '')); return; }
       if (action === 'copy-code') { copyCode(String(target.getAttribute('data-copy-id') || ''), target); }

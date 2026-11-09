@@ -4,6 +4,7 @@
  * read/write operations to the trace storage facade.
  */
 import type { IDatabase } from '@zintrust/core/database';
+import { Logger } from '@zintrust/core/logger';
 import type {
   EntryTypeValue,
   ITraceEntry,
@@ -206,13 +207,14 @@ const buildFtsCondition = (
 const buildSearchCondition = (
   driver: string,
   refs: { id: string; column: string },
-  opts: TraceSearchOptions
+  opts: TraceSearchOptions,
+  allowFts = true
 ): { sql: string; params: unknown[] } | undefined => {
   const term = opts.search?.trim();
   if (!term) return undefined;
 
   const fields = opts.searchFields ?? [];
-  if (canUseFtsSearch(driver, term)) return buildFtsCondition(refs.id, term, fields);
+  if (allowFts && canUseFtsSearch(driver, term)) return buildFtsCondition(refs.id, term, fields);
 
   const column = refs.column;
   const pattern = `%${escapeLikeTerm(term)}%`;
@@ -342,7 +344,8 @@ const createTtlCache = (
 // the count joins the tags table while the page query uses EXISTS (see queryEntries).
 const buildEntryConditions = (
   opts: QueryEntriesOptions,
-  driver: string
+  driver: string,
+  allowFts = true
 ): { conditions: string[]; params: unknown[] } => {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -364,7 +367,7 @@ const buildEntryConditions = (
     params.push(opts.to);
   }
 
-  const search = buildSearchCondition(driver, { id: 'e.id', column: 'e.content' }, opts);
+  const search = buildSearchCondition(driver, { id: 'e.id', column: 'e.content' }, opts, allowFts);
   if (search) {
     conditions.push(search.sql);
     params.push(...search.params);
@@ -493,13 +496,14 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     );
   };
 
-  const queryEntries = async (
-    opts: QueryEntriesOptions
+  const runQueryEntries = async (
+    opts: QueryEntriesOptions,
+    allowFts: boolean
   ): Promise<{ data: ITraceEntry[]; total: number }> => {
     const page = opts.page ?? 1;
     const perPage = opts.perPage ?? 50;
     const offset = (page - 1) * perPage;
-    const { conditions, params } = buildEntryConditions(opts, driverOf(db));
+    const { conditions, params } = buildEntryConditions(opts, driverOf(db), allowFts);
     const where = (extra: string[]): string => {
       const all = [...extra, ...conditions];
       return all.length > 0 ? `WHERE ${all.join(' AND ')}` : '';
@@ -628,6 +632,21 @@ const createStorage = (db: IDatabase): ITraceStorage => {
       page,
       perPage,
     };
+  };
+
+  const queryEntries = async (
+    opts: QueryEntriesOptions
+  ): Promise<{ data: ITraceEntry[]; total: number }> => {
+    try {
+      return await runQueryEntries(opts, true);
+    } catch (error) {
+      if (!canUseFtsSearch(driverOf(db), (opts.search ?? '').trim())) throw error;
+      // The FTS index can be missing or unusable on a D1 database; the LIKE scan still answers the search.
+      Logger.warn('[trace] FTS search failed; retrying with LIKE scan', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return runQueryEntries(opts, false);
+    }
   };
 
   const prune = async (olderThanMs: number, keepExceptions = false): Promise<number> => {

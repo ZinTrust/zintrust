@@ -137,6 +137,16 @@ describe.skipIf(!HAS_NATIVE_SQLITE)('AddZinTraceEntriesSearchIndex migration (re
     conn.close();
   });
 
+  it('falls back to LIKE when the FTS index is missing', async () => {
+    const { conn, db } = createSqliteDb();
+    createEntriesTables(conn);
+    seedEntries(conn);
+
+    expect(await searchUuids(db, 'timeout', ['response'])).toEqual(['u2']);
+    expect(await searchUuids(db, 'timeout')).toEqual(['u3', 'u2', 'u1']);
+    conn.close();
+  });
+
   it('falls back to LIKE for terms shorter than three characters', async () => {
     const { conn, db } = createSqliteDb();
     createEntriesTables(conn);

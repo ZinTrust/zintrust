@@ -223,6 +223,15 @@ describe('trace dashboard search markup', () => {
     expect(html).toContain("search.set('batchSearch'");
   });
 
+  it('exposes a reset action that clears only the entries search query and fields', () => {
+    const html = buildDashboardHtml('/trace');
+
+    expect(html).toContain('data-action="clear-search"');
+    expect(html).toContain('Reset search');
+    expect(html).toContain("action === 'clear-search'");
+    expect(html).toContain("entriesFilter: { ...state.entriesFilter, q: '', fields: [] }");
+  });
+
   it('wraps long unbroken values inside the summary and mono cells', () => {
     const html = buildDashboardHtml('/trace');
 
