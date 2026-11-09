@@ -25,6 +25,11 @@ export const migration: Migration = {
     if (!(await schema.hasTable(TABLE))) return;
     if (await schema.hasColumn(TABLE, COLUMN)) return;
 
+    if (db.getType() === 'sqlserver') {
+      await db.query(`ALTER TABLE ${TABLE} ADD ${COLUMN} NVARCHAR(MAX) NULL`, []);
+      return;
+    }
+
     await schema.table(TABLE, (table: Blueprint) => {
       table.text(COLUMN).nullable();
     });
