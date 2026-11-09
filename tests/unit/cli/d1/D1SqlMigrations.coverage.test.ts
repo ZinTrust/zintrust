@@ -363,7 +363,7 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
     vi.doMock('@node-singletons/fs', () => ({
       existsSync: () => true,
       mkdirSync: vi.fn(),
-      writeFileSync: (p: string, c: string) => writes.push({ content: c }),
+      writeFileSync: (_p: string, c: string) => writes.push({ content: c }),
     }));
     vi.doMock('@node-singletons/path', async () => await import('node:path'));
     vi.doMock('@/migrations/MigrationDiscovery', () => ({
@@ -394,7 +394,7 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
     });
 
     expect(writes[0].content).toContain('-- Generated from readonly_mig');
-    expect(writes[0].content.trim().split('\n').length).toBe(2);
+    expect(writes[0].content.trim().split('\n')).toHaveLength(2);
     expect(writes[0].content).toContain('-- No statements');
   });
 
@@ -403,7 +403,7 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
     vi.doMock('@node-singletons/fs', () => ({
       existsSync: () => true,
       mkdirSync: vi.fn(),
-      writeFileSync: (p: string, c: string) => writes.push({ content: c }),
+      writeFileSync: (_p: string, c: string) => writes.push({ content: c }),
     }));
     vi.doMock('@node-singletons/path', async () => await import('node:path'));
     vi.doMock('@/migrations/MigrationDiscovery', () => ({

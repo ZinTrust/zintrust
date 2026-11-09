@@ -196,7 +196,7 @@ const buildFtsCondition = (
   fields: TraceSearchField[]
 ): { sql: string; params: unknown[] } => {
   const columns = fields.length === 0 ? [FTS_ALL_COLUMN] : [...new Set(fields)];
-  const phrase = `"${term.replace(/"/g, '""')}"`;
+  const phrase = `"${term.replaceAll('"', '""')}"`;
 
   return {
     sql: `${idColumn} IN (SELECT rowid FROM ${FTS_TABLE} WHERE ${FTS_TABLE} MATCH ?)`,
