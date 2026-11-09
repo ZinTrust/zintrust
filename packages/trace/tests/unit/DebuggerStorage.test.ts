@@ -18,7 +18,8 @@ const createDb = (
       batch_id: string;
       family_hash: string | null;
       type: string;
-      content: string;
+      content: string | null;
+      summary?: string | null;
       is_latest: number;
       created_at: number;
     }>;
@@ -119,6 +120,114 @@ describe('TraceStorage', () => {
         content: { message: 'first' },
       }),
     ]);
+  });
+
+  it('counts tagged entries through the tags index and pages them with EXISTS', async () => {
+    const db = createDb();
+    const storage = TraceStorage.resolveStorage(db);
+
+    await storage.queryEntries({ page: 2, perPage: 10, type: 'request', tag: 'GET' });
+
+    const [countSql, countParams] = vi.mocked(db.queryOne).mock.calls[0] as unknown as [
+      string,
+      unknown[],
+    ];
+    const [listSql, listParams] = vi.mocked(db.query).mock.calls[0] as unknown as [
+      string,
+      unknown[],
+    ];
+    expect(countSql).toContain('INNER JOIN zin_trace_entries e ON e.uuid = t.entry_uuid');
+    expect(countParams).toEqual(['GET', 'request']);
+    expect(listSql).not.toContain('INNER JOIN');
+    expect(listSql).toContain(
+      'EXISTS (SELECT 1 FROM zin_trace_entries_tags t WHERE t.entry_uuid = e.uuid AND t.tag = ?)'
+    );
+    expect(listParams).toEqual(['GET', 'request', 10, 10]);
+  });
+
+  it('skips the page query when a filter matches nothing', async () => {
+    const db = createDb();
+    vi.mocked(db.queryOne).mockResolvedValueOnce({ cnt: 0 });
+    const storage = TraceStorage.resolveStorage(db);
+
+    const result = await storage.queryEntries({ page: 1, perPage: 10, tag: 'absent' });
+
+    expect(result).toEqual({ data: [], total: 0 });
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rechecks zero totals so newly matching entries become visible', async () => {
+    const db = createDb();
+    vi.mocked(db.queryOne).mockResolvedValueOnce({ cnt: 0 }).mockResolvedValueOnce({ cnt: 1 });
+    const storage = TraceStorage.resolveStorage(db);
+
+    const emptyResult = await storage.queryEntries({ page: 1, perPage: 10, tag: 'new-tag' });
+    const populatedResult = await storage.queryEntries({ page: 1, perPage: 10, tag: 'new-tag' });
+
+    expect(emptyResult).toEqual({ data: [], total: 0 });
+    expect(populatedResult.total).toBe(1);
+    expect(populatedResult.data.length).toBeGreaterThan(0);
+    expect(
+      vi
+        .mocked(db.queryOne)
+        .mock.calls.filter(([sql]) => String(sql).includes('COUNT(*) as cnt'))
+    ).toHaveLength(2);
+  });
+
+  it('uses separate count cache entries for different time conditions', async () => {
+    const db = createDb();
+    vi.mocked(db.queryOne).mockResolvedValueOnce({ cnt: 1 }).mockResolvedValueOnce({ cnt: 2 });
+    const storage = TraceStorage.resolveStorage(db);
+
+    const fromResult = await storage.queryEntries({ from: 1000 });
+    const toResult = await storage.queryEntries({ to: 1000 });
+
+    expect(fromResult.total).toBe(1);
+    expect(toResult.total).toBe(2);
+    expect(
+      vi
+        .mocked(db.queryOne)
+        .mock.calls.filter(([sql]) => String(sql).includes('COUNT(*) as cnt'))
+    ).toHaveLength(2);
+  });
+
+  it('serves repeated totals and stats from the cache within the TTL', async () => {
+    const db = createDb();
+    const storage = TraceStorage.resolveStorage(db);
+
+    await storage.queryEntries({ page: 1, perPage: 10, type: 'request' });
+    await storage.queryEntries({ page: 2, perPage: 10, type: 'request' });
+    await storage.queryEntries({ page: 1, perPage: 10, type: 'request', tag: 'GET' });
+    await storage.stats();
+    await storage.stats();
+
+    const countCalls = vi
+      .mocked(db.queryOne)
+      .mock.calls.filter(([sql]) => String(sql).includes('COUNT(*) as cnt'));
+    const statsCalls = vi
+      .mocked(db.query)
+      .mock.calls.filter(([sql]) => String(sql).includes('GROUP BY type'));
+    expect(countCalls).toHaveLength(2);
+    expect(statsCalls).toHaveLength(1);
+  });
+
+  it('reloads cached totals and stats after the TTL expires', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const db = createDb();
+      const storage = TraceStorage.resolveStorage(db);
+
+      await storage.stats();
+      vi.setSystemTime(Date.now() + 5_001);
+      await storage.stats();
+
+      const statsCalls = vi
+        .mocked(db.query)
+        .mock.calls.filter(([sql]) => String(sql).includes('GROUP BY type'));
+      expect(statsCalls).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('groups client request entries by host tag', async () => {
@@ -301,7 +410,7 @@ describe('TraceStorage', () => {
     expect(db.execute).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining('INSERT INTO zin_trace_entries'),
-      ['entry-3', 'batch-2', 'hash-3', 'log', '{"message":"hello"}', 1, 30]
+      ['entry-3', 'batch-2', 'hash-3', 'log', '{"message":"hello"}', null, 1, 30]
     );
     expect(db.execute).toHaveBeenNthCalledWith(
       2,
@@ -313,6 +422,75 @@ describe('TraceStorage', () => {
       expect.stringContaining('INSERT OR IGNORE INTO zin_trace_entries_tags'),
       ['entry-3', 'beta']
     );
+  });
+
+  it('stores a precomputed list summary for request entries', async () => {
+    const db = createDb();
+    const storage = TraceStorage.resolveStorage(db);
+
+    await storage.writeEntry({
+      uuid: 'entry-4',
+      batchId: 'batch-4',
+      type: 'request',
+      content: { method: 'GET', uri: '/health', payload: { big: 'x'.repeat(1000) } },
+      tags: [],
+      isLatest: true,
+      createdAt: 40,
+    });
+
+    const insertParams = db.execute.mock.calls[0]?.[1] as unknown[];
+    const summary = insertParams[5];
+    expect(typeof summary).toBe('string');
+    expect(JSON.parse(summary as string)).toEqual(
+      expect.objectContaining({ method: 'GET', uri: '/health' })
+    );
+    expect(summary as string).not.toContain('payload');
+  });
+
+  it('reads list rows from the stored summary when content is not loaded', async () => {
+    const writeDb = createDb();
+    await TraceStorage.resolveStorage(writeDb).writeEntry({
+      uuid: 'entry-5',
+      batchId: 'batch-5',
+      type: 'request',
+      content: { method: 'POST', uri: '/api/jobs', responseStatus: 202, payload: { a: 1 } },
+      tags: [],
+      isLatest: true,
+      createdAt: 50,
+    });
+    const storedSummary = writeDb.execute.mock.calls[0]?.[1][5] as string;
+
+    const db = createDb('sqlite', {
+      entryRows: [
+        {
+          id: 5,
+          uuid: 'entry-5',
+          batch_id: 'batch-5',
+          family_hash: null,
+          type: 'request',
+          content: null,
+          summary: storedSummary,
+          is_latest: 1,
+          created_at: 50,
+        },
+      ],
+    });
+    const storage = TraceStorage.resolveStorage(db);
+
+    const result = await storage.queryEntries({
+      page: 1,
+      perPage: 10,
+      type: 'request',
+      summary: true,
+    });
+
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        uuid: 'entry-5',
+        content: expect.objectContaining({ method: 'POST', uri: '/api/jobs' }),
+      }),
+    ]);
+    expect(result.data[0]?.content).not.toHaveProperty('payload');
   });
 
   it('prunes old entries without touching exception rows when requested', async () => {
