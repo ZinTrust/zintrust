@@ -233,14 +233,26 @@ const TOTALS_CACHE_MAX_ENTRIES = 200;
 const createTtlCache = (
   ttlMs: number,
   maxEntries: number
-): { getOrLoad: <T>(key: string, load: () => Promise<T>) => Promise<T> } => {
+): {
+  getOrLoad: <T>(
+    key: string,
+    load: () => Promise<T>,
+    shouldCache?: (value: T) => boolean
+  ) => Promise<T>;
+} => {
   const entries = new Map<string, { value: unknown; expiresAt: number }>();
 
-  const getOrLoad = async <T>(key: string, load: () => Promise<T>): Promise<T> => {
+  const getOrLoad = async <T>(
+    key: string,
+    load: () => Promise<T>,
+    shouldCache: (value: T) => boolean = () => true
+  ): Promise<T> => {
     const hit = entries.get(key);
     if (hit && hit.expiresAt > Date.now()) return hit.value as T;
 
     const value = await load();
+    if (!shouldCache(value)) return value;
+
     entries.delete(key);
     if (entries.size >= maxEntries) {
       const oldest = entries.keys().next().value;
@@ -409,7 +421,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
 
     // Tag count joins the tags index, so an absent tag costs almost nothing.
     const total = await totalsCache.getOrLoad(
-      `count:${JSON.stringify({ tag: opts.tag ?? null, params })}`,
+      `count:${JSON.stringify({ tag: opts.tag ?? null, conditions, params })}`,
       async () => {
         const countResult = (await db.queryOne(
           opts.tag
@@ -420,7 +432,8 @@ const createStorage = (db: IDatabase): ITraceStorage => {
           [...tagParams, ...params]
         )) as { cnt: number } | undefined;
         return countResult?.cnt ?? 0;
-      }
+      },
+      (count) => count > 0
     );
     if (total === 0) return { data: [], total };
 
