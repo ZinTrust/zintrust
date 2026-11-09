@@ -58,7 +58,7 @@ describe('AddZinTraceEntriesSummaryColumn migration', () => {
     await migration.up(mockDb as never);
 
     expect(mockDb.query).toHaveBeenCalledWith(
-      'ALTER TABLE zin_trace_entries ADD summary TEXT',
+      'ALTER TABLE zin_trace_entries ADD summary NVARCHAR(MAX) NULL',
       []
     );
     expect(table).not.toHaveBeenCalled();

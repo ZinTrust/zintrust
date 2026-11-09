@@ -26,7 +26,7 @@ export const migration: Migration = {
     if (await schema.hasColumn(TABLE, COLUMN)) return;
 
     if (db.getType() === 'sqlserver') {
-      await db.query(`ALTER TABLE ${TABLE} ADD ${COLUMN} TEXT`, []);
+      await db.query(`ALTER TABLE ${TABLE} ADD ${COLUMN} NVARCHAR(MAX) NULL`, []);
       return;
     }
 
