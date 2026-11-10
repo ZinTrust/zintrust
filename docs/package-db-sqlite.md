@@ -213,7 +213,7 @@ const searchResults = await UserFts.whereMatch('users_fts', 'john').get();
 ## Transactions
 
 ```typescript
-import { Database, QueryBuilder } from '@zintrust/core';
+import { Database, ErrorFactory, QueryBuilder } from '@zintrust/core';
 
 // Simple transaction
 await Database.transaction(async (trx) => {
@@ -233,6 +233,35 @@ await Database.transaction(async (trx) => {
   }
 });
 ```
+
+Interactive transactions on SQLite keep every `tx.table()` query on the
+transaction connection. `insertIfAbsent()` reports whether the unique claim was
+created, while `update()` and `increment()` return the affected-row count:
+
+```typescript
+const settled = await Database.transaction(async (tx) => {
+  const claim = await tx
+    .table('settlement_claims')
+    .insertIfAbsent({ provider_reference: providerReference });
+
+  if (!claim.inserted) return false;
+
+  const updated = await tx
+    .table('accounts')
+    .where('id', '=', accountId)
+    .increment('balance', amount);
+  if (updated !== 1) {
+    throw ErrorFactory.createDatabaseError('Settlement account was not updated');
+  }
+
+  await tx.table('ledger').insert(ledgerEntry);
+  return true;
+});
+```
+
+If any operation throws, SQLite rolls back the claim and all settlement
+effects. The transaction callback can branch on each operation's result because
+SQLite provides an interactive transaction connection.
 
 ## Migrations
 

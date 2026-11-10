@@ -260,21 +260,16 @@ describe('D1RemoteAdapter', () => {
     await expect(adapter.ping()).rejects.toThrow(/Database not connected/i);
   });
 
-  it('transaction() returns callback result and wraps errors', async () => {
+  it('transaction() rejects because the remote adapter has no atomic batch endpoint', async () => {
     process.env['D1_REMOTE_MODE'] = 'sql';
 
     const { D1RemoteAdapter } = await import('@/orm/adapters/D1RemoteAdapter');
     const adapter = D1RemoteAdapter.create({ driver: 'd1-remote' } as any);
     await adapter.connect();
 
-    const ok = await adapter.transaction(async () => 123);
-    expect(ok).toBe(123);
-
-    await expect(
-      adapter.transaction(async () => {
-        throw new Error('boom');
-      })
-    ).rejects.toThrow(/Transaction failed/i);
+    const callback = vi.fn(async () => 123);
+    await expect(adapter.transaction(callback)).rejects.toThrow(/atomic callback transactions/i);
+    expect(callback).not.toHaveBeenCalled();
   });
 
   it('rawQuery() forwards to query()', async () => {

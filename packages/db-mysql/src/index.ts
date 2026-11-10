@@ -452,7 +452,7 @@ const createTransactionAdapter = (
   baseAdapter: IDatabaseAdapter,
   conn: unknown
 ): IDatabaseAdapter => {
-  return {
+  const transactionAdapter: IDatabaseAdapter = {
     ...baseAdapter,
     query: async (sql: string, parameters: unknown[]): Promise<QueryResult> => {
       try {
@@ -469,10 +469,11 @@ const createTransactionAdapter = (
       sql: string,
       parameters: unknown[]
     ): Promise<Record<string, unknown> | null> => {
-      const res = await baseAdapter.query(sql, parameters);
+      const res = await transactionAdapter.query(sql, parameters);
       return res.rows[0] ?? null;
     },
   };
+  return transactionAdapter;
 };
 
 const createMigrationsTable = async (adapter: IDatabaseAdapter): Promise<void> => {

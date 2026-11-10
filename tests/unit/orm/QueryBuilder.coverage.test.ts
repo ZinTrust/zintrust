@@ -59,6 +59,7 @@ describe('QueryBuilder (coverage)', () => {
 
   it('updates and deletes with where conditions', async () => {
     const db = {
+      execute: vi.fn().mockResolvedValue({ rowCount: 1 }),
       query: vi.fn().mockResolvedValue([]),
       getType: () => 'postgresql',
     } as any;
@@ -66,10 +67,38 @@ describe('QueryBuilder (coverage)', () => {
     const qb = QueryBuilder.create('users', db);
     qb.where('id', '=', 1);
 
-    await qb.update({ name: 'New' });
+    await expect(qb.update({ name: 'New' })).resolves.toBe(1);
     await qb.delete();
 
     expect(db.query).toHaveBeenCalled();
+  });
+
+  it('reports insert-if-absent conflicts and conditional update affected rows', async () => {
+    const db = {
+      execute: vi
+        .fn()
+        .mockResolvedValueOnce({ rowCount: 0 })
+        .mockResolvedValueOnce({ rowCount: 1 }),
+      getType: () => 'd1',
+    } as any;
+    const claimBuilder = QueryBuilder.create('settlement_claims', db);
+    const duplicate = await claimBuilder.insertIfAbsent(
+      { provider_reference: 'ref-1', claim_token: 'token-1' },
+      ['provider_reference']
+    );
+    expect(duplicate.inserted).toBe(false);
+    expect(duplicate.affectedRows).toBe(0);
+    expect(db.execute.mock.calls[0]?.[0]).toContain(
+      'ON CONFLICT ("provider_reference") DO NOTHING'
+    );
+
+    const accountBuilder = QueryBuilder.create('accounts', db).where('id', '=', 1);
+    await expect(accountBuilder.increment('balance', 25)).resolves.toBe(1);
+    expect(db.execute.mock.calls[1]).toEqual([
+      'UPDATE "accounts" SET "balance" = "balance" + ? WHERE "id" = ?',
+      [25, 1],
+      false,
+    ]);
   });
 
   it('rejects update/delete without where clause', async () => {

@@ -112,23 +112,102 @@ describe('D1Adapter', () => {
     );
   });
 
-  it('should handle transaction callback', async () => {
+  it('rejects callback transactions because D1 requires atomic batches', async () => {
     await adapter.connect();
-    const mockBind = vi.fn().mockReturnThis();
-    const mockRun = vi.fn().mockResolvedValue({ meta: { changes: 1, last_row_id: 123 } });
+    const callback = vi.fn();
+    await expect(adapter.transaction(callback)).rejects.toThrow(/Use db\.batch/i);
+    expect(callback).not.toHaveBeenCalled();
+  });
 
-    mockD1.prepare.mockReturnValue({
-      bind: mockBind,
-      run: mockRun,
+  it('executes a prepared statement list as one D1 batch and reports affected rows', async () => {
+    await adapter.connect();
+    const bind = vi.fn(() => ({}));
+    const batch = vi.fn().mockResolvedValue([
+      { success: true, meta: { changes: 1, last_row_id: 11 } },
+      { success: true, meta: { changes: 0 } },
+    ]);
+    mockD1.prepare.mockImplementation((sql: string) => {
+      expect(sql).toMatch(/^(INSERT|UPDATE)/);
+      return { bind };
     });
+    Object.assign(mockD1, { batch });
 
-    const result = await adapter.transaction(async (trx: IDatabaseAdapter) => {
-      return await trx.query('INSERT INTO users', []);
+    const result = await adapter.batch?.([
+      { sql: 'INSERT INTO claims (reference, token) VALUES (?, ?)', parameters: ['ref-1', 't-1'] },
+      { sql: 'UPDATE accounts SET balance = balance + ? WHERE id = ?', parameters: [50, 1] },
+    ]);
+
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(mockD1.prepare).toHaveBeenCalledTimes(2);
+    expect(bind).toHaveBeenNthCalledWith(1, 'ref-1', 't-1');
+    expect(bind).toHaveBeenNthCalledWith(2, '50', '1');
+    expect(result?.map((row) => row.rowCount)).toEqual([1, 0]);
+    expect(result?.[0]?.lastInsertId).toBe(11);
+  });
+
+  it('keeps concurrent settlement claims in separate atomic D1 batches', async () => {
+    await adapter.connect();
+    mockD1.prepare.mockImplementation((sql: string) => ({
+      bind: (...parameters: unknown[]) => ({ sql, parameters }),
+    }));
+    let batchIndex = 0;
+    const batch = vi.fn(async (statements: Array<{ sql: string; parameters: unknown[] }>) => {
+      batchIndex += 1;
+      expect(statements).toHaveLength(3);
+      expect(statements[1]?.sql).toContain('claim_token = ?');
+      expect(statements[2]?.sql).toContain('claim_token = ?');
+      return batchIndex === 1
+        ? [
+            { success: true, meta: { changes: 1 } },
+            { success: true, meta: { changes: 1 } },
+            { success: true, meta: { changes: 1 } },
+          ]
+        : [
+            { success: true, meta: { changes: 0 } },
+            { success: true, meta: { changes: 0 } },
+            { success: true, meta: { changes: 0 } },
+          ];
     });
+    Object.assign(mockD1, { batch });
 
-    expect(result.rows).toEqual([]);
-    expect(result.rowCount).toBe(1);
-    expect(result.lastInsertId).toBe(123);
+    const build = (token: string) => [
+      {
+        sql: 'INSERT INTO claims (reference, claim_token) VALUES (?, ?) ON CONFLICT(reference) DO NOTHING',
+        parameters: ['ref-1', token],
+      },
+      {
+        sql: 'UPDATE accounts SET balance = balance + ? WHERE id = ? AND EXISTS (SELECT 1 FROM claims WHERE reference = ? AND claim_token = ?)',
+        parameters: [50, 1, 'ref-1', token],
+      },
+      {
+        sql: 'INSERT INTO ledger (reference, amount) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM claims WHERE reference = ? AND claim_token = ?)',
+        parameters: ['ref-1', 50, 'ref-1', token],
+      },
+    ];
+
+    const [first, second] = await Promise.all([
+      adapter.batch?.(build('token-a')),
+      adapter.batch?.(build('token-b')),
+    ]);
+
+    expect(batch).toHaveBeenCalledTimes(2);
+    expect(first?.map((result) => result.affectedRows)).toEqual([1, 1, 1]);
+    expect(second?.map((result) => result.affectedRows)).toEqual([0, 0, 0]);
+  });
+
+  it('surfaces a D1 batch failure instead of continuing with later statements', async () => {
+    await adapter.connect();
+    const batch = vi.fn().mockRejectedValue(new Error('injected batch failure'));
+    Object.assign(mockD1, { batch });
+
+    await expect(
+      adapter.batch?.([
+        { sql: 'INSERT INTO claims (reference) VALUES (?)', parameters: ['ref-1'] },
+        { sql: 'INSERT INTO ledger (reference) VALUES (?)', parameters: ['ref-1'] },
+      ])
+    ).rejects.toThrow(/D1 atomic batch failed/i);
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(mockD1.prepare).toHaveBeenCalledTimes(2);
   });
 
   it('should return correct parameter placeholder', () => {

@@ -38,6 +38,7 @@ export { QueryBuilder } from '@orm/QueryBuilder';
 export type {
   IJoinOnBuilder,
   IQueryBuilder,
+  InsertIfAbsentResult,
   InsertResult,
   JoinOnInput,
   LatestPerOptions,
@@ -139,6 +140,7 @@ export type { IHttpRequest, IHttpResponse } from '@httpClient/Http';
 // Database adapter types
 export { BaseAdapter } from '@orm/DatabaseAdapter';
 export type {
+  BatchStatement,
   DatabaseConfig,
   ID1Database,
   IDatabaseAdapter,

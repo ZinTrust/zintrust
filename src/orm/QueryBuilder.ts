@@ -73,6 +73,10 @@ export interface InsertResult {
   insertedRecords?: Record<string, unknown>[];
 }
 
+export interface InsertIfAbsentResult extends InsertResult {
+  inserted: boolean;
+}
+
 export type SoftDeleteMode = 'exclude' | 'include' | 'only';
 
 export interface QueryBuilderOptions {
@@ -147,7 +151,12 @@ export interface IQueryBuilder {
   loadCount(models: IModel[], relation: string): Promise<void>;
 
   insert(values: Record<string, unknown> | Array<Record<string, unknown>>): Promise<InsertResult>;
-  update(values: Record<string, unknown>): Promise<void>;
+  insertIfAbsent(
+    values: Record<string, unknown>,
+    conflictColumns?: string[]
+  ): Promise<InsertIfAbsentResult>;
+  update(values: Record<string, unknown>): Promise<number>;
+  increment(column: string, amount: number): Promise<number>;
   delete(): Promise<void>;
 }
 
@@ -1297,6 +1306,61 @@ const compileInsert = (
   return { sql, parameters };
 };
 
+const compileInsertIfAbsent = (
+  tableName: string,
+  values: Record<string, unknown>,
+  conflictColumns: string[] | undefined,
+  dialect?: string
+): { sql: string; parameters: unknown[] } => {
+  const compiled = compileInsert(tableName, values, dialect);
+  const dialectName = (dialect ?? '').toLowerCase();
+
+  if (dialectName === 'mysql') {
+    return { ...compiled, sql: compiled.sql.replace(/^INSERT INTO/i, 'INSERT IGNORE INTO') };
+  }
+  if (dialectName === 'sqlite' || dialectName === 'd1' || dialectName === 'd1-remote' || dialectName === 'postgresql') {
+    const columns = conflictColumns ?? [];
+    for (const column of columns) assertSafeIdentifier(column, 'conflict column');
+    const target = columns.length === 0
+      ? ''
+      : ` (${columns.map((column) => escapeIdentifier(column, dialect)).join(', ')})`;
+    const returning = dialectName === 'postgresql' && compiled.sql.endsWith(' RETURNING id');
+    const insertSql = returning ? compiled.sql.slice(0, -' RETURNING id'.length) : compiled.sql;
+    const conflictSql = `${insertSql} ON CONFLICT${target} DO NOTHING`;
+    return {
+      ...compiled,
+      sql: returning ? `${conflictSql} RETURNING id` : conflictSql,
+    };
+  }
+
+  throw ErrorFactory.createDatabaseError(
+    `insertIfAbsent is not supported for the ${dialectName || 'unknown'} database driver`
+  );
+};
+
+const compileIncrement = (
+  tableName: string,
+  column: string,
+  amount: number,
+  conditions: WherePredicate[],
+  dialect?: string
+): { sql: string; parameters: unknown[] } => {
+  if (!Number.isFinite(amount)) {
+    throw ErrorFactory.createDatabaseError('Increment amount must be a finite number');
+  }
+  if (conditions.length === 0) {
+    throw ErrorFactory.createDatabaseError('UPDATE requires at least one WHERE clause');
+  }
+  assertSafeIdentifierPath(tableName, 'table name');
+  assertSafeIdentifierPath(column, 'increment column');
+  const columnSql = escapeIdentifier(column, dialect);
+  const where = compileWhere(conditions, dialect);
+  return {
+    sql: `UPDATE ${escapeIdentifier(tableName, dialect)} SET ${columnSql} = ${columnSql} + ?${where.sql}`,
+    parameters: [amount, ...where.parameters],
+  };
+};
+
 const compileUpdate = (
   tableName: string,
   values: Record<string, unknown>,
@@ -2327,13 +2391,44 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
       insertedRecords: items,
     };
   };
+  builder.insertIfAbsent = async (values, conflictColumns) => {
+    const currentDb = ensureDb();
+    const tableName = state.tableName.trim();
+    if (tableName.length === 0)
+      throw ErrorFactory.createDatabaseError('INSERT requires a table name');
+    const compiled = compileInsertIfAbsent(tableName, values, conflictColumns, state.dialect);
+    const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
+    const inserted = result.rowCount > 0;
+    return {
+      id: (result.lastInsertId as string | number | bigint) ?? (inserted ? (values['id'] as string | number | null) ?? null : null),
+      affectedRows: result.rowCount,
+      insertedRecords: inserted ? [values] : [],
+      inserted,
+    };
+  };
   builder.update = async (values) => {
     const currentDb = ensureDb();
     const tableName = state.tableName.trim();
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('UPDATE requires a table name');
     const compiled = compileUpdate(tableName, values, state.whereConditions, state.dialect);
-    await currentDb.query(compiled.sql, compiled.parameters, false);
+    const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
+    return result.rowCount;
+  };
+  builder.increment = async (column, amount) => {
+    const currentDb = ensureDb();
+    const tableName = state.tableName.trim();
+    if (tableName.length === 0)
+      throw ErrorFactory.createDatabaseError('UPDATE requires a table name');
+    const compiled = compileIncrement(
+      tableName,
+      column,
+      amount,
+      state.whereConditions,
+      state.dialect
+    );
+    const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
+    return result.rowCount;
   };
   builder.delete = async () => {
     const currentDb = ensureDb();

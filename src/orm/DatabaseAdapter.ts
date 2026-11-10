@@ -37,6 +37,13 @@ export interface ID1PreparedStatement {
   bind(...values: unknown[]): ID1BoundStatement;
 }
 
+export interface ID1BatchResult {
+  results?: Record<string, unknown>[];
+  success: boolean;
+  error?: string;
+  meta?: Record<string, unknown>;
+}
+
 /**
  * Minimal D1 Database interface for type safety.
  *
@@ -46,6 +53,7 @@ export interface ID1PreparedStatement {
  */
 export interface ID1Database {
   prepare(sql: string): ID1PreparedStatement;
+  batch?(statements: ID1BoundStatement[]): Promise<ID1BatchResult[]>;
   withSession?(constraint?: D1ReadConstraint): ID1DatabaseSession;
 }
 
@@ -76,6 +84,7 @@ export interface DatabaseConfig {
 export interface QueryResult {
   rows: Record<string, unknown>[];
   rowCount: number;
+  affectedRows?: number;
   lastInsertId?: string | number | bigint;
   /**
    * Read-replication routing metadata, when the driver exposes it (D1).
@@ -84,6 +93,11 @@ export interface QueryResult {
    */
   servedByPrimary?: boolean;
   servedByRegion?: string;
+}
+
+export interface BatchStatement {
+  sql: string;
+  parameters?: unknown[];
 }
 
 export interface IDatabaseAdapter {
@@ -118,6 +132,11 @@ export interface IDatabaseAdapter {
    * Execute multiple queries in transaction
    */
   transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T>;
+
+  /**
+   * Execute an ordered batch atomically when the driver supports native batching.
+   */
+  batch?(statements: BatchStatement[]): Promise<QueryResult[]>;
 
   /**
    * Execute raw SQL query (only available when USE_RAW_QRY=true)

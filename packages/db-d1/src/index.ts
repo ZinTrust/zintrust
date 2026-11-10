@@ -5,13 +5,25 @@ import { ErrorFactory } from '@zintrust/core/errors';
 import { Logger } from '@zintrust/core/logger';
 
 export interface ID1Database {
-  prepare(sql: string): {
-    bind(...values: unknown[]): {
-      all<T = unknown>(): Promise<{ results?: T[]; success: boolean; error?: string }>;
-      first<T = unknown>(): Promise<T | null>;
-      run(): Promise<{ success: boolean; error?: string }>;
-    };
-  };
+  prepare(sql: string): ID1PreparedStatement;
+  batch?(statements: ID1BoundStatement[]): Promise<ID1BatchResult[]>;
+}
+
+interface ID1PreparedStatement {
+  bind(...values: unknown[]): ID1BoundStatement;
+}
+
+interface ID1BoundStatement {
+  all<T = unknown>(): Promise<{ results?: T[]; success: boolean; error?: string; meta?: Record<string, unknown> }>;
+  first<T = unknown>(): Promise<T | null>;
+  run(): Promise<{ success: boolean; error?: string; meta?: Record<string, unknown> }>;
+}
+
+interface ID1BatchResult {
+  results?: Record<string, unknown>[];
+  success: boolean;
+  error?: string;
+  meta?: Record<string, unknown>;
 }
 
 export type DatabaseConfig = {
@@ -30,6 +42,8 @@ export type DatabaseConfig = {
 export type QueryResult = {
   rows: Record<string, unknown>[];
   rowCount: number;
+  affectedRows?: number;
+  lastInsertId?: string | number | bigint;
 };
 
 export interface IDatabaseAdapter {
@@ -39,6 +53,7 @@ export interface IDatabaseAdapter {
   queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null>;
   ping(): Promise<void>;
   transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T>;
+  batch?(statements: Array<{ sql: string; parameters?: unknown[] }>): Promise<QueryResult[]>;
   rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]>;
   getType(): string;
   isConnected(): boolean;
@@ -110,7 +125,28 @@ async function queryD1(
   try {
     const stmt = db.prepare(sql);
     const normalizedParams = normalizeD1BindParameters(parameters);
+    if (/^\s*(insert|update|delete|replace|create|drop|alter)\b/i.test(sql)) {
+      const result = await stmt.bind(...normalizedParams).run();
+      if (result.success === false) {
+        throw ErrorFactory.createDatabaseError(result.error ?? 'D1 statement failed');
+      }
+      const meta = result.meta ?? {};
+      const changes = typeof meta['changes'] === 'number' ? meta['changes'] : 0;
+      const lastInsertId = meta['last_row_id'] ?? meta['lastRowId'];
+      return {
+        rows: [],
+        rowCount: changes,
+        ...(typeof lastInsertId === 'number' ||
+        typeof lastInsertId === 'string' ||
+        typeof lastInsertId === 'bigint'
+          ? { lastInsertId }
+          : {}),
+      };
+    }
     const result = await stmt.bind(...normalizedParams).all();
+    if (result.success === false) {
+      throw ErrorFactory.createDatabaseError(result.error ?? 'D1 query failed');
+    }
     const rows = BaseAdapter.normalizeRows((result.results as Record<string, unknown>[]) ?? []);
     return { rows, rowCount: rows.length };
   } catch (error) {
@@ -189,12 +225,51 @@ function createD1Adapter(config: DatabaseConfig): IDatabaseAdapter {
       ensureConnected(state);
       return pingD1(state.config);
     },
-    transaction: async (callback) => {
+    transaction: (_callback) => {
       ensureConnected(state);
+      return Promise.reject(
+        ErrorFactory.createConfigError(
+          'D1 does not support callback transactions. Use db.batch() with a complete ordered statement list.'
+        )
+      );
+    },
+    batch: async (statements) => {
+      ensureConnected(state);
+      const db = requireD1(state.config);
+      if (typeof db.batch !== 'function') {
+        throw ErrorFactory.createConfigError(
+          'The configured D1 binding does not support atomic batches'
+        );
+      }
+
       try {
-        return await callback(adapter);
+        const prepared = statements.map(({ sql, parameters = [] }) =>
+          db.prepare(sql).bind(...normalizeD1BindParameters(parameters))
+        );
+        const results = await db.batch(prepared);
+        return results.map((result, index) => {
+          if (!result.success) {
+            throw ErrorFactory.createDatabaseError(
+              result.error ?? `D1 batch statement ${index + 1} failed`
+            );
+          }
+          const meta = result.meta ?? {};
+          const changes = typeof meta['changes'] === 'number' ? meta['changes'] : 0;
+          const lastInsertId = meta['last_row_id'] ?? meta['lastRowId'];
+          const rows = BaseAdapter.normalizeRows(result.results ?? []);
+          return {
+            rows,
+            rowCount: rows.length > 0 ? rows.length : changes,
+            affectedRows: changes,
+            ...(typeof lastInsertId === 'number' ||
+            typeof lastInsertId === 'string' ||
+            typeof lastInsertId === 'bigint'
+              ? { lastInsertId }
+              : {}),
+          };
+        });
       } catch (error) {
-        throw ErrorFactory.createTryCatchError('Transaction failed', error);
+        throw ErrorFactory.createTryCatchError('D1 atomic batch failed', error);
       }
     },
     getType: () => 'd1',

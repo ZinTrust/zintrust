@@ -157,13 +157,26 @@ const runSql = (
   return [];
 };
 
+const captureBatch = async (
+  onSql: (sql: string) => void,
+  schema: SchemaState,
+  statements: Array<{ sql: string; parameters?: unknown[] }>
+): Promise<QueryResult[]> => {
+  for (const statement of statements) {
+    captureSql(onSql, schema, statement.sql, statement.parameters ?? []);
+  }
+  await RESOLVED_VOID;
+  return statements.map(() => ({ rows: [], rowCount: 0, affectedRows: 0 }));
+};
+
 const createCaptureDb = (onSql: (sql: string) => void, schema: SchemaState): IDatabase => {
   let connected = false;
-  const setConnected = (v: boolean): void => {
-    connected = v;
-  };
-
-  const noopAdapter = createNoopAdapter(() => connected, setConnected);
+  const noopAdapter = createNoopAdapter(
+    () => connected,
+    (value) => {
+      connected = value;
+    }
+  );
 
   const db = (<IDatabase>{
     async connect(): Promise<void> {
@@ -192,6 +205,8 @@ const createCaptureDb = (onSql: (sql: string) => void, schema: SchemaState): IDa
       await RESOLVED_VOID;
       return { rows: [], rowCount: 0 };
     },
+    // eslint-disable-next-line @typescript-eslint/promise-function-async
+    batch: (statements) => captureBatch(onSql, schema, statements),
     raw(value: string): { __raw: string } {
       return { __raw: value };
     },

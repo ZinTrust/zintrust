@@ -403,7 +403,12 @@ describe('Database', () => {
   });
 
   it('should delegate transaction to write adapter', async () => {
-    const mockTransaction = vi.fn().mockImplementation((cb) => cb());
+    const txAdapter = {
+      query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
+      queryOne: vi.fn().mockResolvedValue(null),
+      getType: vi.fn().mockReturnValue('sqlite'),
+    };
+    const mockTransaction = vi.fn().mockImplementation((cb) => cb(txAdapter));
 
     (SQLiteAdapter.create as any).mockImplementation(() => {
       return {
@@ -417,12 +422,75 @@ describe('Database', () => {
     });
 
     db = Database.create({ driver: 'sqlite', database: ':memory:' });
+    const globalQuery = vi.spyOn(db, 'query');
 
     await db.transaction(async (trx: IDatabase) => {
-      expect(trx).toBe(db);
+      expect(trx).not.toBe(db);
+      await trx.table('users').where('id', '=', 1).update({ active: true });
     });
 
     expect(mockTransaction).toHaveBeenCalled();
+    expect(txAdapter.query).toHaveBeenCalledWith(
+      'UPDATE "users" SET "active" = ? WHERE "id" = ?',
+      [true, 1]
+    );
+    expect(globalQuery).not.toHaveBeenCalled();
+  });
+
+  it('executes generic batches sequentially on the interactive transaction adapter', async () => {
+    const txAdapter = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 }),
+      queryOne: vi.fn().mockResolvedValue(null),
+      getType: vi.fn().mockReturnValue('sqlite'),
+    };
+    const mockTransaction = vi.fn().mockImplementation((cb) => cb(txAdapter));
+    (SQLiteAdapter.create as any).mockReturnValue({
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+      queryOne: vi.fn().mockResolvedValue(null),
+      transaction: mockTransaction,
+      getType: vi.fn().mockReturnValue('sqlite'),
+    });
+
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
+    const results = await db.batch([
+      { sql: 'UPDATE accounts SET balance = balance + ?', parameters: [10] },
+      { sql: 'INSERT INTO ledger (amount) VALUES (?)', parameters: [10] },
+    ]);
+
+    expect(txAdapter.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'UPDATE accounts SET balance = balance + ?',
+      'INSERT INTO ledger (amount) VALUES (?)',
+    ]);
+    expect(results.map((result) => result.affectedRows)).toEqual([1, 0]);
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the adapter native batch implementation when available', async () => {
+    const nativeBatch = vi.fn().mockResolvedValue([{ rows: [], rowCount: 1 }]);
+    (D1Adapter.create as any).mockReturnValue({
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+      queryOne: vi.fn().mockResolvedValue(null),
+      transaction: vi.fn(),
+      batch: nativeBatch,
+      getType: vi.fn().mockReturnValue('d1'),
+      getPlaceholder: vi.fn().mockReturnValue('?'),
+      rawQuery: vi.fn().mockResolvedValue([]),
+    });
+
+    db = Database.create({ driver: 'd1' });
+    const results = await db.batch([{ sql: 'UPDATE accounts SET balance = balance + ?', parameters: [10] }]);
+
+    expect(nativeBatch).toHaveBeenCalledWith([
+      { sql: 'UPDATE accounts SET balance = balance + ?', parameters: [10] },
+    ]);
+    expect(results[0]?.affectedRows).toBe(1);
   });
 
   describe('Error Handling', () => {
