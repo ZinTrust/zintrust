@@ -173,7 +173,7 @@ const jsonValueExpr = (driver: string, column: string, key: string): string => {
   if (driver === 'mysql') return `JSON_UNQUOTE(JSON_EXTRACT(${column}, '$.${key}'))`;
   if (driver === 'postgresql') return `(${column}::jsonb ->> '${key}')`;
   if (driver === 'sqlserver') {
-    return `COALESCE(JSON_VALUE(${column}, '$.${key}'), JSON_QUERY(${column}, '$.${key}'))`;
+    return `(SELECT [value] FROM OPENJSON(CAST(${column} AS NVARCHAR(MAX))) WHERE [key] = '${key}')`;
   }
   return `json_extract(${column}, '$.${key}')`;
 };
