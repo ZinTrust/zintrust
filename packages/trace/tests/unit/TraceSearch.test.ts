@@ -187,9 +187,9 @@ describe('trace search storage SQL', () => {
       search: 'api',
       searchFields: ['url'],
     });
-    const [sqlserverSql] = findCall(sqlserver.query, 'JSON_VALUE');
+    const [sqlserverSql] = findCall(sqlserver.query, 'OPENJSON');
     expect(sqlserverSql).toContain(
-      "COALESCE(JSON_VALUE(e.content, '$.uri'), JSON_QUERY(e.content, '$.uri')) LIKE ? ESCAPE '!'"
+      "(SELECT [value] FROM OPENJSON(CAST(e.content AS NVARCHAR(MAX))) WHERE [key] = 'uri') LIKE ? ESCAPE '!'"
     );
   });
 
