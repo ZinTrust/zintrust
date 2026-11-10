@@ -1245,7 +1245,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           detailBatch: null,
           detailTab: 'summary',
           entriesPage: 1,
-          entriesFilter: { ...state.entriesFilter, q: search.q, fields: search.fields }
+          entriesFilter: { type: '', tag: '', batchId: '', q: search.q, fields: search.fields }
         };
         syncUrl('push');
         render({ skipSync: true });
