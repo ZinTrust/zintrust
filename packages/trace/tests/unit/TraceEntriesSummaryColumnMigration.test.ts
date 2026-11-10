@@ -52,6 +52,18 @@ describe('AddZinTraceEntriesSummaryColumn migration', () => {
     expect(table).not.toHaveBeenCalled();
   });
 
+  it('adds the summary column with SQL Server syntax', async () => {
+    mockDb.getType.mockReturnValue('sqlserver');
+
+    await migration.up(mockDb as never);
+
+    expect(mockDb.query).toHaveBeenCalledWith(
+      'ALTER TABLE zin_trace_entries ADD summary NVARCHAR(MAX) NULL',
+      []
+    );
+    expect(table).not.toHaveBeenCalled();
+  });
+
   it('skips when the entries table does not exist yet', async () => {
     hasTable.mockResolvedValue(false);
 

@@ -156,6 +156,41 @@ describe('TraceStorage', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  it('rechecks zero totals so newly matching entries become visible', async () => {
+    const db = createDb();
+    vi.mocked(db.queryOne).mockResolvedValueOnce({ cnt: 0 }).mockResolvedValueOnce({ cnt: 1 });
+    const storage = TraceStorage.resolveStorage(db);
+
+    const emptyResult = await storage.queryEntries({ page: 1, perPage: 10, tag: 'new-tag' });
+    const populatedResult = await storage.queryEntries({ page: 1, perPage: 10, tag: 'new-tag' });
+
+    expect(emptyResult).toEqual({ data: [], total: 0 });
+    expect(populatedResult.total).toBe(1);
+    expect(populatedResult.data.length).toBeGreaterThan(0);
+    expect(
+      vi
+        .mocked(db.queryOne)
+        .mock.calls.filter(([sql]) => String(sql).includes('COUNT(*) as cnt'))
+    ).toHaveLength(2);
+  });
+
+  it('uses separate count cache entries for different time conditions', async () => {
+    const db = createDb();
+    vi.mocked(db.queryOne).mockResolvedValueOnce({ cnt: 1 }).mockResolvedValueOnce({ cnt: 2 });
+    const storage = TraceStorage.resolveStorage(db);
+
+    const fromResult = await storage.queryEntries({ from: 1000 });
+    const toResult = await storage.queryEntries({ to: 1000 });
+
+    expect(fromResult.total).toBe(1);
+    expect(toResult.total).toBe(2);
+    expect(
+      vi
+        .mocked(db.queryOne)
+        .mock.calls.filter(([sql]) => String(sql).includes('COUNT(*) as cnt'))
+    ).toHaveLength(2);
+  });
+
   it('serves repeated totals and stats from the cache within the TTL', async () => {
     const db = createDb();
     const storage = TraceStorage.resolveStorage(db);
