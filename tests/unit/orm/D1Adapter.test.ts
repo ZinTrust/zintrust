@@ -210,6 +210,40 @@ describe('D1Adapter', () => {
     expect(mockD1.prepare).toHaveBeenCalledTimes(2);
   });
 
+  it('surfaces D1 run, query, binding, and per-statement batch errors', async () => {
+    await adapter.connect();
+    mockD1.prepare.mockReturnValue({
+      bind: () => ({
+        run: async () => ({ success: false, error: 'write rejected' }),
+        all: async () => ({ success: false, error: 'query rejected' }),
+      }),
+    });
+    await expect(adapter.query('UPDATE users SET name = ?', ['A'])).rejects.toThrow(
+      /D1 query failed/
+    );
+    await expect(adapter.query('SELECT * FROM users', [])).rejects.toThrow(/D1 query failed/);
+
+    delete (globalThis as any).env.DB;
+    const missingBinding = D1Adapter.create(mockConfig);
+    await missingBinding.connect();
+    await expect(
+      missingBinding.batch?.([{ sql: 'UPDATE users SET name = ?', parameters: ['A'] }])
+    ).rejects.toThrow(/D1 database binding not found/i);
+    (globalThis as any).env.DB = mockD1;
+
+    Reflect.deleteProperty(mockD1, 'batch');
+    await expect(
+      adapter.batch?.([{ sql: 'UPDATE users SET name = ?', parameters: ['A'] }])
+    ).rejects.toThrow(/does not support atomic batches/i);
+
+    Object.assign(mockD1, {
+      batch: vi.fn().mockResolvedValue([{ success: false, error: 'statement rejected' }]),
+    });
+    await expect(
+      adapter.batch?.([{ sql: 'UPDATE users SET name = ?', parameters: ['A'] }])
+    ).rejects.toThrow(/D1 atomic batch failed/i);
+  });
+
   it('should return correct parameter placeholder', () => {
     const placeholder = adapter.getPlaceholder(0);
     expect(placeholder).toBe('?');

@@ -24,6 +24,10 @@ vi.mock('@migrations/MigrationLoader', () => ({
         await db.query('ALTER TABLE t DROP COLUMN x', []);
         await db.query('ALTER TABLE t ADD x TEXT', []);
         await db.query('ALTER TABLE t ADD COLUMN y TEXT', []);
+        await db.batch([
+          { sql: 'INSERT INTO t (id) VALUES (?)', parameters: [1] },
+          { sql: 'UPDATE t SET id = ?', parameters: [2] },
+        ]);
       },
     })),
   },

@@ -427,6 +427,16 @@ describe('Database', () => {
     await db.transaction(async (trx: IDatabase) => {
       expect(trx).not.toBe(db);
       await trx.table('users').where('id', '=', 1).update({ active: true });
+      await trx.query('SELECT 1');
+      await trx.queryOne('SELECT 1');
+      await trx.batch([{ sql: 'DELETE FROM users WHERE id = ?', parameters: [2] }]);
+      expect(trx.getAdapterInstance()).toBe(txAdapter);
+      await expect(
+        trx.withReadSession(async (scopedDb) => scopedDb.query('SELECT 2'))
+      ).resolves.toMatchObject({ bookmark: null });
+      expect(() => trx.transaction(async () => undefined)).toThrow(
+        /Nested database transactions are not supported/
+      );
     });
 
     expect(mockTransaction).toHaveBeenCalled();

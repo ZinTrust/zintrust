@@ -101,6 +101,37 @@ describe('QueryBuilder (coverage)', () => {
     ]);
   });
 
+  it('covers insert-if-absent dialect fallbacks and invalid write inputs', async () => {
+    const execute = vi.fn().mockResolvedValue({ rowCount: 1 });
+    const mysql = QueryBuilder.create('claims', { execute, getType: () => 'mysql' } as any);
+    await mysql.insertIfAbsent({ reference: 'ref-1' });
+    expect(execute.mock.calls[0]?.[0]).toContain('INSERT IGNORE INTO');
+
+    const sqlite = QueryBuilder.create('claims', { execute, getType: () => 'sqlite' } as any);
+    await sqlite.insertIfAbsent({ reference: 'ref-2' });
+    expect(execute.mock.calls[1]?.[0]).toContain('ON CONFLICT DO NOTHING');
+
+    const sqlServer = QueryBuilder.create('claims', {
+      execute,
+      getType: () => 'sqlserver',
+    } as any);
+    await expect(sqlServer.insertIfAbsent({ reference: 'ref-3' })).rejects.toThrow(
+      /not supported/i
+    );
+    await expect(QueryBuilder.create('', { execute } as any).insertIfAbsent({ ref: 'ref' }))
+      .rejects.toThrow(/INSERT requires a table name/i);
+    await expect(QueryBuilder.create('', { execute } as any).where('id', '=', 1).update({ id: 2 }))
+      .rejects.toThrow(/UPDATE requires a table name/i);
+    await expect(
+      QueryBuilder.create('accounts', { execute } as any)
+        .where('id', '=', 1)
+        .increment('balance', Number.POSITIVE_INFINITY)
+    ).rejects.toThrow(/finite number/i);
+    await expect(
+      QueryBuilder.create('accounts', { execute } as any).increment('balance', 1)
+    ).rejects.toThrow(/at least one WHERE/i);
+  });
+
   it('rejects update/delete without where clause', async () => {
     const db = {
       query: vi.fn().mockResolvedValue([]),
