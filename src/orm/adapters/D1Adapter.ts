@@ -10,6 +10,7 @@ import { isObject } from '@helper/index';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import { createReadSessionScope, openSession } from '@orm/adapters/D1ReadSession';
 import type {
+  BatchStatement,
   D1ReadConstraint,
   DatabaseConfig,
   ID1Database,
@@ -172,6 +173,9 @@ export const D1Adapter = Object.freeze({
 
           if (isMutatingSql(sql)) {
             const runResult = await stmt.bind(...normalizedParams).run();
+            if (runResult.success === false) {
+              throw ErrorFactory.createDatabaseError(runResult.error ?? 'D1 statement failed');
+            }
             const runRecord = runResult as { meta?: unknown };
             const meta = extractMeta(runRecord.meta);
             return {
@@ -183,6 +187,9 @@ export const D1Adapter = Object.freeze({
           }
 
           const result = await stmt.bind(...normalizedParams).all();
+          if (result.success === false) {
+            throw ErrorFactory.createDatabaseError(result.error ?? 'D1 query failed');
+          }
           const rawResult = result as { results?: Record<string, unknown>[]; meta?: unknown };
           const rows = BaseAdapter.normalizeRows(rawResult.results ?? []);
           const metaValue = rawResult.meta;
@@ -190,6 +197,7 @@ export const D1Adapter = Object.freeze({
           return {
             rows,
             rowCount: rows.length > 0 ? rows.length : meta.changes,
+            affectedRows: meta.changes,
             lastInsertId: meta.lastInsertId,
             ...extractServedBy(metaValue),
           };
@@ -226,13 +234,49 @@ export const D1Adapter = Object.freeze({
         }
       },
 
-      async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async transaction<T>(_callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
+        throw ErrorFactory.createConfigError(
+          'D1 does not support callback transactions. Use db.batch() with a complete ordered statement list.'
+        );
+      },
+
+      async batch(statements: BatchStatement[]): Promise<QueryResult[]> {
+        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
+        const db = getD1Binding(_config);
+        if (db === null) {
+          throw ErrorFactory.createConfigError('D1 database binding not found');
+        }
+        if (typeof db.batch !== 'function') {
+          throw ErrorFactory.createConfigError(
+            'The configured D1 binding does not support atomic batches'
+          );
+        }
+
         try {
-          const result = await callback(this);
-          return result;
+          const prepared = statements.map(({ sql, parameters = [] }) =>
+            db.prepare(sql).bind(...normalizeD1BindParameters(parameters))
+          );
+          const results = await db.batch(prepared);
+          return results.map((result, index) => {
+            if (!result.success) {
+              throw ErrorFactory.createDatabaseError(
+                result.error ?? `D1 batch statement ${index + 1} failed`
+              );
+            }
+            const meta = extractMeta(result.meta);
+            const rows = BaseAdapter.normalizeRows(result.results ?? []);
+            return {
+              rows,
+              rowCount: rows.length > 0 ? rows.length : meta.changes,
+              affectedRows: meta.changes,
+              lastInsertId: meta.lastInsertId,
+              ...extractServedBy(result.meta),
+            };
+          });
         } catch (error) {
-          throw ErrorFactory.createTryCatchError('Transaction failed', error);
+          throw ErrorFactory.createTryCatchError('D1 atomic batch failed', error);
         }
       },
 

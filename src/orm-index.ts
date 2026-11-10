@@ -11,6 +11,7 @@ export type { DefinedModel, IModel, ModelConfig, ModelStatic } from '@orm/Model'
 export { QueryBuilder } from '@orm/QueryBuilder';
 export type {
   IJoinOnBuilder,
+  InsertIfAbsentResult,
   InsertResult,
   IQueryBuilder,
   JoinOnInput,
@@ -22,6 +23,7 @@ export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 export { BaseAdapter } from '@orm/DatabaseAdapter';
 export type {
   DatabaseConfig,
+  BatchStatement,
   ID1Database,
   IDatabaseAdapter,
   QueryResult,

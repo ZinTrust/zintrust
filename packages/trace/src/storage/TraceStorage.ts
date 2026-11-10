@@ -4,6 +4,7 @@
  * read/write operations to the trace storage facade.
  */
 import type { IDatabase } from '@zintrust/core/database';
+import { Logger } from '@zintrust/core/logger';
 import type {
   EntryTypeValue,
   ITraceEntry,
@@ -12,6 +13,8 @@ import type {
   QueryBatchEntriesResult,
   QueryEntriesOptions,
   TraceClientHost,
+  TraceSearchField,
+  TraceSearchOptions,
 } from '../types';
 import { EntryType } from '../types';
 import { familyHash } from '../utils/familyHash';
@@ -144,6 +147,90 @@ type DatabaseWithDriver = IDatabase & {
   getType?: () => string;
 };
 
+const driverOf = (db: IDatabase): string => (db as DatabaseWithDriver).getType?.() ?? 'sqlite';
+
+const isSqliteFamilyDriver = (driver: string): boolean =>
+  driver === 'sqlite' || driver === 'd1' || driver === 'd1-remote';
+
+// Top-level JSON keys that hold each search field group's values across entry types.
+const SEARCH_FIELD_KEYS: Record<TraceSearchField, readonly string[]> = {
+  request: ['payload', 'requestBody'],
+  response: ['responseBody', 'responseStatus'],
+  headers: ['headers', 'requestHeaders', 'responseHeaders'],
+  url: ['uri', 'url'],
+  error: ['error', 'message'],
+  sql: ['sql'],
+  meta: ['method', 'hostname', 'userId', 'name', 'key', 'model', 'subject', 'command'],
+};
+
+const LIKE_ESCAPE = '!';
+
+const escapeLikeTerm = (term: string): string =>
+  term.replace(/[!%_]/g, (ch) => `${LIKE_ESCAPE}${ch}`);
+
+// JSON keys come from SEARCH_FIELD_KEYS (fixed identifiers, never user input), so inlining them is safe.
+const jsonValueExpr = (driver: string, column: string, key: string): string => {
+  if (driver === 'mysql') return `JSON_UNQUOTE(JSON_EXTRACT(${column}, '$.${key}'))`;
+  if (driver === 'postgresql') return `(${column}::jsonb ->> '${key}')`;
+  if (driver === 'sqlserver') {
+    return `(SELECT [value] FROM OPENJSON(CAST(${column} AS NVARCHAR(MAX))) WHERE [key] = '${key}')`;
+  }
+  return `json_extract(${column}, '$.${key}')`;
+};
+
+// Trigram FTS5 index from migration 20261109120000 (sqlite-family only). Trigram cannot match terms
+// shorter than 3 characters, and group values are newline-joined, so terms with a newline use LIKE.
+const FTS_TABLE = 'zin_trace_entries_search';
+const FTS_ALL_COLUMN = 'all_content';
+const FTS_MIN_TERM_CHARS = 3;
+
+const canUseFtsSearch = (driver: string, term: string): boolean =>
+  isSqliteFamilyDriver(driver) &&
+  Array.from(term).length >= FTS_MIN_TERM_CHARS &&
+  !/[\r\n]/.test(term);
+
+// FTS5 column filter: `{col1 col2} : "phrase"`, with embedded double quotes doubled.
+const buildFtsCondition = (
+  idColumn: string,
+  term: string,
+  fields: TraceSearchField[]
+): { sql: string; params: unknown[] } => {
+  const columns = fields.length === 0 ? [FTS_ALL_COLUMN] : [...new Set(fields)];
+  const phrase = `"${term.replaceAll('"', '""')}"`;
+
+  return {
+    sql: `${idColumn} IN (SELECT rowid FROM ${FTS_TABLE} WHERE ${FTS_TABLE} MATCH ?)`,
+    params: [`{${columns.join(' ')}} : ${phrase}`],
+  };
+};
+
+const buildSearchCondition = (
+  driver: string,
+  refs: { id: string; column: string },
+  opts: TraceSearchOptions,
+  allowFts = true
+): { sql: string; params: unknown[] } | undefined => {
+  const term = opts.search?.trim();
+  if (!term) return undefined;
+
+  const fields = opts.searchFields ?? [];
+  if (allowFts && canUseFtsSearch(driver, term)) return buildFtsCondition(refs.id, term, fields);
+
+  const column = refs.column;
+  const pattern = `%${escapeLikeTerm(term)}%`;
+  const op = driver === 'postgresql' ? 'ILIKE' : 'LIKE';
+  const keys = [...new Set(fields.flatMap((field) => SEARCH_FIELD_KEYS[field]))];
+
+  if (keys.length === 0) {
+    return { sql: `${column} ${op} ? ESCAPE '${LIKE_ESCAPE}'`, params: [pattern] };
+  }
+
+  const clauses = keys.map(
+    (key) => `${jsonValueExpr(driver, column, key)} ${op} ? ESCAPE '${LIKE_ESCAPE}'`
+  );
+  return { sql: `(${clauses.join(' OR ')})`, params: keys.map(() => pattern) };
+};
+
 const buildIgnoreInsert = (
   db: IDatabase,
   table: string,
@@ -268,7 +355,9 @@ const createTtlCache = (
 // Shared by the count and page queries. The tag condition is supplied by the caller because
 // the count joins the tags table while the page query uses EXISTS (see queryEntries).
 const buildEntryConditions = (
-  opts: QueryEntriesOptions
+  opts: QueryEntriesOptions,
+  driver: string,
+  allowFts = true
 ): { conditions: string[]; params: unknown[] } => {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -288,6 +377,12 @@ const buildEntryConditions = (
   if (opts.to) {
     conditions.push('e.created_at <= ?');
     params.push(opts.to);
+  }
+
+  const search = buildSearchCondition(driver, { id: 'e.id', column: 'e.content' }, opts, allowFts);
+  if (search) {
+    conditions.push(search.sql);
+    params.push(...search.params);
   }
 
   return { conditions, params };
@@ -312,7 +407,8 @@ const buildBatchCounts = async (
 
 const buildBatchEntryFilters = (
   batchId: string,
-  opts: QueryBatchEntriesOptions
+  opts: QueryBatchEntriesOptions,
+  driver: string
 ): { whereClause: string; params: unknown[] } => {
   const conditions = ['batch_id = ?'];
   const params: unknown[] = [batchId];
@@ -327,6 +423,12 @@ const buildBatchEntryFilters = (
     const placeholders = excludeTypes.map(() => '?').join(', ');
     conditions.push(`type NOT IN (${placeholders})`);
     params.push(...excludeTypes);
+  }
+
+  const search = buildSearchCondition(driver, { id: 'id', column: 'content' }, opts);
+  if (search) {
+    conditions.push(search.sql);
+    params.push(...search.params);
   }
 
   return { whereClause: `WHERE ${conditions.join(' AND ')}`, params };
@@ -406,13 +508,14 @@ const createStorage = (db: IDatabase): ITraceStorage => {
     );
   };
 
-  const queryEntries = async (
-    opts: QueryEntriesOptions
+  const runQueryEntries = async (
+    opts: QueryEntriesOptions,
+    allowFts: boolean
   ): Promise<{ data: ITraceEntry[]; total: number }> => {
     const page = opts.page ?? 1;
     const perPage = opts.perPage ?? 50;
     const offset = (page - 1) * perPage;
-    const { conditions, params } = buildEntryConditions(opts);
+    const { conditions, params } = buildEntryConditions(opts, driverOf(db), allowFts);
     const where = (extra: string[]): string => {
       const all = [...extra, ...conditions];
       return all.length > 0 ? `WHERE ${all.join(' AND ')}` : '';
@@ -511,7 +614,7 @@ const createStorage = (db: IDatabase): ITraceStorage => {
       return { entries: [], total, counts, page, perPage };
     }
 
-    const { whereClause, params } = buildBatchEntryFilters(batchId, opts);
+    const { whereClause, params } = buildBatchEntryFilters(batchId, opts, driverOf(db));
     const countResult = (await db.queryOne(
       `SELECT COUNT(*) as cnt FROM ${TABLE_ENTRIES} ${whereClause}`,
       params
@@ -542,6 +645,21 @@ const createStorage = (db: IDatabase): ITraceStorage => {
       page,
       perPage,
     };
+  };
+
+  const queryEntries = async (
+    opts: QueryEntriesOptions
+  ): Promise<{ data: ITraceEntry[]; total: number }> => {
+    try {
+      return await runQueryEntries(opts, true);
+    } catch (error) {
+      if (!canUseFtsSearch(driverOf(db), (opts.search ?? '').trim())) throw error;
+      // The FTS index can be missing or unusable on a D1 database; the LIKE scan still answers the search.
+      Logger.warn('[trace] FTS search failed; retrying with LIKE scan', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return runQueryEntries(opts, false);
+    }
   };
 
   const prune = async (olderThanMs: number, keepExceptions = false): Promise<number> => {

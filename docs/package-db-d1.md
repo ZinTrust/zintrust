@@ -135,8 +135,46 @@ export const down = async (db) => {
 
 - **Cold Starts**: D1 may have cold start latency
 - **Query Optimization**: Use indexes for better performance
-- **Batch Operations**: Use transactions for multiple operations
+- **Batch Operations**: Use `db.batch()` for atomic multi-statement operations
 - **Connection Reuse**: Reuse connections when possible
+
+## Atomic batches
+
+D1 does not provide an interactive transaction connection. Use `db.batch()` with
+the complete ordered list of parameterized statements; D1 executes the batch
+atomically and returns one affected-row result per statement. Do not use
+`db.transaction()` with D1: callback transactions reject because statements
+cannot be committed or rolled back interactively.
+
+Gate every dependent write with a unique claim token. This lets a duplicate
+claim produce zero affected rows for the balance and ledger statements without
+requiring application code to inspect an intermediate result:
+
+```typescript
+const claimToken = crypto.randomUUID();
+const results = await db.batch([
+  {
+    sql: 'INSERT INTO settlement_claims (provider_reference, claim_token) VALUES (?, ?) ON CONFLICT(provider_reference) DO NOTHING',
+    parameters: [providerReference, claimToken],
+  },
+  {
+    sql: 'UPDATE accounts SET balance = balance + ? WHERE id = ? AND EXISTS (SELECT 1 FROM settlement_claims WHERE provider_reference = ? AND claim_token = ?)',
+    parameters: [amount, accountId, providerReference, claimToken],
+  },
+  {
+    sql: 'INSERT INTO ledger (provider_reference, account_id, amount) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM settlement_claims WHERE provider_reference = ? AND claim_token = ?)',
+    parameters: [providerReference, accountId, amount, providerReference, claimToken],
+  },
+]);
+
+const settled = results[0]?.affectedRows === 1;
+```
+
+The claim table must have a unique constraint on `provider_reference`, and all
+statements that apply settlement effects must check the same claim token.
+`db.batch()` rejects if a statement fails; D1 rolls back the entire batch.
+`d1-remote` does not currently expose an atomic batch endpoint and rejects both
+callback transactions and batch fallback calls.
 
 ## Error Handling
 

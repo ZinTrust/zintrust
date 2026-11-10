@@ -57,6 +57,86 @@ try {
     expect(result).toBe('success');
   });
 
+  it('rolls back callback failures and applies a claim and effects only once', async () => {
+    await adapter.connect();
+    await adapter.query(
+      'CREATE TABLE IF NOT EXISTS settlement_claims (provider_reference TEXT UNIQUE, claim_token TEXT)',
+      []
+    );
+    await adapter.query(
+      'CREATE TABLE IF NOT EXISTS settlement_accounts (id INTEGER PRIMARY KEY, balance INTEGER NOT NULL)',
+      []
+    );
+    await adapter.query(
+      'CREATE TABLE IF NOT EXISTS settlement_ledger (provider_reference TEXT, amount INTEGER)',
+      []
+    );
+    await adapter.query('DELETE FROM settlement_claims', []);
+    await adapter.query('DELETE FROM settlement_ledger', []);
+    await adapter.query('INSERT OR REPLACE INTO settlement_accounts (id, balance) VALUES (1, 0)', []);
+
+    for (const failAfter of [1, 2, 3]) {
+      // Each failure point must finish before the next rollback check begins.
+      // eslint-disable-next-line no-await-in-loop
+      await expect(
+        adapter.transaction(async (trx) => {
+          await trx.query(
+            'INSERT INTO settlement_claims (provider_reference, claim_token) VALUES (?, ?) ON CONFLICT(provider_reference) DO NOTHING',
+            [`failed-${failAfter}`, `token-${failAfter}`]
+          );
+          if (failAfter === 1) throw new Error('injected after claim');
+
+          await trx.query(
+            'UPDATE settlement_accounts SET balance = balance + ? WHERE id = ? AND EXISTS (SELECT 1 FROM settlement_claims WHERE provider_reference = ? AND claim_token = ?)',
+            [10, 1, `failed-${failAfter}`, `token-${failAfter}`]
+          );
+          if (failAfter === 2) throw new Error('injected after balance');
+
+          await trx.query(
+            'INSERT INTO settlement_ledger (provider_reference, amount) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM settlement_claims WHERE provider_reference = ? AND claim_token = ?)',
+            [`failed-${failAfter}`, 10, `failed-${failAfter}`, `token-${failAfter}`]
+          );
+          throw new Error('injected after ledger');
+        })
+      ).rejects.toThrow(/Transaction failed/i);
+    }
+
+    const failedClaims = await adapter.query('SELECT * FROM settlement_claims', []);
+    const failedLedger = await adapter.query('SELECT * FROM settlement_ledger', []);
+    const failedBalance = await adapter.queryOne('SELECT balance FROM settlement_accounts WHERE id = 1', []);
+    expect(failedClaims.rows).toHaveLength(0);
+    expect(failedLedger.rows).toHaveLength(0);
+    expect(failedBalance?.['balance']).toBe(0);
+
+    const settle = async (): Promise<boolean> =>
+      adapter.transaction(async (trx) => {
+        const claim = await trx.query(
+          'INSERT INTO settlement_claims (provider_reference, claim_token) VALUES (?, ?) ON CONFLICT(provider_reference) DO NOTHING',
+          ['provider-1', 'winner-token']
+        );
+        if (claim.rowCount === 0) return false;
+        await trx.query(
+          'UPDATE settlement_accounts SET balance = balance + ? WHERE id = ? AND EXISTS (SELECT 1 FROM settlement_claims WHERE provider_reference = ? AND claim_token = ?)',
+          [50, 1, 'provider-1', 'winner-token']
+        );
+        await trx.query(
+          'INSERT INTO settlement_ledger (provider_reference, amount) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM settlement_claims WHERE provider_reference = ? AND claim_token = ?)',
+          ['provider-1', 50, 'provider-1', 'winner-token']
+        );
+        return true;
+      });
+
+    await expect(settle()).resolves.toBe(true);
+    await expect(settle()).resolves.toBe(false);
+    const settledBalance = await adapter.queryOne(
+      'SELECT balance FROM settlement_accounts WHERE id = 1',
+      []
+    );
+    const settledLedger = await adapter.query('SELECT * FROM settlement_ledger', []);
+    expect(settledBalance?.['balance']).toBe(50);
+    expect(settledLedger.rows).toHaveLength(1);
+  });
+
   it('should get parameter placeholder for index', () => {
     const placeholder = adapter.getPlaceholder(1);
     expect(placeholder).toBe('?');

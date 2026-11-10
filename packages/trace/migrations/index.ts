@@ -10,6 +10,7 @@ import { migration as createMonitoring } from './20260331000003_create_zin_trace
 import { migration as widenCreatedAt } from './20260407193000_widen_trace_created_at_for_sql';
 import { migration as addTypeCreatedIndex } from './20260412090000_add_zin_trace_entries_type_created_index';
 import { migration as addSummaryColumn } from './20260412120000_add_zin_trace_entries_summary_column';
+import { migration as addSearchIndex } from './20261109120000_add_zin_trace_entries_search_index';
 
 export const migrations = [
   createEntries,
@@ -18,4 +19,5 @@ export const migrations = [
   widenCreatedAt,
   addTypeCreatedIndex,
   addSummaryColumn,
+  addSearchIndex,
 ];

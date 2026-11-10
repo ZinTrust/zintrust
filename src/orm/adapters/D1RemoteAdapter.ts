@@ -254,14 +254,13 @@ const createPingMethod =
   };
 
 const createTransactionMethod =
-  (getConnected: ConnectedGetter, methods: IDatabaseAdapter) =>
-  async <T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> => {
+  (getConnected: ConnectedGetter) =>
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async <T>(_callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> => {
     requireConnected(getConnected);
-    try {
-      return await callback(methods);
-    } catch (error: unknown) {
-      throw ErrorFactory.createTryCatchError('Transaction failed', error);
-    }
+    throw ErrorFactory.createConfigError(
+      'D1 Remote does not support atomic callback transactions or batches'
+    );
   };
 
 const createEnsureMigrationsTableMethod =
@@ -308,7 +307,7 @@ const createAdapterMethods = (
   methods.queryOne = createQueryOneMethod(getConnected, mode, remote);
 
   methods.ping = createPingMethod(getConnected, methods);
-  methods.transaction = createTransactionMethod(getConnected, methods);
+  methods.transaction = createTransactionMethod(getConnected);
   methods.ensureMigrationsTable = createEnsureMigrationsTableMethod(getConnected, methods);
   methods.rawQuery = createRawQueryMethod(methods);
 

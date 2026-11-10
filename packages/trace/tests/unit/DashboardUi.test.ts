@@ -79,7 +79,7 @@ describe('buildDashboardHtml', () => {
     const html = buildDashboardHtml('/trace', 'ZinTrust Test App');
 
     expect(html).toContain("BASE_PATH + '/entries/'");
-    expect(html).toContain('const buildDetailHref = (uuid, tab) =>');
+    expect(html).toContain('const buildDetailHref = (uuid, tab, detailSearch) =>');
     expect(html).toContain('const entryRowHtml = (entry, includeBatch) =>');
     expect(html).toContain('class="row-entry-link"');
     expect(html).toContain("window.addEventListener('popstate'");

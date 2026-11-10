@@ -38,8 +38,18 @@ export interface IDatabaseAdapter {
 /**
  * Minimal Pool interface to avoid importing pg types.
  */
-type PgPool = {
-  query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount?: number }>;
+type PgQueryResult = { rows: unknown[]; rowCount?: number };
+
+type PgQueryable = {
+  query: (sql: string, params?: unknown[]) => Promise<PgQueryResult>;
+};
+
+type PgClient = PgQueryable & {
+  release(): void;
+};
+
+type PgPool = PgQueryable & {
+  connect(): Promise<PgClient>;
   end: () => Promise<void>;
 };
 
@@ -185,7 +195,14 @@ async function query(
   sql: string,
   parameters: unknown[]
 ): Promise<QueryResult> {
-  const current = ensurePool(state);
+  return queryOn(ensurePool(state), sql, parameters);
+}
+
+async function queryOn(
+  current: PgQueryable,
+  sql: string,
+  parameters: unknown[]
+): Promise<QueryResult> {
   try {
     // Convert ? placeholders to PostgreSQL's $1, $2, etc format
     let paramIndex = 0;
@@ -211,14 +228,26 @@ async function transaction<T>(
 ): Promise<T> {
   if (!state.connected) throw ErrorFactory.createConnectionError('Database not connected');
 
+  const client = await ensurePool(state).connect();
+  const transactionAdapter: IDatabaseAdapter = {
+    ...adapter,
+    query: (sql, parameters) => queryOn(client, sql, parameters),
+    queryOne: async (sql, parameters) => {
+      const result = await transactionAdapter.query(sql, parameters);
+      return result.rows[0] ?? null;
+    },
+  };
+
   try {
-    await adapter.query('BEGIN', []);
-    const result = await callback(adapter);
-    await adapter.query('COMMIT', []);
+    await client.query('BEGIN');
+    const result = await callback(transactionAdapter);
+    await client.query('COMMIT');
     return result;
   } catch (error) {
-    await adapter.query('ROLLBACK', []);
+    await client.query('ROLLBACK');
     throw ErrorFactory.createTryCatchError('PostgreSQL transaction failed', error);
+  } finally {
+    client.release();
   }
 }
 

@@ -56,7 +56,7 @@ describe('QueryBuilder (extra branch coverage)', () => {
 
   it('covers UPDATE raw values and unsafe raw expression rejection', async () => {
     const db = {
-      query: vi.fn(async () => []),
+      execute: vi.fn(async () => ({ rowCount: 1 })),
       getType: () => 'postgresql',
     } as any;
 
@@ -64,8 +64,8 @@ describe('QueryBuilder (extra branch coverage)', () => {
     qb.where('id', '=', 1);
     await qb.update({ updated_at: { __raw: 'NOW()' } as any });
 
-    const sql = String((db.query as any).mock.calls.at(-1)?.[0] ?? '');
-    const params = (db.query as any).mock.calls.at(-1)?.[1] as unknown[];
+    const sql = String((db.execute as any).mock.calls.at(-1)?.[0] ?? '');
+    const params = (db.execute as any).mock.calls.at(-1)?.[1] as unknown[];
     expect(sql).toContain('"updated_at" = NOW()');
     expect(params).toEqual([1]);
 
@@ -78,7 +78,10 @@ describe('QueryBuilder (extra branch coverage)', () => {
 
   it('covers INSERT multi-row id fallback and safe raw identifier expression', async () => {
     const db = {
-      execute: vi.fn(async () => ({ lastInsertId: undefined, rowCount: 2 })),
+      execute: vi
+        .fn()
+        .mockResolvedValueOnce({ lastInsertId: undefined, rowCount: 2 })
+        .mockResolvedValueOnce({ rowCount: 1 }),
       query: vi.fn(async () => []),
       getType: () => 'postgresql',
     } as any;
@@ -96,7 +99,7 @@ describe('QueryBuilder (extra branch coverage)', () => {
     qbUpdate.where('id', '=', 1);
     await qbUpdate.update({ updated_at: { __raw: 'users.updated_at' } as any });
 
-    const sql = String((db.query as any).mock.calls.at(-1)?.[0] ?? '');
+    const sql = String((db.execute as any).mock.calls.at(-1)?.[0] ?? '');
     expect(sql).toContain('"updated_at" = users.updated_at');
   });
 });

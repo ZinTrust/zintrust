@@ -24,6 +24,7 @@ import {
   BaseAdapter,
   type D1ReadConstraint,
   type DatabaseConfig,
+  type BatchStatement,
   type IDatabaseAdapter,
   type QueryResult,
 } from '@orm/DatabaseAdapter';
@@ -42,6 +43,7 @@ export interface IDatabase {
   query(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown[]>;
   queryOne(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown>;
   execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
+  batch(statements: BatchStatement[]): Promise<QueryResult[]>;
   raw(value: string): RawValue;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
   /**
@@ -290,6 +292,60 @@ const executeFullQuery = async (
   return BaseAdapter.normalizeQueryResult(result);
 };
 
+const executeBatchOnAdapter = async (
+  adapter: IDatabaseAdapter,
+  eventEmitter: EventEmitter,
+  statements: BatchStatement[]
+): Promise<QueryResult[]> => {
+  const results: QueryResult[] = [];
+  for (const statement of statements) {
+    // Keep batch execution ordered so later SQL can depend on earlier writes.
+    // eslint-disable-next-line no-await-in-loop
+    const result = await executeFullQuery(
+      adapter,
+      eventEmitter,
+      statement.sql,
+      statement.parameters ?? []
+    );
+    results.push({ ...result, affectedRows: result.rowCount });
+  }
+  return results;
+};
+
+const createTransactionDatabase = (
+  db: IDatabase,
+  adapter: IDatabaseAdapter,
+  eventEmitter: EventEmitter
+): IDatabase => {
+  const transactionDb: IDatabase = {
+    ...db,
+    query: async (sql, parameters = []) => {
+      const result = await executeQuery(adapter, eventEmitter, sql, parameters, 'query');
+      return result;
+    },
+    queryOne: async (sql, parameters = []) => {
+      const result = await executeQueryOne(adapter, eventEmitter, sql, parameters);
+      return result;
+    },
+    execute: async (sql, parameters = []) => {
+      const result = await executeFullQuery(adapter, eventEmitter, sql, parameters);
+      return result;
+    },
+    batch: async (statements) => {
+      const results = await executeBatchOnAdapter(adapter, eventEmitter, statements);
+      return results;
+    },
+    transaction: () => {
+      throw ErrorFactory.createConfigError('Nested database transactions are not supported');
+    },
+    withReadSession: async (fn) => ({ result: await fn(transactionDb), bookmark: null }),
+    table: (name) => QueryBuilder.create(name, transactionDb),
+    getAdapterInstance: () => adapter,
+    getType: () => adapter.getType(),
+  };
+  return transactionDb;
+};
+
 const executeQueryOne = async (
   adapter: IDatabaseAdapter,
   eventEmitter: EventEmitter,
@@ -428,6 +484,7 @@ const createQueryHandlers = (
   query(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown[]>;
   queryOne(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown>;
   execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
+  batch(statements: BatchStatement[]): Promise<QueryResult[]>;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
   withReadSession<T>(
     fn: (db: IDatabase) => Promise<T>,
@@ -453,10 +510,35 @@ const createQueryHandlers = (
 
       return executeFullQuery(adapter, eventEmitter, sql, parameters);
     },
+    async batch(statements: BatchStatement[]) {
+      if (connected.value === false) await db.connect();
+      if (statements.length === 0) return [];
+
+      if (writeAdapter.batch !== undefined) {
+        for (const statement of statements) {
+          eventEmitter.emit('before-query', statement.sql, statement.parameters ?? []);
+        }
+        const startTime = Date.now();
+        const results = await writeAdapter.batch(statements);
+        const duration = Date.now() - startTime;
+        for (const statement of statements) {
+          eventEmitter.emit('after-query', statement.sql, statement.parameters ?? [], duration);
+        }
+        return results.map((result) =>
+          BaseAdapter.normalizeQueryResult({ ...result, affectedRows: result.rowCount })
+        );
+      }
+
+      return writeAdapter.transaction(async (transactionAdapter) => {
+        return executeBatchOnAdapter(transactionAdapter, eventEmitter, statements);
+      });
+    },
     async transaction<T>(callback: (db: IDatabase) => Promise<T>) {
       if (connected.value === false) await db.connect();
 
-      return writeAdapter.transaction(async () => callback(db));
+      return writeAdapter.transaction(async (transactionAdapter) =>
+        callback(createTransactionDatabase(db, transactionAdapter, eventEmitter))
+      );
     },
     async withReadSession<T>(
       fn: (db: IDatabase) => Promise<T>,
@@ -499,6 +581,7 @@ const applyQueryHandlers = (
   db.query = queryHandlers.query;
   db.queryOne = queryHandlers.queryOne;
   db.execute = queryHandlers.execute;
+  db.batch = queryHandlers.batch;
   db.transaction = queryHandlers.transaction;
   db.withReadSession = queryHandlers.withReadSession;
 };
@@ -533,6 +616,7 @@ const createDbFacade = (input: {
     query: queryHandlers.query,
     queryOne: queryHandlers.queryOne,
     execute: queryHandlers.execute,
+    batch: queryHandlers.batch,
     raw(value: string): RawValue {
       return { __raw: value };
     },

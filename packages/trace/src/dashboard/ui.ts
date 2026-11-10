@@ -74,15 +74,16 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
     *{box-sizing:border-box}html,body{margin:0;min-height:100%}body{min-height:100vh;background:linear-gradient(180deg,rgba(56,189,248,.1),transparent 220px),var(--bg);font-family:var(--font);color:var(--text)}button,input,select{font:inherit}
     .layout{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}.sidebar{padding:26px 18px 22px;background:var(--surface-soft);backdrop-filter:blur(14px);border-right:1px solid var(--line);position:sticky;top:0;height:100vh;overflow:auto;z-index:2}.brand-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:4px 10px 22px}.brand{display:flex;align-items:center;gap:12px;min-width:0}.brand-mark{width:44px;height:44px;border-radius:14px;border:1px solid rgba(56,189,248,.22);background:linear-gradient(180deg,rgba(56,189,248,.16),rgba(34,197,94,.12));display:grid;place-items:center;flex:none}.brand-mark svg{width:28px;height:28px;display:block}.brand-copy h1{margin:0;font-size:1.42rem;line-height:1.08}.brand-copy p{margin:4px 0 0;color:var(--muted);font-size:.92rem}.sidebar-status{margin:0 10px 18px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--muted);line-height:1.5}.sidebar-status strong{display:block;color:var(--text);font-size:.95rem;margin-bottom:4px}.sidebar-group{padding:0 8px;margin-top:8px}.sidebar-label{margin:0 0 10px;font-size:.74rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}.nav-button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;border:none;border-radius:14px;padding:12px 14px;background:transparent;color:var(--muted);cursor:pointer;transition:background .16s ease,color .16s ease,box-shadow .16s ease;position:relative;z-index:1}.nav-button:hover,.nav-button:focus-visible{background:rgba(56,189,248,.1);color:var(--text);outline:none}.nav-button.active{background:rgba(56,189,248,.14);color:var(--text);box-shadow:inset 0 0 0 1px rgba(56,189,248,.22)}.nav-button+.nav-button{margin-top:6px}.nav-title{font-weight:700}.nav-meta{font-size:.8rem;opacity:.75}.icon-button{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--text);display:grid;place-items:center;cursor:pointer;transition:border-color .16s ease,transform .16s ease,color .16s ease}.icon-button:hover,.icon-button:focus-visible{border-color:rgba(56,189,248,.4);color:var(--accent);transform:translateY(-1px);outline:none}.icon-button svg{width:18px;height:18px;display:block}
     .main{padding:28px;min-width:0}.shell{max-width:1320px;margin:0 auto;display:grid;gap:18px}
-    .panel{border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);backdrop-filter:blur(16px)}.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:18px}.stat-card{padding:20px;position:relative;overflow:hidden}.stat-card::after{content:'';position:absolute;right:-18px;bottom:-26px;width:92px;height:92px;border-radius:28px;background:linear-gradient(135deg,rgba(56,189,248,.16),rgba(34,197,94,.08));transform:rotate(18deg)}.stat-label{font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:12px}.stat-value{font-size:2.25rem;font-weight:800;line-height:1}.stat-meta{margin-top:10px;color:var(--muted);font-size:.9rem}.content-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,.95fr);gap:18px}.side-stack{display:grid;gap:18px}
+    .panel{border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);backdrop-filter:blur(16px)}.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:18px}.stat-card{padding:20px;position:relative;overflow:hidden}.stat-card::after{content:'';position:absolute;right:-18px;bottom:-26px;width:92px;height:92px;border-radius:28px;background:linear-gradient(135deg,rgba(56,189,248,.16),rgba(34,197,94,.08));transform:rotate(18deg)}.stat-label{font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:12px}.stat-value{font-size:2.25rem;font-weight:800;line-height:1}.stat-meta{margin-top:10px;color:var(--muted);font-size:.9rem}.content-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,.95fr);gap:18px}.side-stack{display:grid;gap:18px}.shell>*,.content-grid>*,.side-stack>*{min-width:0}
     .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:22px 24px 16px}.section-head h3{margin:0;font-size:1.04rem}.section-head p{margin:6px 0 0;color:var(--muted);font-size:.92rem}.toolbar{display:flex;flex-wrap:wrap;gap:10px;padding:0 24px 18px}.control,.toolbar input,.toolbar select{height:44px;border-radius:13px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);padding:0 14px;min-width:0}.toolbar input,.toolbar select{flex:1 1 180px}.toolbar input::placeholder{color:var(--muted)}.btn{height:44px;border:none;border-radius:13px;padding:0 16px;cursor:pointer;font-weight:800}.btn-primary{background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff}.btn-danger{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.18)}.btn-ghost{background:var(--surface-soft);color:var(--text);border:1px solid var(--line)}
-    .table-wrap{overflow:auto;padding:0 12px 12px}.table-wrap table{width:100%;border-collapse:separate;border-spacing:0;min-width:880px}th{padding:14px;color:var(--muted);font-size:.74rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--line)}td{padding:15px 14px;border-bottom:1px solid var(--line);vertical-align:top}.row-button{cursor:pointer}.row-button:hover td{background:rgba(56,189,248,.05)}.summary{font-size:.93rem;font-weight:700;line-height:1.4;color:var(--text)}.summary-sub{margin-top:6px;color:var(--muted);font-size:.82rem;line-height:1.4}.mono{font-family:var(--mono)}.empty{padding:44px 24px;color:var(--muted);line-height:1.65;text-align:center}.pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px 24px;color:var(--muted);flex-wrap:wrap}.pagination-controls{display:flex;gap:8px}.pagination button{height:40px;min-width:92px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer}.pagination button:disabled{opacity:.45;cursor:not-allowed}
+    .table-wrap{overflow:auto;padding:0 12px 12px}.table-wrap table{width:100%;border-collapse:separate;border-spacing:0;min-width:880px}th{padding:14px;color:var(--muted);font-size:.74rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--line)}td{padding:15px 14px;border-bottom:1px solid var(--line);vertical-align:top}.row-button{cursor:pointer}.row-button:hover td{background:rgba(56,189,248,.05)}.summary{font-size:.93rem;font-weight:700;line-height:1.4;color:var(--text);overflow-wrap:anywhere;word-break:break-word}.summary-sub{margin-top:6px;color:var(--muted);font-size:.82rem;line-height:1.4;overflow-wrap:anywhere;word-break:break-word}.mono{font-family:var(--mono);overflow-wrap:anywhere;word-break:break-word}.empty{padding:44px 24px;color:var(--muted);line-height:1.65;text-align:center}.pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px 24px;color:var(--muted);flex-wrap:wrap}.pagination-controls{display:flex;gap:8px}.pagination button{height:40px;min-width:92px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer}.pagination button:disabled{opacity:.45;cursor:not-allowed}
     .activity-list{list-style:none;margin:0;padding:0 24px 24px}.activity-item{padding:14px 0;border-top:1px solid var(--line)}.activity-item:first-child{border-top:none}.activity-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.activity-time{color:var(--muted);font-size:.85rem}.activity-summary{margin-top:8px;color:var(--text);line-height:1.48}.back-link{display:inline-flex;align-items:center;gap:8px;margin:0 0 14px;color:var(--accent);font-weight:800;cursor:pointer}.detail-card{padding:24px}.detail-meta{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 20px;color:var(--muted);font-size:.9rem;overflow-wrap:anywhere}.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.detail-stack{display:grid;gap:16px;margin-top:18px}.detail-box{padding:16px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.detail-box h4{margin:0 0 10px;font-size:.92rem}.detail-box dl{margin:0;display:grid;gap:8px}.detail-box dt{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-box dd{margin:0;color:var(--text);line-height:1.45;overflow-wrap:anywhere}.trace-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 16px}.trace-tab{border:none;border-radius:12px;padding:10px 12px;background:transparent;color:var(--muted);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);font-weight:800}.trace-tab.active{background:rgba(56,189,248,.12);color:var(--text);box-shadow:inset 0 0 0 1px rgba(56,189,248,.28)}.trace-panel{display:grid;gap:14px}.trace-item{padding:18px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line)}.trace-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.trace-item-summary{margin-top:10px;display:grid;gap:10px}.trace-note{color:var(--muted);line-height:1.6}.trace-disclosure{padding:0;overflow:hidden}.trace-disclosure[open]{padding-bottom:18px}.trace-disclosure .trace-item-summary{margin-top:0}.trace-disclosure-body{display:grid;gap:12px;padding:0 18px}.trace-summary{list-style:none;cursor:pointer;padding:18px}.trace-summary::-webkit-details-marker{display:none}.trace-summary-main{display:grid;gap:10px;min-width:0;flex:1}.trace-summary-copy{display:grid;gap:6px;min-width:0}.trace-summary-copy .summary,.trace-summary-copy .summary-sub{display:block;overflow-wrap:anywhere}.trace-disclosure-body .summary-sub{overflow-wrap:anywhere}
     .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.12);color:#bae6fd;font-size:.78rem;font-weight:800;margin:0 6px 6px 0;border:1px solid rgba(56,189,248,.18);text-decoration:none}button.tag{cursor:pointer}html[data-theme='light'] .tag{color:#075985}.tag.failed{background:rgba(239,68,68,.14);color:#fecaca;border-color:rgba(239,68,68,.2)}html[data-theme='light'] .tag.failed{color:#b91c1c}.tag.not_found{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.not_found{color:#92400e}.tag.slow{background:rgba(245,158,11,.12);color:#fde68a;border-color:rgba(245,158,11,.18)}html[data-theme='light'] .tag.slow{color:#92400e}.row-entry-link{color:inherit;text-decoration:none;display:block;min-width:0}.row-entry-link:hover{color:var(--accent)}.back-link{text-decoration:none}.type-pill,.status-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;border:1px solid transparent}.pill-request{background:rgba(56,189,248,.14);color:#93c5fd}.pill-request.method-get{background:rgba(34,197,94,.16);color:#bbf7d0}.pill-request.method-post{background:rgba(59,130,246,.16);color:#bfdbfe}.pill-request.method-other{background:rgba(245,158,11,.16);color:#fde68a}.pill-query{background:rgba(34,197,94,.12);color:#86efac}.pill-exception{background:rgba(239,68,68,.14);color:#fecaca}.pill-log{background:rgba(168,85,247,.14);color:#ddd6fe}.pill-job,.pill-batch{background:rgba(245,158,11,.14);color:#fde68a}.pill-cache{background:rgba(20,184,166,.12);color:#99f6e4}.pill-schedule,.pill-command{background:rgba(14,165,233,.14);color:#bae6fd}.pill-mail,.pill-notification{background:rgba(236,72,153,.14);color:#fbcfe8}.pill-auth{background:rgba(148,163,184,.16);color:#e2e8f0}.pill-event,.pill-model{background:rgba(74,222,128,.14);color:#bbf7d0}.pill-redis{background:rgba(239,68,68,.12);color:#fecaca}.pill-gate{background:rgba(99,102,241,.14);color:#c7d2fe}.pill-middleware{background:rgba(45,212,191,.12);color:#ccfbf1}.pill-dump,.pill-view{background:rgba(148,163,184,.14);color:#e2e8f0}.pill-client-request{background:rgba(59,130,246,.14);color:#bfdbfe}.status-pill{white-space:nowrap}.status-pill.status-2xx{background:rgba(34,197,94,.16);color:#bbf7d0;border-color:rgba(34,197,94,.24)}.status-pill.status-4xx{background:rgba(245,158,11,.16);color:#fde68a;border-color:rgba(245,158,11,.24)}.status-pill.status-5xx{background:rgba(239,68,68,.16);color:#fecaca;border-color:rgba(239,68,68,.24)}.status-pill.status-other{background:rgba(148,163,184,.14);color:#e2e8f0;border-color:rgba(148,163,184,.2)}html[data-theme='light'] .pill-request{color:#1d4ed8}html[data-theme='light'] .pill-request.method-get{color:#166534}html[data-theme='light'] .pill-request.method-post{color:#1d4ed8}html[data-theme='light'] .pill-request.method-other{color:#92400e}html[data-theme='light'] .pill-query{color:#166534}html[data-theme='light'] .pill-exception{color:#b91c1c}html[data-theme='light'] .pill-log{color:#6d28d9}html[data-theme='light'] .pill-job,html[data-theme='light'] .pill-batch{color:#92400e}html[data-theme='light'] .pill-cache{color:#115e59}html[data-theme='light'] .pill-schedule,html[data-theme='light'] .pill-command{color:#0c4a6e}html[data-theme='light'] .pill-mail,html[data-theme='light'] .pill-notification{color:#9d174d}html[data-theme='light'] .pill-auth,html[data-theme='light'] .pill-dump,html[data-theme='light'] .pill-view{color:#334155}html[data-theme='light'] .pill-event,html[data-theme='light'] .pill-model{color:#166534}html[data-theme='light'] .pill-redis{color:#991b1b}html[data-theme='light'] .pill-gate{color:#3730a3}html[data-theme='light'] .pill-middleware{color:#155e75}html[data-theme='light'] .pill-client-request{color:#1d4ed8}html[data-theme='light'] .status-pill.status-2xx{color:#166534}html[data-theme='light'] .status-pill.status-4xx{color:#92400e}html[data-theme='light'] .status-pill.status-5xx{color:#b91c1c}html[data-theme='light'] .status-pill.status-other{color:#334155}
-    .monitoring-wrap{padding:0 24px 24px}.tag-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.tag-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface-strong)}.tag-remove{border:none;background:rgba(239,68,68,.14);color:var(--danger);border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:1rem;line-height:1}.helper-text{color:var(--muted);line-height:1.6}
+    .monitoring-wrap{padding:0 24px 24px}.tag-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.tag-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface-strong)}.tag-remove{border:none;background:rgba(239,68,68,.14);color:var(--danger);border-radius:999px;width:24px;height:24px;cursor:pointer;font-size:1rem;line-height:1}.helper-text{color:var(--muted);line-height:1.6}.search-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:0 24px 18px}.search-bar input[type=search]{flex:1 1 240px;height:44px;border-radius:13px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);padding:0 14px;min-width:0}.search-bar input[type=search]::placeholder{color:var(--muted)}.search-fields{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.search-label{color:var(--muted);font-size:.82rem;font-weight:700;margin-right:4px}.search-field{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface-soft);color:var(--text);font-size:.86rem;cursor:pointer;user-select:none}.search-field input{margin:0;accent-color:var(--accent)}.detail-card .search-bar{padding:0 0 16px}
     .duration-chip{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;border:1px solid transparent;font-size:.8rem;font-weight:700;color:var(--text);white-space:nowrap}.duration-chip.vfast{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.28);color:#bbf7d0}.duration-chip.fast{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.24);color:#bae6fd}.duration-chip.slow{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.22);color:#fde68a}.duration-chip.vslow{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.24);color:#fecaca}html[data-theme='light'] .duration-chip.vfast{color:#166534}html[data-theme='light'] .duration-chip.fast{color:#1d4ed8}html[data-theme='light'] .duration-chip.slow{color:#92400e}html[data-theme='light'] .duration-chip.vslow{color:#b91c1c}
     .code-card{border-radius:16px;border:1px solid var(--code-border);background:var(--surface-soft);overflow:hidden}.code-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}.code-label{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.copy-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface-strong);color:var(--text);cursor:pointer;transition:border-color .16s ease,color .16s ease}.copy-button:hover{border-color:rgba(56,189,248,.35);color:var(--accent)}.copy-button[data-copied='true']{color:var(--success);border-color:rgba(34,197,94,.28)}.copy-button svg{width:16px;height:16px;display:block}.code-block{margin:0;padding:18px 20px;background:var(--code-bg);color:#dbeafe;border:0;overflow:auto;white-space:pre;line-height:1.72;font-family:var(--mono);font-size:.92rem}.code-block.wrap{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.code-block code{font-family:inherit}.html-preview-wrap{padding:14px;background:var(--surface-strong);border-top:1px solid var(--line)}.html-preview{display:block;width:100%;min-height:320px;border:1px solid var(--line);border-radius:14px;background:#fff}.inline-collapse{margin:0;border-top:1px solid var(--line);background:var(--surface-strong)}.inline-collapse summary{cursor:pointer;list-style:none;padding:14px 16px;font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}.inline-collapse summary::-webkit-details-marker{display:none}.inline-collapse[open] summary{border-bottom:1px solid var(--line)}.inline-collapse .code-block{border-top:none}.tok-key{color:#93c5fd}.tok-string{color:#86efac}.tok-number{color:#f9a8d4}.tok-boolean{color:#facc15}.tok-null{color:#fb7185}.tok-punctuation{color:#94a3b8}.tok-sql-keyword{color:#f472b6;font-weight:700}.tok-sql-identifier{color:#93c5fd}.tok-sql-string{color:#86efac}.tok-sql-number{color:#facc15}.tok-sql-comment{color:#64748b;font-style:italic}html[data-theme='light'] .code-block{color:#0f172a}html[data-theme='light'] .tok-key{color:#1d4ed8}html[data-theme='light'] .tok-string{color:#15803d}html[data-theme='light'] .tok-number{color:#c026d3}html[data-theme='light'] .tok-boolean{color:#b45309}html[data-theme='light'] .tok-null{color:#dc2626}html[data-theme='light'] .tok-punctuation{color:#64748b}html[data-theme='light'] .tok-sql-keyword{color:#db2777}html[data-theme='light'] .tok-sql-identifier{color:#2563eb}html[data-theme='light'] .tok-sql-string{color:#15803d}html[data-theme='light'] .tok-sql-number{color:#b45309}html[data-theme='light'] .tok-sql-comment{color:#6b7280}
-    @media (max-width:1120px){.content-grid{grid-template-columns:1fr}}@media (max-width:920px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:20px 16px 18px}.brand-row{padding:0 0 16px}.sidebar-status{margin:0 0 16px}.sidebar-group{padding:0}.main{padding:20px}}@media (max-width:760px){.main{padding:16px}.shell{gap:14px}.stat-value{font-size:1.9rem}.section-head{flex-direction:column;align-items:stretch}.section-head .btn{width:100%}.toolbar{display:grid;grid-template-columns:1fr;padding-left:18px;padding-right:18px}.toolbar .btn,.toolbar input,.toolbar select{width:100%;flex:none}.pagination{padding-left:18px;padding-right:18px}.pagination,.pagination-controls{width:100%}.pagination-controls{justify-content:space-between}.pagination button{flex:1 1 0}.detail-meta{display:grid;gap:8px}.trace-tabs{flex-wrap:nowrap;overflow:auto;padding-bottom:4px}.trace-tab{white-space:nowrap}.code-toolbar{flex-wrap:wrap}.copy-button{width:100%}.html-preview{min-height:220px}.table-wrap{padding:0 14px 14px;overflow:visible}.table-wrap table{min-width:0;border-spacing:0}.table-wrap thead{display:none}.table-wrap tbody{display:grid;gap:12px}.table-wrap tr{display:block;border:1px solid var(--line);border-radius:16px;background:var(--surface-soft);overflow:hidden}.table-wrap td{display:grid;grid-template-columns:minmax(84px,108px) minmax(0,1fr);gap:10px;align-items:start;padding:12px 14px;border-bottom:1px solid var(--line)}.table-wrap td::before{content:attr(data-label);font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.table-wrap td:last-child{border-bottom:none}.table-wrap td[data-label='Summary'],.table-wrap td[data-label='Tags']{grid-template-columns:1fr}.table-wrap td[data-label='Summary']::before,.table-wrap td[data-label='Tags']::before{margin-bottom:2px}.row-button:hover td{background:transparent}.row-button:hover{box-shadow:inset 0 0 0 1px rgba(56,189,248,.18)}}@media (max-width:640px){.stats-grid{grid-template-columns:1fr}.detail-card{padding:18px}.toolbar,.section-head,.activity-list,.monitoring-wrap{padding-left:18px;padding-right:18px}.brand-row{align-items:stretch;gap:14px;padding:0 0 14px}.brand{width:100%;align-items:flex-start}.brand-copy{min-width:0}.brand-copy h1{font-size:1.18rem;line-height:1.12}.brand-copy p{font-size:.82rem;overflow-wrap:anywhere}.icon-button{align-self:flex-end}.sidebar-status{padding:12px}.nav-button{padding:11px 12px}.nav-title{font-size:.95rem}.nav-meta{font-size:.72rem}}@media (max-width:480px){.brand-row{flex-direction:column}.icon-button{align-self:flex-start}.nav-button{align-items:flex-start;flex-direction:column}.nav-meta{font-size:.7rem}}
+    @media (max-width:1120px){.content-grid{grid-template-columns:1fr}}@media (max-width:920px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:20px 16px 18px}.brand-row{padding:0 0 16px}.sidebar-status{margin:0 0 16px}.sidebar-group{padding:0}.main{padding:20px}}@media (max-width:760px){.main{padding:16px}.shell{gap:14px}.stat-value{font-size:1.9rem}.section-head{flex-direction:column;align-items:stretch}.section-head .btn{width:100%}.toolbar{display:grid;grid-template-columns:1fr;padding-left:18px;padding-right:18px}.toolbar .btn,.toolbar input,.toolbar select{width:100%;flex:none}.pagination{padding-left:18px;padding-right:18px}.pagination,.pagination-controls{width:100%}.pagination-controls{justify-content:space-between}.pagination button{flex:1 1 0}.detail-meta{display:grid;gap:8px}.trace-tabs{flex-wrap:nowrap;overflow:auto;padding-bottom:4px}.trace-tab{white-space:nowrap}.code-toolbar{flex-wrap:wrap}.copy-button{width:100%}.html-preview{min-height:220px}.table-wrap{padding:0 14px 14px;overflow:visible}.table-wrap table{min-width:0;border-spacing:0}.table-wrap thead{display:none}.table-wrap tbody{display:grid;gap:12px}.table-wrap tr{display:block;border:1px solid var(--line);border-radius:16px;background:var(--surface-soft);overflow:hidden}.table-wrap td{display:grid;grid-template-columns:minmax(84px,108px) minmax(0,1fr);gap:10px;align-items:start;padding:12px 14px;border-bottom:1px solid var(--line)}.table-wrap td::before{content:attr(data-label);font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.table-wrap td:last-child{border-bottom:none}.table-wrap td[data-label='Summary'],.table-wrap td[data-label='Tags']{grid-template-columns:1fr}.table-wrap td[data-label='Summary']::before,.table-wrap td[data-label='Tags']::before{margin-bottom:2px}.row-button:hover td{background:transparent}.row-button:hover{box-shadow:inset 0 0 0 1px rgba(56,189,248,.18)}}@media (max-width:640px){.stats-grid{grid-template-columns:1fr}.detail-card{padding:18px}.toolbar,.section-head,.activity-list,.monitoring-wrap,.search-bar{padding-left:18px;padding-right:18px}.brand-row{align-items:stretch;gap:14px;padding:0 0 14px}.brand{width:100%;align-items:flex-start}.brand-copy{min-width:0}.brand-copy h1{font-size:1.18rem;line-height:1.12}.brand-copy p{font-size:.82rem;overflow-wrap:anywhere}.icon-button{align-self:flex-end}.sidebar-status{padding:12px}.nav-button{padding:11px 12px}.nav-title{font-size:.95rem}.nav-meta{font-size:.72rem}}@media (max-width:480px){.brand-row{flex-direction:column}.icon-button{align-self:flex-start}.nav-button{align-items:flex-start;flex-direction:column}.nav-meta{font-size:.7rem}}
+    .activity-summary{overflow-wrap:anywhere;word-break:break-word}
   </style>
 </head>
 <body>
@@ -160,6 +161,41 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       return path === '' ? '/' : path;
     };
 
+    const SEARCH_MAX_LENGTH = 200;
+    // Mirrors TRACE_SEARCH_FIELDS in types.ts; the dashboard is a static template, so the ids are duplicated here.
+    const SEARCH_FIELD_OPTIONS = Object.freeze([
+      { id: 'request', label: 'Request' },
+      { id: 'response', label: 'Response' },
+      { id: 'headers', label: 'Headers' },
+      { id: 'url', label: 'URL' },
+      { id: 'error', label: 'Error' },
+      { id: 'sql', label: 'SQL' },
+      { id: 'meta', label: 'Meta' }
+    ]);
+    const parseSearchFields = (raw) => String(raw || '')
+      .split(',')
+      .map((field) => field.trim())
+      .filter((field, index, list) => SEARCH_FIELD_OPTIONS.some((option) => option.id === field) && list.indexOf(field) === index);
+
+    const searchBarHtml = (scope, search, placeholder) => {
+      const current = search || {};
+      const selected = Array.isArray(current.fields) ? current.fields : [];
+      const fieldsHtml = scope === 'monitoring' ? '' : [
+        '<div class="search-fields" role="group" aria-label="Search in">',
+        '<span class="search-label">Search in (all when none selected)</span>',
+        SEARCH_FIELD_OPTIONS.map((option) => '<label class="search-field"><input type="checkbox" name="field" value="' + option.id + '"' + (selected.indexOf(option.id) !== -1 ? ' checked' : '') + '>' + option.label + '</label>').join(''),
+        '</div>'
+      ].join('');
+      return [
+        '<form class="search-bar" role="search" data-search-form="' + scope + '">',
+        '<input type="search" name="q" maxlength="' + SEARCH_MAX_LENGTH + '" placeholder="' + escapeHtml(placeholder) + '" aria-label="' + escapeHtml(placeholder) + '" value="' + escapeHtml(current.q || '') + '">',
+        fieldsHtml,
+        '<button type="submit" class="btn btn-primary">Search</button>',
+        scope === 'entries' && current.q ? '<button type="button" class="btn btn-ghost" data-action="clear-search">Reset search</button>' : '',
+        '</form>'
+      ].join('');
+    };
+
     const parseLocation = () => {
       const search = new URLSearchParams(window.location.search);
       const segments = relativeDashboardPath().split('/').filter(Boolean);
@@ -199,12 +235,19 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         entriesFilter: {
           type: search.get('type') || '',
           tag: search.get('tag') || '',
-          batchId: search.get('batchId') || ''
+          batchId: search.get('batchId') || '',
+          q: (search.get('q') || '').trim().slice(0, SEARCH_MAX_LENGTH),
+          fields: parseSearchFields(search.get('fields'))
         },
         detailUuid,
         detail: null,
         detailBatch: null,
-        detailTab
+        detailTab,
+        detailSearch: {
+          q: (search.get('batchSearch') || '').trim().slice(0, SEARCH_MAX_LENGTH),
+          fields: parseSearchFields(search.get('batchFields'))
+        },
+        monitoringQuery: ''
       };
     };
 
@@ -382,6 +425,8 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       if (filter && filter.type) search.set('type', String(filter.type));
       if (filter && filter.tag) search.set('tag', String(filter.tag));
       if (filter && filter.batchId) search.set('batchId', String(filter.batchId));
+      if (filter && filter.q) search.set('q', String(filter.q));
+      if (filter && Array.isArray(filter.fields) && filter.fields.length > 0) search.set('fields', filter.fields.join(','));
       if (Number.isFinite(entriesPage) && entriesPage > 1) search.set('entriesPage', String(entriesPage));
     };
 
@@ -390,15 +435,23 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       appendEntriesFilterParams(search, {
         type: params.type || '',
         tag: params.tag || '',
-        batchId: params.batchId || ''
+        batchId: params.batchId || '',
+        q: params.q || '',
+        fields: params.fields || []
       }, params.entriesPage);
       const qs = search.toString();
       return BASE_PATH + '/entries' + (qs === '' ? '' : '?' + qs);
     };
 
-    const buildDetailHref = (uuid, tab) => {
+    const buildDetailHref = (uuid, tab, detailSearch) => {
       const search = new URLSearchParams();
       if (tab && tab !== 'summary') search.set('tab', String(tab));
+      if (detailSearch && detailSearch.q) {
+        search.set('batchSearch', String(detailSearch.q));
+        if (Array.isArray(detailSearch.fields) && detailSearch.fields.length > 0) {
+          search.set('batchFields', detailSearch.fields.join(','));
+        }
+      }
       const qs = search.toString();
       return BASE_PATH + '/entries/' + encodeURIComponent(String(uuid || '')) + (qs === '' ? '' : '?' + qs);
     };
@@ -406,13 +459,15 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
     const buildUrlFromState = () => {
       const detailUuid = state.detail && state.detail.uuid ? state.detail.uuid : state.detailUuid;
       if (detailUuid) {
-        return buildDetailHref(detailUuid, state.detailTab);
+        return buildDetailHref(detailUuid, state.detailTab, state.detailSearch);
       }
       if (state.page === 'entries') {
         return buildEntriesHref({
           type: state.entriesFilter.type,
           tag: state.entriesFilter.tag,
           batchId: state.entriesFilter.batchId,
+          q: state.entriesFilter.q,
+          fields: state.entriesFilter.fields,
           entriesPage: state.entriesPage
         });
       }
@@ -936,7 +991,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       };
 
       main.innerHTML = [
-        '<a class="back-link" href="' + escapeHtml(buildEntriesHref({ type: state.entriesFilter.type, tag: state.entriesFilter.tag, batchId: state.entriesFilter.batchId, entriesPage: state.entriesPage })) + '" data-action="close-detail"><- Back to entries</a>',
+        '<a class="back-link" href="' + escapeHtml(buildEntriesHref({ type: state.entriesFilter.type, tag: state.entriesFilter.tag, batchId: state.entriesFilter.batchId, q: state.entriesFilter.q, fields: state.entriesFilter.fields, entriesPage: state.entriesPage })) + '" data-action="close-detail"><- Back to entries</a>',
         '<section class="panel detail-card">',
         '<div>' + (entry.type === 'request'
           ? '<span class="' + typeClass(entry) + '">' + escapeHtml(entryTypeLabel(entry)) + '</span> ' + statusBadgeHtml(content.responseStatus) + ' <span class="mono">' + escapeHtml(content.uri || '') + '</span> ' + tagsHtml(entry.tags)
@@ -945,6 +1000,9 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         '<div class="trace-tabs">',
         traceTabs.map((tab) => '<button type="button" class="trace-tab' + (tab.id === currentTab ? ' active' : '') + '" data-action="detail-tab" data-tab="' + escapeHtml(tab.id) + '">' + escapeHtml(tab.label) + (tab.count !== undefined ? ' (' + escapeHtml(tab.count) + ')' : '') + '</button>').join(''),
         '</div>',
+        resolveDetailBatchQuery(currentTab)
+          ? searchBarHtml('request', state.detailSearch, 'Search related entries')
+          : searchBarHtml('detail-global', state.entriesFilter, 'Search all trace entries'),
         panels[currentTab] || panels.summary,
         '</section>'
       ].join('');
@@ -973,6 +1031,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
 
         main.innerHTML = [
           statsCardsHtml(stats),
+          searchBarHtml('overview', { q: '', fields: [] }, 'Search trace data, then choose where to look'),
           '<div class="content-grid">',
           '<section class="panel">',
           '<div class="section-head"><div><h3>Recent entries</h3><p>Latest captured records.</p></div><button type="button" class="btn btn-primary" data-action="go-page" data-page="entries">Open entries</button></div>',
@@ -1007,6 +1066,10 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         if (state.entriesFilter.type) qs.set('type', state.entriesFilter.type);
         if (state.entriesFilter.tag) qs.set('tag', state.entriesFilter.tag);
         if (state.entriesFilter.batchId) qs.set('batchId', state.entriesFilter.batchId);
+        if (state.entriesFilter.q) {
+          qs.set('search', state.entriesFilter.q);
+          if (state.entriesFilter.fields.length > 0) qs.set('searchFields', state.entriesFilter.fields.join(','));
+        }
 
         const response = await api('/entries?' + qs.toString());
         const data = response.data || [];
@@ -1018,6 +1081,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         main.innerHTML = [
           '<section class="panel">',
           '<div class="section-head"><div><h3>Entries</h3><p>Filter by type, tag, or batch.</p></div></div>',
+          searchBarHtml('entries', state.entriesFilter, 'Search trace data'),
           '<div class="toolbar">',
           '<select id="f-type"><option value="">All types</option>' + ENTRY_TYPES.map((type) => '<option value="' + escapeHtml(type) + '"' + (state.entriesFilter.type === type ? ' selected' : '') + '>' + escapeHtml(type) + '</option>').join('') + '</select>',
           '<input id="f-tag" type="text" placeholder="Tag" value="' + escapeHtml(state.entriesFilter.tag) + '">',
@@ -1029,7 +1093,8 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           '</section>'
         ].join('');
       } catch (error) {
-        main.innerHTML = '<div class="panel empty">Error loading entries: ' + escapeHtml(error.message) + '</div>';
+        const resetHtml = state.entriesFilter.q ? '<div><button type="button" class="btn btn-ghost" data-action="clear-search">Reset search</button></div>' : '';
+        main.innerHTML = '<div class="panel empty">Error loading entries: ' + escapeHtml(error.message) + resetHtml + '</div>';
       }
     };
 
@@ -1047,8 +1112,9 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
 
       const entry = state.detail;
       main.innerHTML = [
-        '<a class="back-link" href="' + escapeHtml(buildEntriesHref({ type: state.entriesFilter.type, tag: state.entriesFilter.tag, batchId: state.entriesFilter.batchId, entriesPage: state.entriesPage })) + '" data-action="close-detail"><- Back to entries</a>',
+        '<a class="back-link" href="' + escapeHtml(buildEntriesHref({ type: state.entriesFilter.type, tag: state.entriesFilter.tag, batchId: state.entriesFilter.batchId, q: state.entriesFilter.q, fields: state.entriesFilter.fields, entriesPage: state.entriesPage })) + '" data-action="close-detail"><- Back to entries</a>',
         '<section class="panel detail-card">',
+        searchBarHtml('detail-global', state.entriesFilter, 'Search all trace entries'),
         '<div><span class="' + typeClass(entry) + '">' + escapeHtml(entry.type) + '</span> ' + tagsHtml(entry.tags) + '</div>',
         '<div class="detail-meta"><span>UUID <span class="mono">' + escapeHtml(entry.uuid) + '</span></span><span>Batch <span class="mono">' + escapeHtml(entry.batchId || '-') + '</span></span><span>' + durationHtml(entry) + '</span><span>' + escapeHtml(new Date(Number(entry.createdAt)).toISOString()) + '</span></div>',
         '<div class="detail-stack">',
@@ -1063,12 +1129,15 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       try {
         const result = await api('/monitoring');
         const tags = result.tags || [];
+        const monitoredQuery = String(state.monitoringQuery || '').toLowerCase();
+        const visibleTags = tags.filter((tag) => String(tag).toLowerCase().indexOf(monitoredQuery) !== -1);
         main.innerHTML = [
           '<section class="panel">',
           '<div class="section-head"><div><h3>Monitoring tags</h3><p>Save the tags you filter by often so they stay one click away.</p></div></div>',
+          searchBarHtml('monitoring', { q: state.monitoringQuery, fields: [] }, 'Search monitored tags'),
           '<div class="monitoring-wrap">',
           '<div class="tag-list">',
-          tags.length === 0 ? '<span class="helper-text">No tags monitored yet. Add tags like auth, checkout, queue:emails, or nightly-sync to pin them here.</span>' : tags.map((tag) => '<span class="tag-item"><a class="tag mono" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '" href="' + escapeHtml(buildEntriesHref({ tag })) + '">' + escapeHtml(tag) + '</a><button type="button" class="tag-remove" data-action="remove-tag" data-tag="' + escapeHtml(tag) + '">x</button></span>').join(''),
+          tags.length === 0 ? '<span class="helper-text">No tags monitored yet. Add tags like auth, checkout, queue:emails, or nightly-sync to pin them here.</span>' : visibleTags.length === 0 ? '<span class="helper-text">No monitored tags match "' + escapeHtml(state.monitoringQuery) + '".</span>' : visibleTags.map((tag) => '<span class="tag-item"><a class="tag mono" data-action="filter-tag" data-tag="' + escapeHtml(tag) + '" href="' + escapeHtml(buildEntriesHref({ tag })) + '">' + escapeHtml(tag) + '</a><button type="button" class="tag-remove" data-action="remove-tag" data-tag="' + escapeHtml(tag) + '">x</button></span>').join(''),
           '</div>',
           '<p class="helper-text">Click a saved tag to filter the entries list by that exact tag. Because each tag is a real link, you can also open it in a new tab. Removing a saved tag only removes the shortcut here; it does not delete any trace entries.</p>',
           '<div class="toolbar" style="padding:0;margin-top:8px">',
@@ -1132,10 +1201,59 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         entriesFilter: {
           type: typeInput && 'value' in typeInput ? String(typeInput.value || '') : '',
           tag: tagInput && 'value' in tagInput ? String(tagInput.value || '') : '',
-          batchId: batchInput && 'value' in batchInput ? String(batchInput.value || '') : ''
+          batchId: batchInput && 'value' in batchInput ? String(batchInput.value || '') : '',
+          q: state.entriesFilter.q,
+          fields: state.entriesFilter.fields
         }
       };
       render();
+    };
+
+    const readSearchForm = (form) => {
+      const input = form.querySelector('input[name="q"]');
+      const boxes = Array.from(form.querySelectorAll('input[name="field"]:checked'));
+      return {
+        q: input && 'value' in input ? String(input.value || '').trim().slice(0, SEARCH_MAX_LENGTH) : '',
+        fields: parseSearchFields(boxes.map((box) => String(box.value || '')).join(','))
+      };
+    };
+
+    const applySearch = (scope, search) => {
+      if (scope === 'request') {
+        state = { ...state, detailSearch: search };
+        syncUrl('push');
+        loadDetailBatchTab(state.detailTab, 1);
+        return;
+      }
+      if (scope === 'monitoring') {
+        state = { ...state, monitoringQuery: search.q };
+        render();
+        return;
+      }
+      if (scope === 'overview') {
+        state = { ...state, page: 'entries', detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { type: '', tag: '', batchId: '', q: search.q, fields: search.fields } };
+        syncUrl('push');
+        render({ skipSync: true });
+        return;
+      }
+      if (scope === 'detail-global') {
+        state = {
+          ...state,
+          page: 'entries',
+          detail: null,
+          detailUuid: '',
+          detailBatch: null,
+          detailTab: 'summary',
+          entriesPage: 1,
+          entriesFilter: { type: '', tag: '', batchId: '', q: search.q, fields: search.fields }
+        };
+        syncUrl('push');
+        render({ skipSync: true });
+        return;
+      }
+      state = { ...state, entriesPage: 1, entriesFilter: { ...state.entriesFilter, q: search.q, fields: search.fields } };
+      syncUrl('push');
+      render({ skipSync: true });
     };
 
     const clearAll = async () => {
@@ -1161,8 +1279,20 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
           const batch = await api('/batch/' + encodeURIComponent(entry.batchId) + '?countsOnly=true');
           detailBatch = createDetailBatchState(batch);
         }
-        state = { ...state, detail: entry, detailUuid: entry.uuid || uuid, detailBatch, detailTab: nextTab, page: 'entries' };
+        state = {
+          ...state,
+          detail: entry,
+          detailUuid: entry.uuid || uuid,
+          detailBatch,
+          detailTab: nextTab,
+          detailSearch: options.search || { q: '', fields: [] },
+          page: 'entries'
+        };
         syncUrl(historyMode);
+        if (entry.type === 'request' && entry.batchId && resolveDetailBatchQuery(nextTab)) {
+          await loadDetailBatchTab(nextTab, 1);
+          return;
+        }
         render({ skipSync: true });
       } catch (error) {
         window.alert(error.message);
@@ -1184,12 +1314,25 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         entriesFilter: next.entriesFilter,
         detailUuid: next.detailUuid,
         detailTab: next.detailTab,
+        detailSearch: next.detailSearch,
         detail: next.detailUuid && state.detail && state.detail.uuid === next.detailUuid ? state.detail : null,
         detailBatch: next.detailUuid && state.detail && state.detail.uuid === next.detailUuid ? state.detailBatch : null
       };
       if (next.detailUuid) {
         if (!state.detail || state.detail.uuid !== next.detailUuid) {
-          await showDetail(next.detailUuid, { tab: next.detailTab, historyMode });
+          await showDetail(next.detailUuid, {
+            tab: next.detailTab,
+            historyMode,
+            search: next.detailSearch
+          });
+          return;
+        }
+        if (
+          state.detail.type === 'request' &&
+          state.detail.batchId &&
+          resolveDetailBatchQuery(next.detailTab)
+        ) {
+          await loadDetailBatchTab(next.detailTab, 1);
           return;
         }
       }
@@ -1226,6 +1369,9 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         const qs = new URLSearchParams({ page: String(page), perPage: String(DETAIL_BATCH_PAGE_SIZE) });
         if (query.type) qs.set('type', query.type);
         if (query.scope) qs.set('scope', query.scope);
+        const search = state.detailSearch || { q: '', fields: [] };
+        if (search.q) qs.set('search', search.q);
+        if (search.q && search.fields.length > 0) qs.set('searchFields', search.fields.join(','));
         const batch = await api('/batch/' + encodeURIComponent(detail.batchId) + '?' + qs.toString());
         state = {
           ...state,
@@ -1356,7 +1502,8 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       }
       if (action === 'page-prev') { state = { ...state, entriesPage: Math.max(1, state.entriesPage - 1) }; render(); return; }
       if (action === 'page-next') { state = { ...state, entriesPage: state.entriesPage + 1 }; render(); return; }
-      if (action === 'clear-filters') { state = { ...state, detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { type: '', tag: '', batchId: '' } }; syncUrl('push'); render({ skipSync: true }); return; }
+      if (action === 'clear-filters') { state = { ...state, detail: null, detailUuid: '', detailBatch: null, detailTab: 'summary', entriesPage: 1, entriesFilter: { type: '', tag: '', batchId: '', q: '', fields: [] } }; syncUrl('push'); render({ skipSync: true }); return; }
+      if (action === 'clear-search') { state = { ...state, entriesPage: 1, entriesFilter: { ...state.entriesFilter, q: '', fields: [] } }; syncUrl('push'); render({ skipSync: true }); return; }
       if (action === 'add-tag') { addTag(); return; }
       if (action === 'remove-tag') { removeTag(String(target.getAttribute('data-tag') || '')); return; }
       if (action === 'copy-code') { copyCode(String(target.getAttribute('data-copy-id') || ''), target); }
@@ -1374,12 +1521,25 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       if (target.id === 'f-type') syncFilters();
     });
 
+    document.addEventListener('submit', (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      const scope = form.getAttribute('data-search-form');
+      if (!scope) return;
+      event.preventDefault();
+      applySearch(scope, readSearchForm(form));
+    });
+
     window.addEventListener('popstate', () => {
       applyLocationState('replace');
     });
 
     if (state.detailUuid) {
-      showDetail(state.detailUuid, { tab: state.detailTab, historyMode: 'replace' });
+      showDetail(state.detailUuid, {
+        tab: state.detailTab,
+        historyMode: 'replace',
+        search: state.detailSearch
+      });
     } else {
       lastSyncedUrl = buildUrlFromState();
       render({ skipSync: true });

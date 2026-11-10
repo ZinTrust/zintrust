@@ -1,3 +1,4 @@
+import { D1SchemaState, type SchemaState } from '@cli/d1/D1SchemaState';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -131,20 +132,51 @@ const createNoopAdapter = (
   },
 });
 
-const captureSql = (onSql: (sql: string) => void, sql: string, parameters: unknown[]): void => {
+const captureSql = (
+  onSql: (sql: string) => void,
+  schema: SchemaState,
+  sql: string,
+  parameters: unknown[]
+): void => {
   const compiled = parameters.length > 0 ? interpolateSql(sql, parameters) : sql;
+  D1SchemaState.applyDdl(schema, compiled);
   if (!isMutatingSql(compiled)) return;
   const normalized = normalizeSql(normalizeAlterTableAddColumn(compiled));
   if (normalized !== '') onSql(normalized);
 };
 
-const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
-  let connected = false;
-  const setConnected = (v: boolean): void => {
-    connected = v;
-  };
+const runSql = (
+  onSql: (sql: string) => void,
+  schema: SchemaState,
+  sql: string,
+  parameters: unknown[]
+): Record<string, unknown>[] => {
+  const introspected = D1SchemaState.introspect(schema, sql, parameters);
+  if (introspected !== null) return introspected;
+  captureSql(onSql, schema, sql, parameters);
+  return [];
+};
 
-  const noopAdapter = createNoopAdapter(() => connected, setConnected);
+const captureBatch = async (
+  onSql: (sql: string) => void,
+  schema: SchemaState,
+  statements: Array<{ sql: string; parameters?: unknown[] }>
+): Promise<QueryResult[]> => {
+  for (const statement of statements) {
+    captureSql(onSql, schema, statement.sql, statement.parameters ?? []);
+  }
+  await RESOLVED_VOID;
+  return statements.map(() => ({ rows: [], rowCount: 0, affectedRows: 0 }));
+};
+
+const createCaptureDb = (onSql: (sql: string) => void, schema: SchemaState): IDatabase => {
+  let connected = false;
+  const noopAdapter = createNoopAdapter(
+    () => connected,
+    (value) => {
+      connected = value;
+    }
+  );
 
   const db = (<IDatabase>{
     async connect(): Promise<void> {
@@ -159,20 +191,22 @@ const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
       return connected;
     },
     async query(sql: string, parameters: unknown[] = []): Promise<unknown[]> {
-      captureSql(onSql, sql, parameters);
+      const rows = runSql(onSql, schema, sql, parameters);
       await RESOLVED_VOID;
-      return [];
+      return rows;
     },
     async queryOne(sql: string, parameters: unknown[] = []): Promise<unknown> {
-      captureSql(onSql, sql, parameters);
+      const rows = runSql(onSql, schema, sql, parameters);
       await RESOLVED_VOID;
-      return null;
+      return rows.length > 0 ? rows[0] : null;
     },
     async execute(sql: string, parameters: unknown[] = []): Promise<QueryResult> {
-      captureSql(onSql, sql, parameters);
+      captureSql(onSql, schema, sql, parameters);
       await RESOLVED_VOID;
       return { rows: [], rowCount: 0 };
     },
+    // eslint-disable-next-line @typescript-eslint/promise-function-async
+    batch: (statements) => captureBatch(onSql, schema, statements),
     raw(value: string): { __raw: string } {
       return { __raw: value };
     },
@@ -275,10 +309,11 @@ export const D1SqlMigrations = Object.freeze({
     ensureDir(opts.outputDir);
 
     const out: GeneratedSqlMigration[] = [];
+    const schema = D1SchemaState.create();
 
     await runSerial(migrations, async (m, idx) => {
       const statements: string[] = [];
-      const db = createCaptureDb((sql) => statements.push(sql));
+      const db = createCaptureDb((sql) => statements.push(sql), schema);
 
       await db.connect();
       try {
@@ -291,7 +326,10 @@ export const D1SqlMigrations = Object.freeze({
       const outputFilePath = path.join(opts.outputDir, outputFileName);
 
       const header = `-- Generated from ${m.name}\n`;
-      const body = statements.length > 0 ? `${statements.join('\n')}\n` : '';
+      const body =
+        statements.length > 0
+          ? `${statements.join('\n')}\n`
+          : '-- No statements: this migration is a no-op for the D1 driver.\n';
       fs.writeFileSync(outputFilePath, `${header}${body}`, 'utf8');
 
       out.push({

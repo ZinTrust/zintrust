@@ -3,6 +3,7 @@ import { BaseCommand } from '@cli/BaseCommand';
 import { D1SqlMigrations } from '@cli/d1/D1SqlMigrations';
 import { WranglerConfig } from '@cli/d1/WranglerConfig';
 import { WranglerD1 } from '@cli/d1/WranglerD1';
+import { ErrorHandler } from '@cli/ErrorHandler';
 import {
   confirmProductionRun,
   mapConnectionToOrmConfig,
@@ -652,7 +653,19 @@ const runMigrationsForConnection = async (
   }
 };
 
-const executeMigrateTrace = async (options: CommandOptions, cmd: IBaseCommand): Promise<void> => {
+const withVisibleOutcome = (cmd: IBaseCommand): IBaseCommand =>
+  Object.freeze({
+    ...cmd,
+    info: ErrorHandler.visible.info,
+    success: ErrorHandler.visible.success,
+    warn: ErrorHandler.visible.warn,
+  });
+
+const executeMigrateTrace = async (
+  options: CommandOptions,
+  baseCmd: IBaseCommand
+): Promise<void> => {
+  const cmd = withVisibleOutcome(baseCmd);
   const interactive = getInteractive(options);
   const targets: TraceConnectionTarget[] = [];
 

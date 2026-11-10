@@ -268,7 +268,25 @@ export interface ITraceEntry<T = unknown> {
 // Storage interface
 // ---------------------------------------------------------------------------
 
-export interface QueryEntriesOptions {
+// Groups of entry fields a dashboard search can be limited to. Empty means all fields.
+export const TRACE_SEARCH_FIELDS = Object.freeze([
+  'request',
+  'response',
+  'headers',
+  'url',
+  'error',
+  'sql',
+  'meta',
+] as const);
+
+export type TraceSearchField = (typeof TRACE_SEARCH_FIELDS)[number];
+
+export interface TraceSearchOptions {
+  search?: string;
+  searchFields?: TraceSearchField[];
+}
+
+export interface QueryEntriesOptions extends TraceSearchOptions {
   type?: EntryTypeValue;
   tag?: string;
   batchId?: string;
@@ -279,7 +297,7 @@ export interface QueryEntriesOptions {
   summary?: boolean;
 }
 
-export interface QueryBatchEntriesOptions {
+export interface QueryBatchEntriesOptions extends TraceSearchOptions {
   type?: EntryTypeValue;
   excludeTypes?: EntryTypeValue[];
   page?: number;

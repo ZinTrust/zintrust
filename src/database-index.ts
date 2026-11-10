@@ -7,12 +7,18 @@ export { Database, resetDatabase, useDatabase, useEnsureDbConnected } from '@orm
 export type { IDatabase } from '@orm/Database';
 
 export { BaseAdapter } from '@orm/DatabaseAdapter';
-export type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+export type {
+  BatchStatement,
+  DatabaseConfig,
+  IDatabaseAdapter,
+  QueryResult,
+} from '@orm/DatabaseAdapter';
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 
 export { QueryBuilder } from '@orm/QueryBuilder';
 export type {
   IJoinOnBuilder,
+  InsertIfAbsentResult,
   InsertResult,
   IQueryBuilder,
   JoinOnInput,

@@ -216,6 +216,12 @@ The ingest gateway exposes exactly these signed POST endpoints:
 
 The dashboard SPA will be available at `GET /trace` (or your chosen `basePath`).
 
+### Dashboard search
+
+The Overview, Entries, and entry-detail pages let you search trace entries and optionally limit matching to Request, Response (body and status), Headers, URL, Error, SQL, or Meta fields. Leave all fields unchecked to search the full stored entry content. Searches from request-related detail tabs are limited to related entries in that request batch; searches on Monitoring filter the saved tag list. Long unbroken values, including URLs, wrap within the dashboard layout.
+
+On SQLite and D1, `zin migrate:trace` creates a trigram full-text index (`zin_trace_entries_search`) for searches with at least 3 characters and no line breaks. Shorter or multiline searches continue to use the `LIKE` scan. Existing installs must run `zin migrate:trace` before FTS-indexed searches work; fallback `LIKE` searches do not require the index. The index increases disk use and adds write work; the exact cost depends on the trace data. [Cloudflare documents FTS5 support in D1](https://developers.cloudflare.com/d1/sql-api/sql-statements/).
+
 If you need custom storage wiring, keep using the low-level route registrar:
 
 ```ts
