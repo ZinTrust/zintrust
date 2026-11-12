@@ -239,6 +239,28 @@ function applyReferrerPolicy(res: IResponse): void {
   res.setHeader('Referrer-Policy', 'no-referrer');
 }
 
+const resolveRequestCsp = (
+  csp: SecurityOptions['csp'],
+  path: string
+): SecurityOptions['csp'] => {
+  if (path !== '/docs' || !csp?.directives) return csp;
+
+  const directives = { ...csp.directives };
+  const addSwaggerOrigin = (directive: string, fallback: string[]): void => {
+    const sources = directives[directive] ?? fallback;
+    directives[directive] = sources.includes('https://unpkg.com')
+      ? sources
+      : [...sources, 'https://unpkg.com'];
+  };
+
+  const defaultSources = directives['default-src'] ?? ["'self'"];
+  addSwaggerOrigin('script-src', defaultSources);
+  addSwaggerOrigin('style-src', defaultSources);
+  addSwaggerOrigin('style-src-elem', directives['style-src'] ?? defaultSources);
+
+  return { ...csp, directives };
+};
+
 function applyCsp(res: IResponse, csp?: SecurityOptions['csp']): void {
   if (!csp?.directives) return;
 
@@ -327,7 +349,7 @@ export const SecurityMiddleware = Object.freeze({
       applyFrameguard(res, config.frameguard);
       applyNoSniff(res);
       applyReferrerPolicy(res);
-      applyCsp(res, config.csp);
+      applyCsp(res, resolveRequestCsp(config.csp, req.getPath()));
 
       const preflightHandled = applyCors(req, res, config.cors);
       if (preflightHandled) return;
