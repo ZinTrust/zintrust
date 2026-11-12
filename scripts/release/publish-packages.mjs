@@ -444,7 +444,11 @@ async function resolvePublishedCoreVersion(
   if (isDryRun) return localCoreVersion;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const publishedVersion = getPublishedVersion('@zintrust/core');
+    const publishedVersion = onlyUnpublished
+      ? (isPublishedOnNpm({ packageName: '@zintrust/core', version: localCoreVersion })
+          ? localCoreVersion
+          : undefined)
+      : getPublishedVersion('@zintrust/core');
     if (publishedVersion) {
       if (publishedVersion !== localCoreVersion) {
         process.stdout.write(
