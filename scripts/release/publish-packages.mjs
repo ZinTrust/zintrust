@@ -179,7 +179,7 @@ function printHelp() {
   process.stdout.write('  --tag <tag>                 Publish with a custom npm dist-tag\n');
   process.stdout.write('  --only-unpublished          Skip packages that already exist on npm\n');
   process.stdout.write(
-    '  --verify-core-on-npm        Require the root core version to exist on npm first\n'
+    '  --verify-core-on-npm        Use the published core version from npm\n'
   );
   process.stdout.write('  --continue-on-error         Continue after a package publish failure\n');
   process.stdout.write(
@@ -436,23 +436,36 @@ function getPublishedVersion(packageName) {
   throw new Error(`npm view failed for ${packageName}: ${flattenForTableCell(combined).trim()}`);
 }
 
-async function verifyCorePublishedOrThrow(coreVersion, { attempts = 1, delayMs = 0 } = {}) {
-  // Only useful for real publishing; dry-run can be used to validate packaging without network assumptions.
-  if (isDryRun) return;
+async function resolvePublishedCoreVersion(
+  localCoreVersion,
+  { attempts = 1, delayMs = 0 } = {}
+) {
+  // Dry runs validate packaging without relying on registry state.
+  if (isDryRun) return localCoreVersion;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const published = isPublishedOnNpm({ packageName: '@zintrust/core', version: coreVersion });
-    if (published) return;
+    const publishedVersion = getPublishedVersion('@zintrust/core');
+    if (publishedVersion) {
+      if (publishedVersion !== localCoreVersion) {
+        process.stdout.write(
+          `Using published @zintrust/core@${publishedVersion} instead of local version ${localCoreVersion}\n`
+        );
+      }
+      return publishedVersion;
+    }
 
     if (attempt < attempts) {
       process.stdout.write(
-        `@zintrust/core@${coreVersion} is not visible on npm yet; retrying in ${Math.round(delayMs / 1000)}s (${attempt}/${attempts})\n`
+        `@zintrust/core is not visible on npm yet; retrying in ${Math.round(delayMs / 1000)}s (${attempt}/${attempts})\n`
       );
+      publishedVersionCache.delete('@zintrust/core');
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 
-  throw new Error(`@zintrust/core@${coreVersion} is not published on npm`);
+  throw new Error(
+    `@zintrust/core is not published on npm (local version: ${localCoreVersion})`
+  );
 }
 
 async function writePublishReport({ failures, successes, checkIssues, reportPath }) {
@@ -574,9 +587,14 @@ async function loadPackageJson(pkgJsonPath) {
   }
 }
 
-function evaluateEligibility({ pkg, coreVersion }) {
+function evaluateEligibility({ pkg, coreVersion, requireExactVersion = false }) {
   if (pkg.private === true)
     return { shouldSkip: true, skipMessage: `Skipping private package: ${pkg.name}` };
+  if (requireExactVersion && pkg.version !== coreVersion)
+    return {
+      shouldSkip: true,
+      skipMessage: `Skipping version mismatch: ${pkg.name}@${pkg.version} (expected published version ${coreVersion})`,
+    };
   if (!isPublishablePackageVersion(pkg.version, coreVersion))
     return {
       shouldSkip: true,
@@ -651,14 +669,21 @@ async function transformPackageForPublish(pkg, pkgDir, coreVersion) {
   return transformed;
 }
 
-async function processPackageDir({ dirName, coreVersion, failures, successes, checkIssues }) {
+async function processPackageDir({
+  dirName,
+  coreVersion,
+  requireExactVersion,
+  failures,
+  successes,
+  checkIssues,
+}) {
   const pkgDir = path.join(packagesDir, dirName);
   const pkgJsonPath = path.join(pkgDir, 'package.json');
   const originalPkgText = await fs.readFile(pkgJsonPath, 'utf8');
 
   const pkg = JSON.parse(originalPkgText);
 
-  const eligibility = evaluateEligibility({ pkg, coreVersion });
+  const eligibility = evaluateEligibility({ pkg, coreVersion, requireExactVersion });
   if (eligibility.shouldSkip) {
     process.stdout.write(`${eligibility.skipMessage}\n`);
     return;
@@ -711,7 +736,7 @@ async function processPackageDir({ dirName, coreVersion, failures, successes, ch
   }
 }
 
-async function publishAllPackages({ packageDirs, coreVersion }) {
+async function publishAllPackages({ packageDirs, coreVersion, requireExactVersion }) {
   const failures = [];
   const successes = [];
   const checkIssues = [];
@@ -722,7 +747,14 @@ async function publishAllPackages({ packageDirs, coreVersion }) {
     await assertCoreShimHasRequiredExports();
 
     for (const dirName of packageDirs) {
-      await processPackageDir({ dirName, coreVersion, failures, successes, checkIssues });
+      await processPackageDir({
+        dirName,
+        coreVersion,
+        requireExactVersion,
+        failures,
+        successes,
+        checkIssues,
+      });
     }
   } finally {
     // Cleanup shim
@@ -2315,7 +2347,7 @@ export const GcsDriver = {};
 
 async function main() {
   const rootPkg = JSON.parse(await fs.readFile(path.join(repoRoot, 'package.json'), 'utf8'));
-  const version = rootPkg.version;
+  let version = rootPkg.version;
 
   if (showVersion) {
     process.stdout.write(`${version}\n`);
@@ -2329,17 +2361,21 @@ async function main() {
 
   removeDevRoutesForCiReleaseBuilds();
 
+  let requireExactVersion = false;
   if (verifyCoreOnNpm || onlyUnpublished) {
-    await verifyCorePublishedOrThrow(version, {
+    const publishedVersion = await resolvePublishedCoreVersion(version, {
       attempts: onlyUnpublished ? 10 : 1,
       delayMs: onlyUnpublished ? 30_000 : 0,
     });
+    requireExactVersion = publishedVersion !== version;
+    version = publishedVersion;
   }
 
   const packageDirs = await getPackageDirsToPublish();
   const { failures, successes, checkIssues } = await publishAllPackages({
     packageDirs,
     coreVersion: version,
+    requireExactVersion,
   });
 
   if (failures.length > 0 || checkIssues.length > 0) {
