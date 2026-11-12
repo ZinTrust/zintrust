@@ -163,4 +163,44 @@ describe('ProjectRuntime', () => {
       name: 'users',
     });
   }, 30000);
+
+  it('does not warn about a failed TypeScript candidate when JavaScript fallback loads', async () => {
+    tempProjectRoot = mkdtempSync(path.join(os.tmpdir(), 'zintrust-project-runtime-'));
+    const sourceDir = path.join(tempProjectRoot, 'src');
+    mkdirSync(sourceDir, { recursive: true });
+    writeFileSync(path.join(tempProjectRoot, 'package.json'), '{"type":"module"}', 'utf-8');
+    writeFileSync(
+      path.join(sourceDir, 'zintrust.runtime.ts'),
+      "throw new Error('source runtime unavailable');",
+      'utf-8'
+    );
+    writeFileSync(
+      path.join(sourceDir, 'zintrust.runtime.js'),
+      'export const serviceManifest = []; export default { serviceManifest };',
+      'utf-8'
+    );
+    process.env['ZINTRUST_PROJECT_ROOT'] = tempProjectRoot;
+
+    vi.doUnmock('@/zintrust.runtime.wg');
+    vi.doUnmock('@/zintrust.runtime');
+    vi.doUnmock('@node-singletons/fs');
+    vi.doUnmock('@node-singletons/path');
+    vi.doUnmock('@node-singletons/url');
+
+    const warnSpy = vi.fn();
+    vi.doMock('@config/logger', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('@config/logger')>();
+      return { ...actual, Logger: { ...actual.Logger, warn: warnSpy } };
+    });
+    const { ProjectRuntime } = await import('../../../src/runtime/ProjectRuntime');
+    ProjectRuntime.clear();
+
+    const loaded = await ProjectRuntime.tryLoadNodeRuntime();
+
+    expect(loaded).toBeDefined();
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      'Failed to import project runtime candidate',
+      expect.anything()
+    );
+  }, 30000);
 });

@@ -110,13 +110,50 @@ describe('CsrfMiddleware', () => {
 
     // 2. Simulate POST request with valid token
     (req.getMethod as any).mockReturnValue('POST');
+    requestHeaders.cookie = `XSRF-TOKEN=${token}`;
     (req.getHeader as any).mockImplementation((name: string) => {
       if (name === 'X-CSRF-Token') return token;
-      return null;
+      return requestHeaders[name.toLowerCase()] ?? null;
     });
 
     await middleware(req, res, next);
     expect(next).toHaveBeenCalledTimes(2); // Once for GET, once for POST
+  });
+
+  it('should reject a CSRF cookie without an echoed header or body token', async () => {
+    const middleware = CsrfMiddleware.create();
+
+    await middleware(req, res, next);
+    const token = res.locals['csrfToken'];
+
+    next.mockClear();
+    (req.getMethod as any).mockReturnValue('POST');
+    requestHeaders.cookie = `XSRF-TOKEN=${token}`;
+
+    await middleware(req, res, next);
+
+    expect(res.setStatus).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should reject mismatched cookie and submitted CSRF tokens', async () => {
+    const middleware = CsrfMiddleware.create();
+
+    await middleware(req, res, next);
+    const token = res.locals['csrfToken'];
+
+    next.mockClear();
+    (req.getMethod as any).mockReturnValue('POST');
+    requestHeaders.cookie = 'XSRF-TOKEN=another-token';
+    (req.getHeader as any).mockImplementation((name: string) => {
+      if (name === 'X-CSRF-Token') return token;
+      return requestHeaders[name.toLowerCase()] ?? null;
+    });
+
+    await middleware(req, res, next);
+
+    expect(res.setStatus).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('should reject invalid token', async () => {

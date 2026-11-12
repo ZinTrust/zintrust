@@ -30,6 +30,6 @@ export type {
 } from '@http/parsers/MultipartParserRegistry';
 
 export { MIME_TYPES } from '@config/constants';
-export { AssetsBinding } from '@config/type';
+export type { AssetsBinding } from '@config/type';
 
 export { getValidatedBody } from '@http/ValidationHelper';

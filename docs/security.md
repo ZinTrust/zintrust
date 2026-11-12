@@ -4,34 +4,26 @@ ZinTrust is built with security as a top priority, providing built-in protection
 
 ## Security Architecture (Defense-in-Depth)
 
-ZinTrust implements a **10-layer security architecture** where attackers must breach multiple independent security controls:
+ZinTrust documents a **10-layer defense-in-depth model**. Some protections are included in the default global middleware; others are route-level utilities or application responsibilities. Configure and verify controls for each application and deployment.
 
 | Layer  | Control                  | Location          | Purpose                                                   |
 | ------ | ------------------------ | ----------------- | --------------------------------------------------------- |
-| **1**  | Security Headers         | Global Middleware | HSTS, CSP, X-Frame-Options, X-Content-Type-Options        |
-| **2**  | CORS                     | Global Middleware | Origin validation, preflight handling                     |
-| **3**  | Rate Limiting            | Global Middleware | 100 req/min baseline (configurable per-route)             |
-| **4**  | CSRF Protection          | Global Middleware | Double Submit Cookie pattern                              |
-| **5**  | XSS Sanitization         | Global Middleware | Recursive HTML stripping via `Xss.sanitize`               |
+| **1**  | Security Headers         | Global Middleware | HSTS, CSP, X-Frame-Options, X-Content-Type-Options; configure CSP directives for your app |
+| **2**  | CORS                     | Global Middleware | Origin and preflight handling; the default origin is `*`, so configure an allow-list       |
+| **3**  | Rate Limiting            | Global Middleware | 100 requests/minute by default; configurable per route                                     |
+| **4**  | CSRF Protection          | Global Middleware | Double-submit cookie: echo the `XSRF-TOKEN` in a header or body field                      |
+| **5**  | XSS Sanitization         | Global Middleware | Recursive tag stripping on JSON request bodies, excluding GET, HEAD, OPTIONS, and DELETE   |
 | **6**  | Field Sanitization       | Route Middleware  | Type-specific input normalization via `Sanitizer.*`       |
 | **7**  | Schema Validation        | Route Middleware  | Type checking, format validation via `Validator.validate` |
 | **8**  | Authentication           | Route Middleware  | JWT verification, session validation                      |
 | **9**  | Authorization            | Controller Logic  | Role-based access control, ownership checks               |
 | **10** | SQL Injection Prevention | Database Layer    | Prepared statements via QueryBuilder                      |
 
-### Defense-in-Depth Benefits
-
-1. **Multiple Failure Points:** Each layer provides independent protection
-2. **Attack Surface Reduction:** Early rejection reduces processing overhead
-3. **Compliance Ready:** Meets SOC2, HIPAA, PCI-DSS requirements
-4. **Observable Security:** Each layer generates audit logs
-5. **Fail-Safe Design:** One layer's failure doesn't compromise others
+This model is an implementation guide, not a compliance certification or a guarantee that every control is enabled, independent, or effective in every application. Security depends on correct configuration, application authorization logic, deployment settings, and verification.
 
 ## SQL Injection
 
-The ORM and Query Builder use prepared statements for all queries, making your application immune to SQL injection by default.
-
-All prepared statements are automatically parameterized—user input is never concatenated into SQL.
+The ORM and Query Builder bind query values and restrict identifiers and operators to supported forms. This helps prevent SQL injection when using these APIs; it does not make an application immune to SQL injection. Avoid constructing raw SQL with untrusted input. FTS5 `MATCH` query strings are bound as values but still have FTS query-language semantics, so sanitize or constrain user-provided search terms.
 
 ### Interface Reference (safe surface)
 
@@ -76,10 +68,9 @@ export interface IQueryBuilder {
 
 ## Cross-Site Request Forgery (CSRF)
 
-ZinTrust includes a `CsrfMiddleware` that automatically verifies CSRF tokens for all state-changing requests (POST, PUT, DELETE).
+ZinTrust includes a `CsrfMiddleware` that verifies CSRF tokens for unsafe methods (all methods other than GET, HEAD, and OPTIONS).
 
-By default it uses the **Double Submit Cookie** pattern: the server issues an `XSRF-TOKEN` cookie on safe requests and expects the
-client to echo that value back on unsafe requests (typically via `X-CSRF-Token` header).
+By default it uses the **Double Submit Cookie** pattern: the server issues an `XSRF-TOKEN` cookie on safe requests and expects the client to echo the same value in an `X-CSRF-Token` header or `_csrf` body field on unsafe requests. The cookie by itself is not accepted as the submitted token.
 
 ### Skipping CSRF for APIs
 
@@ -96,7 +87,7 @@ const csrf = CsrfMiddleware.create({
 
 ```typescript
 // In your HTML form
-<input type="hidden" name="_token" value="{{ csrf_token() }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 ```
 
 ### Interface Reference
@@ -123,7 +114,7 @@ export interface ICsrfTokenManager {
 
 ## Cross-Site Scripting (XSS)
 
-The framework provides an `XssProtection` utility to sanitize user input and prevent XSS attacks.
+The framework provides an `Xss` utility that strips HTML tags from untrusted values as a defense-in-depth measure. It is not a substitute for context-aware output encoding or safe templating.
 
 ```typescript
 import { Xss } from '@zintrust/core/security';

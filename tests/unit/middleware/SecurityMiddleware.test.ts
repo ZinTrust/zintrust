@@ -35,6 +35,10 @@ describe('SecurityMiddleware', () => {
     expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
     expect(res.setHeader).toHaveBeenCalledWith('Referrer-Policy', 'no-referrer');
     expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Security-Policy',
+      expect.stringContaining("default-src 'self'")
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
       'Strict-Transport-Security',
       expect.stringContaining('max-age=')
     );
