@@ -591,14 +591,9 @@ async function loadPackageJson(pkgJsonPath) {
   }
 }
 
-function evaluateEligibility({ pkg, coreVersion, requireExactVersion = false }) {
+function evaluateEligibility({ pkg, coreVersion }) {
   if (pkg.private === true)
     return { shouldSkip: true, skipMessage: `Skipping private package: ${pkg.name}` };
-  if (requireExactVersion && pkg.version !== coreVersion)
-    return {
-      shouldSkip: true,
-      skipMessage: `Skipping version mismatch: ${pkg.name}@${pkg.version} (expected published version ${coreVersion})`,
-    };
   if (!isPublishablePackageVersion(pkg.version, coreVersion))
     return {
       shouldSkip: true,
