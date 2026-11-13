@@ -196,16 +196,19 @@ const DEFAULT_OPTIONS: SecurityOptions = {
     credentials: getSecurityCorsConfig().credentials,
     maxAge: getSecurityCorsConfig().maxAge,
   },
-  csp: {
-    directives: {
-      'default-src': ["'self'"],
-      'script-src': ["'self'", "'unsafe-inline'"],
-      'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      'style-src-elem': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      'img-src': ["'self'", 'data:'],
-      'font-src': ["'self'", 'https://fonts.gstatic.com'],
-    },
-  },
+  csp:
+    securityConfig?.helmet?.contentSecurityPolicy === false
+      ? undefined
+      : {
+          directives: {
+            'default-src': ["'self'"],
+            'script-src': ["'self'", "'unsafe-inline'"],
+            'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+            'style-src-elem': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+            'img-src': ["'self'", 'data:'],
+            'font-src': ["'self'", 'https://fonts.gstatic.com'],
+          },
+        },
 };
 
 const mergeSecurityOptions = (options: SecurityOptions): SecurityOptions => {
