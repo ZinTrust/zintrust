@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isPublishableFromNpmState } from './publishable-package-utils.mjs';
 
 const repoRoot = process.cwd();
 const packagesDir = path.join(repoRoot, 'packages');
@@ -11,7 +12,7 @@ function getArgValue(flag) {
   const i = cliArgs.indexOf(flag);
   if (i === -1) return undefined;
   const v = cliArgs[i + 1];
-  if (!v || v.startsWith('-')) return undefined;
+  if (v === undefined || v.startsWith('-')) return undefined;
   return v;
 }
 
@@ -50,16 +51,6 @@ function isDirChanged(dirName) {
   return changedDirs.has(dirName);
 }
 
-function isPublishableFromNpmState(dirName, localVersion, publishedVersion) {
-  // Always allow first-time publishes, even if no files changed.
-  if (publishedVersion === null) return true;
-
-  // If change info is provided, do not republish unchanged packages.
-  if (shouldConsiderChangedDirs() && !isDirChanged(dirName)) return false;
-
-  return compareVersions(localVersion, publishedVersion) > 0;
-}
-
 function setGithubOutput(name, value) {
   const outputPath = process.env.GITHUB_OUTPUT;
   if (!outputPath) {
@@ -69,17 +60,6 @@ function setGithubOutput(name, value) {
 
   // Append to preserve any other outputs.
   return fs.appendFile(outputPath, `${name}=${String(value)}\n`, { encoding: 'utf8' });
-}
-
-function compareVersions(a, b) {
-  if (!b) return 1;
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
-    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
-  }
-  return 0;
 }
 
 function npmViewVersion(pkgName) {
@@ -124,6 +104,8 @@ async function main() {
   const publishableDirs = [];
 
   for (const dirName of packageDirs) {
+    if (shouldConsiderChangedDirs() && !isDirChanged(dirName)) continue;
+
     const pkgDir = path.join(packagesDir, dirName);
     const pkgJsonPath = path.join(pkgDir, 'package.json');
 
@@ -139,7 +121,7 @@ async function main() {
 
     const publishedVersion = npmViewVersion(pkg.name);
 
-    if (isPublishableFromNpmState(dirName, pkg.version, publishedVersion)) {
+    if (isPublishableFromNpmState(dirName, pkg.version, publishedVersion, changedDirs)) {
       publishableDirs.push(dirName);
     }
   }
