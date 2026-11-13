@@ -14,6 +14,7 @@ describe('SecurityMiddleware', () => {
     req = {
       getHeader: vi.fn((name: string) => headers[name.toLowerCase()]),
       getMethod: vi.fn(() => 'GET'),
+      getPath: vi.fn(() => '/'),
     } as unknown as IRequest;
 
     res = {
@@ -35,9 +36,34 @@ describe('SecurityMiddleware', () => {
     expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
     expect(res.setHeader).toHaveBeenCalledWith('Referrer-Policy', 'no-referrer');
     expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Security-Policy',
+      expect.stringContaining("default-src 'self'")
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
       'Strict-Transport-Security',
       expect.stringContaining('max-age=')
     );
+  });
+
+  it('should allow Swagger UI CDN assets only on the docs route', async () => {
+    vi.mocked(req.getPath).mockReturnValue('/docs');
+
+    await SecurityMiddleware.create()(req, res, next);
+
+    const docsCsp = headers['content-security-policy'];
+    expect(docsCsp).toContain("script-src 'self' 'unsafe-inline' https://unpkg.com");
+    expect(docsCsp).toContain(
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com"
+    );
+    expect(docsCsp).toContain(
+      "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com"
+    );
+
+    headers = {};
+    vi.mocked(req.getPath).mockReturnValue('/');
+    await SecurityMiddleware.create()(req, res, next);
+
+    expect(headers['content-security-policy']).not.toContain('https://unpkg.com');
   });
 
   it('should set CORS headers when configured', async () => {
@@ -121,6 +147,7 @@ describe('SecurityMiddleware', () => {
     const localReq = {
       getHeader: vi.fn(() => 'https://ui.example'),
       getMethod: vi.fn(() => 'GET'),
+      getPath: vi.fn(() => '/'),
     } as unknown as IRequest;
     const localRes = {
       setHeader: vi.fn((name: string, value: string | string[]) => {

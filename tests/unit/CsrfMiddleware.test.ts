@@ -128,7 +128,11 @@ describe('CsrfMiddleware helpers and middleware behavior', () => {
     const mw = CsrfMiddleware.create();
 
     const req: any = {
-      getHeader: (n: string) => (n === 'X-CSRF-Token' ? 't' : undefined),
+      getHeader: (n: string) => {
+        if (n === 'X-CSRF-Token') return 't';
+        if (n === 'cookie') return 'XSRF-TOKEN=t';
+        return undefined;
+      },
       getMethod: () => 'POST',
       getPath: () => '/',
       getBody: () => ({}),
@@ -149,7 +153,7 @@ describe('CsrfMiddleware helpers and middleware behavior', () => {
     expect(proceeded).toBe(true);
   }, 30000);
 
-  it('cookie parsing via header works in middleware', async () => {
+  it('validates matching cookie and echoed header tokens', async () => {
     vi.resetModules();
     vi.doMock('@security/CsrfTokenManager', () => ({
       CsrfTokenManager: {
@@ -168,7 +172,11 @@ describe('CsrfMiddleware helpers and middleware behavior', () => {
     const mw = CsrfMiddleware.create();
 
     const req: any = {
-      getHeader: (n: string) => (n === 'cookie' ? 'XSRF-TOKEN=t; b=hello%20world' : undefined),
+      getHeader: (n: string) => {
+        if (n === 'cookie') return 'XSRF-TOKEN=t; b=hello%20world';
+        if (n === 'X-CSRF-Token') return 't';
+        return undefined;
+      },
       getMethod: () => 'POST',
       getPath: () => '/',
       getBody: () => ({}),

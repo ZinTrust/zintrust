@@ -64,7 +64,8 @@ const hasLoadedServiceManifest = (runtime: ProjectRuntimeModule | undefined): bo
 };
 
 const tryImportNodeRuntimeCandidate = async (
-  candidate: string
+  candidate: string,
+  failures: Array<{ candidate: string; error: unknown }>
 ): Promise<ProjectRuntimeModule | undefined> => {
   if (!existsSync(candidate)) return undefined;
 
@@ -73,10 +74,7 @@ const tryImportNodeRuntimeCandidate = async (
     const runtimeModule = (await import(moduleUrl)) as Record<string, unknown>;
     return cacheProjectRuntime(runtimeModule);
   } catch (error) {
-    Logger.warn('Failed to import project runtime candidate', {
-      candidate,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    failures.push({ candidate, error });
     return undefined;
   }
 };
@@ -131,11 +129,19 @@ export const ProjectRuntime = Object.freeze({
 
     const projectRoot = getProjectRoot();
     const candidates = getNodeRuntimeCandidates(projectRoot);
+    const failures: Array<{ candidate: string; error: unknown }> = [];
 
     for (const candidate of candidates) {
       // eslint-disable-next-line no-await-in-loop
-      const loaded = await tryImportNodeRuntimeCandidate(candidate);
+      const loaded = await tryImportNodeRuntimeCandidate(candidate, failures);
       if (loaded !== undefined) return loaded;
+    }
+
+    for (const failure of failures) {
+      Logger.warn('Failed to import project runtime candidate', {
+        candidate: failure.candidate,
+        error: failure.error instanceof Error ? failure.error.message : String(failure.error),
+      });
     }
 
     return undefined;

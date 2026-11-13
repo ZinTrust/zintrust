@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-sqs",
-  "version": "3.6.0",
+  "version": "3.8.0",
   "description": "Amazon SQS queue driver for ZinTrust.",
   "private": false,
   "type": "module",
@@ -26,7 +26,7 @@
     "@aws-sdk/client-sqs": "^3.1138.0"
   },
   "overrides": {
-    "fast-xml-parser": "5.8.0",
+    "fast-xml-parser": "5.12.0",
     "flatted": "^3.4.2",
     "uuid": "14.0.0"
   },

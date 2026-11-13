@@ -7,7 +7,7 @@ describe('Server security headers', () => {
     vi.restoreAllMocks();
   });
 
-  it('sets Content-Security-Policy for HTML responses', async () => {
+  it('does not infer response CSP from the incoming request Content-Type', async () => {
     const mockKernel = { handleRequest: vi.fn().mockResolvedValue(undefined) } as any;
 
     // Minimal app mock
@@ -31,9 +31,9 @@ describe('Server security headers', () => {
     // Give the event loop a tick for async handler
     await new Promise((r) => setImmediate(r));
 
-    expect(setHeader).toHaveBeenCalledWith(
+    expect(setHeader).not.toHaveBeenCalledWith(
       HTTP_HEADERS.CONTENT_SECURITY_POLICY,
-      expect.any(String)
+      expect.anything()
     );
   });
 });

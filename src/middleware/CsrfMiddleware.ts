@@ -131,9 +131,13 @@ export const CsrfMiddleware = Object.freeze({
       const tokenFromBody = (req.getBody() as Record<string, string>)?.[config.bodyKey ?? '_csrf'];
       const tokenFromCookie = cookies[config.cookieName ?? 'XSRF-TOKEN'];
 
-      const token = tokenFromHeader || tokenFromBody || tokenFromCookie;
+      const token = tokenFromHeader || tokenFromBody;
 
-      if (!token || !(await manager.validateToken(sessionId, token))) {
+      if (
+        !token ||
+        token !== tokenFromCookie ||
+        !(await manager.validateToken(sessionId, token))
+      ) {
         Logger.warn(`CSRF validation failed for session ${sessionId}`);
         await respondWithMiddlewareFailure(req, res, config.onFailure, {
           middleware: 'csrf',

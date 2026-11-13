@@ -196,6 +196,19 @@ const DEFAULT_OPTIONS: SecurityOptions = {
     credentials: getSecurityCorsConfig().credentials,
     maxAge: getSecurityCorsConfig().maxAge,
   },
+  csp:
+    securityConfig?.helmet?.contentSecurityPolicy === false
+      ? undefined
+      : {
+          directives: {
+            'default-src': ["'self'"],
+            'script-src': ["'self'", "'unsafe-inline'"],
+            'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+            'style-src-elem': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+            'img-src': ["'self'", 'data:'],
+            'font-src': ["'self'", 'https://fonts.gstatic.com'],
+          },
+        },
 };
 
 const mergeSecurityOptions = (options: SecurityOptions): SecurityOptions => {
@@ -228,6 +241,40 @@ function applyNoSniff(res: IResponse): void {
 function applyReferrerPolicy(res: IResponse): void {
   res.setHeader('Referrer-Policy', 'no-referrer');
 }
+
+const resolveRequestCsp = (
+  csp: SecurityOptions['csp'],
+  path: string
+): SecurityOptions['csp'] => {
+  if (path !== '/docs' || !csp?.directives) return csp;
+
+  const directives = { ...csp.directives };
+  const hasMatchingOrigin = (sources: string[], targetUrl: string): boolean => {
+    const targetOrigin = new URL(targetUrl).origin;
+
+    return sources.some((source) => {
+      try {
+        return new URL(source).origin === targetOrigin;
+      } catch {
+        return source === targetUrl;
+      }
+    });
+  };
+
+  const addSwaggerOrigin = (directive: string, fallback: string[]): void => {
+    const sources = directives[directive] ?? fallback;
+    directives[directive] = hasMatchingOrigin(sources, 'https://unpkg.com')
+      ? sources
+      : [...sources, 'https://unpkg.com'];
+  };
+
+  const defaultSources = directives['default-src'] ?? ["'self'"];
+  addSwaggerOrigin('script-src', defaultSources);
+  addSwaggerOrigin('style-src', defaultSources);
+  addSwaggerOrigin('style-src-elem', directives['style-src'] ?? defaultSources);
+
+  return { ...csp, directives };
+};
 
 function applyCsp(res: IResponse, csp?: SecurityOptions['csp']): void {
   if (!csp?.directives) return;
@@ -317,7 +364,7 @@ export const SecurityMiddleware = Object.freeze({
       applyFrameguard(res, config.frameguard);
       applyNoSniff(res);
       applyReferrerPolicy(res);
-      applyCsp(res, config.csp);
+      applyCsp(res, resolveRequestCsp(config.csp, req.getPath()));
 
       const preflightHandled = applyCors(req, res, config.cors);
       if (preflightHandled) return;

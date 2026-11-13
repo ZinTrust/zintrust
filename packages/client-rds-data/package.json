@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/client-rds-data",
-  "version": "3.6.0",
+  "version": "3.8.0",
   "description": "AWS RDS Data API and Secrets Manager helpers for ZinTrust.",
   "private": false,
   "type": "module",
@@ -26,7 +26,7 @@
     "@zintrust/core": "*"
   },
   "overrides": {
-    "fast-xml-parser": "5.8.0",
+    "fast-xml-parser": "5.12.0",
     "flatted": "^3.4.2",
     "uuid": "14.0.0"
   },
