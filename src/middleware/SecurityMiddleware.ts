@@ -246,9 +246,21 @@ const resolveRequestCsp = (
   if (path !== '/docs' || !csp?.directives) return csp;
 
   const directives = { ...csp.directives };
+  const hasMatchingOrigin = (sources: string[], targetUrl: string): boolean => {
+    const targetOrigin = new URL(targetUrl).origin;
+
+    return sources.some((source) => {
+      try {
+        return new URL(source).origin === targetOrigin;
+      } catch {
+        return source === targetUrl;
+      }
+    });
+  };
+
   const addSwaggerOrigin = (directive: string, fallback: string[]): void => {
     const sources = directives[directive] ?? fallback;
-    directives[directive] = sources.includes('https://unpkg.com')
+    directives[directive] = hasMatchingOrigin(sources, 'https://unpkg.com')
       ? sources
       : [...sources, 'https://unpkg.com'];
   };
