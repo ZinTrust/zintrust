@@ -7,10 +7,14 @@ const mocks = vi.hoisted(() => {
   const table = vi.fn(async (_name: string, cb: (bp: unknown) => void) => {
     cb({ index, dropIndex });
   });
-  const db = { getType: vi.fn(() => 'sqlite'), query: vi.fn() };
-  return { hasTable, table, dropIndex, index, db };
+  const adapterGetType = vi.fn(() => 'sqlite');
+  const db = {
+    getAdapterInstance: vi.fn(() => ({ getType: adapterGetType })),
+    query: vi.fn(),
+  };
+  return { hasTable, table, dropIndex, index, adapterGetType, db };
 });
-const { hasTable, table, dropIndex, index, db: mockDb } = mocks;
+const { hasTable, table, dropIndex, index, adapterGetType, db: mockDb } = mocks;
 
 vi.mock('@zintrust/core/database', () => ({
   MigrationSchema: {
@@ -25,7 +29,7 @@ const INDEX_NAME = 'idx_zin_trace_type_created_id';
 describe('AddZinTraceEntriesTypeCreatedIndex migration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDb.getType.mockReturnValue('sqlite');
+    adapterGetType.mockReturnValue('sqlite');
     hasTable.mockResolvedValue(true);
     mockDb.query.mockResolvedValue([]);
   });
@@ -68,7 +72,7 @@ describe('AddZinTraceEntriesTypeCreatedIndex migration', () => {
   });
 
   it('uses DROP INDEX ... ON table for sqlserver on down', async () => {
-    mockDb.getType.mockReturnValue('sqlserver');
+    adapterGetType.mockReturnValue('sqlserver');
     mockDb.query.mockResolvedValueOnce([{ name: INDEX_NAME }]);
 
     await migration.down(mockDb as never);
