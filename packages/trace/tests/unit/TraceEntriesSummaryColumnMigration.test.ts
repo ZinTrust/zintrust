@@ -10,10 +10,15 @@ const mocks = vi.hoisted(() => {
     cb({ text, dropColumn });
   });
   text.mockReturnValue({ nullable });
-  const db = { getType: vi.fn(() => 'sqlite'), query: vi.fn() };
-  return { hasTable, hasColumn, table, text, nullable, dropColumn, db };
+  const adapterGetType = vi.fn(() => 'sqlite');
+  const db = {
+    getAdapterInstance: vi.fn(() => ({ getType: adapterGetType })),
+    query: vi.fn(),
+  };
+  return { hasTable, hasColumn, table, text, nullable, dropColumn, adapterGetType, db };
 });
-const { hasTable, hasColumn, table, text, nullable, dropColumn, db: mockDb } = mocks;
+const { hasTable, hasColumn, table, text, nullable, dropColumn, adapterGetType, db: mockDb } =
+  mocks;
 
 vi.mock('@zintrust/core/database', () => ({
   MigrationSchema: {
@@ -30,7 +35,7 @@ import { migration } from '../../migrations/20260412120000_add_zin_trace_entries
 describe('AddZinTraceEntriesSummaryColumn migration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDb.getType.mockReturnValue('sqlite');
+    adapterGetType.mockReturnValue('sqlite');
     text.mockReturnValue({ nullable });
     hasTable.mockResolvedValue(true);
     hasColumn.mockResolvedValue(false);
@@ -53,7 +58,7 @@ describe('AddZinTraceEntriesSummaryColumn migration', () => {
   });
 
   it('adds the summary column with SQL Server syntax', async () => {
-    mockDb.getType.mockReturnValue('sqlserver');
+    adapterGetType.mockReturnValue('sqlserver');
 
     await migration.up(mockDb as never);
 
@@ -73,7 +78,7 @@ describe('AddZinTraceEntriesSummaryColumn migration', () => {
   });
 
   it('drops the summary column on down when it exists', async () => {
-    mockDb.getType.mockReturnValue('mysql');
+    adapterGetType.mockReturnValue('mysql');
     hasColumn.mockResolvedValue(true);
 
     await migration.down(mockDb as never);

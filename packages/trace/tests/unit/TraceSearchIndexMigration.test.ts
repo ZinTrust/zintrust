@@ -41,7 +41,7 @@ const createSqliteDb = (driver = 'sqlite') => {
     return stmt.reader ? stmt.all(...params) : (stmt.run(...params), []);
   };
   const db = {
-    getType: () => driver,
+    getAdapterInstance: () => ({ getType: () => driver }),
     query: async (sql: string, params: unknown[] = []) => run(sql, params),
     queryOne: async (sql: string, params: unknown[] = []) => run(sql, params)[0],
     execute: async (sql: string, params: unknown[] = []) => {
