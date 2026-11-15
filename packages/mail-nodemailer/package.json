@@ -36,7 +36,7 @@
     "adapter"
   ],
   "dependencies": {
-    "nodemailer": "^10.1.4"
+    "nodemailer": "^10.5.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
