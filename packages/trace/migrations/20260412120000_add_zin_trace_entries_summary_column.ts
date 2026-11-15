@@ -25,7 +25,7 @@ export const migration: Migration = {
     if (!(await schema.hasTable(TABLE))) return;
     if (await schema.hasColumn(TABLE, COLUMN)) return;
 
-    if (db.getType() === 'sqlserver') {
+    if (db.getAdapterInstance().getType() === 'sqlserver') {
       await db.query(`ALTER TABLE ${TABLE} ADD ${COLUMN} NVARCHAR(MAX) NULL`, []);
       return;
     }
@@ -36,7 +36,7 @@ export const migration: Migration = {
   },
 
   async down(db: IDatabase): Promise<void> {
-    if (isSqliteFamilyDriver(db.getType())) return;
+    if (isSqliteFamilyDriver(db.getAdapterInstance().getType())) return;
 
     const schema = MigrationSchema.create(db);
     if (!(await schema.hasTable(TABLE))) return;

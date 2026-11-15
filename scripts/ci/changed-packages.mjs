@@ -66,7 +66,12 @@ function main() {
   // If there is no previous tag, treat all packages as changed.
   if (!base) {
     writeOutput('packages_changed', 'true');
-    writeOutput('changed_package_dirs', '');
+    const dirs = fs
+      .readdirSync('packages', { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    writeOutput('changed_package_dirs', dirs.join(','));
     writeOutput('diff_base', '');
     return;
   }

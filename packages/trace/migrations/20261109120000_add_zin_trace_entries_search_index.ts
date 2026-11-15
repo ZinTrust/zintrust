@@ -81,7 +81,7 @@ const hasAllTriggers = async (db: IDatabase): Promise<boolean> => {
 
 export const migration: Migration = {
   async up(db: IDatabase): Promise<void> {
-    if (!isSqliteFamilyDriver(db.getType())) return;
+    if (!isSqliteFamilyDriver(db.getAdapterInstance().getType())) return;
 
     const schema = MigrationSchema.create(db);
     if (!(await schema.hasTable(TABLE))) return;
@@ -101,7 +101,7 @@ export const migration: Migration = {
   },
 
   async down(db: IDatabase): Promise<void> {
-    if (!isSqliteFamilyDriver(db.getType())) return;
+    if (!isSqliteFamilyDriver(db.getAdapterInstance().getType())) return;
 
     await db.execute(`DROP TRIGGER IF EXISTS ${TRIGGER_INSERT}`, []);
     await db.execute(`DROP TRIGGER IF EXISTS ${TRIGGER_UPDATE}`, []);
