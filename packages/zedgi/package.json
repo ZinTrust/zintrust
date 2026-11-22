@@ -23,7 +23,8 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "*"
+    "@zintrust/core": "*",
+    "@zintrust/queue-monitor": "*"
   },
   "publishConfig": {
     "access": "public"

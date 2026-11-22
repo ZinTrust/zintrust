@@ -424,7 +424,7 @@
     "semver": "^7.6.3",
     "ws": "^8.21.0",
     "micromatch": "^4.0.8",
-    "brace-expansion": "^5.0.12",
+    "brace-expansion": "^5.0.13",
     "postcss": "^8.5.18",
     "esbuild": "0.28.1",
     "qs": "^6.15.2",

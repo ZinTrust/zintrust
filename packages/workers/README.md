@@ -30,13 +30,7 @@ npm install @zintrust/core
 
 ### Optional Dependencies
 
-For AI-powered anomaly detection (if using `AnomalyDetection` module):
-
-```bash
-npm install brain.js ml.js simple-statistics
-# Optional: TensorFlow.js for advanced ML
-npm install @tensorflow/tfjs-node
-```
+The built-in `AnomalyDetection` module uses its own statistical baselines and does not require additional machine-learning packages.
 
 For queue integrations that are lazy-loaded by the workers package:
 
