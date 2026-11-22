@@ -308,12 +308,12 @@ If you discover a security vulnerability within ZinTrust, please see our [Securi
 Join our community and stay updated:
 
 - **Website**: [zintrust.com](https://zintrust.com)
-- **X (Twitter)**: [@zintrust](https://x.com/zintrust)
+- **X (Twitter)**: [@zintrustjs](https://x.com/zintrustjs)
 - **Discord**: [Join our server](https://discord.gg/zintrust)
-- **Slack**: [Join our workspace](https://slack.zintrust.com)
+- **Slack**: [Join our workspace](https://zintrustjs.slack.com/s)
 - **Reddit**: [r/zintrust](https://reddit.com/r/zintrust)
-- **Dev.to**: [zintrust](https://dev.to/zintrust)
-- **Medium**: [@zintrust](https://medium.com/@zintrust)
+- **Dev.to**: [zintrustjs](https://dev.to/zintrustjs)
+- **Medium**: [@zintrustjs](https://medium.com/@zintrustjs)
 - **Stack Overflow**: [zintrust](https://stackoverflow.com/users/32073668/zintrust)
 - **LinkedIn**: [ZinTrust](https://linkedin.com/company/zintrustjs)
 - **YouTube**: [@zintrust](https://youtube.com/@zintrust)
