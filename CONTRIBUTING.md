@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to ZinTrust!
 
-To ensure a smooth contribution process and maintain high code quality, please refer to our comprehensive **[Contributor & QA Guide](docs/contributing.md)**.
+To help keep our community welcoming and maintain high code quality, please read our [Code of Conduct](CODE_OF_CONDUCT.md) and refer to the **[Contributor & QA Guide](docs/contributing.md)**.
 
 ## Quick Start
 

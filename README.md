@@ -209,6 +209,7 @@ See [docs/](docs/) for comprehensive guides on:
 - [Middleware](docs/middleware.md)
 - [Testing](docs/testing.md)
 - [Deployment](docs/deployment.md)
+- [Accessibility](docs/accessibility.md)
 
 Practical walkthroughs:
 
