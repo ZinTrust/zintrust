@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-rabbitmq",
-  "version": "3.9.1",
+  "version": "4.0.0",
   "description": "RabbitMQ queue driver for ZinTrust.",
   "private": false,
   "type": "module",
@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "amqplib": "^2.0.1"
+    "amqplib": "^2.4.0"
   },
   "peerDependencies": {
     "@zintrust/core": "*"

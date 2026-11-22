@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/mail-nodemailer",
-  "version": "3.9.1",
+  "version": "4.0.0",
   "description": "Nodemailer mail driver for ZinTrust.",
   "private": false,
   "type": "module",
@@ -36,7 +36,7 @@
     "adapter"
   ],
   "dependencies": {
-    "nodemailer": "^10.1.4"
+    "nodemailer": "^10.6.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

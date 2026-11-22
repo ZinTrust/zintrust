@@ -7,7 +7,7 @@ This package lets a ZinTrust app reach Redis, MySQL, PostgreSQL, and BullMQ queu
 ## Install
 
 ```bash
-npm install @zintrust/zedgi @zedgi/zedgi-client
+npm install @zintrust/zedgi @zintrust/queue-monitor @zedgi/zedgi-client
 ```
 
 In ZinTrust monorepo builds, this package is auto-discovered when one of the Zedgi drivers is selected.
