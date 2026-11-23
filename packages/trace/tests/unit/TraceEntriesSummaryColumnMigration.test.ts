@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
   text.mockReturnValue({ nullable });
   const adapterGetType = vi.fn(() => 'sqlite');
   const db = {
+    getType: adapterGetType,
     getAdapterInstance: vi.fn(() => ({ getType: adapterGetType })),
     query: vi.fn(),
   };

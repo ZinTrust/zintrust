@@ -14,7 +14,7 @@ const TABLE = 'zin_trace_entries';
 const INDEX_NAME = 'idx_zin_trace_type_created_id';
 
 const hasIndex = async (db: IDatabase, tableName: string, indexName: string): Promise<boolean> => {
-  const t = db.getAdapterInstance().getType();
+  const t = db.getType();
 
   if (t === 'mysql') {
     const rows = await db.query(
@@ -67,7 +67,7 @@ export const migration: Migration = {
     if (!(await schema.hasTable(TABLE))) return;
     if (!(await hasIndex(db, TABLE, INDEX_NAME))) return;
 
-    const driver = db.getAdapterInstance().getType();
+    const driver = db.getType();
     if (driver === 'mysql' || driver === 'sqlserver') {
       await db.query(`DROP INDEX ${INDEX_NAME} ON ${TABLE}`, []);
       return;
