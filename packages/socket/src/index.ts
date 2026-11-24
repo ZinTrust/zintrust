@@ -51,8 +51,6 @@ type ServerSideSocketPublishInput = Readonly<{
   user?: unknown;
 }>;
 
-type WorkerMessageEvent = Event & { data?: unknown };
-
 type SubscribePayload = {
   channel?: unknown;
   auth?: unknown;
@@ -625,22 +623,6 @@ const createNodePeer = (state: SocketState, socket: NodeSocket): SocketPeer => {
   return peer;
 };
 
-const createWorkerPeer = (state: SocketState, socket: WebSocket): SocketPeer => {
-  const peer: SocketPeer = {
-    id: createSocketId(),
-    subscriptions: new Set<string>(),
-    sendText(text: string): void {
-      socket.send(text);
-    },
-    close(code = 1000, reason = ''): void {
-      socket.close(code, reason);
-    },
-  };
-
-  state.peers.set(peer.id, peer);
-  return peer;
-};
-
 const attachNodePeer = async (
   state: SocketState,
   input: SocketNodeUpgradeInput,
@@ -700,21 +682,6 @@ const attachNodePeer = async (
   }
 
   return true;
-};
-
-const attachWorkerPeer = (
-  state: SocketState,
-  socket: WebSocket,
-  settings: SocketFeatureSettings
-): void => {
-  const peer = createWorkerPeer(state, socket);
-  emitConnectionEstablished(peer, settings);
-
-  socket.addEventListener('message', (event: Event) => {
-    void handleClientMessage(state, peer, decodeText((event as WorkerMessageEvent).data), settings);
-  });
-  socket.addEventListener('close', () => detachPeer(state, peer));
-  socket.addEventListener('error', () => detachPeer(state, peer));
 };
 
 const getSocketAppKey = (requestPath: string, settings: SocketFeatureSettings): string | null => {
@@ -1399,9 +1366,63 @@ export class ZintrustSocketHub {
 
   private readonly state: SocketState;
 
+  private readonly durableState: {
+    acceptWebSocket: (ws: WebSocket) => void;
+    getWebSockets?: () => WebSocket[];
+    setWebSocketAutoResponse?: (pair: unknown) => void;
+  };
+
   constructor(_state: unknown, env: unknown) {
     this.settings = getSocketRuntimeSettings(env);
     this.state = createSocketState();
+
+    this.durableState = _state as {
+      acceptWebSocket: (ws: WebSocket) => void;
+      getWebSockets?: () => WebSocket[];
+      setWebSocketAutoResponse?: (pair: unknown) => void;
+    };
+
+    // Rebuild in-memory peer/channel maps from hibernated WebSockets so state
+    // survives eviction. The maps act as a warm cache; attachments are the
+    // source of truth across hibernate/wake cycles.
+    if (this.durableState.getWebSockets) {
+      for (const ws of this.durableState.getWebSockets()) {
+        const attachment = ws.deserializeAttachment() as {
+          peerId?: string;
+          subscriptions?: string[];
+        } | null;
+        if (attachment === null || attachment === undefined) continue;
+
+        const peerId = attachment.peerId;
+        const subscriptions = attachment.subscriptions ?? [];
+        if (typeof peerId !== 'string') continue;
+
+        const peer: SocketPeer = {
+          id: peerId,
+          subscriptions: new Set(subscriptions),
+          sendText(text: string): void {
+            ws.send(text);
+          },
+          close(code = 1000, reason = ''): void {
+            ws.close(code, reason);
+          },
+        };
+
+        this.state.peers.set(peerId, peer);
+        for (const channel of subscriptions) {
+          addPeerToChannel(this.state, channel, peer);
+        }
+      }
+    }
+
+    // Auto-respond to pusher:ping with pusher:pong so keepalive pings do not
+    // force a full Durable Object wake.
+    if (this.durableState.setWebSocketAutoResponse) {
+      this.durableState.setWebSocketAutoResponse({
+        request: /pusher:ping/,
+        response: '{"event":"pusher:pong","data":{}}',
+      });
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -1434,9 +1455,99 @@ export class ZintrustSocketHub {
     const pair = new WebSocketPairRef();
     const client = pair[0];
     const server = pair[1];
-    server.accept();
-    attachWorkerPeer(this.state, server, this.settings);
+
+    // Use the hibernation API so the Durable Object can hibernate while idle
+    // instead of staying resident for the full WebSocket lifetime.
+    this.durableState.acceptWebSocket(server);
+
+    // Allocate a peer and announce the connection immediately so clients
+    // receive `pusher:connection_established` without waiting to send a
+    // message. Peer id and subscriptions are persisted on the socket
+    // attachment for hibernation survival.
+    const peerId = createSocketId();
+    const peer: SocketPeer = {
+      id: peerId,
+      subscriptions: new Set<string>(),
+      sendText(text: string): void {
+        server.send(text);
+      },
+      close(code = 1000, reason = ''): void {
+        server.close(code, reason);
+      },
+    };
+    this.state.peers.set(peerId, peer);
+    emitConnectionEstablished(peer, this.settings);
+    server.serializeAttachment({ peerId, subscriptions: [] });
+
     return new Response(null, { status: 101, webSocket: client } as WorkerResponseInit);
+  }
+
+  webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
+    const text = decodeText(message);
+    const attachment = ws.deserializeAttachment() as {
+      peerId?: string;
+      subscriptions?: string[];
+    } | null;
+
+    const attachmentPeerId = attachment?.peerId;
+    let peerId: string | undefined = attachmentPeerId;
+    let peer: SocketPeer | undefined;
+    if (peerId) {
+      peer = this.state.peers.get(peerId);
+    }
+
+    // First message from a socket without an attachment: allocate a peer and
+    // announce the connection.
+    if (peer === undefined) {
+      peerId = createSocketId();
+      peer = {
+        id: peerId,
+        subscriptions: new Set<string>(),
+        sendText(msg: string): void {
+          ws.send(msg);
+        },
+        close(code = 1000, reason = ''): void {
+          ws.close(code, reason);
+        },
+      };
+      this.state.peers.set(peerId, peer);
+      emitConnectionEstablished(peer, this.settings);
+    }
+
+    void handleClientMessage(this.state, peer, text, this.settings);
+
+    // Persist per-socket peer id and subscriptions on the attachment so they
+    // survive hibernation/eviction.
+    const updatedPeer = this.state.peers.get(peer.id);
+    if (updatedPeer) {
+      ws.serializeAttachment({
+        peerId: updatedPeer.id,
+        subscriptions: Array.from(updatedPeer.subscriptions),
+      });
+    }
+  }
+
+  webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): void {
+    const attachment = ws.deserializeAttachment() as { peerId?: string } | null;
+    if (attachment?.peerId) {
+      const peer = this.state.peers.get(attachment.peerId);
+      if (peer) {
+        detachPeer(this.state, peer);
+      }
+    }
+  }
+
+  webSocketError(ws: WebSocket, _error: unknown): void {
+    // Detach the peer on error. Kept separate from webSocketClose so that
+    // error events can be observed and handled independently of
+    // clean/abnormal WebSocket closures.
+    const attachment = ws.deserializeAttachment() as { peerId?: string } | null;
+    if (attachment?.peerId) {
+      const peer = this.state.peers.get(attachment.peerId);
+      if (peer) {
+        detachPeer(this.state, peer);
+      }
+    }
   }
 
   private async handlePublishRequest(request: Request): Promise<Response> {

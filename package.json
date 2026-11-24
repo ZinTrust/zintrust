@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
