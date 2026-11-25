@@ -1369,7 +1369,6 @@ export class ZintrustSocketHub {
   private readonly durableState: {
     acceptWebSocket: (ws: WebSocket) => void;
     getWebSockets?: () => WebSocket[];
-    setWebSocketAutoResponse?: (pair: unknown) => void;
   };
 
   constructor(_state: unknown, env: unknown) {
@@ -1379,7 +1378,6 @@ export class ZintrustSocketHub {
     this.durableState = _state as {
       acceptWebSocket: (ws: WebSocket) => void;
       getWebSockets?: () => WebSocket[];
-      setWebSocketAutoResponse?: (pair: unknown) => void;
     };
 
     // Rebuild in-memory peer/channel maps from hibernated WebSockets so state
@@ -1415,15 +1413,7 @@ export class ZintrustSocketHub {
       }
     }
 
-    // Auto-respond to pusher:ping with pusher:pong so keepalive pings do not
-    // force a full Durable Object wake.
-    if (this.durableState.setWebSocketAutoResponse) {
-      this.durableState.setWebSocketAutoResponse({
-        request: /pusher:ping/,
-        response: '{"event":"pusher:pong","data":{}}',
-      });
     }
-  }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);

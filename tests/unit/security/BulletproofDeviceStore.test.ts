@@ -29,10 +29,7 @@ type QueryStub = {
   delete: ReturnType<typeof vi.fn>;
 };
 
-type TransactionDatabaseStub = {
-  table: ReturnType<typeof vi.fn>;
-  execute: ReturnType<typeof vi.fn>;
-};
+type ExecuteStub = ReturnType<typeof vi.fn>;
 
 const createQueryStub = (): QueryStub => {
   const query = {
@@ -46,26 +43,10 @@ const createQueryStub = (): QueryStub => {
   return query;
 };
 
-const createTransactionDatabaseStub = (
-  query: QueryStub,
-  execute: ReturnType<typeof vi.fn>
-): TransactionDatabaseStub => {
-  return {
-    table: vi.fn(() => query),
-    execute,
-  };
-};
-
-const createTransactionMock = (database: TransactionDatabaseStub): ReturnType<typeof vi.fn> => {
-  return vi.fn(async (callback: (db: TransactionDatabaseStub) => Promise<unknown>) => {
-    return callback(database);
-  });
-};
-
 const createDatabaseStub = (
   query: QueryStub,
   options?: {
-    execute?: ReturnType<typeof vi.fn>;
+    execute?: ExecuteStub;
     transaction?: ReturnType<typeof vi.fn>;
     getType?: string;
   }
@@ -135,7 +116,6 @@ describe('BulletproofDeviceStore', () => {
 
   it('upserts records, normalizes optional fields, and inserts when the record is missing', async () => {
     const query = createQueryStub();
-    query.update.mockResolvedValue(0);
     query.first.mockResolvedValueOnce({
       device_id: 'dev-2',
       signing_secret: 'secret-2',
@@ -143,15 +123,27 @@ describe('BulletproofDeviceStore', () => {
       created_at: '2026-04-20T02:00:00.000Z',
       updated_at: '2026-04-20T02:00:00.000Z',
     });
-    const execute = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
-    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE returns 0 rows
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT returns 1 row
+      .mockResolvedValueOnce({
+        // SELECT returns the stored record
+        rows: [
+          {
+            device_id: 'dev-2',
+            signing_secret: 'secret-2',
+            last_seen_at: '2026-04-20T02:00:00.000Z',
+            created_at: '2026-04-20T02:00:00.000Z',
+            updated_at: '2026-04-20T02:00:00.000Z',
+          },
+        ],
+        rowCount: 1,
+      });
 
-    vi.mocked(useDatabase).mockReturnValue({
-      table: vi.fn(() => query),
-      transaction,
-      execute,
-      getType: vi.fn(() => 'sqlite'),
-    } as never);
+    vi.mocked(useDatabase).mockReturnValue(
+      createDatabaseStub(query, { execute, getType: 'sqlite' })
+    );
 
     const record = await BulletproofDeviceStore.upsert({
       userId: '   ',
@@ -161,14 +153,15 @@ describe('BulletproofDeviceStore', () => {
       lastSeenAt: new Date('2026-04-20T02:00:00.000Z'),
     });
 
-    expect(query.update).toHaveBeenCalledWith({
-      user_id: null,
-      signing_secret: 'secret-2',
-      user_agent: null,
-      last_seen_at: '2026-04-20T02:00:00.000Z',
-      updated_at: '2026-04-20T02:00:00.000Z',
-    });
-    expect(execute).toHaveBeenCalledWith(
+    // Verify UPDATE was called
+    expect(execute).toHaveBeenNthCalledWith(
+      1,
+      'UPDATE zintrust_bulletproof_devices SET signing_secret = ?, user_agent = ?, last_seen_at = ?, updated_at = ?, user_id = ? WHERE device_id = ?',
+      ['secret-2', null, '2026-04-20T02:00:00.000Z', '2026-04-20T02:00:00.000Z', null, 'dev-2']
+    );
+    // Verify INSERT was called
+    expect(execute).toHaveBeenNthCalledWith(
+      2,
       'INSERT OR IGNORE INTO zintrust_bulletproof_devices (user_id, device_id, signing_secret, user_agent, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [
         null,
@@ -196,7 +189,6 @@ describe('BulletproofDeviceStore', () => {
     'duplicate device id',
   ])('tolerates duplicate insert races reported as %s', async (message) => {
     const query = createQueryStub();
-    query.update.mockResolvedValue(0);
     query.first.mockResolvedValueOnce({
       device_id: 'dev-race',
       signing_secret: 'secret-race',
@@ -204,11 +196,26 @@ describe('BulletproofDeviceStore', () => {
       created_at: '2026-04-20T02:30:00.000Z',
       updated_at: '2026-04-20T02:30:00.000Z',
     });
-    const execute = vi.fn().mockRejectedValueOnce(new Error(message));
-    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE returns 0 rows
+      .mockRejectedValueOnce(new Error(message)) // INSERT throws duplicate error (caught and ignored)
+      .mockResolvedValueOnce({
+        // SELECT returns the stored record (inserted by concurrent request)
+        rows: [
+          {
+            device_id: 'dev-race',
+            signing_secret: 'secret-race',
+            last_seen_at: '2026-04-20T02:30:00.000Z',
+            created_at: '2026-04-20T02:30:00.000Z',
+            updated_at: '2026-04-20T02:30:00.000Z',
+          },
+        ],
+        rowCount: 1,
+      });
 
     vi.mocked(useDatabase).mockReturnValue(
-      createDatabaseStub(query, { execute, transaction, getType: 'sqlite' })
+      createDatabaseStub(query, { execute, getType: 'sqlite' })
     );
 
     await expect(
@@ -228,12 +235,13 @@ describe('BulletproofDeviceStore', () => {
 
   it('wraps non-duplicate insert races during upsert as database errors', async () => {
     const query = createQueryStub();
-    query.update.mockResolvedValue(0);
-    const execute = vi.fn().mockRejectedValueOnce(new Error('write blocked by policy'));
-    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE returns 0 rows
+      .mockRejectedValueOnce(new Error('write blocked by policy')); // INSERT fails
 
     vi.mocked(useDatabase).mockReturnValue(
-      createDatabaseStub(query, { execute, transaction, getType: 'sqlite' })
+      createDatabaseStub(query, { execute, getType: 'sqlite' })
     );
 
     await expect(
@@ -247,7 +255,6 @@ describe('BulletproofDeviceStore', () => {
 
   it('retries with a generated uuid id when the auth table requires explicit ids', async () => {
     const query = createQueryStub();
-    query.update.mockResolvedValue(0);
     query.first.mockResolvedValueOnce({
       device_id: 'dev-uuid',
       signing_secret: 'secret-uuid',
@@ -257,14 +264,27 @@ describe('BulletproofDeviceStore', () => {
     });
     const execute = vi
       .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE returns 0 rows
       .mockRejectedValueOnce(
         new Error('NOT NULL constraint failed: zintrust_bulletproof_devices.id')
-      )
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+      ) // First INSERT fails with NOT NULL constraint
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // Retry INSERT succeeds
+      .mockResolvedValueOnce({
+        // SELECT returns the stored record
+        rows: [
+          {
+            device_id: 'dev-uuid',
+            signing_secret: 'secret-uuid',
+            last_seen_at: '2026-04-20T02:35:00.000Z',
+            created_at: '2026-04-20T02:35:00.000Z',
+            updated_at: '2026-04-20T02:35:00.000Z',
+          },
+        ],
+        rowCount: 1,
+      });
 
     vi.mocked(useDatabase).mockReturnValue(
-      createDatabaseStub(query, { execute, transaction, getType: 'sqlite' })
+      createDatabaseStub(query, { execute, getType: 'sqlite' })
     );
 
     await expect(
@@ -281,8 +301,9 @@ describe('BulletproofDeviceStore', () => {
       updatedAt: new Date('2026-04-20T02:35:00.000Z'),
     });
 
+    // The retry INSERT should include the generated ID
     expect(execute).toHaveBeenNthCalledWith(
-      2,
+      3,
       'INSERT OR IGNORE INTO zintrust_bulletproof_devices (id, user_id, device_id, signing_secret, user_agent, last_seen_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         'bulletproof-uuid',
@@ -334,7 +355,6 @@ describe('BulletproofDeviceStore', () => {
     ],
   ])('uses the expected insert-ignore SQL for %s drivers', async (driver, expectedSql) => {
     const query = createQueryStub();
-    query.update.mockResolvedValue(0);
     query.first.mockResolvedValueOnce({
       device_id: 'dev-driver',
       signing_secret: 'secret-driver',
@@ -343,11 +363,26 @@ describe('BulletproofDeviceStore', () => {
       updated_at: '2026-04-20T05:00:00.000Z',
     });
 
-    const execute = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
-    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE returns 0 rows
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT succeeds
+      .mockResolvedValueOnce({
+        // SELECT returns the stored record
+        rows: [
+          {
+            device_id: 'dev-driver',
+            signing_secret: 'secret-driver',
+            last_seen_at: '2026-04-20T05:00:00.000Z',
+            created_at: '2026-04-20T05:00:00.000Z',
+            updated_at: '2026-04-20T05:00:00.000Z',
+          },
+        ],
+        rowCount: 1,
+      });
 
     vi.mocked(useDatabase).mockReturnValue(
-      createDatabaseStub(query, { execute, transaction, getType: String(driver) })
+      createDatabaseStub(query, { execute, getType: String(driver) })
     );
 
     await BulletproofDeviceStore.upsert({
@@ -356,7 +391,8 @@ describe('BulletproofDeviceStore', () => {
       lastSeenAt: new Date('2026-04-20T05:00:00.000Z'),
     });
 
-    expect(execute).toHaveBeenCalledWith(expectedSql, [
+    // The INSERT should be the second call (after UPDATE)
+    expect(execute).toHaveBeenNthCalledWith(2, expectedSql, [
       null,
       'dev-driver',
       'secret-driver',
@@ -373,7 +409,6 @@ describe('BulletproofDeviceStore', () => {
 
     vi.mocked(useDatabase).mockReturnValue({
       table: vi.fn(() => query),
-      transaction: vi.fn(),
       execute: vi.fn(),
       getType: vi.fn(() => 'sqlite'),
     } as never);
@@ -384,16 +419,14 @@ describe('BulletproofDeviceStore', () => {
     );
 
     query.first.mockResolvedValueOnce({ device_id: 'dev-4' });
-    query.update.mockResolvedValue(1);
-    const execute = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
-    const transaction = createTransactionMock(createTransactionDatabaseStub(query, execute));
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE returns 1 row (device exists)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // SELECT returns empty (invalid record)
 
-    vi.mocked(useDatabase).mockReturnValue({
-      table: vi.fn(() => query),
-      transaction,
-      execute,
-      getType: vi.fn(() => 'sqlite'),
-    } as never);
+    vi.mocked(useDatabase).mockReturnValue(
+      createDatabaseStub(query, { execute, getType: 'sqlite' })
+    );
 
     await expect(
       BulletproofDeviceStore.upsert({
