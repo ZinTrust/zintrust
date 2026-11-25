@@ -597,6 +597,57 @@ await user.save();
 await user.delete();
 ```
 
+## RETURNING with Models
+
+The `.return()` method (see [Query Builder](./query-builder.md#returning-clause-insert--update--delete)) works seamlessly with model-backed queries to get back inserted/updated/deleted rows:
+
+```typescript
+// INSERT with RETURNING — get the generated ID immediately
+const { rowCount, rows } = await User.query()
+  .return('id')
+  .insert({ email: 'x@y.com', name: 'New User' });
+
+const newUserId = rows[0]?.id;
+
+// UPDATE with RETURNING — confirm CAS and get updated values
+const result = await User.query()
+  .where('id', '=', userId)
+  .where('version', '=', expectedVersion)
+  .return(['id', 'version', 'updated_at'])
+  .update({ name: 'Updated', version: expectedVersion + 1 });
+
+if (result.rowCount === 0) {
+  throw new Error('Optimistic lock failed');
+}
+
+// The updated row is in result.rows[0]
+
+// DELETE with RETURNING — know what was deleted
+const deleted = await User.query()
+  .where('id', '=', userId)
+  .return(['id', 'email'])
+  .delete();
+
+// deleted.rows contains the removed row(s)
+```
+
+### Integration with `Model.save()` (Proposed)
+
+Future enhancement: `Model.save()` may accept a `returning` option to automatically refresh the model instance after save:
+
+```typescript
+// Proposed API (not yet implemented)
+const user = await User.find(userId);
+user.name = 'New Name';
+
+// Auto-refresh with returned columns after UPDATE
+await user.save({ returning: ['id', 'name', 'updated_at'] });
+
+// user.getAttribute('updated_at') now has the database value
+```
+
+Until then, use the QueryBuilder pattern above with `user.query().return(...).update(user.getDirtyAttributes())`.
+
 ## Multi-Database Support
 
 ZinTrust supports multiple simultaneous database connections, allowing you to:

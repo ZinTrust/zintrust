@@ -32,7 +32,14 @@ type D1ExecResponse = {
   meta?: { changes?: number; lastRowId?: number | string | bigint; durationMs?: number };
 };
 
-type D1StatementResponse = D1QueryResponse | D1QueryOneResponse | D1ExecResponse;
+// New response type for mutating statements with RETURNING clause
+type D1ExecReturningResponse = {
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  meta?: { changes?: number; lastRowId?: number | string | bigint; durationMs?: number };
+};
+
+type D1StatementResponse = D1QueryResponse | D1QueryOneResponse | D1ExecResponse | D1ExecReturningResponse;
 
 type D1RemoteSettings = {
   baseUrl: string;
@@ -124,6 +131,13 @@ const isQueryResponse = (value: unknown): value is D1QueryResponse =>
 const isQueryOneResponse = (value: unknown): value is D1QueryOneResponse =>
   isRecord(value) && 'row' in value && (value['row'] === null || isRecord(value['row']));
 
+const isExecReturningResponse = (value: unknown): value is D1ExecReturningResponse =>
+  isRecord(value) &&
+  Array.isArray(value['rows']) &&
+  typeof value['rowCount'] === 'number' &&
+  (value['rows'] as unknown[]).every((r) => isRecord(r)) &&
+  typeof value['ok'] !== 'boolean';
+
 const getExecMeta = (value: unknown): { changes: number; lastRowId?: number | string | bigint } => {
   if (!isRecord(value) || typeof value['ok'] !== 'boolean') return { changes: 0 };
   const meta = value['meta'];
@@ -165,6 +179,9 @@ const queryRegistry = async (
     const row = out.row;
     return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
   }
+  if (isExecReturningResponse(out)) {
+    return { rows: out.rows, rowCount: out.rowCount };
+  }
 
   const meta = getExecMeta(out);
   return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
@@ -176,7 +193,11 @@ const querySqlMode = async (
   parameters: unknown[]
 ): Promise<QueryResult> => {
   await SchemaWriter(sql);
-  if (isMutatingSql(sql)) {
+
+  // Check if this is a mutating statement with RETURNING clause
+  const hasReturning = /\breturning\b/iu.test(sql);
+
+  if (isMutatingSql(sql) && !hasReturning) {
     const out = await RemoteSignedJson.request<D1ExecResponse>(settings, '/zin/d1/exec', {
       sql,
       params: parameters,
@@ -185,6 +206,7 @@ const querySqlMode = async (
     return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
   }
 
+  // For SELECT statements or mutating statements with RETURNING, use query endpoint
   const out = await RemoteSignedJson.request<D1QueryResponse>(settings, '/zin/d1/query', {
     sql,
     params: parameters,

@@ -13,6 +13,7 @@
     "sourceMap": false,
     "composite": false,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "skipLibCheck": true,
     "paths": {
       "@zintrust/core": ["../../dist/src/index"],
       "@zintrust/core/*": ["../../dist/src/*"]

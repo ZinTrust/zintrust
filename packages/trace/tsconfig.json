@@ -12,8 +12,7 @@
     "composite": false,
     "types": ["node"],
     "skipLibCheck": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "paths": {}
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "migrations"]

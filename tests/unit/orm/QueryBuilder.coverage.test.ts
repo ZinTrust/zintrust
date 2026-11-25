@@ -70,7 +70,8 @@ describe('QueryBuilder (coverage)', () => {
     await expect(qb.update({ name: 'New' })).resolves.toBe(1);
     await qb.delete();
 
-    expect(db.query).toHaveBeenCalled();
+    // Both update and delete now use execute()
+    expect(db.execute).toHaveBeenCalledTimes(2);
   });
 
   it('reports insert-if-absent conflicts and conditional update affected rows', async () => {

@@ -46,11 +46,7 @@ interface WhereColumnCompareClause {
   right: string;
 }
 
-type WherePredicate =
-  | WhereClause
-  | WhereGroupClause
-  | WhereExistsClause
-  | WhereColumnCompareClause;
+type WherePredicate = WhereClause | WhereGroupClause | WhereExistsClause | WhereColumnCompareClause;
 
 export interface IJoinOnBuilder {
   on(left: string, operator: string, right: string): IJoinOnBuilder;
@@ -96,6 +92,19 @@ export interface PaginationOptions {
 
 export type EagerLoadConstraint = (builder: IQueryBuilder) => IQueryBuilder;
 export type EagerLoadConstraints = Record<string, EagerLoadConstraint>;
+
+export type InsertId = string | number | bigint;
+
+// Type for INSERT/UPDATE/DELETE with RETURNING clause
+export interface ReturningResult {
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  affectedRows: number;
+  lastInsertId?: InsertId;
+  insertedRecords?: Record<string, unknown>[];
+  inserted?: boolean;
+  id: InsertId | null;
+}
 
 export interface IQueryBuilder {
   select(...columns: string[]): IQueryBuilder;
@@ -150,14 +159,17 @@ export interface IQueryBuilder {
   load(models: IModel[], relation: string, constraint?: EagerLoadConstraint): Promise<void>;
   loadCount(models: IModel[], relation: string): Promise<void>;
 
-  insert(values: Record<string, unknown> | Array<Record<string, unknown>>): Promise<InsertResult>;
+  insert(
+    values: Record<string, unknown> | Array<Record<string, unknown>>
+  ): Promise<InsertResult | ReturningResult>;
   insertIfAbsent(
     values: Record<string, unknown>,
     conflictColumns?: string[]
-  ): Promise<InsertIfAbsentResult>;
-  update(values: Record<string, unknown>): Promise<number>;
+  ): Promise<InsertIfAbsentResult | ReturningResult>;
+  return(columns: string | string[]): IQueryBuilder;
+  update(values: Record<string, unknown>): Promise<number | ReturningResult>;
   increment(column: string, amount: number): Promise<number>;
-  delete(): Promise<void>;
+  delete(): Promise<ReturningResult | undefined>;
 }
 
 interface QueryState {
@@ -180,6 +192,7 @@ interface QueryState {
   eagerLoadConstraints: EagerLoadConstraints;
   eagerLoadCounts: string[];
   dialect?: string;
+  returning?: string[];
 }
 
 /**
@@ -1268,7 +1281,8 @@ async function executeFirstOrFail<T>(
 const compileInsert = (
   tableName: string,
   values: Record<string, unknown> | Array<Record<string, unknown>>,
-  dialect?: string
+  dialect?: string,
+  returning?: string[]
 ): { sql: string; parameters: unknown[] } => {
   const items = Array.isArray(values) ? values : [values];
   if (items.length === 0) {
@@ -1301,8 +1315,15 @@ const compileInsert = (
     tableName,
     dialect
   )} (${colsSql}) VALUES ${placeholders}`;
-  const wantsReturning = dialect === 'postgresql' && items.length === 1;
-  const sql = wantsReturning ? `${baseSql} RETURNING id` : baseSql;
+
+  let sql = baseSql;
+  if (returning && returning.length > 0) {
+    const returningCols = returning.map((c) => escapeIdentifier(c, dialect)).join(', ');
+    sql = `${baseSql} RETURNING ${returningCols}`;
+  } else if (dialect === 'postgresql' && items.length === 1) {
+    // Legacy: auto-return id for single row postgres
+    sql = `${baseSql} RETURNING id`;
+  }
   return { sql, parameters };
 };
 
@@ -1310,26 +1331,42 @@ const compileInsertIfAbsent = (
   tableName: string,
   values: Record<string, unknown>,
   conflictColumns: string[] | undefined,
-  dialect?: string
+  dialect?: string,
+  returning?: string[]
 ): { sql: string; parameters: unknown[] } => {
-  const compiled = compileInsert(tableName, values, dialect);
+  const compiled = compileInsert(tableName, values, dialect, returning);
   const dialectName = (dialect ?? '').toLowerCase();
 
   if (dialectName === 'mysql') {
+    // MySQL doesn't support ON CONFLICT DO NOTHING + RETURNING
     return { ...compiled, sql: compiled.sql.replace(/^INSERT INTO/i, 'INSERT IGNORE INTO') };
   }
-  if (dialectName === 'sqlite' || dialectName === 'd1' || dialectName === 'd1-remote' || dialectName === 'postgresql') {
+  if (
+    dialectName === 'sqlite' ||
+    dialectName === 'd1' ||
+    dialectName === 'd1-remote' ||
+    dialectName === 'postgresql'
+  ) {
     const columns = conflictColumns ?? [];
     for (const column of columns) assertSafeIdentifier(column, 'conflict column');
-    const target = columns.length === 0
-      ? ''
-      : ` (${columns.map((column) => escapeIdentifier(column, dialect)).join(', ')})`;
-    const returning = dialectName === 'postgresql' && compiled.sql.endsWith(' RETURNING id');
-    const insertSql = returning ? compiled.sql.slice(0, -' RETURNING id'.length) : compiled.sql;
+    const target =
+      columns.length === 0
+        ? ''
+        : ` (${columns.map((column) => escapeIdentifier(column, dialect)).join(', ')})`;
+
+    // Check if the compiled SQL has a RETURNING clause
+    const hasReturning = compiled.sql.includes(' RETURNING ');
+    const insertSql = hasReturning
+      ? compiled.sql.slice(0, compiled.sql.indexOf(' RETURNING '))
+      : compiled.sql;
+    const returningClause = hasReturning
+      ? compiled.sql.slice(compiled.sql.indexOf(' RETURNING '))
+      : '';
+
     const conflictSql = `${insertSql} ON CONFLICT${target} DO NOTHING`;
     return {
       ...compiled,
-      sql: returning ? `${conflictSql} RETURNING id` : conflictSql,
+      sql: hasReturning ? `${conflictSql} ${returningClause.trim()}` : conflictSql,
     };
   }
 
@@ -1365,7 +1402,8 @@ const compileUpdate = (
   tableName: string,
   values: Record<string, unknown>,
   conditions: WherePredicate[],
-  dialect?: string
+  dialect?: string,
+  returning?: string[]
 ): { sql: string; parameters: unknown[] } => {
   const keys = Object.keys(values);
   if (keys.length === 0) {
@@ -1392,21 +1430,30 @@ const compileUpdate = (
   }
   const setSql = setParts.join(', ');
   const where = compileWhere(conditions, dialect);
-  const sql = `UPDATE ${escapeIdentifier(tableName, dialect)} SET ${setSql}${where.sql}`;
+  let sql = `UPDATE ${escapeIdentifier(tableName, dialect)} SET ${setSql}${where.sql}`;
+  if (returning && returning.length > 0) {
+    const returningCols = returning.map((c) => escapeIdentifier(c, dialect)).join(', ');
+    sql = `${sql} RETURNING ${returningCols}`;
+  }
   return { sql, parameters: [...setParams, ...where.parameters] };
 };
 
 const compileDelete = (
   tableName: string,
   conditions: WherePredicate[],
-  dialect?: string
+  dialect?: string,
+  returning?: string[]
 ): { sql: string; parameters: unknown[] } => {
   if (conditions.length === 0) {
     throw ErrorFactory.createDatabaseError('DELETE requires at least one WHERE clause');
   }
   assertSafeIdentifierPath(tableName, 'table name');
   const where = compileWhere(conditions, dialect);
-  const sql = `DELETE FROM ${escapeIdentifier(tableName, dialect)}${where.sql}`;
+  let sql = `DELETE FROM ${escapeIdentifier(tableName, dialect)}${where.sql}`;
+  if (returning && returning.length > 0) {
+    const returningCols = returning.map((c) => escapeIdentifier(c, dialect)).join(', ');
+    sql = `${sql} RETURNING ${returningCols}`;
+  }
   return { sql, parameters: where.parameters };
 };
 
@@ -2363,58 +2410,113 @@ function attachRelationshipMethods(
   };
 }
 
-function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDatabase): void {
-  const ensureDb = (): IDatabase => {
-    if (!db)
-      throw ErrorFactory.createDatabaseError('Database instance not provided to QueryBuilder');
-    return db;
-  };
+const hasReturningState = (state: QueryState): boolean =>
+  state.returning !== undefined && state.returning.length > 0;
 
+const attachInsertMethods = (
+  builder: IQueryBuilder,
+  state: QueryState,
+  ensureDb: () => IDatabase
+): void => {
   builder.insert = async (values) => {
     const currentDb = ensureDb();
     const tableName = state.tableName.trim();
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('INSERT requires a table name');
-    const compiled = compileInsert(tableName, values, state.dialect);
+    const compiled = compileInsert(tableName, values, state.dialect, state.returning);
     const items = Array.isArray(values) ? values : [values];
 
+    const hasReturning = hasReturningState(state);
     const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
 
-    // Return InsertResult with metadata
-    // Note: lastInsertId typically only available for single-row inserts in most databases
-    // For multi-row inserts, use the insertedRecords array
+    if (hasReturning) {
+      const id = result.rows[0]?.['id'] as InsertId | undefined;
+      return {
+        rows: result.rows,
+        rowCount: result.rowCount,
+        affectedRows: result.rowCount,
+        lastInsertId: result.lastInsertId,
+        insertedRecords: result.rows,
+        id: id ?? null,
+      } as ReturningResult;
+    }
     return {
       id:
-        (result.lastInsertId as string | number | bigint) ??
+        (result.lastInsertId as InsertId) ??
         (items.length === 1 ? ((items[0]?.['id'] as string | number | null) ?? null) : null),
       affectedRows: result.rowCount,
       insertedRecords: items,
     };
   };
+
   builder.insertIfAbsent = async (values, conflictColumns) => {
     const currentDb = ensureDb();
     const tableName = state.tableName.trim();
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('INSERT requires a table name');
-    const compiled = compileInsertIfAbsent(tableName, values, conflictColumns, state.dialect);
+    const compiled = compileInsertIfAbsent(
+      tableName,
+      values,
+      conflictColumns,
+      state.dialect,
+      state.returning
+    );
+    const hasReturning = hasReturningState(state);
     const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
     const inserted = result.rowCount > 0;
+    if (hasReturning) {
+      const id = result.rows[0]?.['id'] as InsertId | undefined;
+      return {
+        rows: result.rows,
+        rowCount: result.rowCount,
+        affectedRows: result.rowCount,
+        lastInsertId: result.lastInsertId,
+        insertedRecords: result.rows,
+        inserted,
+        id: id ?? null,
+      } as ReturningResult;
+    }
     return {
-      id: (result.lastInsertId as string | number | bigint) ?? (inserted ? (values['id'] as string | number | null) ?? null : null),
+      id:
+        (result.lastInsertId as InsertId) ??
+        (inserted ? ((values['id'] as string | number | null) ?? null) : null),
       affectedRows: result.rowCount,
       insertedRecords: inserted ? [values] : [],
       inserted,
     };
   };
+};
+
+const attachUpdateMethods = (
+  builder: IQueryBuilder,
+  state: QueryState,
+  ensureDb: () => IDatabase
+): void => {
   builder.update = async (values) => {
     const currentDb = ensureDb();
     const tableName = state.tableName.trim();
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('UPDATE requires a table name');
-    const compiled = compileUpdate(tableName, values, state.whereConditions, state.dialect);
+    const compiled = compileUpdate(
+      tableName,
+      values,
+      state.whereConditions,
+      state.dialect,
+      state.returning
+    );
+    const hasReturning = hasReturningState(state);
     const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
+    if (hasReturning) {
+      return {
+        rows: result.rows,
+        rowCount: result.rowCount,
+        affectedRows: result.rowCount,
+        lastInsertId: result.lastInsertId,
+      } as ReturningResult;
+    }
     return result.rowCount;
   };
+
   builder.increment = async (column, amount) => {
     const currentDb = ensureDb();
     const tableName = state.tableName.trim();
@@ -2430,14 +2532,64 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
     const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
     return result.rowCount;
   };
+};
+
+const attachDeleteMethods = (
+  builder: IQueryBuilder,
+  state: QueryState,
+  ensureDb: () => IDatabase
+): void => {
   builder.delete = async () => {
     const currentDb = ensureDb();
     const tableName = state.tableName.trim();
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('DELETE requires a table name');
-    const compiled = compileDelete(tableName, state.whereConditions, state.dialect);
-    await currentDb.query(compiled.sql, compiled.parameters, false);
+    const compiled = compileDelete(
+      tableName,
+      state.whereConditions,
+      state.dialect,
+      state.returning
+    );
+    const hasReturning = hasReturningState(state);
+    const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
+    if (hasReturning) {
+      return {
+        rows: result.rows,
+        rowCount: result.rowCount,
+        affectedRows: result.rowCount,
+        lastInsertId: result.lastInsertId,
+      } as ReturningResult;
+    }
+    return undefined;
   };
+};
+
+function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDatabase): void {
+  const ensureDb = (): IDatabase => {
+    if (!db)
+      throw ErrorFactory.createDatabaseError('Database instance not provided to QueryBuilder');
+    return db;
+  };
+
+  builder.return = (columns: string | string[]): IQueryBuilder => {
+    if (columns === undefined || columns === null) {
+      state.returning = undefined;
+      return builder;
+    }
+    const cols = Array.isArray(columns) ? columns : [columns];
+    if (cols.length === 0) {
+      throw ErrorFactory.createValidationError('RETURNING requires at least one column');
+    }
+    for (const col of cols) {
+      assertSafeIdentifierPath(col, 'RETURNING column');
+    }
+    state.returning = cols;
+    return builder;
+  };
+
+  attachInsertMethods(builder, state, ensureDb);
+  attachUpdateMethods(builder, state, ensureDb);
+  attachDeleteMethods(builder, state, ensureDb);
 }
 
 function createBuilder(state: QueryState, db?: IDatabase): IQueryBuilder {

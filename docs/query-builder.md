@@ -340,6 +340,88 @@ await User.query().where('id', '=', id).update({ name: 'Grace' });
 await User.query().where('id', '=', id).delete();
 ```
 
+## RETURNING clause (INSERT / UPDATE / DELETE)
+
+The QueryBuilder supports a `.return()` method to request specific columns back from mutating statements. This uses the native `RETURNING` clause supported by SQLite/D1, PostgreSQL, MySQL 8.0+, and SQL Server (via `OUTPUT` clause).
+
+### Basic Usage
+
+```typescript
+// UPDATE with RETURNING
+const result = await User.query()
+  .where('id', '=', userId)
+  .where('google2fa_ts', '=', previousTimeStep)
+  .return('id')
+  .update({ google2fa_ts: nextTimeStep });
+
+// Returns: { rowCount: 1, rows: [{ id: '...' }] }
+
+// INSERT with RETURNING
+const { rowCount, rows } = await User.query()
+  .return('id')
+  .insert({ email: 'x@y.com', google2fa_ts: 0 });
+
+// DELETE with RETURNING
+const { rowCount, rows } = await User.query()
+  .where('id', '=', userId)
+  .return('id')
+  .delete();
+```
+
+### Multiple Columns
+
+```typescript
+const result = await User.query()
+  .where('id', '=', userId)
+  .return(['id', 'google2fa_ts', 'updated_at'])
+  .update({ google2fa_ts: nextTimeStep });
+
+// Returns: { rowCount: 1, rows: [{ id: '...', google2fa_ts: 59852778, updated_at: '2026-11-25T...' }] }
+```
+
+### With Models (`.save()` Integration)
+
+When using model instances, the `.return()` pattern integrates with `save()` to automatically refresh the model:
+
+```typescript
+const user = await User.find(userId);
+user.google2fa_ts = nextTimeStep;
+
+// Model.save() can leverage RETURNING to refresh the instance
+await user.query()
+  .return(['id', 'google2fa_ts', 'updated_at'])
+  .update(user.getDirtyAttributes());
+
+// Or use the proposed Model.save() enhancement (when available):
+// await user.save({ returning: ['id', 'google2fa_ts', 'updated_at'] });
+```
+
+### Dialect Support
+
+| Dialect | Support | Notes |
+|---------|---------|-------|
+| **D1 / SQLite** | ✅ Native `RETURNING` | Requires SQLite 3.35+ / D1 compatibility_date 2023-08-01+ |
+| **PostgreSQL** | ✅ Native `RETURNING` | Full support |
+| **MySQL 8.0+** | ✅ Native `RETURNING` | Requires MySQL 8.0.20+ |
+| **SQL Server** | ⚠️ `OUTPUT` clause | Different syntax, adapter handles translation |
+
+### Important Notes
+
+- **CAS Pattern**: The primary use case is Compare-And-Swap patterns where you need to confirm the exact row was updated:
+  ```typescript
+  const result = await User.query()
+    .where('id', '=', userId)
+    .where('google2fa_ts', '=', expectedTs) // CAS check
+    .return('id')
+    .update({ google2fa_ts: newTs });
+  
+  if (result.rowCount === 0) {
+    throw new Error('CAS failed: concurrent modification detected');
+  }
+  ```
+- **Mutating statements without `.return()`** continue to return `{ rowCount: number, rows: [] }` for backward compatibility.
+- **Raw SQL**: You can also use `RETURNING` directly in raw queries: `db.query('UPDATE users SET x = ? RETURNING id', [value])`.
+
 ## Master / replica routing
 
 If multiple read hosts are configured, SELECT operations may route to replicas; INSERT/UPDATE/DELETE use the writer. See [Database advanced](./database-advanced.md) and connection config.

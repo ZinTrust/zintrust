@@ -151,6 +151,79 @@ Practical notes:
 - Keep transactions scoped and short (Workers are request-scoped).
 - D1 does not use connection pooling; treat it as a request-scoped binding.
 
+### D1 `RETURNING` Clause Support
+
+D1 (SQLite) natively supports the `RETURNING` clause on `INSERT`, `UPDATE`, and `DELETE` statements. ZinTrust's D1 adapter automatically detects `RETURNING` in mutating SQL and routes those statements through `.all()` instead of `.run()` to capture returned rows.
+
+#### QueryBuilder `.return()` API
+
+```typescript
+// UPDATE with RETURNING
+const result = await User.query()
+  .where('id', '=', userId)
+  .where('google2fa_ts', '=', previousTimeStep)
+  .return('id')
+  .update({ google2fa_ts: nextTimeStep });
+// Returns: { rowCount: 1, rows: [{ id: '...' }] }
+
+// INSERT with RETURNING
+const { rowCount, rows } = await User.query()
+  .return('id')
+  .insert({ email: 'x@y.com', google2fa_ts: 0 });
+
+// DELETE with RETURNING
+const { rowCount, rows } = await User.query()
+  .where('id', '=', userId)
+  .return('id')
+  .delete();
+```
+
+#### Raw SQL
+
+You can also use `RETURNING` directly in raw queries:
+
+```typescript
+const result = await db.query(
+  "UPDATE users SET google2fa_ts = ? WHERE id = ? AND google2fa_ts = ? RETURNING id",
+  [nextTimeStep, userId, previousTimeStep]
+);
+// result.rows contains the updated row(s)
+```
+
+#### How It Works
+
+Previously, mutating statements with `RETURNING` would return empty rows because the driver used `.run()` which discards `results`. Now:
+
+1. The adapter detects `RETURNING` via `/\breturning\b/iu.test(sql)`
+2. For mutating statements with `RETURNING`, it uses `.all()` instead of `.run()`
+3. The returned rows are available in `result.rows` and `result.rowCount`
+
+#### Compatibility
+
+- **D1**: Requires `compatibility_date` 2023-08-01 or later (when `results` was added to `D1Result`)
+- **SQLite (better-sqlite3)**: Requires SQLite 3.35+ (when `RETURNING` was added)
+- **PostgreSQL**: Native support via `RETURNING`
+- **MySQL**: Native support since 8.0.20+
+- **SQL Server**: Uses `OUTPUT` clause (different syntax, adapter handles translation)
+
+#### CAS Pattern Example (TOTP Verification)
+
+```typescript
+// Atomic TOTP verification with CAS + RETURNING
+const result = await User.query()
+  .where('id', '=', userId)
+  .where('google2fa_ts', '=', expectedTimeStep) // CAS check
+  .return('id')
+  .update({ google2fa_ts: nextTimeStep, last_login: new Date().toISOString() });
+
+if (result.rowCount === 0) {
+  // No row matched = invalid/expired TOTP code
+  throw new Error('Invalid 2FA code');
+}
+
+// result.rows[0].id confirms the user was updated
+const userId = result.rows[0].id;
+```
 ## Cloudflare KV Cache
 
 ZinTrust supports Cloudflare KV as a cache backend via the `kv` cache driver.

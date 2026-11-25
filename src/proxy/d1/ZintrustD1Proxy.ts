@@ -141,6 +141,11 @@ const isMutatingSql = (sql: string): boolean => {
   );
 };
 
+const hasReturning = (sql: string): boolean => {
+  if (typeof sql !== 'string') return false;
+  return /\breturning\b/iu.test(sql);
+};
+
 const routingFromMeta = (
   meta: unknown
 ): { servedByPrimary?: boolean; servedByRegion?: string } | undefined => {
@@ -322,18 +327,35 @@ const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
 
     const normalizedParams = normalizeParams(resolved.params);
     const startedAt = Date.now();
-    const out = await resolved.db
-      .prepare(resolved.sql)
-      .bind(...normalizedParams)
-      .run();
+
+    const useAll = hasReturning(resolved.sql);
+    let out;
+    if (useAll) {
+      out = await resolved.db
+        .prepare(resolved.sql)
+        .bind(...normalizedParams)
+        .all();
+    } else {
+      out = await resolved.db
+        .prepare(resolved.sql)
+        .bind(...normalizedParams)
+        .run();
+    }
+
     SystemTraceWorkerBridge.emitQuery(
       resolved.sql,
       normalizedParams,
       Date.now() - startedAt,
       'd1-proxy',
-      routingFromMeta(out.meta)
+      routingFromMeta((out as { meta?: unknown }).meta)
     );
-    return json(200, { ok: true, meta: out.meta });
+
+    if (useAll) {
+      const rows = (out as { results?: unknown[] }).results ?? [];
+      return json(200, { rows, rowCount: rows.length, meta: (out as { meta?: unknown }).meta });
+    }
+
+    return json(200, { ok: true, meta: (out as { meta?: unknown }).meta });
   } catch (error) {
     logProxyError(env, { op: 'exec', path: '/zin/d1/exec' }, error);
     return toD1ExceptionResponse(error);
@@ -379,25 +401,20 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
 
     const normalizedParams = normalizeParams(parsed.params);
     const startedAt = Date.now();
-    if (isMutatingSql(sql)) {
-      const out = await resolved.db
+    const useAll = isMutatingSql(sql) ? hasReturning(sql) : true;
+    let out;
+    if (useAll) {
+      out = await resolved.db
+        .prepare(sql)
+        .bind(...normalizedParams)
+        .all();
+    } else {
+      out = await resolved.db
         .prepare(sql)
         .bind(...normalizedParams)
         .run();
-      SystemTraceWorkerBridge.emitQuery(
-        sql,
-        normalizedParams,
-        Date.now() - startedAt,
-        'd1-proxy',
-        routingFromMeta(out.meta)
-      );
-      return json(200, { ok: true, meta: out.meta });
     }
 
-    const out = await resolved.db
-      .prepare(sql)
-      .bind(...normalizedParams)
-      .all<Record<string, unknown>>();
     SystemTraceWorkerBridge.emitQuery(
       sql,
       normalizedParams,
@@ -405,8 +422,13 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
       'd1-proxy',
       routingFromMeta((out as { meta?: unknown }).meta)
     );
-    const rows = out.results ?? [];
-    return json(200, { rows, rowCount: rows.length });
+
+    if (useAll) {
+      const rows = (out as { results?: unknown[] }).results ?? [];
+      return json(200, { rows, rowCount: rows.length, meta: (out as { meta?: unknown }).meta });
+    }
+
+    return json(200, { ok: true, meta: (out as { meta?: unknown }).meta });
   } catch (error) {
     logProxyError(env, { op: 'statement', path: '/zin/d1/statement' }, error);
     return toD1ExceptionResponse(error);

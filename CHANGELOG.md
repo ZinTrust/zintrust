@@ -9,6 +9,13 @@
 - Gate `MATCH` to sqlite-family dialects (`sqlite`, `d1`, `d1-remote`); other dialects throw a database error.
 - Document FTS query-language sanitization (bound string is still FTS syntax) in `docs/query-builder.md`, `docs/models.md`, `docs/security.md`, and `docs/package-db-sqlite.md`.
 
+### Core
+
+- Add D1 `RETURNING` clause support for `INSERT / UPDATE / DELETE` statements
+- Add `.return()` method to QueryBuilder for capturing returned rows from mutating statements
+- Fix D1 proxy and adapter to detect `RETURNING` and use `.all()` instead of `.run()` for statements with `RETURNING`
+- Add docs: `docs/query-builder.md` (QueryBuilder `.return()` API), `docs/models.md` (model integration), `docs/database-advanced.md` (D1 RETURNING support)
+
 ## 2026-07-17
 
 ### Core
