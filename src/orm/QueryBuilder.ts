@@ -150,6 +150,7 @@ export interface IQueryBuilder {
   getParameters(): unknown[];
   first<T>(): Promise<T | null>;
   firstOrFail<T>(message?: string): Promise<T>;
+  count(): Promise<number>;
   get<T>(): Promise<T[]>;
   raw<T>(): Promise<T[]>;
   paginate<T>(page: number, perPage: number, options?: PaginationOptions): Promise<Paginator<T>>;
@@ -1278,6 +1279,17 @@ async function executeFirstOrFail<T>(
   return result;
 }
 
+/** Execute query and return count of records */
+async function executeCount(builder: IQueryBuilder, db?: IDatabase): Promise<number> {
+  if (!db) throw ErrorFactory.createDatabaseError('Database instance not provided to QueryBuilder');
+  const results = (await db.query(
+    'SELECT COUNT(*) as count FROM (' + builder.toSQL() + ')',
+    builder.getParameters(),
+    builder.isReadOperation()
+  )) as { count: number }[];
+  return results[0]?.count ?? 0;
+}
+
 const compileInsert = (
   tableName: string,
   values: Record<string, unknown> | Array<Record<string, unknown>>,
@@ -1714,6 +1726,7 @@ function attachReadExecutionMethods(
 ): void {
   builder.first = async <T>() => executeFirst<T>(builder, db);
   builder.firstOrFail = async <T>(message?: string) => executeFirstOrFail<T>(builder, db, message);
+  builder.count = async () => executeCount(builder, db);
   builder.get = async <T>() => executeGet<T>(builder, db);
   builder.paginate = async <T>(
     page: number,

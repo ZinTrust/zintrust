@@ -249,6 +249,71 @@ describe('QueryBuilder', () => {
     await expect(builder.get()).rejects.toThrow('Database instance not provided');
   });
 
+  it('should execute count()', async () => {
+    const mockDb = {
+      query: vi.fn().mockResolvedValue([{ count: 42 }]),
+    } as unknown as IDatabase;
+
+    const builder = QueryBuilder.create('users', mockDb as any);
+    const result = await builder.count();
+
+    expect(mockDb.query).toHaveBeenCalled();
+    expect(result).toBe(42);
+  });
+
+  it('should execute count() with where clause', async () => {
+    const mockDb = {
+      query: vi.fn().mockResolvedValue([{ count: 5 }]),
+    } as unknown as IDatabase;
+
+    const builder = QueryBuilder.create('users', mockDb as any);
+    builder.where('active', '=', true);
+    const result = await builder.count();
+
+    expect(mockDb.query).toHaveBeenCalled();
+    expect(result).toBe(5);
+    expect(String((mockDb.query as any).mock.calls[0][0])).toContain('COUNT(*)');
+  });
+
+  it('should execute count() with joins (wraps in subquery)', async () => {
+    const mockDb = {
+      query: vi.fn().mockResolvedValue([{ count: 10 }]),
+    } as unknown as IDatabase;
+
+    const builder = QueryBuilder.create('users', mockDb as any);
+    builder.join('posts', 'users.id = posts.user_id');
+    const result = await builder.count();
+
+    expect(mockDb.query).toHaveBeenCalled();
+    expect(result).toBe(10);
+    const sql = String((mockDb.query as any).mock.calls[0][0]);
+    // count() wraps the entire query in a subquery
+    expect(sql).toContain('SELECT COUNT(*) as count FROM (');
+    expect(sql).toContain('INNER JOIN "posts"');
+  });
+
+  it('should execute count() with groupBy (wraps in subquery)', async () => {
+    const mockDb = {
+      query: vi.fn().mockResolvedValue([{ count: 3 }]),
+    } as unknown as IDatabase;
+
+    const builder = QueryBuilder.create('users', mockDb as any);
+    builder.select('role', 'COUNT(*) as total').groupBy('role');
+    const result = await builder.count();
+
+    expect(mockDb.query).toHaveBeenCalled();
+    expect(result).toBe(3);
+    const sql = String((mockDb.query as any).mock.calls[0][0]);
+    // count() wraps the grouped query in a subquery
+    expect(sql).toContain('SELECT COUNT(*) as count FROM (');
+    expect(sql).toContain('GROUP BY "role"');
+  });
+
+  it('should throw error if db is not provided for count', async () => {
+    const builder = QueryBuilder.create('users');
+    await expect(builder.count()).rejects.toThrow('Cannot read properties of undefined');
+  });
+
   it('should reject empty select identifier', () => {
     const builder = QueryBuilder.create('users');
     builder.select(' ');

@@ -120,6 +120,34 @@ Supported forms: `COUNT|SUM|AVG|MIN|MAX(arg)` with optional `AS alias`. `arg` is
 
 You can also use `selectAs(column, alias)` and `max(column, alias?)` helpers.
 
+## Count (`count()`)
+
+Get the total number of records matching the query:
+
+```typescript
+// Using QueryBuilder directly
+const totalUsers = await User.query().where('active', true).count();
+
+// Using Model static helper
+const totalActive = await User.where('active', true).count();
+
+// With joins (uses COUNT(DISTINCT primary_table.id) by default)
+const joinedCount = await User.query()
+  .join('posts', 'users.id = posts.user_id')
+  .where('posts.published', true)
+  .count();
+
+// With complex queries (groupBy, latestPer, etc.) - counts the unconstrained result set
+const groupedCount = await Message.query()
+  .select('thread_id', 'COUNT(*) AS total')
+  .groupBy('thread_id')
+  .count();
+```
+
+Returns `number` - the total count of matching records.
+
+**Note:** For paginated results, use `paginate()` which returns a `Paginator` object with a `total` property containing the count.
+
 ## Joins
 
 ### Single ON term (string)

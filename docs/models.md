@@ -342,7 +342,14 @@ const user = await User.find(1);
 
 // Where clauses
 const activeUsers = await User.query().where('is_active', true).where('age', '>', 18).get();
+
+// Count records
+const totalUsers = await User.query().count();
+const activeCount = await User.where('is_active', true).count();
+const joinedCount = await User.query().join('posts', 'users.id = posts.user_id').where('posts.published', true).count();
 ```
+
+**Note:** `count()` returns the total number of matching records as a `number`. For paginated results, use `paginate()` which returns a `Paginator` object with a `total` property containing the count.
 
 ### Advanced query patterns (examples)
 
