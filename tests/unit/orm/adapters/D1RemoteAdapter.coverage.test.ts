@@ -122,4 +122,84 @@ describe('D1RemoteAdapter', () => {
     const out = await adapter.query('update t set a=1', []);
     expect(out.lastInsertId).toBeUndefined();
   });
+
+  it('covers isExecReturningResponse path in queryRegistry', async () => {
+    const adapter = D1RemoteAdapter.create({} as any);
+    await adapter.connect();
+
+    // This response shape triggers isExecReturningResponse (has rows/rowCount but no ok boolean)
+    remoteRequestMock.mockResolvedValueOnce({
+      rows: [{ id: 1 }, { id: 2 }],
+      rowCount: 2,
+    });
+
+    const out = await adapter.query('SELECT * FROM t', []);
+    expect(out.rowCount).toBe(2);
+    expect(out.rows).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it('covers querySqlMode query endpoint for SELECT statements', async () => {
+    vi.stubEnv('D1_REMOTE_MODE', 'sql');
+    const adapter = D1RemoteAdapter.create({} as any);
+    await adapter.connect();
+
+    // This goes through the query endpoint (not exec) for SELECT
+    remoteRequestMock.mockResolvedValueOnce({
+      rows: [{ a: 1 }],
+      rowCount: 1,
+    });
+
+    const out = await adapter.query('SELECT 1', []);
+    expect(out.rowCount).toBe(1);
+  });
+
+  it('covers querySqlMode query endpoint for mutating with RETURNING', async () => {
+    vi.stubEnv('D1_REMOTE_MODE', 'sql');
+    const adapter = D1RemoteAdapter.create({} as any);
+    await adapter.connect();
+
+    // Mutating statement with RETURNING uses query endpoint
+    remoteRequestMock.mockResolvedValueOnce({
+      rows: [{ id: 5, name: 'test' }],
+      rowCount: 1,
+    });
+
+    const out = await adapter.query('INSERT INTO t (name) VALUES (?) RETURNING id, name', ['test']);
+    expect(out.rowCount).toBe(1);
+    expect(out.rows).toEqual([{ id: 5, name: 'test' }]);
+  });
+
+  it('covers ping method when connected', async () => {
+    vi.stubEnv('D1_REMOTE_MODE', 'sql');
+    const adapter = D1RemoteAdapter.create({} as any);
+    await adapter.connect();
+
+    remoteRequestMock.mockResolvedValueOnce({ row: { ok: 1 } });
+
+    await adapter.ping();
+    expect(remoteRequestMock).toHaveBeenCalled();
+  });
+
+  it('covers transaction method rejection', async () => {
+    const adapter = D1RemoteAdapter.create({} as any);
+    await adapter.connect();
+
+    const callback = vi.fn(async () => 42);
+    await expect(adapter.transaction(callback)).rejects.toThrow(/atomic callback transactions/);
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('covers rawQuery method', async () => {
+    vi.stubEnv('D1_REMOTE_MODE', 'sql');
+    const adapter = D1RemoteAdapter.create({} as any);
+    await adapter.connect();
+
+    remoteRequestMock.mockResolvedValueOnce({
+      rows: [{ a: 1 }],
+      rowCount: 1,
+    });
+
+    const rows = await adapter.rawQuery<{ a: number }>('SELECT 1', []);
+    expect(rows).toEqual([{ a: 1 }]);
+  });
 });

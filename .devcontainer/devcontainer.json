@@ -1,4 +1,4 @@
-{
+ww{
   "name": "ZinTrust Development Sandbox",
   "image": "docker.io/zintrust/zintrust:latest",
   "forwardPorts": [7772],

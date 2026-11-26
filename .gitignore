@@ -125,3 +125,7 @@ gig/
 tmp-*
 bio/
 client-project/
+.sixth/
+.vitest/
+--version/
+.claude/

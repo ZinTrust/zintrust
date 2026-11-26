@@ -22,6 +22,105 @@ vi.mock('@common/utility', async () => {
 
 import { BulletproofDeviceStore } from '@security/BulletproofDeviceStore';
 
+describe('BulletproofDeviceStore helper functions', () => {
+  // These tests verify the internal helper functions that are used by the store
+  // Since they're not exported, we test them indirectly through the public API
+
+  it('normalizeString returns undefined for empty/whitespace strings', async () => {
+    // Test through findByDeviceId which uses normalizeString internally
+    await expect(BulletproofDeviceStore.findByDeviceId('')).resolves.toBeNull();
+    await expect(BulletproofDeviceStore.findByDeviceId('   ')).resolves.toBeNull();
+    await expect(BulletproofDeviceStore.findByDeviceId('\t\n')).resolves.toBeNull();
+  });
+
+  it('normalizeRequiredDeviceId throws VALIDATION_ERROR for empty deviceId', async () => {
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: '',
+        signingSecret: 'secret',
+        lastSeenAt: new Date(),
+      })
+    ).rejects.toHaveProperty('code', 'VALIDATION_ERROR');
+
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: '   ',
+        signingSecret: 'secret',
+        lastSeenAt: new Date(),
+      })
+    ).rejects.toHaveProperty('code', 'VALIDATION_ERROR');
+  });
+
+  it('normalizeRequiredSigningSecret throws VALIDATION_ERROR for empty signingSecret', async () => {
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: 'device',
+        signingSecret: '',
+        lastSeenAt: new Date(),
+      })
+    ).rejects.toHaveProperty('code', 'VALIDATION_ERROR');
+
+    await expect(
+      BulletproofDeviceStore.upsert({
+        deviceId: 'device',
+        signingSecret: '   ',
+        lastSeenAt: new Date(),
+      })
+    ).rejects.toHaveProperty('code', 'VALIDATION_ERROR');
+  });
+
+  it('normalizeDate handles various input types', async () => {
+    const query = {
+      where: vi.fn().mockReturnThis(),
+      first: vi.fn().mockResolvedValue({
+        device_id: 'dev-date',
+        signing_secret: 'secret',
+        last_seen_at: '2026-04-20T00:00:00.000Z', // ISO string
+        created_at: 1713561600000, // timestamp number
+        updated_at: new Date('2026-04-20T01:00:00.000Z'), // Date object
+      }),
+    };
+
+    vi.mocked(Env.get).mockImplementation((_: string, defaultValue?: string) => defaultValue ?? '');
+    vi.mocked(useDatabase).mockReturnValue({
+      table: vi.fn(() => query),
+      execute: vi.fn(),
+      getType: vi.fn(() => 'sqlite'),
+    } as never);
+
+    const result = await BulletproofDeviceStore.findByDeviceId('dev-date');
+    expect(result).not.toBeNull();
+    expect(result?.lastSeenAt).toEqual(new Date('2026-04-20T00:00:00.000Z'));
+    expect(result?.createdAt).toEqual(new Date(1713561600000));
+    expect(result?.updatedAt).toEqual(new Date('2026-04-20T01:00:00.000Z'));
+  });
+
+  it('normalizeDate returns undefined for invalid date inputs', async () => {
+    const query = {
+      where: vi.fn().mockReturnThis(),
+      first: vi.fn().mockResolvedValue({
+        device_id: 'dev-invalid-date',
+        signing_secret: 'secret',
+        last_seen_at: '2026-04-20T00:00:00.000Z',
+        created_at: 'not-a-date', // invalid
+        updated_at: 'also-invalid', // invalid
+      }),
+    };
+
+    vi.mocked(Env.get).mockImplementation((_: string, defaultValue?: string) => defaultValue ?? '');
+    vi.mocked(useDatabase).mockReturnValue({
+      table: vi.fn(() => query),
+      execute: vi.fn(),
+      getType: vi.fn(() => 'sqlite'),
+    } as never);
+
+    const result = await BulletproofDeviceStore.findByDeviceId('dev-invalid-date');
+    expect(result).not.toBeNull();
+    expect(result?.createdAt).toBeUndefined();
+    expect(result?.updatedAt).toBeUndefined();
+  });
+});
+
 type QueryStub = {
   where: ReturnType<typeof vi.fn>;
   first: ReturnType<typeof vi.fn>;
