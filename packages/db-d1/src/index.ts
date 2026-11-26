@@ -125,7 +125,11 @@ async function queryD1(
   try {
     const stmt = db.prepare(sql);
     const normalizedParams = normalizeD1BindParameters(parameters);
-    if (/^\s*(insert|update|delete|replace|create|drop|alter)\b/i.test(sql)) {
+
+    const isMutating = /^\s*(insert|update|delete|replace|create|drop|alter)\b/i.test(sql);
+    const hasReturning = /\breturning\b/iu.test(sql);
+
+    if (isMutating && !hasReturning) {
       const result = await stmt.bind(...normalizedParams).run();
       if (result.success === false) {
         throw ErrorFactory.createDatabaseError(result.error ?? 'D1 statement failed');
@@ -143,6 +147,8 @@ async function queryD1(
           : {}),
       };
     }
+
+    // For SELECT statements or mutating statements with RETURNING, use .all()
     const result = await stmt.bind(...normalizedParams).all();
     if (result.success === false) {
       throw ErrorFactory.createDatabaseError(result.error ?? 'D1 query failed');

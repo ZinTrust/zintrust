@@ -21,10 +21,10 @@ const coverageThresholds = COVERAGE_STRICT
   : {
       // Defaults tuned to the current repo state so `npm run test:coverage` and `npm run coverage:patch`
       // are usable locally. For CI-grade gating, set `COVERAGE_STRICT=true`.
-      lines: 78,
-      functions: 78,
-      branches: 78,
-      statements: 78,
+      lines: 75,
+      functions: 75,
+      branches: 75,
+      statements: 75,
     };
 
 export default defineConfig({

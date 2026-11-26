@@ -120,6 +120,34 @@ Supported forms: `COUNT|SUM|AVG|MIN|MAX(arg)` with optional `AS alias`. `arg` is
 
 You can also use `selectAs(column, alias)` and `max(column, alias?)` helpers.
 
+## Count (`count()`)
+
+Get the total number of records matching the query:
+
+```typescript
+// Using QueryBuilder directly
+const totalUsers = await User.query().where('active', true).count();
+
+// Using Model static helper
+const totalActive = await User.where('active', true).count();
+
+// With joins (uses COUNT(DISTINCT primary_table.id) by default)
+const joinedCount = await User.query()
+  .join('posts', 'users.id = posts.user_id')
+  .where('posts.published', true)
+  .count();
+
+// With complex queries (groupBy, latestPer, etc.) - counts the unconstrained result set
+const groupedCount = await Message.query()
+  .select('thread_id', 'COUNT(*) AS total')
+  .groupBy('thread_id')
+  .count();
+```
+
+Returns `number` - the total count of matching records.
+
+**Note:** For paginated results, use `paginate()` which returns a `Paginator` object with a `total` property containing the count.
+
 ## Joins
 
 ### Single ON term (string)
@@ -339,6 +367,88 @@ await User.query().insert({ name: 'Ada', email: 'ada@example.com' });
 await User.query().where('id', '=', id).update({ name: 'Grace' });
 await User.query().where('id', '=', id).delete();
 ```
+
+## RETURNING clause (INSERT / UPDATE / DELETE)
+
+The QueryBuilder supports a `.return()` method to request specific columns back from mutating statements. This uses the native `RETURNING` clause supported by SQLite/D1, PostgreSQL, MySQL 8.0+, and SQL Server (via `OUTPUT` clause).
+
+### Basic Usage
+
+```typescript
+// UPDATE with RETURNING
+const result = await User.query()
+  .where('id', '=', userId)
+  .where('google2fa_ts', '=', previousTimeStep)
+  .return('id')
+  .update({ google2fa_ts: nextTimeStep });
+
+// Returns: { rowCount: 1, rows: [{ id: '...' }] }
+
+// INSERT with RETURNING
+const { rowCount, rows } = await User.query()
+  .return('id')
+  .insert({ email: 'x@y.com', google2fa_ts: 0 });
+
+// DELETE with RETURNING
+const { rowCount, rows } = await User.query()
+  .where('id', '=', userId)
+  .return('id')
+  .delete();
+```
+
+### Multiple Columns
+
+```typescript
+const result = await User.query()
+  .where('id', '=', userId)
+  .return(['id', 'google2fa_ts', 'updated_at'])
+  .update({ google2fa_ts: nextTimeStep });
+
+// Returns: { rowCount: 1, rows: [{ id: '...', google2fa_ts: 59852778, updated_at: '2026-11-25T...' }] }
+```
+
+### With Models (`.save()` Integration)
+
+When using model instances, the `.return()` pattern integrates with `save()` to automatically refresh the model:
+
+```typescript
+const user = await User.find(userId);
+user.google2fa_ts = nextTimeStep;
+
+// Model.save() can leverage RETURNING to refresh the instance
+await user.query()
+  .return(['id', 'google2fa_ts', 'updated_at'])
+  .update(user.getDirtyAttributes());
+
+// Or use the proposed Model.save() enhancement (when available):
+// await user.save({ returning: ['id', 'google2fa_ts', 'updated_at'] });
+```
+
+### Dialect Support
+
+| Dialect | Support | Notes |
+|---------|---------|-------|
+| **D1 / SQLite** | ✅ Native `RETURNING` | Requires SQLite 3.35+ / D1 compatibility_date 2023-08-01+ |
+| **PostgreSQL** | ✅ Native `RETURNING` | Full support |
+| **MySQL 8.0+** | ✅ Native `RETURNING` | Requires MySQL 8.0.20+ |
+| **SQL Server** | ⚠️ `OUTPUT` clause | Different syntax, adapter handles translation |
+
+### Important Notes
+
+- **CAS Pattern**: The primary use case is Compare-And-Swap patterns where you need to confirm the exact row was updated:
+  ```typescript
+  const result = await User.query()
+    .where('id', '=', userId)
+    .where('google2fa_ts', '=', expectedTs) // CAS check
+    .return('id')
+    .update({ google2fa_ts: newTs });
+  
+  if (result.rowCount === 0) {
+    throw new Error('CAS failed: concurrent modification detected');
+  }
+  ```
+- **Mutating statements without `.return()`** continue to return `{ rowCount: number, rows: [] }` for backward compatibility.
+- **Raw SQL**: You can also use `RETURNING` directly in raw queries: `db.query('UPDATE users SET x = ? RETURNING id', [value])`.
 
 ## Master / replica routing
 

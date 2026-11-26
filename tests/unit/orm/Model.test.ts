@@ -24,6 +24,7 @@ type MockBuilder = {
   paginate: ReturnType<typeof vi.fn>;
   with: ReturnType<typeof vi.fn>;
   withCount: ReturnType<typeof vi.fn>;
+  count: ReturnType<typeof vi.fn>;
   insert: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
   table: string;
@@ -57,6 +58,7 @@ vi.mock('@orm/QueryBuilder', () => {
         })),
         with: vi.fn().mockReturnThis(),
         withCount: vi.fn().mockReturnThis(),
+        count: vi.fn(async () => 42),
         insert: vi.fn(async () => ({ id: 1, affectedRows: 1 })),
         update: vi.fn(async () => undefined),
       };
@@ -1053,5 +1055,81 @@ describe('Model', () => {
     expect(paged.items).toHaveLength(1);
     expect(paged.items[0].exists()).toBe(true);
     expect((paged.items[0] as IModel & { greet: () => string }).greet()).toBe('hi Paged');
+  });
+
+  it('static count() returns total count', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const builderMod = await import('@orm/QueryBuilder');
+
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => null),
+      firstOrFail: vi.fn(async () => {
+        throw new Error('not found');
+      }),
+      get: vi.fn(async () => []),
+      paginate: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 0,
+        to: 0,
+        links: {},
+      })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
+      count: vi.fn(async () => 42),
+      insert: vi.fn(async () => ({ id: 1, affectedRows: 1 })),
+      update: vi.fn(async () => undefined),
+    } satisfies MockBuilder);
+
+    const Test = Model.define(config);
+    const count = await Test.count();
+    expect(count).toBe(42);
+  });
+
+  it('static where(...).count() returns filtered count', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const builderMod = await import('@orm/QueryBuilder');
+
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => null),
+      firstOrFail: vi.fn(async () => {
+        throw new Error('not found');
+      }),
+      get: vi.fn(async () => []),
+      paginate: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 0,
+        to: 0,
+        links: {},
+      })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
+      count: vi.fn(async () => 5),
+      insert: vi.fn(async () => ({ id: 1, affectedRows: 1 })),
+      update: vi.fn(async () => undefined),
+    } satisfies MockBuilder);
+
+    const Test = Model.define(config);
+    const count = await Test.where('active', '=', true).count();
+    expect(count).toBe(5);
   });
 });

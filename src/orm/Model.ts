@@ -1053,6 +1053,9 @@ export type DefinedModel<T extends BoundModelMethods> = {
   onlyTrashed: () => IQueryBuilder;
   withoutTrashed: () => IQueryBuilder;
 
+  // Aggregation methods
+  count: () => Promise<number>;
+
   scope: (name: string, ...args: unknown[]) => IQueryBuilder;
   with: (relations: string | string[] | EagerLoadConstraints) => IQueryBuilder;
   getTable: () => string;
@@ -1395,13 +1398,21 @@ const wrapBuilderGetForEagerLoading = (
   }
 };
 
+type IncomingMethods =
+  | 'create'
+  | 'make'
+  | 'new'
+  | 'hydrate'
+  | 'hydrateWithRelations'
+  | 'find'
+  | 'all'
+  | 'raw'
+  | 'db';
+
 const createQueryBuilderMethods = (
   cfg: ModelConfig,
   hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
-): Omit<
-  DefinedModel<BoundModelMethods>,
-  'create' | 'make' | 'new' | 'hydrate' | 'hydrateWithRelations' | 'find' | 'all' | 'raw' | 'db'
-> => {
+): Omit<DefinedModel<BoundModelMethods>, IncomingMethods> => {
   const wrappedBuilder = (): IQueryBuilder => {
     const builder = createModelBuilder(cfg);
     wrapBuilderGetForEagerLoading(builder, hydrateModel);
@@ -1444,6 +1455,7 @@ const createQueryBuilderMethods = (
     select: (...columns: string[]) => wrappedBuilder().select(...columns),
     selectAs: (column: string, alias: string) => wrappedBuilder().selectAs(column, alias),
     max: (column: string, alias?: string) => wrappedBuilder().max(column, alias),
+    count: async () => wrappedBuilder().count(),
     join: (table: string, on: JoinOnInput) => wrappedBuilder().join(table, on),
     leftJoin: (table: string, on: JoinOnInput) => wrappedBuilder().leftJoin(table, on),
     groupBy: (...columns: string[]) => wrappedBuilder().groupBy(...columns),

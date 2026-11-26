@@ -3,6 +3,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
 import type { IDatabase } from '@orm/Database';
 import { useDatabase } from '@orm/Database';
+import type { QueryResult } from '@orm/DatabaseAdapter';
 import {
   shouldRetryAuthStoreInsertWithGeneratedId,
   withGeneratedAuthStoreId,
@@ -233,6 +234,33 @@ const isDuplicateInsertError = (error: unknown): boolean => {
   );
 };
 
+const executeInsertOrIgnore = async (
+  db: IDatabase,
+  table: string,
+  insertPayload: Record<string, unknown>
+): Promise<void> => {
+  const columns = Object.keys(insertPayload);
+  const values = columns.map((column) => insertPayload[column]);
+  const insertSql = buildIgnoreInsert(db, table, columns, ['device_id']);
+
+  try {
+    await db.execute(insertSql, values);
+  } catch (error) {
+    if (!isDuplicateInsertError(error)) {
+      if (!shouldRetryAuthStoreInsertWithGeneratedId(error)) {
+        throw error;
+      }
+
+      // Rebuild SQL with 'id' column for the retry
+      const retryPayload = withGeneratedAuthStoreId(insertPayload);
+      const retryColumns = Object.keys(retryPayload);
+      const retryValues = retryColumns.map((column) => retryPayload[column]);
+      const retrySql = buildIgnoreInsert(db, table, retryColumns, ['device_id']);
+      await db.execute(retrySql, retryValues);
+    }
+  }
+};
+
 export const BulletproofDeviceStore = Object.freeze({
   async findByDeviceId(deviceId: string): Promise<StoredBulletproofDeviceRecord | null> {
     if (!isNonEmptyString(deviceId)) return null;
@@ -279,46 +307,38 @@ export const BulletproofDeviceStore = Object.freeze({
     const updatePayload = buildUpdatePayload(normalizedRecord);
 
     try {
-      return await db.transaction(async (transactionDb) => {
-        await transactionDb.table(table).where('device_id', '=', deviceId).update(updatePayload);
+      // First attempt UPDATE for existing device
+      const updateSql = `UPDATE ${table} SET signing_secret = ?, user_agent = ?, last_seen_at = ?, updated_at = ?, user_id = ? WHERE device_id = ?`;
+      // Use bracket notation to access properties from index signature
+      const updateValues = [
+        updatePayload['signing_secret'],
+        updatePayload['user_agent'],
+        updatePayload['last_seen_at'],
+        updatePayload['updated_at'],
+        updatePayload['user_id'],
+        deviceId,
+      ];
+      const updateResult: QueryResult = await db.execute(updateSql, updateValues);
 
-        const insertRecord = async (payload: Record<string, unknown>): Promise<void> => {
-          const columns = Object.keys(payload);
-          const values = columns.map((column) => payload[column]);
-          const sql = buildIgnoreInsert(db, table, columns, ['device_id']);
-          await transactionDb.execute(sql, values);
-        };
+      // If 0 rows affected, device doesn't exist - perform INSERT OR IGNORE
+      if (updateResult.rowCount === 0) {
+        await executeInsertOrIgnore(db, table, insertPayload);
+      }
 
-        try {
-          await insertRecord(insertPayload);
-        } catch (error) {
-          if (!isDuplicateInsertError(error)) {
-            if (!shouldRetryAuthStoreInsertWithGeneratedId(error)) {
-              throw error;
-            }
+      // Retrieve the stored record
+      const selectSql = `SELECT * FROM ${table} WHERE device_id = ?`;
+      const stored = await db.execute(selectSql, [deviceId]);
 
-            try {
-              await insertRecord(withGeneratedAuthStoreId(insertPayload));
-            } catch (retryError) {
-              if (!isDuplicateInsertError(retryError)) {
-                throw retryError;
-              }
-            }
-          }
-        }
+      if (stored.rows.length === 0) {
+        throw createInvalidStoredRecordError(table, deviceId);
+      }
 
-        const stored = await transactionDb
-          .table(table)
-          .where('device_id', '=', deviceId)
-          .first<Record<string, unknown>>();
-        const normalized = stored === null ? null : toStoredRecord(stored);
+      const normalized = toStoredRecord(stored.rows[0]);
+      if (normalized === null) {
+        throw createInvalidStoredRecordError(table, deviceId);
+      }
 
-        if (normalized === null) {
-          throw createInvalidStoredRecordError(table, deviceId);
-        }
-
-        return normalized;
-      });
+      return normalized;
     } catch (error) {
       throw createStoreError(table, 'upsert', error, { deviceId });
     }

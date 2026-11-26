@@ -171,7 +171,9 @@ export const D1Adapter = Object.freeze({
         try {
           const stmt = db.prepare(sql);
 
-          if (isMutatingSql(sql)) {
+          const hasReturning = /\breturning\b/iu.test(sql);
+
+          if (isMutatingSql(sql) && !hasReturning) {
             const runResult = await stmt.bind(...normalizedParams).run();
             if (runResult.success === false) {
               throw ErrorFactory.createDatabaseError(runResult.error ?? 'D1 statement failed');
@@ -186,6 +188,7 @@ export const D1Adapter = Object.freeze({
             };
           }
 
+          // For SELECT statements or mutating statements with RETURNING, use .all()
           const result = await stmt.bind(...normalizedParams).all();
           if (result.success === false) {
             throw ErrorFactory.createDatabaseError(result.error ?? 'D1 query failed');
