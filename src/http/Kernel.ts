@@ -6,7 +6,7 @@ import { Logger } from '@config/logger';
 import { middlewareConfig } from '@config/middleware';
 import type { IServiceContainer } from '@container/ServiceContainer';
 import { ErrorRouting } from '@core-routes/error';
-import type { IRouter, RouteMatch } from '@core-routes/Router';
+import type { IRouter, Route, RouteMatch } from '@core-routes/Router';
 import { Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
@@ -113,6 +113,55 @@ const PREFLIGHT_FALLBACK_METHODS = Object.freeze([
   '*',
 ]);
 
+type PreflightRoute = Readonly<{ route: Route; priority: number; order: number }>;
+const PREFLIGHT_PRIORITY = new Map(
+  PREFLIGHT_FALLBACK_METHODS.map((method, index) => [method, index] as const)
+);
+
+// Cached by router identity + route count so late registrations invalidate the lookup.
+let preflightCache:
+  | { router: IRouter; count: number; routes: readonly PreflightRoute[] }
+  | undefined;
+
+const getPreflightRoutes = (router: IRouter): readonly PreflightRoute[] => {
+  const allRoutes = Router.getRoutes(router);
+  if (preflightCache?.router === router && preflightCache.count === allRoutes.length) {
+    return preflightCache.routes;
+  }
+
+  const routes = allRoutes
+    .map((route, order) => ({
+      route,
+      priority: PREFLIGHT_PRIORITY.get(route.method) ?? PREFLIGHT_PRIORITY.size,
+      order,
+    }))
+    .filter((candidate) => candidate.route.method !== 'OPTIONS')
+    .sort((a, b) => a.priority - b.priority || a.order - b.order);
+
+  preflightCache = { router, count: allRoutes.length, routes };
+  return routes;
+};
+
+const matchPreflightRoute = (candidate: PreflightRoute, path: string): RouteMatch | null => {
+  const match = candidate.route.pattern.exec(path);
+  if (match === null) return null;
+
+  const params: Record<string, string> = {};
+  candidate.route.paramNames.forEach((name, index) => {
+    params[name] = match[index + 1] ?? '';
+  });
+
+  return {
+    handler: async (): Promise<void> => {
+      await Promise.resolve();
+    },
+    params,
+    middleware: candidate.route.middleware,
+    meta: candidate.route.meta,
+    routePath: candidate.route.path,
+  };
+};
+
 const resolveRouteWithPreflightFallback = (
   router: IRouter,
   method: string,
@@ -121,16 +170,10 @@ const resolveRouteWithPreflightFallback = (
   const direct = Router.match(router, method, path);
   if (direct !== null || method !== 'OPTIONS') return direct;
 
-  for (const fallbackMethod of PREFLIGHT_FALLBACK_METHODS) {
-    const matched = Router.match(router, fallbackMethod, path);
-    if (matched === null) continue;
-
-    return {
-      ...matched,
-      handler: async (): Promise<void> => {
-        await Promise.resolve();
-      },
-    };
+  // One pass over a precomputed, method-prioritized list instead of up to 8 Router.match passes.
+  for (const candidate of getPreflightRoutes(router)) {
+    const matched = matchPreflightRoute(candidate, path);
+    if (matched !== null) return matched;
   }
 
   return null;
@@ -204,7 +247,10 @@ const coerceRouteParams = (params: Record<string, unknown> | undefined): Record<
   if (typeof params !== 'object' || params === null) return safeParams;
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null) continue;
-    safeParams[k] = typeof v === 'string' ? v : String(v);
+    safeParams[k] =
+      typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint'
+        ? String(v)
+        : JSON.stringify(v) ?? '';
   }
   return safeParams;
 };
@@ -237,6 +283,33 @@ const resolveWrappedRouteMiddleware = (
     });
 };
 
+// Composed chains are identical for a given global array version + route middleware list.
+const middlewareChainCache = new WeakMap<Middleware[], Map<string, Middleware[]>>();
+
+const resolveMiddlewareChain = (
+  globalMiddleware: Middleware[],
+  routeMiddlewareNames: string[],
+  routeMiddleware: Record<string, Middleware>
+): Middleware[] => {
+  const traceKey = getTraceMiddlewareEmitter() === undefined ? '0' : '1';
+  const key = `${globalMiddleware.length}\u0000${traceKey}\u0000${routeMiddlewareNames.join('\u0000')}`;
+  let byKey = middlewareChainCache.get(globalMiddleware);
+  if (byKey === undefined) {
+    byKey = new Map();
+    middlewareChainCache.set(globalMiddleware, byKey);
+  }
+
+  const cached = byKey.get(key);
+  if (cached !== undefined) return cached;
+
+  const chain = [
+    ...globalMiddleware,
+    ...resolveWrappedRouteMiddleware(routeMiddlewareNames, routeMiddleware),
+  ];
+  byKey.set(key, chain);
+  return chain;
+};
+
 const runNotFoundPipeline = async (
   globalMiddleware: Middleware[],
   req: IRequest,
@@ -246,7 +319,7 @@ const runNotFoundPipeline = async (
 ): Promise<string> => {
   // Run global middleware (including HttpWatcher) so routing 404s are still observed.
   // Route middleware is intentionally skipped — there is no matched route.
-  const routeLabel = 'not_found';
+  const routeLabel = 'unmatched';
   maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
   req.context['traceRouteMiddleware'] = [];
   const handleNotFound = ErrorRouting.handleNotFound as (
@@ -276,7 +349,7 @@ const runKernelPipeline = async (
   }
 
   const matchedRoute = route as MatchedRoute;
-  const routeLabel = hasNonEmptyRoutePath(matchedRoute) ? matchedRoute.routePath : req.getPath();
+  const routeLabel = hasNonEmptyRoutePath(matchedRoute) ? matchedRoute.routePath : 'unmatched';
   maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
 
   req.setParams(coerceRouteParams(matchedRoute.params));
@@ -284,10 +357,11 @@ const runKernelPipeline = async (
   const routeMiddlewareNames = getRouteMiddlewareNames(matchedRoute);
   req.context['traceRouteMiddleware'] = routeMiddlewareNames;
 
-  const middlewareToRun = [
-    ...globalMiddleware,
-    ...resolveWrappedRouteMiddleware(routeMiddlewareNames, routeMiddleware),
-  ];
+  const middlewareToRun = resolveMiddlewareChain(
+    globalMiddleware,
+    routeMiddlewareNames,
+    routeMiddleware
+  );
 
   await runMiddlewareChain(middlewareToRun, req, res, async () => {
     await matchedRoute.handler(req, res);
@@ -374,7 +448,12 @@ const createHandleRequest = (
       thrown = error;
       Logger.error('Kernel error:', error as Error);
       if (!isWritableEnded(res)) {
-        ErrorRouting.handleInternalServerErrorWithWrappers(req, res, error, context.requestId);
+        await ErrorRouting.handleInternalServerErrorWithWrappers(
+          req,
+          res,
+          error,
+          context.requestId
+        );
       }
     } finally {
       finalizeKernelObservability(context, res, routeLabel, thrown, traceSpan);

@@ -200,7 +200,9 @@ describe('patch coverage: BulletproofAuthMiddleware (extra)', () => {
     expect((res as any).statusCode).toBe(401);
     // middleware always responds with a generic unauthorized message when signing fails
     expect((res as any).body).toEqual({ error: 'Unauthorized' });
-    expect(verify).toHaveBeenCalledTimes(2);
+    // A non-signature failure (EXPIRED) is independent of the secret, so the
+    // key-id hinted attempt short-circuits before trying backups.
+    expect(verify).toHaveBeenCalledTimes(1);
   });
 
   it('enforces device + timezone + user-agent binding failures', async () => {

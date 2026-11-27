@@ -44,6 +44,7 @@ describe('patch coverage: TokenRevocation kv-remote Cloudflare branches', () => 
       process.env['KV_NAMESPACE'] = 'my-ns';
       process.env['KV_NAMESPACE_ID'] = '';
 
+      let valueGetCount = 0;
       const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
         if (url.includes('/storage/kv/namespaces?')) {
           const page = new URL(url).searchParams.get('page') ?? '1';
@@ -81,9 +82,11 @@ describe('patch coverage: TokenRevocation kv-remote Cloudflare branches', () => 
           url.includes('/storage/kv/namespaces/nsid/values/') &&
           (init?.method ?? 'GET') === 'GET'
         ) {
+          // jti-less token keys are hashed, so distinguish checks by call order
+          // rather than by the raw token text in the URL.
+          valueGetCount += 1;
           // First check: non-ok -> should warn and return false
-          const decoded = decodeURIComponent(url);
-          if (decoded.includes('zt:jwt:revoked:bad')) return new Response('bad', { status: 500 });
+          if (valueGetCount === 1) return new Response('bad', { status: 500 });
           // Second check: ok -> value.trim() !== '' => true
           return new Response('1', { status: 200 });
         }

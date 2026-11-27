@@ -504,8 +504,12 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     expect(findByDeviceIdMock).not.toHaveBeenCalled();
   });
 
-  it('returns unauthorized when signed-request verification yields no result and no error', async () => {
-    vi.mocked(SignedRequest.verify).mockResolvedValueOnce(undefined as never);
+  it('returns unauthorized when signed-request verification fails', async () => {
+    vi.mocked(SignedRequest.verify).mockResolvedValueOnce({
+      ok: false,
+      code: 'INVALID_SIGNATURE',
+      message: 'Invalid signature',
+    } as never);
 
     const middleware = BulletproofAuthMiddleware.create({ signingSecret: '' });
     const { req, res } = createReqRes({

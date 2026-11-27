@@ -66,26 +66,40 @@ describe('functions/cloudflare auth responder overrides', () => {
       CSRF_SKIP_PATHS: '/api/v1/auth/refresh',
     };
 
-    vi.doMock('@runtime-config/middleware.ts', () => ({
-      default: {
-        responders: {
-          auth: async (_req: unknown, res: any, context: any) => {
-            res.setStatus(418).json({
-              source: 'auth-responder',
-              reason: context.reason,
-              message: context.message,
-            });
-          },
-          jwt: async (_req: unknown, res: any, context: any) => {
-            res.setStatus(499).json({
-              source: 'jwt-responder',
-              reason: context.reason,
-              message: context.message,
-            });
+    vi.doMock('@runtime-config/middleware.ts', async () => {
+      const { AuthMiddleware } = await vi.importActual<
+        typeof import('@/middleware/AuthMiddleware')
+      >('@/middleware/AuthMiddleware');
+
+      const responders = {
+        auth: async (_req: unknown, res: any, context: any) => {
+          res.setStatus(418).json({
+            source: 'auth-responder',
+            reason: context.reason,
+            message: context.message,
+          });
+        },
+        jwt: async (_req: unknown, res: any, context: any) => {
+          res.setStatus(499).json({
+            source: 'jwt-responder',
+            reason: context.reason,
+            message: context.message,
+          });
+        },
+      };
+
+      return {
+        default: {
+          responders,
+          route: {
+            // `auth` now verifies tokens itself, so an invalid token would
+            // short-circuit before `jwt`. Keep it presence-only here; `jwt`
+            // remains the verifier and can trigger its responder override.
+            auth: AuthMiddleware.create({ verify: false, onUnauthorized: responders.auth }),
           },
         },
-      },
-    }));
+      };
+    });
 
     const fetch = await loadHandler('worker-auth-jwt-override');
 

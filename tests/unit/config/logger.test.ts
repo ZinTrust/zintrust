@@ -72,6 +72,9 @@ describe('Logger Config', () => {
     delete process.env.NODE_ENV;
     delete process.env['LOG_FORMAT'];
     delete process.env['LOG_TO_FILE'];
+    delete process.env['KV_LOG_ENABLED'];
+    delete process.env['SLACK_LOG_ENABLED'];
+    delete process.env['HTTP_LOG_ENABLED'];
   });
 
   it('should log info', async () => {
@@ -206,6 +209,10 @@ describe('Logger Config', () => {
   });
 
   it('ScopedLogger: should enqueue to cloud loggers for error/fatal and not for info', async () => {
+    // Cloud sink flags are cached on first use, so enable them before importing the logger.
+    process.env['KV_LOG_ENABLED'] = 'true';
+    process.env['SLACK_LOG_ENABLED'] = 'true';
+    process.env['HTTP_LOG_ENABLED'] = 'true';
     vi.resetModules();
 
     vi.doMock('@config/logging/KvLogger', () => ({
@@ -274,5 +281,16 @@ describe('Logger Config', () => {
     expect(kvSpy).not.toHaveBeenCalled();
     expect(slackSpy).toHaveBeenCalled();
     expect(httpSpy).toHaveBeenCalled();
+  });
+
+  it('writes to file when LOG_TO_FILE is enabled', async () => {
+    process.env['LOG_TO_FILE'] = 'true';
+    const { Logger } = await import('@/config/logger');
+
+    Logger.info('file log line');
+    // Allow the lazy FileLogWriter import promise to settle.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(fsMocks.appendFileSync).toHaveBeenCalled();
   });
 });

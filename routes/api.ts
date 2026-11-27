@@ -39,7 +39,7 @@ function registerPublicRoutes(router: IRouter): void {
 }
 
 function registerHealthRoute(router: IRouter): void {
-  Router.get(router, '/health', async (_req: IRequest, res: IResponse) => {
+  Router.get(router, '/health', (_req: IRequest, res: IResponse) => {
     const modeFromEnv = Env.get('RUNTIME_MODE', '').trim();
     const mode = modeFromEnv === '' ? getRuntimeMode() : modeFromEnv;
 
@@ -54,6 +54,7 @@ function registerHealthRoute(router: IRouter): void {
 
 function registerRootRoute(router: IRouter): void {
   Router.get(router, '/', async (_req: IRequest, res: IResponse) => {
+    await Promise.resolve();
     res.json({
       framework: 'ZinTrust Framework',
       app_name: Env.APP_NAME,
@@ -136,6 +137,7 @@ function registerApiV1Routes(
       pr,
       '/profile',
       async (__req: IRequest, res: IResponse) => {
+        await Promise.resolve();
         res.json({ message: 'Get user profile' });
       },
       { middleware: ['auth', 'bulletproof'] }
@@ -145,17 +147,19 @@ function registerApiV1Routes(
       pr,
       '/profile',
       async (__req: IRequest, res: IResponse) => {
+        await Promise.resolve();
         res.json({ message: 'Update user profile' });
       },
       { middleware: ['auth', 'bulletproof'] }
     );
 
     // Posts resource
-    Router.get(r, '/posts', async (_req: IRequest, res: IResponse) => {
+    Router.get(r, '/posts', (_req: IRequest, res: IResponse) => {
       res.json({ data: [] });
     });
 
     Router.get(r, '/posts/:id', async (req: IRequest, res: IResponse) => {
+      await Promise.resolve();
       const id = req.getParam('id');
       res.json({ data: { id } });
     });
@@ -166,13 +170,20 @@ function registerApiV1Routes(
  * Register admin routes
  */
 function registerAdminRoutes(router: IRouter): void {
-  Router.group(router, '/admin', (r) => {
-    Router.get(r, '/dashboard', async (__req: IRequest, res: IResponse) => {
-      res.json({ message: 'Admin dashboard' });
-    });
+  Router.group<MiddlewareKey>(
+    router,
+    '/admin',
+    (r) => {
+      Router.get(r, '/dashboard', async (__req: IRequest, res: IResponse) => {
+        await Promise.resolve();
+        res.json({ message: 'Admin dashboard' });
+      });
 
-    Router.get(r, '/users', async (__req: IRequest, res: IResponse) => {
-      res.json({ data: [] });
-    });
-  });
+      Router.get(r, '/users', async (__req: IRequest, res: IResponse) => {
+        await Promise.resolve();
+        res.json({ data: [] });
+      });
+    },
+    { middleware: ['auth', 'jwt'] }
+  );
 }

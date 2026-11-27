@@ -42,6 +42,9 @@ const DEFAULTS = {
 
 const defaultTtlMs = Math.max(securityConfig.jwt.expiresIn * 1000, 60_000);
 
+/** Full in-memory sweeps are expensive on the auth hot path; cap them to 1/min. */
+const CLEANUP_INTERVAL_MS = 60_000;
+
 const normalizeDriverName = (raw: unknown): JwtSessionsDriverName => {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
   if (value === 'db' || value === 'database') return 'database';
@@ -134,8 +137,13 @@ const createMemoryStore = (): JwtSessionsStore => {
     idToSub.set(id, key);
   };
 
+  let nextCleanupAt = 0;
+
   const cleanupExpired = (): void => {
     const now = Date.now();
+    if (now < nextCleanupAt) return;
+    nextCleanupAt = now + CLEANUP_INTERVAL_MS;
+
     for (const [id, expiresAtMs] of active.entries()) {
       if (expiresAtMs <= now) {
         active.delete(id);

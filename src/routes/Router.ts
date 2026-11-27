@@ -35,6 +35,8 @@ export interface Route {
   paramNames: string[];
   middleware?: string[];
   meta?: RouteMeta;
+  /** True when registerRoute() also placed this route in the method index. */
+  indexed?: boolean;
 }
 
 export type RouteGroupCallback = (router: IRouter) => void;
@@ -72,6 +74,9 @@ export const createRouter = (): IRouter => ({
   prefix: '',
   routeIndex: new Map<string, Route[]>(),
 });
+
+/** Number of routes registered through the index, keyed by the shared routes array. */
+const indexedRouteCounts = new WeakMap<Route[], number>();
 
 /**
  * Router - HTTP Routing Engine
@@ -136,9 +141,11 @@ const registerRoute = (
     paramNames,
     middleware: routeMiddleware,
     meta: normalizeRouteMeta(options?.meta),
+    indexed: true,
   };
 
   router.routes.push(route);
+  indexedRouteCounts.set(router.routes, (indexedRouteCounts.get(router.routes) ?? 0) + 1);
 
   RouteRegistry.record({
     method,
@@ -180,11 +187,8 @@ const getRouteMatch = (route: Route, path: string): RouteMatch | null => {
  */
 const findInFallback = (router: IRouter, method: string, path: string): RouteMatch | null => {
   for (const route of router.routes) {
-    // Skip if already checked via index
-    if (router.routeIndex !== undefined) {
-      const methodRoutes = router.routeIndex.get(route.method);
-      if (methodRoutes?.includes(route) ?? false) continue;
-    }
+    // Boolean flag replaces an O(n) includes() scan of the method's indexed routes.
+    if (route.indexed === true) continue;
 
     if (route.method !== method && route.method !== '*') continue;
 
@@ -198,21 +202,25 @@ const findInFallback = (router: IRouter, method: string, path: string): RouteMat
  * Match a request to a route
  */
 const matchRoute = (router: IRouter, method: string, path: string): RouteMatch | null => {
-  // Try fast lookup first
+  // Try fast lookup first, without allocating a combined candidate array per request.
   if (router.routeIndex !== undefined) {
-    const candidates = [
-      ...(router.routeIndex.get(method) ?? []),
-      ...(router.routeIndex.get('*') ?? []),
-    ];
+    for (const route of router.routeIndex.get(method) ?? []) {
+      const match = getRouteMatch(route, path);
+      if (match) return match;
+    }
 
-    for (const route of candidates) {
+    for (const route of router.routeIndex.get('*') ?? []) {
       const match = getRouteMatch(route, path);
       if (match) return match;
     }
   }
 
-  // Fallback to linear search for manually added routes or if index is missing
-  return findInFallback(router, method, path);
+  // Only scan the full list when it can contain routes the index does not know about.
+  const indexedCount = indexedRouteCounts.get(router.routes) ?? 0;
+  if (router.routeIndex === undefined || indexedCount !== router.routes.length) {
+    return findInFallback(router, method, path);
+  }
+  return null;
 };
 
 const stripTrailingSlashes = (value: string): string => {

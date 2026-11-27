@@ -281,7 +281,7 @@ const registerDatabaseResetHook = (shutdownManager: IShutdownManager): void => {
   shutdownManager.add(async () => {
     try {
       const mod = await import('@orm/Database');
-      mod.resetDatabase();
+      await mod.resetDatabase();
     } catch {
       /* ignore import failures in restrictive runtimes */
     }
@@ -327,8 +327,9 @@ export const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager
   // Register framework-level shutdown hooks for long-lived resources
   registerConnectionManagerHook(shutdownManager);
 
-  // Ensure worker management system is asked to shutdown BEFORE databases are reset
-  registerWorkerShutdownHook(shutdownManager);
+  // Ensure worker management system is asked to shutdown BEFORE databases are reset.
+  // The hook itself is registered synchronously; the async return only covers early exit.
+  void registerWorkerShutdownHook(shutdownManager);
 
   // Database and cache reset
   registerDatabaseResetHook(shutdownManager);
@@ -605,6 +606,11 @@ const resolveTraceDashboardMiddleware = (): ReadonlyArray<string> => {
     .filter(isNonEmptyString);
 };
 
+const isProductionRuntime = (): boolean => {
+  const raw = readEnvString('NODE_ENV').trim().toLowerCase();
+  return raw === 'production' || raw === 'prod';
+};
+
 const isSystemTracePluginRequested = (): boolean => {
   const globalTracePluginState = globalThis as unknown as GlobalTracePluginState;
   return globalTracePluginState.__zintrust_system_trace_plugin_requested__ === true;
@@ -655,6 +661,16 @@ const initializeSystemTrace = async (router: IRouter): Promise<void> => {
 
     const basePath = resolveTraceDashboardBasePath();
     const middleware = resolveTraceDashboardMiddleware();
+
+    // The dashboard exposes requests, queries and user IDs: never auto-mount it unprotected
+    // outside development. Explicit middleware (e.g. auth,jwt) is required in production.
+    if (middleware.length === 0 && isProductionRuntime()) {
+      Logger.warn(
+        'Refusing to auto-mount the Trace dashboard in production without TRACE_MIDDLEWARE. ' +
+          'Set TRACE_MIDDLEWARE (e.g. auth,jwt) or register dashboard routes manually.'
+      );
+      return;
+    }
 
     traceModule.registerTraceDashboard(router, {
       basePath,

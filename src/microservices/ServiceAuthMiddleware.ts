@@ -52,7 +52,7 @@ export const ApiKeyAuth = Object.freeze({
 
     return {
       verify(token: string): boolean {
-        return token === key;
+        return constantTimeEquals(token, key);
       },
 
       generate(): string {
@@ -61,6 +61,23 @@ export const ApiKeyAuth = Object.freeze({
     };
   },
 });
+
+/** Constant-time equality for secrets/tokens; hashes first so lengths do not leak. */
+const constantTimeEquals = (a: string, b: string): boolean => {
+  const digestA = crypto.createHash('sha256').update(a).digest();
+  const digestB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(digestA, digestB);
+};
+
+/** Parse a compact duration such as "30s", "15m", "1h", "7d" into milliseconds. */
+const parseDurationMs = (value: string): number => {
+  const match = /^(\d+)\s*(ms|s|m|h|d)?$/i.exec(value.trim());
+  if (match === null) return 3_600_000;
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? 's').toLowerCase();
+  const factors: Record<string, number> = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+  return amount * (factors[unit] ?? 1_000);
+};
 
 export interface IJwtAuth {
   sign(payload: Record<string, unknown>, expiresIn?: string): string;
@@ -94,12 +111,17 @@ export const JwtAuth = Object.freeze({
     const jwtSecret = secret ?? getJwtSecret();
 
     return {
-      sign(payload: Record<string, unknown>, _expiresIn: string = '1h'): string {
-        // Simplified JWT (in production, use jsonwebtoken library)
+      sign(payload: Record<string, unknown>, expiresIn: string = '1h'): string {
+        // Simplified JWT (in production, prefer the audited JwtManager/JwtVerifier).
         const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64');
-        const body = Buffer.from(JSON.stringify({ ...payload, iat: Date.now() })).toString(
-          'base64'
-        );
+        const ttlMs = parseDurationMs(expiresIn);
+        const issuedAt = Date.now();
+        const claims: Record<string, unknown> = {
+          ...payload,
+          iat: issuedAt,
+          exp: Math.floor((issuedAt + ttlMs) / 1000),
+        };
+        const body = Buffer.from(JSON.stringify(claims)).toString('base64');
 
         const signature = crypto
           .createHmac('sha256', jwtSecret)
@@ -114,16 +136,31 @@ export const JwtAuth = Object.freeze({
           const parts = token.split('.');
           if (parts.length !== 3) return null;
           const [header, body, signature] = parts;
-          const expectedSignature = crypto
+
+          const headerClaims = JSON.parse(Buffer.from(header, 'base64').toString()) as Record<
+            string,
+            unknown
+          >;
+          if (headerClaims['alg'] !== 'HS256') return null;
+
+          const expected = crypto
             .createHmac('sha256', jwtSecret)
             .update(`${header}.${body}`)
-            .digest('base64');
+            .digest();
+          const provided = Buffer.from(signature, 'base64');
+          if (!constantTimeEquals(provided.toString('hex'), expected.toString('hex'))) return null;
 
-          if (signature !== expectedSignature) {
-            return null;
-          }
+          const claims = JSON.parse(Buffer.from(body, 'base64').toString()) as Record<
+            string,
+            unknown
+          >;
+          const nowSeconds = Math.floor(Date.now() / 1000);
+          const exp = claims['exp'];
+          const nbf = claims['nbf'];
+          if (typeof exp === 'number' && exp <= nowSeconds) return null;
+          if (typeof nbf === 'number' && nbf > nowSeconds) return null;
 
-          return JSON.parse(Buffer.from(body, 'base64').toString()) as Record<string, unknown>;
+          return claims;
         } catch (error) {
           Logger.error('JWT verification failed', error);
           return null;

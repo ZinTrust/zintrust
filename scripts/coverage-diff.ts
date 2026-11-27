@@ -67,6 +67,8 @@ const isCoverageExcluded = (fileRel: string): boolean => {
   if (fileRel.startsWith('src/scripts/')) return true;
   if (fileRel.startsWith('src/features/')) return true;
   if (fileRel.startsWith('src/node-singletons/')) return true;
+  // vitest.config.ts excludes all queue drivers from coverage; do not penalise them here.
+  if (fileRel.startsWith('src/tools/queue/drivers/')) return true;
   if (fileRel === 'src/runtime/WorkersModule.ts') return true;
   if (fileRel === 'src/tools/mail/template-loader.ts') return true;
   if (fileRel === 'src/routes/errorPages.ts') return true;

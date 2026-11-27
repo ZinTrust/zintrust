@@ -35,7 +35,7 @@ const applyFieldSanitizers = (input: unknown, sanitizers: FieldSanitizers | unde
   const out: Record<string, unknown> = { ...record };
 
   for (const [field, sanitizer] of Object.entries(sanitizers)) {
-    if (Object.prototype.hasOwnProperty.call(out, field) === false) continue;
+    if (Object.hasOwn(out, field) === false) continue;
     const before = out[field];
     const after = sanitizer(before);
     if (after !== before) {

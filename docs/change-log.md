@@ -1,3 +1,43 @@
+# 2026-11-27
+
+## Reliability, CI and coverage
+
+- Fixed the SonarCloud quality gate: the scanner now receives the real project version instead of a hardcoded `0.1.0`, so the "previous version" baseline is correct. The gate-status check reads `quality-gate.json` with an action-output fallback.
+- Hardened the publish workflow with an `npm whoami` authentication precheck and a missing-secret guard. Note that v4.2.0 is still not on npm because `NPM_TOKEN` expired; rotate the secret and re-run the publish workflow.
+- Resolved eight Sonar reliability findings in the logger, registry runtime, HTTP kernel, optimizer, and request tests (unawaited promises, ignored async handlers, and a numeric assertion).
+- Added 86 focused branch-coverage test files (889 tests) covering CLI, ORM, proxies, security, config, and miscellaneous modules. Coverage now reports Statements 95.93%, Branches 90.51%, Functions 96.70%, Lines 97.00%; the suite passes with 7,736 tests and no threshold or exclusion changes. The generated suite lives under `tests/unit/branch-coverage/`.
+
+## Performance
+
+- `FileLogWriter.write()` no longer scans the log directory, stats files, and rotates on every line; directory-state caching and a 60-second maintenance gate keep log writes cheap on the request path.
+- Cached sensitive-field sets and cloud-sink flags in the logger; redaction only clones payloads when a sensitive key is actually present, and cloud sinks are skipped entirely when disabled.
+- Added time-gated, bounded cleanup to the JWT session, token-revocation, password-reset, and trace-nonce stores instead of scanning the whole Map on every check.
+- Cached mail templates and replaced per-variable regex compilation with a single token pattern; precompiled CSRF skip patterns and ignore rules.
+- Router now tracks indexed routes with a flag instead of repeated `includes()` scans; the kernel precomputes preflight routes and memoizes middleware chains; Prometheus labels use a normalized method allow-list and a route-template label with an `unmatched` fallback.
+- Removed the unbounded sequential enqueue loop from the local test controller (the file was deleted).
+
+## Memory and resource safety
+
+- Bounded the default in-memory broadcast event history with a ring buffer; added entry caps and oldest-entry eviction to the proxy cache, JWKS cache, memory cache, rate-limit client store, nonce store, queue store, and token-revocation store. JTI-less revoked tokens are now hashed before use as map keys.
+- Fixed resource leaks: PostgreSQL pools are closed when the initial connection fails, unhealthy database connections are disconnected before removal, `Cache.reset()` disposes drivers, Redis TCP sockets are destroyed on error, SSE abort listeners are removed, and per-request Worker `ExecutionContext` objects are no longer held in a module global.
+- Added time-gated cleanup for CSRF managers on Workers, disposal tracking for database instances, an uninstall path for the global enqueue hook, and bounded body-size tracking in the Node server adapter.
+
+## Security
+
+- Replaced header-presence-only authentication with real Bearer JWT verification in the framework and example auth middleware; `/admin` routes and local debug/test routes now require authentication and dev routes are skipped in production.
+- CORS fails closed: wildcard origins are no longer reflected when credentials are enabled, and `CORS_ENABLED=false` is honored. The default CSRF skip list no longer exempts all of `/api/*`; cookies honor their configured `Secure` flag and session IDs are hashed in logs.
+- Hardened request handling: blocked `__proto__`/`constructor`/`prototype` keys with null-prototype maps, switched the XSS sanitizer to an allowlist, validated schema identifiers, and made comparisons constant-time.
+- Proxy responses now return generic error messages with server-side logging. Raw SQL on SQL/D1 proxies is denied in production unless `ALLOW_RAW_PROXY_SQL=true` (registered statement endpoints remain available).
+- MySQL TLS validates certificates by default (dev-only opt-out), weak secret defaults were removed in favor of fail-closed behavior, PBKDF2 iteration counts are clamped, and generated secrets are no longer printed by CLI commands.
+- Service-to-service JWTs now honor expiration and validate `exp`/`nbf`/algorithm with constant-time signature checks; `JwtManager` validates issuer and audience; queue-monitor and trace dashboards require auth by default; the MCP worker can require a bearer token.
+- Dependency audit: three high advisories remain in the Codecov Vite plugin's pinned `zod@3.x` (no patched 3.x release; forcing 4 would break the plugin) and four moderate advisories are test-only dev dependencies of a vendored patch. Both are build/test-time only and are tracked upstream.
+
+## Developer experience
+
+- Fixed a set of code-quality findings: `Object.hasOwn` instead of `Object.prototype.hasOwnProperty.call`, `codePointAt` instead of `charCodeAt`, concise `\\w` character classes, safe stringification of unknown values, and async handlers without `await`.
+
+**Verification:** `npm run type-check` and `npm run lint:strict` pass with no errors or warnings; the full suite passes with 7,736 tests passed and 30 skipped.
+
 # 2026-11-02
 
 - Enabled GitHub Sponsors for the repository and added GitHub Sponsors and Patreon links to the landing pages and documentation navigation.

@@ -13,6 +13,14 @@ interface ParsedMultipartData {
 const MAX_PARTS = 1000;
 const MAX_HEADER_SIZE = 16 * 1024; // 16KB
 
+const UNSAFE_FIELD_NAMES = new Set(['__proto__', 'constructor', 'prototype']);
+
+const isUnsafeFieldName = (fieldName: string): boolean => {
+  // Handles "__proto__", "__proto__[]" and "__proto__[anything]" variants.
+  const base = fieldName.trim().toLowerCase().split('[')[0] ?? '';
+  return UNSAFE_FIELD_NAMES.has(base);
+};
+
 /**
  * Simple multipart boundary extractor
  */
@@ -142,6 +150,7 @@ const parsePart = (part: Buffer, result: ParsedMultipartData): void => {
 
   const disposition = getContentDisposition(headerInfo.headerSection);
   if (!disposition) return;
+  if (isUnsafeFieldName(disposition.fieldName)) return;
 
   if (disposition.fileName !== undefined && disposition.fileName !== null) {
     addFile(
@@ -168,7 +177,11 @@ export const parseMultipartFormData = (
   body: Buffer | string,
   boundary: string
 ): ParsedMultipartData => {
-  const result: ParsedMultipartData = { fields: {}, files: {} };
+  // Null-prototype maps so even an overlooked dangerous key cannot pollute Object.prototype.
+  const result: ParsedMultipartData = {
+    fields: Object.create(null) as Record<string, string | string[]>,
+    files: Object.create(null) as Record<string, UploadedFile[]>,
+  };
 
   if (!boundary) return result;
 

@@ -121,10 +121,12 @@ export type QueueMonitorApi = {
   close: () => Promise<void>;
 };
 
+const DEFAULT_MIDDLEWARE: ReadonlyArray<string> = ['auth', 'jwt'];
+
 const DEFAULTS = {
   enabled: true,
   basePath: '/queue-monitor',
-  middleware: [],
+  middleware: DEFAULT_MIDDLEWARE,
   autoRefresh: false,
   refreshIntervalMs: 5000,
 };
@@ -497,10 +499,23 @@ function buildSettings(config: QueueMonitorConfig): {
   autoRefresh: boolean;
   refreshIntervalMs: number;
 } {
+  // The dashboard exposes job payloads and retry controls: keep it behind auth + jwt unless
+  // the caller supplies middleware, or explicitly opts out in development via env.
+  let middleware: ReadonlyArray<string> = DEFAULT_MIDDLEWARE;
+  if (config.middleware !== undefined && config.middleware.length > 0) {
+    middleware = config.middleware;
+  } else if (
+    config.middleware !== undefined &&
+    Env.getBool('QUEUE_MONITOR_ALLOW_ANONYMOUS', false) &&
+    (Env.NODE_ENV ?? '').trim().toLowerCase() === 'development'
+  ) {
+    middleware = [];
+  }
+
   return {
     enabled: config.enabled ?? DEFAULTS.enabled,
     basePath: config.basePath ?? DEFAULTS.basePath,
-    middleware: config.middleware ?? DEFAULTS.middleware,
+    middleware,
     autoRefresh: config.autoRefresh ?? DEFAULTS.autoRefresh,
     refreshIntervalMs:
       typeof config.refreshIntervalMs === 'number' && Number.isFinite(config.refreshIntervalMs)
@@ -827,6 +842,7 @@ function registerEventsApi(
     router,
     `${settings.basePath}/api/events`,
     async (req: IRequest, res: IResponse): Promise<void> => {
+      await Promise.resolve();
       QueueMonitoringStream(res, req, getSnapshot, getLocks, metrics, driver, settings);
     },
     routeOptions

@@ -164,7 +164,7 @@ function scheduleCacheWrite(state: CacheState, key: string, payload: string): vo
 }
 
 function initializeCacheState(state: CacheState): void {
-  loadFromDisk(state);
+  void loadFromDisk(state);
 }
 
 function startCacheCleanup(state: CacheState & { maxEntries?: number }): void {
@@ -727,7 +727,7 @@ export const PerformanceOptimizer = Object.freeze({
        * Save cache to disk
        */
       saveCache(): void {
-        cache.save();
+        void cache.save();
       },
 
       /**
@@ -748,7 +748,7 @@ function resetOptimizer(
   lazyLoader: ILazyLoader,
   stats: OptimizerStats
 ): void {
-  cache.clear();
+  void cache.clear();
   lazyLoader.clear();
   stats.cacheHits = 0;
   stats.cacheMisses = 0;

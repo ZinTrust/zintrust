@@ -135,7 +135,7 @@ describe('ProjectScaffolder Validation Basic', () => {
     const result = ProjectScaffolder.validateOptions(options);
 
     expect(result.valid).toBe(true);
-    expect(result.errors.length).toBe(0);
+    expect(result.errors).toHaveLength(0);
   });
 
   it('should reject missing project name', () => {
@@ -476,9 +476,7 @@ describe('ProjectScaffolder Configuration', () => {
     const env = FileGenerator.readFile(path.join(projectPath, '.env'));
     expect(env).toContain('HOST=localhost');
     expect(env).toContain('PORT=3001');
-    expect(env).toContain(
-      'CSRF_SKIP_PATHS=/api/*,/queue-monitor/*,/api/_sys/queue/*,/api/_sys/schedule/*'
-    );
+    expect(env).toContain('CSRF_SKIP_PATHS=/queue-monitor/*');
   });
 });
 

@@ -1,5 +1,5 @@
 import { Cloudflare } from '@zintrust/core/cloudflare';
-import { FeatureFlags } from '@zintrust/core/config';
+import { Env, FeatureFlags } from '@zintrust/core/config';
 import { BaseAdapter, QueryBuilder } from '@zintrust/core/database';
 import { ErrorFactory } from '@zintrust/core/errors';
 import { Logger } from '@zintrust/core/logger';
@@ -82,13 +82,21 @@ type CloudflareSocketFactory = (options: {
   timeoutMs: number;
 }) => unknown;
 
+/**
+ * TLS certificates are validated by default. Skipping validation is only permitted through an
+ * explicit, local-development-only opt-in so an on-path attacker cannot impersonate the DB.
+ */
 const getNodeMysqlSslConfig = (tlsEnabled: boolean): false | Record<string, unknown> => {
   if (!tlsEnabled) {
     return false;
   }
 
+  const rawInsecure = Env.get('MYSQL_TLS_INSECURE', '');
+  const insecureOptIn = ['1', 'true', 'yes'].includes(rawInsecure.trim().toLowerCase());
+  const isDevelopment = (Env.NODE_ENV ?? '').trim().toLowerCase() === 'development';
+
   return {
-    rejectUnauthorized: false,
+    rejectUnauthorized: !(insecureOptIn && isDevelopment),
     minVersion: 'TLSv1.2',
   };
 };

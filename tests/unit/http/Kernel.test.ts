@@ -153,9 +153,10 @@ describe('Kernel', () => {
     };
     vi.mocked(Router.match).mockReturnValue(route);
 
-    (mockRequest.getHeader as unknown as Mock).mockImplementation((name: string) => {
-      if (name.toLowerCase() === 'authorization') return 'Bearer test-token';
-      return undefined;
+    // The shared `auth` route middleware now verifies the Bearer JWT. Stub it
+    // so this test exercises only Kernel routing and handler dispatch.
+    kernel.registerRouteMiddleware('auth', async (_req, _res, next) => {
+      await next();
     });
 
     await kernel.handleRequest(mockRequest, mockResponse);
@@ -258,23 +259,26 @@ describe('Kernel', () => {
     });
 
     const routeHandler = vi.fn();
-    vi.mocked(Router.match).mockImplementation((_router, method) => {
-      if (method === 'OPTIONS') return null;
-      if (method === 'GET') {
-        return {
-          handler: routeHandler,
-          params: {},
-          middleware: ['auth', 'jwt'],
-          routePath: '/api/v1/profile',
-        };
-      }
-      return null;
-    });
+    vi.mocked(Router.match).mockReturnValue(null);
+
+    // Preflight fallback now scans router.routes with each route's own pattern
+    // instead of issuing extra Router.match calls for GET/POST/etc.
+    (mockRouter as { routes?: unknown[] }).routes = [
+      {
+        method: 'GET',
+        path: '/api/v1/profile',
+        pattern: /^\/api\/v1\/profile\/?$/,
+        paramNames: [],
+        handler: routeHandler,
+        middleware: ['auth', 'jwt'],
+        meta: {},
+      },
+    ];
 
     await kernel.handleRequest(mockRequest, mockResponse);
 
+    expect(Router.match).toHaveBeenCalledTimes(1);
     expect(Router.match).toHaveBeenCalledWith(mockRouter, 'OPTIONS', '/api/v1/profile');
-    expect(Router.match).toHaveBeenCalledWith(mockRouter, 'GET', '/api/v1/profile');
     expect(responseStatusSpy(mockResponse)).toHaveBeenCalledWith(204);
     expect(mockResponse.send).toHaveBeenCalledWith('');
     expect(routeHandler).not.toHaveBeenCalled();

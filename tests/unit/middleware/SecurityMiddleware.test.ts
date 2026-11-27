@@ -202,7 +202,7 @@ describe('SecurityMiddleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('treats wildcard cors config as allow-all for preflight requests', async () => {
+  it('does not reflect arbitrary origins for wildcard CORS with credentials', async () => {
     const middleware = SecurityMiddleware.create({
       cors: {
         origin: '*',
@@ -225,12 +225,34 @@ describe('SecurityMiddleware', () => {
 
     await middleware(req, res, next);
 
-    expect(headers['access-control-allow-origin']).toBe('http://localhost:8091');
-    expect(headers['access-control-allow-methods']).toBe('POST');
-    expect(headers['access-control-allow-headers']).toBe(
-      'authorization, content-type, x-requested-with, z-client'
-    );
-    expect(headers['access-control-expose-headers']).toBe('*');
-    expect(headers['access-control-allow-credentials']).toBe('true');
+    // Wildcard + credentials must fail closed: no origin reflection, no CORS headers.
+    expect(headers).not.toHaveProperty('access-control-allow-origin');
+    expect(headers).not.toHaveProperty('access-control-allow-credentials');
+    expect(res.setStatus).not.toHaveBeenCalledWith(204);
+    expect(next).toHaveBeenCalled();
+
+    // The same wildcard config without credentials still allows all origins.
+    const openHeaders: Record<string, string> = {};
+    const openReq = {
+      getMethod: vi.fn(() => 'OPTIONS'),
+      getHeader: vi.fn((name: string) => (name === 'origin' ? 'http://localhost:8091' : undefined)),
+      getPath: vi.fn(() => '/'),
+    } as unknown as IRequest;
+    const openRes = {
+      setHeader: vi.fn((name: string, value: string) => {
+        openHeaders[name.toLowerCase()] = value;
+        return openRes;
+      }),
+      setStatus: vi.fn().mockReturnThis(),
+      send: vi.fn(),
+    } as unknown as IResponse;
+    const openNext = vi.fn().mockResolvedValue(undefined);
+
+    const openMiddleware = SecurityMiddleware.create({ cors: { origin: '*', credentials: false } });
+    await openMiddleware(openReq, openRes, openNext);
+
+    expect(openHeaders['access-control-allow-origin']).toBe('*');
+    expect(openRes.setStatus).toHaveBeenCalledWith(204);
+    expect(openNext).not.toHaveBeenCalled();
   });
 });

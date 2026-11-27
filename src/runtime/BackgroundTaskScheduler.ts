@@ -1,6 +1,12 @@
 /**
  * BackgroundTaskScheduler — runtime-agnostic background task scheduling.
  * Maps to ctx.waitUntil() in Cloudflare Workers, normal promises in Node.
+ *
+ * A Worker `ExecutionContext` is request-scoped. `setExecutionContext()` retains only a small
+ * scheduler wrapper (never the context itself) in the module slot, and `reset()` drops it.
+ * Prefer `forContext(ctx)` and pass the returned scheduler explicitly so no per-request object
+ * is held by a module global; when `setExecutionContext()` is used, call `reset()` in a
+ * `finally` block before the fetch handler returns.
  */
 
 type ExecutionContext = {
@@ -12,7 +18,6 @@ type BackgroundTaskScheduler = {
   isAvailable(): boolean;
 };
 
-let _executionContext: ExecutionContext | undefined;
 let _scheduler: BackgroundTaskScheduler | undefined;
 
 const isCloudflareRuntime = (): boolean => {
@@ -72,12 +77,20 @@ const createFallbackScheduler = (): BackgroundTaskScheduler => {
 
 export const BackgroundTaskScheduler = Object.freeze({
   /**
+   * Create a scheduler bound to one request's execution context without storing it globally.
+   * This is the preferred API for per-request use in Workers.
+   */
+  forContext(ctx: ExecutionContext): BackgroundTaskScheduler {
+    return createWorkerScheduler(ctx);
+  },
+
+  /**
    * Set the Worker execution context for waitUntil support.
-   * Call this from your Cloudflare Worker fetch handler:
+   * Call this from your Cloudflare Worker fetch handler and call `reset()` in `finally`:
    *   BackgroundTaskScheduler.setExecutionContext(ctx);
+   *   try { ... } finally { BackgroundTaskScheduler.reset(); }
    */
   setExecutionContext(ctx: ExecutionContext): void {
-    _executionContext = ctx;
     _scheduler = createWorkerScheduler(ctx);
   },
 
@@ -86,11 +99,6 @@ export const BackgroundTaskScheduler = Object.freeze({
    */
   getScheduler(): BackgroundTaskScheduler {
     if (_scheduler) return _scheduler;
-
-    if (_executionContext) {
-      _scheduler = createWorkerScheduler(_executionContext);
-      return _scheduler;
-    }
 
     if (isCloudflareRuntime()) {
       // We're in Workers but no context was set - use fallback
@@ -120,10 +128,9 @@ export const BackgroundTaskScheduler = Object.freeze({
   },
 
   /**
-   * Reset the scheduler (useful for testing).
+   * Clear the request-scoped scheduler. Call at the end of each Worker fetch invocation.
    */
   reset(): void {
-    _executionContext = undefined;
     _scheduler = undefined;
   },
 });

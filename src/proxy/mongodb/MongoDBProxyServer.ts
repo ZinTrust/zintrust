@@ -208,7 +208,7 @@ const executeOperation = async (
   const db = client.db(dbName);
   const coll = db.collection(collectionName);
 
-  if (Object.prototype.hasOwnProperty.call(OPERATION_HANDLERS, operation)) {
+  if (Object.hasOwn(OPERATION_HANDLERS, operation)) {
     const handler = OPERATION_HANDLERS[operation as keyof typeof OPERATION_HANDLERS];
     return handler(coll, args);
   }
@@ -267,7 +267,7 @@ const createBackend = (client: MongoClientLike, config: ProxyConfig): ProxyBacke
       return { status: 200, body: { success: true, result } };
     } catch (error) {
       Logger.error('MongoDB proxy operation failed', { error });
-      return ErrorHandler.toProxyError(500, 'MONGODB_PROXY_ERROR', String(error));
+      return ErrorHandler.toProxyServerError(500, 'MONGODB_PROXY_ERROR', error, 'Internal server error');
     }
   },
   health: async (): Promise<ProxyResponse> => {
@@ -275,9 +275,9 @@ const createBackend = (client: MongoClientLike, config: ProxyConfig): ProxyBacke
       client.db(config.mongoOptions.database);
       await Promise.resolve();
       return { status: 200, body: { status: 'ok' } };
-    } catch (error) {
+    } catch {
       await Promise.resolve();
-      return { status: 503, body: { status: 'unhealthy', error: String(error) } };
+      return { status: 503, body: { status: 'unhealthy', error: 'Service unavailable' } };
     }
   },
   shutdown: async (): Promise<void> => {

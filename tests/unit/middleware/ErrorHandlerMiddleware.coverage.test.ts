@@ -17,6 +17,7 @@ vi.mock('@/config/env', () => ({
       if (key === 'NODE_ENV') return 'development';
       return defaultValue;
     }),
+    getBool: vi.fn((_key: string, defaultValue?: boolean) => defaultValue ?? false),
     NODE_ENV: 'development',
   },
 }));
@@ -40,6 +41,7 @@ const mockRequestContext = vi.mocked(await import('@/http/RequestContext')).Requ
 
 // Ensure mockEnv.get is a proper Vitest mock
 const mockEnvGet = vi.mocked(mockEnv.get);
+const mockEnvGetBool = vi.mocked(mockEnv.getBool);
 // Ensure mockRequestContext.get is a proper Vitest mock
 const mockRequestContextGet = vi.mocked(mockRequestContext.get);
 
@@ -69,6 +71,10 @@ describe('ErrorHandlerMiddleware Coverage', () => {
       if (key === 'NODE_ENV') return 'development';
       return defaultValue || '';
     });
+    // Stack traces are hidden by default; tests opt in via DEV_ERROR_PAGES.
+    mockEnvGetBool.mockImplementation((key: string, defaultValue?: boolean) =>
+      key === 'DEV_ERROR_PAGES' ? false : (defaultValue ?? false)
+    );
   });
 
   it('handles successful request without errors', async () => {
@@ -135,6 +141,7 @@ describe('ErrorHandlerMiddleware Coverage', () => {
       if (key === 'NODE_ENV') return 'development';
       return 'json';
     });
+    mockEnvGetBool.mockImplementation((key: string) => key === 'DEV_ERROR_PAGES');
     (mockEnv as typeof mockEnv & { NODE_ENV?: string }).NODE_ENV = 'development';
     vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false } as any);
 

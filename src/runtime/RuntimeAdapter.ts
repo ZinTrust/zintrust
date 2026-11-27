@@ -333,12 +333,16 @@ type MockResponse = {
   emit: (event: string, ...args: unknown[]) => void;
   _writer: StreamWriter | null;
   _listeners: Record<string, unknown[]>;
+  _cleanupAbort?: () => void;
 };
 
 const closeWriterOnAbort = (request: PlatformRequest, response: MockResponse): void => {
   if (!request.signal || !response._writer) return;
+  // writeHead may be called more than once; never keep a stale listener around.
+  response._cleanupAbort?.();
 
-  request.signal.addEventListener('abort', () => {
+  const onAbort = (): void => {
+    cleanup();
     if (response._writer) {
       try {
         response._writer.close();
@@ -347,7 +351,17 @@ const closeWriterOnAbort = (request: PlatformRequest, response: MockResponse): v
       }
     }
     response.emit('close');
-  });
+  };
+
+  // Drop the listener when it fires or when the response finishes, so long-lived signals
+  // cannot retain completed responses.
+  const cleanup = (): void => {
+    request.signal?.removeEventListener('abort', onAbort);
+    response._cleanupAbort = undefined;
+  };
+
+  request.signal.addEventListener('abort', onAbort, { once: true });
+  response._cleanupAbort = cleanup;
 };
 
 const writeToResponseWriter = (response: MockResponse, chunk: string | Buffer): boolean => {
@@ -401,6 +415,7 @@ const resData = (responseData: ResData, request: PlatformRequest): MockResponse 
       return this;
     },
     end: function (chunk?: string | Buffer): object {
+      this._cleanupAbort?.();
       if (this._writer) {
         if (chunk !== undefined && chunk !== null) {
           this._writer.write(new TextEncoder().encode(String(chunk)));

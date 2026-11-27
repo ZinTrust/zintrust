@@ -48,9 +48,12 @@ function buildServer(): McpServer {
 			description: 'List the ZinTrust documentation pages that can be fetched with get_doc_page.',
 			inputSchema: z.object({}),
 		},
-		async () => ({
-			content: [{ type: 'text', text: DOC_PAGES.join('\n') }],
-		})
+		async () => {
+			await Promise.resolve();
+			return {
+				content: [{ type: 'text', text: DOC_PAGES.join('\n') }],
+			};
+		},
 	);
 
 	server.registerTool(
@@ -87,7 +90,7 @@ function buildServer(): McpServer {
 				const reason = error instanceof Error ? error.message : String(error);
 				return errorResult(`Could not fetch ${slug}: ${reason}`);
 			}
-		}
+		},
 	);
 
 	server.registerTool(
@@ -98,9 +101,12 @@ function buildServer(): McpServer {
 				task: z.enum(CLI_TASKS).describe('The task to get the zin command for, e.g. "add postgres"'),
 			}),
 		},
-		async ({ task }) => ({
-			content: [{ type: 'text', text: CLI[task] }],
-		})
+		async ({ task }) => {
+			await Promise.resolve();
+			return {
+				content: [{ type: 'text', text: CLI[task] }],
+			};
+		},
 	);
 
 	return server;
@@ -108,10 +114,56 @@ function buildServer(): McpServer {
 
 const handleMcp = createMcpHandler(() => buildServer(), { route: '/mcp' });
 
+type McpEnv = {
+	ZINTRUST_MCP_TOKEN?: string;
+	MCP_BEARER_TOKEN?: string;
+	MCP_TOKEN?: string;
+};
+
+const resolveConfiguredToken = (env: unknown): string | undefined => {
+	const record = (env ?? {}) as McpEnv;
+	const raw = record.ZINTRUST_MCP_TOKEN ?? record.MCP_BEARER_TOKEN ?? record.MCP_TOKEN;
+	return typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : undefined;
+};
+
+/** Length-independent comparison without crypto APIs, so it also works on Workers. */
+const tokensEqual = (provided: string, expected: string): boolean => {
+	let diff = provided.length ^ expected.length;
+	const length = Math.max(provided.length, expected.length);
+	for (let i = 0; i < length; i += 1) {
+		diff |= (provided.codePointAt(i) ?? 0) ^ (expected.codePointAt(i) ?? 0);
+	}
+	return diff === 0;
+};
+
+const extractBearerToken = (header: string): string => {
+	const normalized = header.trim();
+	// Prefix + separator checks instead of /^Bearer\s+(.+)$/i, whose overlapping
+	// quantifiers have super-linear backtracking (SonarQube S5852).
+	if (!normalized.toLowerCase().startsWith('bearer')) return '';
+	const rest = normalized.slice('bearer'.length);
+	if (rest === '' || (!rest.startsWith(' ') && !rest.startsWith('\t'))) return '';
+	return rest.trim();
+};
+
+const isAuthorized = (request: Request, env: unknown): boolean => {
+	const expected = resolveConfiguredToken(env);
+	if (expected === undefined) return true;
+	return tokensEqual(extractBearerToken(request.headers.get('authorization') ?? ''), expected);
+};
+
 export default {
 	fetch(request: Request, env: unknown, ctx: ExecutionContext): Promise<Response> | Response {
 		const url = new URL(request.url);
 		if (url.pathname === '/health') return new Response('ok');
+		// /health stays open for probes; everything else (including /mcp) requires the
+		// configured bearer token. When no token is configured, behavior is unchanged.
+		if (url.pathname !== '/' && !isAuthorized(request, env)) {
+			return new Response('Unauthorized', {
+				status: 401,
+				headers: { 'WWW-Authenticate': 'Bearer' },
+			});
+		}
 		if (url.pathname === '/') return Response.json({ name: 'zintrust-mcp', mcp: '/mcp', health: '/health' });
 		// SSE GETs stay with the MCP handler, which answers 405 because this server has no server-to-client stream.
 		if (url.pathname === '/mcp' && request.method === 'GET' && !request.headers.get('accept')?.includes('text/event-stream')) {

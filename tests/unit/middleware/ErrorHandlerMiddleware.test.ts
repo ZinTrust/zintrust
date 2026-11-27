@@ -18,7 +18,10 @@ describe('ErrorHandlerMiddleware', () => {
       key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
     );
     const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
-    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+    // Stacks are opt-in: DEV_ERROR_PAGES must be enabled outside production.
+    const envGetBool = vi.fn((key: string, defaultVal?: boolean) =>
+      key === 'DEV_ERROR_PAGES' ? true : (defaultVal ?? false)
+    );
 
     vi.doMock('@config/env', () => ({
       Env: {
@@ -77,7 +80,10 @@ describe('ErrorHandlerMiddleware', () => {
       key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
     );
     const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
-    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+    // Even with dev pages enabled, production must never expose stacks.
+    const envGetBool = vi.fn((key: string, defaultVal?: boolean) =>
+      key === 'DEV_ERROR_PAGES' ? true : (defaultVal ?? false)
+    );
 
     vi.doMock('@config/env', () => ({
       Env: {
@@ -133,7 +139,10 @@ describe('ErrorHandlerMiddleware', () => {
       key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
     );
     const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
-    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+    // Enable dev pages so this assertion really exercises the NotFoundError guard.
+    const envGetBool = vi.fn((key: string, defaultVal?: boolean) =>
+      key === 'DEV_ERROR_PAGES' ? true : (defaultVal ?? false)
+    );
 
     vi.doMock('@config/env', () => ({
       Env: {

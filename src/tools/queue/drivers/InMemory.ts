@@ -3,17 +3,28 @@ import type { QueueMessage } from '@tools/queue/Queue';
 
 type InternalMessage = QueueMessage & { enqueuedAt: number };
 
+/** Bounds the in-memory queue store so user-derived queue names cannot grow it forever. */
+const MAX_QUEUES = 1000;
+const MAX_MESSAGES_PER_QUEUE = 10_000;
+
 export const InMemoryQueue = (() => {
   const store = new Map<string, InternalMessage[]>();
-
-  const ensure = (queue: string): void => {
-    if (!store.has(queue)) store.set(queue, []);
-  };
 
   return {
     async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
       await Promise.resolve();
-      ensure(queue);
+      let arr = store.get(queue);
+      if (arr === undefined) {
+        if (store.size >= MAX_QUEUES && !store.has(queue)) {
+          const oldest = store.keys().next().value;
+          if (oldest !== undefined) store.delete(oldest);
+        }
+        arr = [];
+        store.set(queue, arr);
+      }
+      while (arr.length >= MAX_MESSAGES_PER_QUEUE) {
+        arr.shift();
+      }
       const id = generateUuid();
       const msg: InternalMessage = {
         id,
@@ -21,24 +32,18 @@ export const InMemoryQueue = (() => {
         attempts: 0,
         enqueuedAt: Date.now(),
       };
-      const arr = store.get(queue);
-      if (arr && arr.length > 0) {
-        arr.push(msg);
-      } else {
-        store.set(queue, [msg]);
-      }
+      arr.push(msg);
       return id;
     },
 
     async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
       await Promise.resolve();
-      ensure(queue);
+      // Read paths must not create permanent empty queues.
       const arr = store.get(queue);
-      if (arr && arr.length > 0) {
-        const msg = arr.shift();
-        return msg as QueueMessage<T> | undefined;
-      }
-      return undefined;
+      if (arr === undefined || arr.length === 0) return undefined;
+      const msg = arr.shift();
+      if (arr.length === 0) store.delete(queue);
+      return msg as QueueMessage<T> | undefined;
     },
 
     async ack(_queue: string, _id: string): Promise<void> {
@@ -48,15 +53,14 @@ export const InMemoryQueue = (() => {
 
     async length(queue: string): Promise<number> {
       await Promise.resolve();
-      ensure(queue);
       const arr = store.get(queue);
       return Array.isArray(arr) ? arr.length : 0;
     },
 
     async drain(queue: string): Promise<void> {
       await Promise.resolve();
-      ensure(queue);
-      store.set(queue, []);
+      // No need to materialize an empty queue just to drain it.
+      store.delete(queue);
     },
   } as const;
 })();

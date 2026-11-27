@@ -5,6 +5,7 @@
  */
 
 import { Logger } from '@config/logger';
+import { securityConfig } from '@config/security';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import {
@@ -30,6 +31,10 @@ export interface CsrfOptions {
    * - `/api/v1/auth/login`
    */
   skipPaths?: ReadonlyArray<string>;
+  /**
+   * Append the Secure attribute to the CSRF cookie. Defaults to securityConfig.csrf.cookieSecure.
+   */
+  cookieSecure?: boolean;
   onFailure?: MiddlewareFailureResponder;
 }
 
@@ -47,6 +52,17 @@ const canUseWeakRef = typeof WeakRef === 'function';
 const managerRegistry = new Set<WeakRef<ICsrfTokenManager>>();
 
 let globalCleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+// Opportunistic pruning: Workers skip the interval timer entirely, so create() must also sweep.
+const MAX_REGISTERED_MANAGERS = 256;
+const CLEANUP_EVERY_N_CREATES = 100;
+let createCount = 0;
+
+const pruneManagerRegistry = (): void => {
+  for (const ref of managerRegistry) {
+    if (ref.deref() === undefined) managerRegistry.delete(ref);
+  }
+};
 
 let sharedSessionManager: ReturnType<typeof SessionManager.create> | null = null;
 
@@ -87,10 +103,22 @@ export const CsrfMiddleware = Object.freeze({
    */
   create(options: CsrfOptions = {}): Middleware {
     const config = { ...DEFAULT_OPTIONS, ...options };
+    const cookieSecure = options.cookieSecure ?? securityConfig.csrf.cookieSecure;
+    const skipMatchers = compileSkipPatterns(config.skipPaths);
     const manager = CsrfTokenManager.create();
     const sessions = getSharedSessionManager();
 
     ensureCleanupTimer();
+
+    // Prune dead refs on every runtime (including Workers, where the timer never starts).
+    pruneManagerRegistry();
+
+    createCount++;
+    if (createCount % CLEANUP_EVERY_N_CREATES === 0 || managerRegistry.size > MAX_REGISTERED_MANAGERS) {
+      for (const ref of managerRegistry) {
+        void ref.deref()?.cleanup().catch(() => undefined);
+      }
+    }
 
     // Register for global cleanup instead of creating a local timer
     if (canUseWeakRef) {
@@ -98,7 +126,7 @@ export const CsrfMiddleware = Object.freeze({
     }
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
-      if (shouldSkipCsrfForRequest(req, config)) {
+      if (shouldSkipRequest(req, skipMatchers)) {
         await next();
         return;
       }
@@ -117,7 +145,11 @@ export const CsrfMiddleware = Object.freeze({
         const token = await manager.generateToken(sessionId);
 
         // Set cookie for Double Submit Cookie pattern (readable by frontend)
-        appendSetCookie(res, `${config.cookieName}=${token}; Path=/; SameSite=Strict`);
+        const secureFlag = cookieSecure ? '; Secure' : '';
+        appendSetCookie(
+          res,
+          `${config.cookieName}=${token}; Path=/; SameSite=Strict${secureFlag}`
+        );
 
         // Also expose in locals for server-side rendering
         res.locals['csrfToken'] = token;
@@ -138,7 +170,7 @@ export const CsrfMiddleware = Object.freeze({
         token !== tokenFromCookie ||
         !(await manager.validateToken(sessionId, token))
       ) {
-        Logger.warn(`CSRF validation failed for session ${sessionId}`);
+        Logger.warn(`CSRF validation failed for session ${hashSessionIdForLog(sessionId)}`);
         await respondWithMiddlewareFailure(req, res, config.onFailure, {
           middleware: 'csrf',
           reason: 'invalid_csrf_token',
@@ -157,34 +189,62 @@ export const CsrfMiddleware = Object.freeze({
   },
 });
 
-function shouldSkipCsrfForRequest(req: IRequest, config: CsrfOptions): boolean {
-  const patterns = config.skipPaths;
-  if (patterns === undefined || patterns.length === 0) return false;
+type SkipPatternMatcher = Readonly<{
+  exact?: string;
+  prefix?: string;
+  matchAll: boolean;
+  regex?: RegExp;
+}>;
 
-  const path = req.getPath();
+/** Compile skip patterns once at middleware creation instead of rebuilding RegExp per request. */
+function compileSkipPatterns(patterns: ReadonlyArray<string> | undefined): SkipPatternMatcher[] {
+  if (patterns === undefined) return [];
+
+  const matchers: SkipPatternMatcher[] = [];
   for (const pattern of patterns) {
     const trimmed = pattern.trim();
     if (trimmed === '') continue;
-    if (pathMatchesPattern(path, trimmed)) return true;
+
+    if (trimmed === '*') {
+      matchers.push({ matchAll: true });
+      continue;
+    }
+    if (trimmed.endsWith('/*')) {
+      matchers.push({ matchAll: false, prefix: trimmed.slice(0, -1) });
+      continue;
+    }
+
+    const escaped = trimmed.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`);
+    const regex = new RegExp(`^${escaped.replaceAll('*', '.*')}$`);
+    matchers.push({ matchAll: false, regex, exact: trimmed });
+  }
+
+  return matchers;
+}
+
+function shouldSkipRequest(req: IRequest, matchers: readonly SkipPatternMatcher[]): boolean {
+  return matchers.length > 0 && matchesSkipPattern(req.getPath(), matchers);
+}
+
+function matchesSkipPattern(path: string, matchers: readonly SkipPatternMatcher[]): boolean {
+  for (const matcher of matchers) {
+    if (matcher.matchAll) return true;
+    if (matcher.prefix !== undefined && path.startsWith(matcher.prefix)) return true;
+    if (matcher.exact === path) return true;
+    if (matcher.regex?.test(path) === true) return true;
   }
 
   return false;
 }
 
-function pathMatchesPattern(path: string, pattern: string): boolean {
-  if (pattern === '*') return true;
-  if (pattern === path) return true;
-
-  // Fast path: treat trailing "/*" as a prefix match.
-  if (pattern.endsWith('/*')) {
-    const prefix = pattern.slice(0, -1); // keep the trailing '/'
-    return path.startsWith(prefix);
+/** One-way, log-safe identifier for correlating CSRF failures without exposing session ids. */
+function hashSessionIdForLog(sessionId: string): string {
+  let hash = 2166136261; // FNV-1a
+  for (let i = 0; i < sessionId.length; i++) {
+    hash ^= sessionId.codePointAt(i) ?? 0;
+    hash = Math.imul(hash, 16777619);
   }
-
-  // Generic glob-to-regex conversion where '*' matches any characters.
-  const escaped = pattern.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`);
-  const regex = new RegExp(`^${escaped.replaceAll('*', '.*')}$`);
-  return regex.test(path);
+  return `sid:${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }
 
 function appendSetCookie(res: IResponse, cookie: string): void {
@@ -214,7 +274,15 @@ function parseCookies(cookieHeader: string): Record<string, string> {
     const parts = cookie.split('=');
     const name = parts.shift()?.trim();
     const value = parts.join('=');
-    if (name !== null && name !== undefined) list[name] = decodeURIComponent(value);
+    if (name === null || name === undefined) return;
+
+    let decoded = value;
+    try {
+      decoded = decodeURIComponent(value);
+    } catch {
+      // Malformed percent escapes must not turn a CSRF failure into a 500.
+    }
+    list[name] = decoded;
   });
 
   return list;

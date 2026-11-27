@@ -25,6 +25,16 @@ type RedisClientLike = {
 
 type SocketListener = (...args: unknown[]) => void;
 
+type TcpConnect = (() => Promise<net.Socket>) & { dispose: () => Promise<void> };
+
+const destroySocket = (socket: unknown): void => {
+  try {
+    (socket as SocketLike).destroy?.();
+  } catch {
+    /* ignore */
+  }
+};
+
 type SocketLike = {
   destroyed?: boolean;
   setTimeout?: (ms: number) => void;
@@ -219,20 +229,16 @@ const createTcpConnect = (params: {
   host: string;
   port: number;
   connectTimeoutMs: number;
-}): (() => Promise<net.Socket>) => {
+}): TcpConnect => {
   let client: net.Socket | null = null;
 
-  return async (): Promise<net.Socket> => {
+  const connect = async (): Promise<net.Socket> => {
     if (client && !client.destroyed) return client;
 
     return new Promise((resolve, reject) => {
       const onTimeout = (): void => {
         cleanup();
-        try {
-          (socket as unknown as SocketLike).destroy?.();
-        } catch {
-          /* ignore */
-        }
+        destroySocket(socket);
         reject(
           ErrorFactory.createConnectionError('Redis connection timeout', {
             host: params.host,
@@ -244,6 +250,8 @@ const createTcpConnect = (params: {
 
       const onError = (err: Error): void => {
         cleanup();
+        // A failed connection must not leave a live socket with buffers behind.
+        destroySocket(socket);
         Logger.error(`Redis Connection Error: ${err.message}`);
         reject(err);
       };
@@ -255,6 +263,7 @@ const createTcpConnect = (params: {
         }
 
         cleanup();
+        destroySocket(socket);
         const msg = String(err);
         Logger.error(`Redis Connection Error: ${msg}`);
         reject(
@@ -285,6 +294,16 @@ const createTcpConnect = (params: {
       listenPreferOn(anySocket, 'error', onErrorUnknown);
     });
   };
+
+  connect.dispose = async (): Promise<void> => {
+    if (client !== null) {
+      destroySocket(client);
+      client = null;
+    }
+    await Promise.resolve();
+  };
+
+  return connect;
 };
 
 const createTcpSendCommand = (params: {
@@ -450,6 +469,10 @@ const createTcpCacheDriver = (): CacheDriver => {
         Logger.error('Redis DECRBY failed', error);
         return 0;
       }
+    },
+
+    async dispose(): Promise<void> {
+      await connect.dispose();
     },
 
     getRedisClient(): unknown {

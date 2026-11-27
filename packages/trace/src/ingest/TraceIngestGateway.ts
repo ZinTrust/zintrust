@@ -41,6 +41,9 @@ type TraceGatewaySuccess = {
 };
 
 const nonces = new Map<string, number>();
+const MAX_NONCES = 10_000;
+const NONCE_CLEANUP_INTERVAL_MS = 60_000;
+let nextNonceCleanupAt = 0;
 
 const nowMs = (): number => Date.now();
 
@@ -74,20 +77,29 @@ const appendSuffix = (path: string, suffix: string): string => {
   return `${base}${tail}`;
 };
 
-const cleanupExpiredNonces = (): void => {
-  const current = nowMs();
+/** Full sweeps are throttled; unique nonces are also bounded by a hard cap. */
+const cleanupExpiredNonces = (now: number): void => {
   for (const [nonceKey, expiresAt] of nonces.entries()) {
-    if (expiresAt <= current) {
+    if (expiresAt <= now) {
       nonces.delete(nonceKey);
     }
   }
+  nextNonceCleanupAt = now + NONCE_CLEANUP_INTERVAL_MS;
 };
 
 const storeNonce = async (keyId: string, nonce: string, ttlMs: number): Promise<boolean> => {
-  cleanupExpiredNonces();
+  await Promise.resolve();
+  const now = nowMs();
+  if (now >= nextNonceCleanupAt) cleanupExpiredNonces(now);
+
   const nonceKey = `${keyId}:${nonce}`;
   if (nonces.has(nonceKey)) return false;
-  nonces.set(nonceKey, nowMs() + Math.max(ttlMs, 1));
+
+  if (nonces.size >= MAX_NONCES) {
+    const oldestKey = nonces.keys().next().value;
+    if (oldestKey !== undefined) nonces.delete(oldestKey);
+  }
+  nonces.set(nonceKey, now + Math.max(ttlMs, 1));
   return true;
 };
 
@@ -165,6 +177,7 @@ const verifyRequest = async (
     verifyNonce: async (keyId: string, nonce: string) =>
       storeNonce(keyId, nonce, settings.nonceTtlMs),
     getSecretForKeyId: async (keyId: string) => {
+      await Promise.resolve();
       if (keyId === settings.keyId) return settings.secret;
       return undefined;
     },

@@ -1,3 +1,4 @@
+import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import {
   createServer,
@@ -102,9 +103,10 @@ export const createProxyServer = (
       const response = await options.backend.handle(request);
       respond(res, response);
     } catch (error) {
+      Logger.error('[ProxyServer] Request failed', error);
       respond(res, {
         status: 500,
-        body: { code: 'PROXY_ERROR', message: String(error) },
+        body: { code: 'PROXY_ERROR', message: 'Internal server error' },
       });
     }
   });

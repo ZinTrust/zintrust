@@ -34,6 +34,12 @@ import type { IQueryBuilder } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { RelationBootstrapDiagnostics } from '@orm/RelationBootstrapDiagnostics';
 
+/**
+ * Every instance created via Database.create() is tracked here so instrumentation listeners
+ * have a reliable shutdown path even when the caller never touches `useDatabase()`.
+ */
+const createdDatabases = new Set<IDatabase>();
+
 export type RawValue = { __raw: string };
 
 export interface IDatabase {
@@ -713,13 +719,37 @@ const createDatabaseInstance = (dbConfig: DatabaseConfig): IDatabase => {
 
 export const Database = Object.freeze({
   /**
-   * Create a new database instance
+   * Create a new database instance. Call `dispose()` when finished, or rely on
+   * `disposeAllDatabases()` at shutdown; `useDatabase()` instances are handled by
+   * `resetDatabase()`.
    */
   create(config?: DatabaseConfig): IDatabase {
     const dbConfig = config ?? { driver: 'sqlite', database: ':memory:' };
-    return createDatabaseInstance(dbConfig);
+    const db = createDatabaseInstance(dbConfig);
+    createdDatabases.add(db);
+    const dispose = db.dispose;
+    db.dispose = (): void => {
+      createdDatabases.delete(db);
+      dispose.call(db);
+    };
+    return db;
   },
 });
+
+/**
+ * Release instrumentation listeners for every still-tracked Database instance, including
+ * ad-hoc instances created outside the `useDatabase()` registry.
+ */
+export function disposeAllDatabases(): void {
+  for (const db of Array.from(createdDatabases)) {
+    try {
+      db.dispose();
+    } catch {
+      // Best-effort cleanup during shutdown.
+    }
+  }
+  createdDatabases.clear();
+}
 
 const databaseInstances: Map<string, IDatabase> = new Map();
 
@@ -788,6 +818,8 @@ export async function resetDatabase(): Promise<void> {
     }
   });
   await Promise.all(promises);
+  // Also covers ad-hoc Database.create() instances that never entered the named registry.
+  disposeAllDatabases();
   databaseInstances.clear();
   DatabaseConnectionRegistry.clear();
 }

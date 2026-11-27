@@ -8,7 +8,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { createRedisConnection } from '@config/workers';
 import { ZintrustLang } from '@lang/lang';
-import { randomBytes } from '@node-singletons/crypto';
+import { createHash, randomBytes, timingSafeEqual } from '@node-singletons/crypto';
 import { RedisKeys } from '@tools/redis/RedisKeyManager';
 import type { Redis } from 'ioredis';
 
@@ -55,7 +55,7 @@ type StoredCsrfTokenData = {
  * Create a new CSRF token manager instance
  */
 const normalizeStoreName = (name: unknown): CsrfStoreName => {
-  const raw = String(name ?? '')
+  const raw = (typeof name === 'string' ? name : '')
     .trim()
     .toLowerCase();
   if (raw === 'redis') return 'redis';
@@ -76,6 +76,26 @@ const resolveStoreName = (options?: CsrfTokenManagerOptions): CsrfStoreName => {
   return normalizeStoreName(
     options?.store ?? Env.CSRF_STORE ?? Env.CSRF_DRIVER ?? Env.get('CSRF_STORE', 'memory')
   );
+};
+
+/**
+ * Constant-time comparison of tokens via fixed-length SHA-256 digests.
+ * Falls back to a byte loop only if node:crypto is unavailable.
+ */
+const tokensEqual = (a: string, b: string): boolean => {
+  if (typeof timingSafeEqual === 'function' && typeof createHash === 'function') {
+    const left = createHash('sha256').update(a, 'utf8').digest();
+    const right = createHash('sha256').update(b, 'utf8').digest();
+    return timingSafeEqual(left, right);
+  }
+
+  // Fallback for runtimes without node:crypto.
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= (a.codePointAt(i) ?? 0) ^ (b.codePointAt(i) ?? 0);
+  }
+  return result === 0;
 };
 
 const toTokenData = (stored: StoredCsrfTokenData): CsrfTokenData => {
@@ -103,7 +123,7 @@ const createMemoryManager = (tokenLength: number, tokenTtl: number): ICsrfTokenM
     async validateToken(sessionId: string, token: string): Promise<boolean> {
       const tokenData = tokens.get(sessionId);
       if (!tokenData) return false;
-      const isValid = tokenData.token === token;
+      const isValid = tokensEqual(tokenData.token, token);
       const isExpired = new Date() > tokenData.expiresAt;
       if (isExpired) {
         tokens.delete(sessionId);
@@ -328,7 +348,7 @@ const createRedisManager = (
     async validateToken(sessionId: string, token: string): Promise<boolean> {
       const tokenData = await fetchTokenData(sessionId);
       if (!tokenData) return false;
-      const isValid = tokenData.token === token;
+      const isValid = tokensEqual(tokenData.token, token);
       const isExpired = new Date() > tokenData.expiresAt;
       if (isExpired) {
         await deleteToken(sessionId);

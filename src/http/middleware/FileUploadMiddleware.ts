@@ -99,12 +99,18 @@ const toDottedName = (name: string): string => {
  * Add dotted-notation aliases for any bracket-notation keys, without removing
  * the original field names. Existing keys are never overwritten.
  */
+const isUnsafeKey = (key: string): boolean =>
+  key === '__proto__' || key === 'constructor' || key === 'prototype';
+
 const addDottedAliases = <T>(record: Record<string, T>): Record<string, T> => {
-  const out: Record<string, T> = { ...record };
+  // Null-prototype map: assignment can never trigger an inherited setter (CWE-1321).
+  const out: Record<string, T> = Object.create(null) as Record<string, T>;
   for (const [key, value] of Object.entries(record)) {
+    if (isUnsafeKey(key)) continue;
+    out[key] = value;
     if (!key.includes('[')) continue;
     const dotted = toDottedName(key);
-    if (dotted !== '' && dotted !== key && !(dotted in out)) {
+    if (dotted !== '' && dotted !== key && !isUnsafeKey(dotted) && !(dotted in out)) {
       out[dotted] = value;
     }
   }

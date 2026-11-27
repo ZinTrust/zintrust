@@ -20,6 +20,7 @@ import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { randomBytes } from '@node-singletons/crypto';
 
 /**
  * Helper to warn about missing secrets
@@ -36,7 +37,37 @@ function warnMissingSecret(secretName: string): string {
   return 'dev-unsafe-jwt-secret';
 }
 
+/**
+ * Resolve a required secret without shipping a predictable literal.
+ *
+ * Production fails closed when the secret is missing. Development generates a
+ * fresh, per-process ephemeral value so local tooling keeps working without a
+ * publicly known fallback credential.
+ */
+function resolveRequiredSecret(secretName: string, configured: string): string {
+  if (configured.trim() !== '') return configured;
+
+  if (appConfig.isProduction()) {
+    throw ErrorFactory.createConfigError(`Missing required secret: ${secretName}`, {
+      secretName,
+    });
+  }
+
+  const warn = (Logger as { warn?: (message: string) => void }).warn;
+  if (typeof warn === 'function') {
+    warn.call(Logger, `⚠️ ${secretName} is not set; using an ephemeral development-only secret.`);
+  }
+  try {
+    return randomBytes(32).toString('hex');
+  } catch {
+    // Last-resort dev-only fallback if the runtime has no CSPRNG at all.
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`; // NOSONAR
+  }
+}
+
 let cachedJwtSecret: string | undefined;
+let cachedEncryptionKey: string | undefined;
+let cachedSessionSecret: string | undefined;
 
 const securityConfigObj = {
   /**
@@ -87,7 +118,11 @@ const securityConfigObj = {
 
     // Back-compat fields (not used by EncryptedEnvelope)
     algorithm: Env.get('ENCRYPTION_ALGORITHM', 'aes-256-cbc'),
-    key: Env.get('ENCRYPTION_KEY', 'your-encryption-key'),
+    get key(): string {
+      if (cachedEncryptionKey !== undefined) return cachedEncryptionKey;
+      cachedEncryptionKey = resolveRequiredSecret('ENCRYPTION_KEY', Env.get('ENCRYPTION_KEY', ''));
+      return cachedEncryptionKey;
+    },
   },
 
   /**
@@ -148,7 +183,11 @@ const securityConfigObj = {
    */
   session: {
     name: Env.get('SESSION_NAME', 'zintrust_session'),
-    secret: Env.get('SESSION_SECRET', 'your-session-secret'),
+    get secret(): string {
+      if (cachedSessionSecret !== undefined) return cachedSessionSecret;
+      cachedSessionSecret = resolveRequiredSecret('SESSION_SECRET', Env.get('SESSION_SECRET', ''));
+      return cachedSessionSecret;
+    },
     expiresIn: Env.getInt('SESSION_EXPIRES_IN', 1800000), // 30 minutes
     secure: Env.getBool('SESSION_SECURE', true),
     httpOnly: Env.getBool('SESSION_HTTP_ONLY', true),

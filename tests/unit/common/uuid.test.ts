@@ -45,18 +45,16 @@ describe('uuid helpers', () => {
     expect(generateUuid()).toBe('uuid-1');
   });
 
-  it('generateUuid falls back when crypto.randomUUID is unavailable', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2020-01-01T00:00:00.000Z'));
-
+  it('generateUuid falls back to node crypto when Web Crypto is unavailable', async () => {
     setCrypto({});
+
+    const buf = makeSequentialBuffer(16, 1);
+    const randomBytes = vi.fn().mockReturnValue(buf);
+    vi.doMock('@node-singletons/crypto', () => ({ randomBytes }));
 
     const { generateUuid } = await import('@/common/utility');
 
-    const id = generateUuid();
-    expect(id).toContain('1577836800000-');
-
-    vi.useRealTimers();
+    expect(generateUuid()).toBe('0102030405060708090a0b0c0d0e0f10');
   });
 
   it('generateSecureJobId uses crypto.randomUUID when available', async () => {

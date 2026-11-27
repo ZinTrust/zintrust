@@ -80,11 +80,11 @@ describe('PrometheusMetrics patch coverage', () => {
     });
 
     expect(counterInc).toHaveBeenCalledWith(
-      { method: 'UNKNOWN', route: 'unknown', status: '0' },
+      { method: 'OTHER', route: 'unknown', status: '0' },
       1
     );
     expect(histogramObserve).toHaveBeenCalledWith(
-      { method: 'UNKNOWN', route: 'unknown', status: '0' },
+      { method: 'OTHER', route: 'unknown', status: '0' },
       0
     );
 

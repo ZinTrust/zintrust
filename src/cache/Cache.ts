@@ -20,6 +20,27 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 const instances: Map<string, CacheDriver> = new Map();
 const DEFAULT_STORE_NAME = 'default';
 
+let traceLabelEnabled: boolean | undefined;
+
+/**
+ * Building the joined `mget`/`gets` label is only useful when a trace watcher can consume it.
+ * Resolved once and reused so the batched-read path stays allocation-light.
+ */
+const shouldBuildTraceLabel = (): boolean => {
+  if (traceLabelEnabled !== undefined) return traceLabelEnabled;
+  const raw = Env.get('TRACE_ENABLED', '').trim().toLowerCase();
+  const globalTrace = globalThis as {
+    __zintrust_system_trace_plugin_requested__?: boolean;
+    __zintrust_system_trace_runtime__?: unknown;
+  };
+  traceLabelEnabled =
+    raw === '1' ||
+    raw === 'true' ||
+    globalTrace.__zintrust_system_trace_plugin_requested__ === true ||
+    globalTrace.__zintrust_system_trace_runtime__ !== undefined;
+  return traceLabelEnabled;
+};
+
 /**
  * Auto-prefix cache keys with 'zt:' if not already prefixed
  */
@@ -161,7 +182,9 @@ const runMany = async <T>(
   const label = batched ? 'mget' : 'gets';
   SystemTraceBridge.emitCache(
     'get',
-    `${label}(${prefixedKeys.length}/${hitCount} hit) ${prefixedKeys.join(',')}`,
+    shouldBuildTraceLabel()
+      ? `${label}(${prefixedKeys.length}/${hitCount} hit) ${prefixedKeys.join(',')}`
+      : label,
     elapsed,
     hitCount > 0,
     undefined,
@@ -408,8 +431,23 @@ const store = (name?: string): CacheStore => {
   });
 };
 
-const reset = (): void => {
+/**
+ * Dispose every cached driver (releasing intervals/sockets) before dropping the instances.
+ * Callers that can await should do so; `reset()` is safe to fire-and-forget at shutdown.
+ */
+const reset = async (): Promise<void> => {
+  const drivers = Array.from(instances.values());
   instances.clear();
+  await Promise.all(
+    drivers.map(async (driver) => {
+      if (typeof driver.dispose !== 'function') return;
+      try {
+        await driver.dispose();
+      } catch {
+        // Best-effort cleanup: one bad driver must not block the others.
+      }
+    })
+  );
 };
 
 const getRedisClient = (storeName?: string): unknown => {

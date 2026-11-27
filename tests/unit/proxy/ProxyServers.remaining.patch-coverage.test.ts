@@ -42,8 +42,10 @@ vi.mock('@config/env', () => ({
     HOST: '127.0.0.1',
     PORT: 7772,
     MAX_BODY_SIZE: 131072,
+    NODE_ENV: 'test',
     MYSQL_PROXY_POOL_LIMIT: 10,
     POSTGRES_PROXY_POOL_LIMIT: 10,
+    getBool: vi.fn((_k: string, d?: boolean) => d ?? false),
     get: vi.fn((k: string, d?: string) => {
       if (k === 'MAIL_HOST') return 'smtp.example.com';
       if (k === 'MAIL_USERNAME') return 'user';

@@ -141,6 +141,28 @@ const getTextFromRaw = (rawResult: ReadBodyResult & { ok: true }): string => {
   return rawResult.bytes.toString('utf-8');
 };
 
+/**
+ * Keep only the bytes representation until a downstream consumer actually reads rawBodyText.
+ */
+const setLazyRawBodyText = (req: IRequest, bytes: Buffer, initial?: string): void => {
+  let cached = initial;
+  try {
+    Object.defineProperty(req.context, 'rawBodyText', {
+      configurable: true,
+      enumerable: true,
+      get(): string | undefined {
+        cached ??= bytes.toString('utf-8');
+        return cached;
+      },
+      set(value: string | undefined): void {
+        cached = value;
+      },
+    });
+  } catch {
+    req.context['rawBodyText'] = cached ?? bytes.toString('utf-8');
+  }
+};
+
 const convertExistingToRawResult = (
   existingBytes: unknown,
   existingText: unknown
@@ -265,7 +287,11 @@ const reuseExistingRawBody = (
 
   req.context['rawBodyBytes'] = rawResult.bytes;
   if (shouldStoreRawText(contentType)) {
-    req.context['rawBodyText'] = getTextFromRaw(rawResult);
+    setLazyRawBodyText(
+      req,
+      rawResult.bytes,
+      typeof existingText === 'string' ? existingText : undefined
+    );
   } else {
     req.context['rawBodyText'] = undefined;
   }
@@ -369,7 +395,7 @@ const processBodyParsing = async (
   // Store raw body for downstream consumers
   req.context['rawBodyBytes'] = rawResult.bytes;
   if (shouldStoreRawText(contentType)) {
-    req.context['rawBodyText'] = getTextFromRaw(rawResult);
+    setLazyRawBodyText(req, rawResult.bytes);
   } else {
     req.context['rawBodyText'] = undefined;
   }

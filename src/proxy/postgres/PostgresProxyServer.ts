@@ -153,7 +153,7 @@ const handleStatementRequest = async (params: {
       paramsCount: resolved.value.params.length,
       error: error instanceof Error ? error.message : String(error),
     });
-    return Deps.ErrorHandler.toProxyError(500, 'POSTGRES_ERROR', String(error));
+    return Deps.ErrorHandler.toProxyServerError(500, 'POSTGRES_ERROR', error, 'Internal server error');
   }
 };
 
@@ -186,7 +186,7 @@ const handleSqlRequest = async (params: {
       rowCount: result.rowCount ?? result.rows?.length ?? 0,
     });
   } catch (error) {
-    return Deps.ErrorHandler.toProxyError(500, 'POSTGRES_ERROR', String(error));
+    return Deps.ErrorHandler.toProxyServerError(500, 'POSTGRES_ERROR', error, 'Internal server error');
   }
 };
 
@@ -218,7 +218,7 @@ const createBackend = (
       await pool.query('SELECT 1');
       return { status: 200, body: { status: 'healthy' } };
     } catch (error) {
-      return Deps.ErrorHandler.toProxyError(503, 'UNHEALTHY', String(error));
+      return Deps.ErrorHandler.toProxyServerError(503, 'UNHEALTHY', error, 'Service unavailable');
     }
   },
 });

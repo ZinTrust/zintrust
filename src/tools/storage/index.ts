@@ -85,7 +85,7 @@ const resolveDiskConfigFromLegacyConfig = (name?: string): Record<string, unknow
   const requestedName = hasSelection ? selected : defaultName;
   const diskName = requestedName === 'default' ? defaultName : requestedName;
 
-  if (diskName !== '' && Object.prototype.hasOwnProperty.call(drivers, diskName)) {
+  if (diskName !== '' && Object.hasOwn(drivers, diskName)) {
     return drivers[diskName] as Record<string, unknown>;
   }
 

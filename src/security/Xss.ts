@@ -9,6 +9,13 @@
 
 type UnknownRecord = Record<string, unknown>;
 
+/**
+ * Keys that must never be written into a sanitized object. Assigning an
+ * attacker-controlled `__proto__` (or `constructor`/`prototype`) key can
+ * pollute Object.prototype via inherited setters (CWE-1321).
+ */
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 const stripTags = (value: string): string => {
   // Remove all HTML tags in linear time (no regex backtracking / ReDoS risk).
   let out = '';
@@ -51,7 +58,15 @@ const sanitizeRecursive = (input: unknown, seen: WeakSet<object>): unknown => {
 
     const out: UnknownRecord = {};
     for (const [key, value] of Object.entries(obj)) {
-      out[key] = sanitizeRecursive(value, seen);
+      // Skip pollution vectors and define via descriptor so no inherited
+      // setter (e.g. `__proto__`) can ever be triggered.
+      if (UNSAFE_KEYS.has(key)) continue;
+      Object.defineProperty(out, key, {
+        value: sanitizeRecursive(value, seen),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
     }
     return out;
   }

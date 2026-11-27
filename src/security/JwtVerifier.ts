@@ -109,6 +109,23 @@ type CachedJwks = Readonly<{
 
 const jwksCache = new Map<string, CachedJwks>();
 
+/** Bound the cache so varying caller-supplied keys cannot grow it forever. */
+const JWKS_CACHE_MAX_ENTRIES = 64;
+/** Cap keys retained from a single JWKS document. */
+const JWKS_MAX_KEYS_PER_DOCUMENT = 64;
+
+/**
+ * LRU-ish eviction: Map preserves insertion order, and cache hits refresh it,
+ * so the oldest inserted entry is the least-recently-used one.
+ */
+const evictOldestJwksEntry = (): void => {
+  while (jwksCache.size > JWKS_CACHE_MAX_ENTRIES) {
+    const oldest = jwksCache.keys().next();
+    if (oldest.done === true) break;
+    jwksCache.delete(oldest.value);
+  }
+};
+
 const getRuntime = (): RuntimeServices => RuntimeServices.create(detectRuntimePlatform());
 
 const isFailure = (value: unknown): value is JwtVerifierFailure => {
@@ -356,8 +373,15 @@ const fetchJwks = async (
   const cacheKey = (input.cacheKey ?? input.jwksUrl).trim();
   const nowMs = input.nowMs ?? Date.now();
   const cached = jwksCache.get(cacheKey);
-  if (cached !== undefined && cached.expiresAtMs > nowMs) {
-    return { jwks: cached.jwks, cacheHit: true };
+  if (cached !== undefined) {
+    if (cached.expiresAtMs > nowMs) {
+      // Refresh insertion order for LRU-ish eviction.
+      jwksCache.delete(cacheKey);
+      jwksCache.set(cacheKey, cached);
+      return { jwks: cached.jwks, cacheHit: true };
+    }
+    // Drop expired entries on access instead of retaining them indefinitely.
+    jwksCache.delete(cacheKey);
   }
 
   const fetcher = input.fetcher ?? getRuntime().fetch;
@@ -398,7 +422,9 @@ const fetchJwks = async (
   }
 
   const jwks: JwtVerifierJwksDocument = {
-    keys: body['keys'].filter((item): item is JwtVerifierJwk => isObject(item)),
+    keys: body['keys']
+      .filter((item): item is JwtVerifierJwk => isObject(item))
+      .slice(0, JWKS_MAX_KEYS_PER_DOCUMENT),
   };
 
   const cacheTtlSeconds =
@@ -406,7 +432,10 @@ const fetchJwks = async (
       ? input.cacheTtlSeconds
       : 3600;
   const ttlMs = Math.max(1, cacheTtlSeconds) * 1000;
+  // refresh insertion order, then enforce the hard entry cap.
+  jwksCache.delete(cacheKey);
   jwksCache.set(cacheKey, { jwks, expiresAtMs: nowMs + ttlMs });
+  evictOldestJwksEntry();
   return { jwks, cacheHit: false };
 };
 

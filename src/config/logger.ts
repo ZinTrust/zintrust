@@ -472,46 +472,87 @@ const parseSensitiveFields = (rawValue: string): string[] => {
   }
 };
 
+let cachedSensitiveFields: Set<string> | undefined;
+
 const getSensitiveFields = (): Set<string> => {
+  if (cachedSensitiveFields !== undefined) return cachedSensitiveFields;
+
   const configuredFieldsRaw = getEnvString('SENSITIVE_FIELDS', '');
   const configuredFields = isNonEmptyString(configuredFieldsRaw)
     ? parseSensitiveFields(configuredFieldsRaw)
     : [];
 
-  return new Set<string>([...BASE_SENSITIVE_FIELDS, ...configuredFields]);
+  cachedSensitiveFields = new Set<string>([...BASE_SENSITIVE_FIELDS, ...configuredFields]);
+  return cachedSensitiveFields;
+};
+
+type RedactContext = Readonly<{
+  sensitiveFields: ReadonlySet<string>;
+  seen: WeakSet<object>;
+  walk: (value: unknown) => unknown;
+  markChanged: () => void;
+}>;
+
+const redactArray = (value: unknown[], context: RedactContext): unknown => {
+  if (context.seen.has(value)) return '[Circular]';
+  context.seen.add(value);
+
+  let copy: unknown[] | undefined;
+  for (let i = 0; i < value.length; i++) {
+    const next = context.walk(value[i]);
+    if (next !== value[i]) {
+      copy ??= value.slice();
+      copy[i] = next;
+    }
+  }
+  if (copy === undefined) return value;
+  context.markChanged();
+  return copy;
+};
+
+const redactObject = (value: Record<string, unknown>, context: RedactContext): unknown => {
+  if (context.seen.has(value)) return '[Circular]';
+  context.seen.add(value);
+
+  // Only allocate a shallow copy when a key actually needs changing.
+  let copy: Record<string, unknown> | undefined;
+  for (const [key, inner] of Object.entries(value)) {
+    if (context.sensitiveFields.has(key.toLowerCase())) {
+      copy ??= { ...value };
+      copy[key] = '[REDACTED]';
+      continue;
+    }
+
+    const next = context.walk(inner);
+    if (next !== inner) {
+      copy ??= { ...value };
+      copy[key] = next;
+    }
+  }
+  if (copy === undefined) return value;
+  context.markChanged();
+  return copy;
 };
 
 const redactSensitiveData = (data: unknown): unknown => {
-  const sensitiveFields = getSensitiveFields();
-  const seen = new WeakSet<object>();
-
-  const walk = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-      if (seen.has(value)) return '[Circular]';
-      seen.add(value);
-      return value.map((v) => walk(v));
-    }
-
-    if (typeof value === 'object' && value !== null) {
-      const asObj = value as Record<string, unknown>;
-      if (seen.has(asObj)) return '[Circular]';
-      seen.add(asObj);
-
-      const out: Record<string, unknown> = {};
-      for (const [key, inner] of Object.entries(asObj)) {
-        if (sensitiveFields.has(key.toLowerCase())) {
-          out[key] = '[REDACTED]';
-        } else {
-          out[key] = walk(inner);
-        }
+  let changed = false;
+  const context: RedactContext = {
+    sensitiveFields: getSensitiveFields(),
+    seen: new WeakSet<object>(),
+    walk: (value: unknown): unknown => {
+      if (Array.isArray(value)) return redactArray(value, context);
+      if (typeof value === 'object' && value !== null) {
+        return redactObject(value as Record<string, unknown>, context);
       }
-      return out;
-    }
-
-    return value;
+      return value;
+    },
+    markChanged: (): void => {
+      changed = true;
+    },
   };
 
-  return walk(data);
+  const walked = context.walk(data);
+  return changed ? walked : data;
 };
 
 const safeStringify = (obj: unknown, indent: boolean = false): string => {
@@ -592,7 +633,8 @@ const writeToFile = (line: string): void => {
   }
 
   getFileWriter();
-  fileWriterPromise?.then((mod) => {
+  // getFileWriter() already handles import rejection, so this promise is safe to ignore.
+  void fileWriterPromise?.then((mod) => {
     try {
       if (typeof mod.FileLogWriter?.write === 'function') {
         mod.FileLogWriter.write(line);
@@ -658,32 +700,67 @@ type CloudLogEvent = {
   error?: string;
 };
 
+type CloudSinkFlags = Readonly<{ kv: boolean; slack: boolean; http: boolean }>;
+
+let cachedCloudSinkFlags: CloudSinkFlags | undefined;
+
+const getCloudSinkFlags = (): CloudSinkFlags => {
+  if (cachedCloudSinkFlags !== undefined) return cachedCloudSinkFlags;
+
+  cachedCloudSinkFlags = Object.freeze({
+    kv: getEnvBool('KV_LOG_ENABLED', false),
+    slack: getEnvBool('SLACK_LOG_ENABLED', false),
+    http: getEnvBool('HTTP_LOG_ENABLED', false),
+  });
+  return cachedCloudSinkFlags;
+};
+
+const isKvLogLevel = (level: LogLevel): boolean => level === 'error' || level === 'fatal';
+const isSlackLogLevel = (level: LogLevel): boolean =>
+  level === 'warn' || level === 'error' || level === 'fatal';
+
+/**
+ * Redaction is only needed when an enabled sink will actually receive the event payload.
+ */
+const cloudEventData = (level: LogLevel, data: unknown): unknown => {
+  const flags = getCloudSinkFlags();
+  const needsPayload =
+    flags.http || (flags.kv && isKvLogLevel(level)) || (flags.slack && isSlackLogLevel(level));
+  if (!needsPayload) return data;
+  return redactSensitiveData(data);
+};
+
 const emitCloudLogs = (event: CloudLogEvent): void => {
-  // Lazy-load to avoid cycles and avoid cost when disabled.
+  // Check flags before importing: all sinks are off in the common case.
+  const flags = getCloudSinkFlags();
+  if (!flags.kv && !flags.slack && !flags.http) return;
+
   void (async (): Promise<void> => {
-    try {
-      if (event.level === 'error' || event.level === 'fatal') {
+    if (flags.kv && isKvLogLevel(event.level)) {
+      try {
         const mod = await import('./logging/KvLogger.js');
         void mod.KvLogger.enqueue(event);
+      } catch {
+        // best-effort
       }
-    } catch {
-      // best-effort
     }
 
-    try {
-      if (event.level === 'warn' || event.level === 'error' || event.level === 'fatal') {
+    if (flags.slack && isSlackLogLevel(event.level)) {
+      try {
         const mod = await import('./logging/SlackLogger.js');
         void mod.SlackLogger.enqueue(event);
+      } catch {
+        // best-effort
       }
-    } catch {
-      // best-effort
     }
 
-    try {
-      const mod = await import('./logging/HttpLogger.js');
-      void mod.HttpLogger.enqueue(event);
-    } catch {
-      // best-effort
+    if (flags.http) {
+      try {
+        const mod = await import('./logging/HttpLogger.js');
+        void mod.HttpLogger.enqueue(event);
+      } catch {
+        // best-effort
+      }
     }
   })();
 };
@@ -706,7 +783,7 @@ const logDebug = (message: string, data?: unknown, category?: string): void => {
     level: 'debug',
     message,
     category,
-    data: redactSensitiveData(data),
+    data: cloudEventData('debug', data),
   });
 
   dispatchToSinks('debug', message, data);
@@ -729,7 +806,7 @@ const logInfo = (message: string, data?: unknown, category?: string): void => {
     level: 'info',
     message,
     category,
-    data: redactSensitiveData(data),
+    data: cloudEventData('info', data),
   });
 
   dispatchToSinks('info', message, data);
@@ -752,7 +829,7 @@ const logWarn = (message: string, data?: unknown, category?: string): void => {
     level: 'warn',
     message,
     category,
-    data: redactSensitiveData(data),
+    data: cloudEventData('warn', data),
   });
 
   dispatchToSinks('warn', message, data);
