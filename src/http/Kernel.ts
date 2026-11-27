@@ -374,7 +374,12 @@ const createHandleRequest = (
       thrown = error;
       Logger.error('Kernel error:', error as Error);
       if (!isWritableEnded(res)) {
-        ErrorRouting.handleInternalServerErrorWithWrappers(req, res, error, context.requestId);
+        await ErrorRouting.handleInternalServerErrorWithWrappers(
+          req,
+          res,
+          error,
+          context.requestId
+        );
       }
     } finally {
       finalizeKernelObservability(context, res, routeLabel, thrown, traceSpan);

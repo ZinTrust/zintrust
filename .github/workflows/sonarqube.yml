@@ -64,6 +64,12 @@ jobs:
             echo "✅ SonarQube credentials available"
           fi
 
+      - name: Resolve Sonar project version
+        id: project_version
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Upload coverage to SonarQube
         if: steps.check_secrets.outputs.has_token == 'true' && github.ref != 'refs/heads/release'
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
@@ -73,6 +79,7 @@ jobs:
         with:
           args: >
             -Dsonar.projectKey=ZinTrust_ZinTrust
+            -Dsonar.projectVersion=${{ steps.project_version.outputs.version }}
             -Dsonar.organization=zintrust
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.sources=src,app,routes
@@ -169,7 +176,13 @@ jobs:
       - name: Enforce quality gate
         if: always() && steps.check_secrets.outputs.has_token == 'true' && github.ref != 'refs/heads/release'
         run: |
-          status="${{ steps.quality_gate.outputs.quality-gate-status }}"
+          status="unknown"
+          if [ -f quality-gate.json ] && command -v jq >/dev/null 2>&1; then
+            status="$(jq -r '.projectStatus.status // "unknown"' quality-gate.json)"
+          fi
+          if [ "$status" = "unknown" ]; then
+            status="${{ steps.quality_gate.outputs.quality-gate-status }}"
+          fi
           echo "Quality gate status: $status"
           if [ "$status" != "PASSED" ]; then
             echo "✖ Quality Gate has FAILED."

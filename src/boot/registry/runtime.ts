@@ -281,7 +281,7 @@ const registerDatabaseResetHook = (shutdownManager: IShutdownManager): void => {
   shutdownManager.add(async () => {
     try {
       const mod = await import('@orm/Database');
-      mod.resetDatabase();
+      await mod.resetDatabase();
     } catch {
       /* ignore import failures in restrictive runtimes */
     }
@@ -327,8 +327,9 @@ export const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager
   // Register framework-level shutdown hooks for long-lived resources
   registerConnectionManagerHook(shutdownManager);
 
-  // Ensure worker management system is asked to shutdown BEFORE databases are reset
-  registerWorkerShutdownHook(shutdownManager);
+  // Ensure worker management system is asked to shutdown BEFORE databases are reset.
+  // The hook itself is registered synchronously; the async return only covers early exit.
+  void registerWorkerShutdownHook(shutdownManager);
 
   // Database and cache reset
   registerDatabaseResetHook(shutdownManager);

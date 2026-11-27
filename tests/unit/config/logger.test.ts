@@ -275,4 +275,15 @@ describe('Logger Config', () => {
     expect(slackSpy).toHaveBeenCalled();
     expect(httpSpy).toHaveBeenCalled();
   });
+
+  it('writes to file when LOG_TO_FILE is enabled', async () => {
+    process.env['LOG_TO_FILE'] = 'true';
+    const { Logger } = await import('@/config/logger');
+
+    Logger.info('file log line');
+    // Allow the lazy FileLogWriter import promise to settle.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(fsMocks.appendFileSync).toHaveBeenCalled();
+  });
 });

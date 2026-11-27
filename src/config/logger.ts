@@ -592,7 +592,8 @@ const writeToFile = (line: string): void => {
   }
 
   getFileWriter();
-  fileWriterPromise?.then((mod) => {
+  // getFileWriter() already handles import rejection, so this promise is safe to ignore.
+  void fileWriterPromise?.then((mod) => {
     try {
       if (typeof mod.FileLogWriter?.write === 'function') {
         mod.FileLogWriter.write(line);

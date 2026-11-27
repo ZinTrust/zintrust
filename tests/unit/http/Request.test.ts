@@ -166,7 +166,7 @@ describe('Request', () => {
 
       expect(req.get('count')).toBe('42');
       expect(req.get('missing', 'default')).toBe('default');
-      expect(req.get<number>('count')).toBe('42');
+      expect(Number(req.get<number>('count'))).toBe(42);
       expect(req.get<number>('missing', 0)).toBe(0);
     });
 
