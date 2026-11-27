@@ -76,16 +76,18 @@ describe('JwtManager Claims', () => {
 
   it('HS256: should add custom claims', () => {
     const payload = { sub: 'user-1' };
+    // verifyClaims() validates iss/aud against JWT_ISSUER/JWT_AUDIENCE when present,
+    // so use the configured defaults instead of arbitrary values.
     const token = manager.sign(payload, {
       algorithm: 'HS256',
-      issuer: 'myapp',
-      audience: 'api',
+      issuer: 'zintrust',
+      audience: 'zintrust-api',
       subject: 'user-1',
     });
 
     const decoded = manager.verify(token, 'HS256');
-    expect(decoded.iss).toBe('myapp');
-    expect(decoded.aud).toBe('api');
+    expect(decoded.iss).toBe('zintrust');
+    expect(decoded.aud).toBe('zintrust-api');
     expect(decoded.sub).toBe('user-1');
   });
 

@@ -10,6 +10,9 @@ import type { Counter, Histogram, Registry } from 'prom-client';
 
 type PromClientModule = typeof import('prom-client');
 
+/** Structural type for the handle returned by prom-client's collectDefaultMetrics. */
+type DefaultMetricsTimer = { unref?: () => void };
+
 type MetricsState = {
   client: PromClientModule;
   registry: Registry;
@@ -17,12 +20,51 @@ type MetricsState = {
   httpRequestDurationSeconds: Histogram<string>;
   dbQueriesTotal: Counter<string>;
   dbQueryDurationSeconds: Histogram<string>;
+  defaultMetricsTimer?: DefaultMetricsTimer;
 };
 
 let statePromise: Promise<MetricsState> | null = null;
 
 const DEFAULT_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
 const PROM_CLIENT_PACKAGE = 'prom-client';
+
+const ALLOWED_HTTP_METHODS = new Set([
+  'GET',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'HEAD',
+  'OPTIONS',
+]);
+const MAX_LABEL_LENGTH = 128;
+const MAX_DISTINCT_ROUTES = 500;
+const seenRoutes = new Set<string>();
+
+const normalizeHttpMethod = (raw: string): string => {
+  const method = raw.trim().toUpperCase();
+  return ALLOWED_HTTP_METHODS.has(method) ? method : 'OTHER';
+};
+
+const normalizeLabel = (raw: string, fallback: string): string => {
+  const value = raw.trim();
+  if (value === '') return fallback;
+  return value.length > MAX_LABEL_LENGTH ? `${value.slice(0, MAX_LABEL_LENGTH - 1)}~` : value;
+};
+
+/**
+ * Bound the `route` label so attacker-controlled paths cannot create unlimited time series.
+ * The kernel already supplies a route template (or 'unmatched' for 404s); this is a backstop
+ * for direct callers.
+ */
+const normalizeRouteLabel = (raw: string): string => {
+  const route = normalizeLabel(raw, 'unknown');
+  if (route === 'unmatched' || route === 'unknown' || route === 'other') return route;
+  if (seenRoutes.has(route)) return route;
+  if (seenRoutes.size >= MAX_DISTINCT_ROUTES) return 'other';
+  seenRoutes.add(route);
+  return route;
+};
 
 const createNoopState = (): MetricsState => {
   const noopCounter = { inc: () => undefined } as unknown as Counter<string>;
@@ -39,6 +81,7 @@ const createNoopState = (): MetricsState => {
     httpRequestDurationSeconds: noopHistogram,
     dbQueriesTotal: noopCounter,
     dbQueryDurationSeconds: noopHistogram,
+    defaultMetricsTimer: undefined,
   };
 };
 
@@ -61,9 +104,13 @@ async function ensureState(): Promise<MetricsState> {
     }
 
     // Default metrics (process/memory/event loop) for Node runtimes.
-    // `collectDefaultMetrics` exists in prom-client; keep this lazy and best-effort.
+    // Keep the timer handle so dispose() can stop it on shutdown / hot reload.
+    let defaultMetricsTimer: DefaultMetricsTimer | undefined;
     try {
-      client.collectDefaultMetrics({ register: registry });
+      defaultMetricsTimer = client.collectDefaultMetrics({
+        register: registry,
+      }) as unknown as DefaultMetricsTimer;
+      defaultMetricsTimer?.unref?.();
     } catch {
       // ignore
     }
@@ -106,6 +153,7 @@ async function ensureState(): Promise<MetricsState> {
       httpRequestDurationSeconds,
       dbQueriesTotal,
       dbQueryDurationSeconds,
+      defaultMetricsTimer,
     };
   })();
 
@@ -139,8 +187,8 @@ export const PrometheusMetrics = Object.freeze({
   async observeHttpRequest(input: ObserveHttpRequestInput): Promise<void> {
     const state = await ensureState();
 
-    const method = input.method || 'UNKNOWN';
-    const route = input.route || 'unknown';
+    const method = normalizeHttpMethod(input.method ?? '');
+    const route = normalizeRouteLabel(input.route ?? '');
     const status = Number.isFinite(input.status) ? String(input.status) : '0';
     const durationSeconds = Math.max(0, input.durationMs / 1000);
 
@@ -156,6 +204,24 @@ export const PrometheusMetrics = Object.freeze({
 
     state.dbQueriesTotal.inc({ driver }, 1);
     state.dbQueryDurationSeconds.observe({ driver }, durationSeconds);
+  },
+
+  /**
+   * Stop the default-metrics timer and reset lazy state. Useful for shutdown and tests.
+   */
+  async dispose(): Promise<void> {
+    if (statePromise === null) return;
+    try {
+      const state = await statePromise;
+      if (state.defaultMetricsTimer !== undefined) {
+        clearInterval(
+          state.defaultMetricsTimer as unknown as ReturnType<typeof setInterval>
+        );
+      }
+    } catch {
+      // best-effort
+    }
+    statePromise = null;
   },
 });
 

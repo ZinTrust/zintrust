@@ -72,7 +72,7 @@ export const KeyGenerateCommand = Object.freeze({
           }
 
           await fs.writeFile(envPath, envContent);
-          Logger.info(`Application key set successfully. [${key}]`);
+          Logger.info(`Application key set successfully in ${envPath} (value hidden)`);
         } catch (error) {
           Logger.error('Failed to update .env file', error);
         }

@@ -17,8 +17,8 @@ const parseJson = (
       return { ok: false, error: { code: 'VALIDATION_ERROR', message: 'Body must be an object' } };
     }
     return { ok: true, value: parsed };
-  } catch (error) {
-    return { ok: false, error: { code: 'INVALID_JSON', message: String(error) } };
+  } catch {
+    return { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } };
   }
 };
 

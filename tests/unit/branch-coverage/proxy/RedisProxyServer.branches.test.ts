@@ -277,7 +277,8 @@ describe('RedisProxyServer uncovered branches', () => {
     H.clientSpec = { call: false };
     const unsupported = await H.capturedBackend.handle(post({ command: 'custom', args: [] }));
     expect(unsupported.status).toBe(500);
-    expect(String(JSON.stringify(unsupported.body))).toContain('Unsupported Redis command');
+    expect(String(JSON.stringify(unsupported.body))).toContain('Internal server error');
+    expect(H.logger.error).toHaveBeenCalled();
   });
 
   it('uses ping() in health checks and falls back to executeCommand without ping', async () => {

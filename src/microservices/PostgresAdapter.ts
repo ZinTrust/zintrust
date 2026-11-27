@@ -283,10 +283,13 @@ async function runConnect(
     return;
   }
 
+  let pool: PostgresPool | undefined;
+  let registered = false;
+
   try {
     // Dynamic import to keep core zero-dependency
     const { Pool } = await import('pg');
-    const pool = new Pool({
+    pool = new Pool({
       host: adapterConfig.host,
       port: adapterConfig.port,
       database: adapterConfig.database,
@@ -297,19 +300,29 @@ async function runConnect(
       connectionTimeoutMillis: adapterConfig.connectionTimeoutMillis,
     }) as unknown as PostgresPool;
 
-    pool.on('error', (err: unknown) => {
-      Logger.error(`Unexpected error on idle client for ${poolKey}`, err as Error);
-    });
-
     const client = await pool.connect();
     Logger.info(
       `✅ PostgreSQL connected: ${adapterConfig.host}:${adapterConfig.port}/${adapterConfig.database}`
     );
     client.release();
 
+    // Register before attaching the listener so disconnectAll() always owns the pool.
     pools.set(poolKey, pool);
+    registered = true;
+    pool.on('error', (err: unknown) => {
+      Logger.error(`Unexpected error on idle client for ${poolKey}`, err as Error);
+    });
     Logger.info(`🐘 PostgreSQL pool initialized: ${poolKey}`);
   } catch (error) {
+    if (registered) pools.delete(poolKey);
+    if (pool !== undefined) {
+      // Never leave an unregistered pool with sockets/timers behind on a failed connect.
+      try {
+        await pool.end();
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
     if (isMissingEsmPackage(error, 'pg')) {
       throw ErrorFactory.createConfigError(
         "PostgreSQL pool requires the 'pg' package (run `zin add db:postgres` or `zin plugin install db:postgres`)."
@@ -382,6 +395,9 @@ async function runTransaction<T>(
   }
 }
 
+/** Schema identifiers are interpolated into DDL, so allow simple identifiers only. */
+const SAFE_SCHEMA_NAME = /^[A-Za-z_]\w*$/;
+
 /**
  * Internal function to create service schema
  */
@@ -392,6 +408,11 @@ async function runCreateServiceSchema(
 ): Promise<void> {
   if (isolation !== 'isolated') {
     Logger.info('ℹ️  Shared database mode: skipping schema creation');
+    return;
+  }
+
+  if (!SAFE_SCHEMA_NAME.test(schemaName)) {
+    Logger.error(`Invalid schema name rejected: ${schemaName}`);
     return;
   }
 

@@ -13,6 +13,16 @@ import { promisify } from '@node-singletons/util';
  */
 export type HashAlgorithm = 'pbkdf2' | 'bcrypt';
 
+/**
+ * Bounds applied to attacker-influenced values read from a stored hash (CWE-400).
+ * The iteration count comes from the database record, so an out-of-range value
+ * must never be allowed to drive unbounded CPU work on every login.
+ */
+const PBKDF2_MIN_ITERATIONS = 10_000;
+const PBKDF2_MAX_ITERATIONS = 2_000_000;
+const PBKDF2_MAX_SALT_LENGTH = 256;
+const PBKDF2_MAX_HASH_LENGTH = 256;
+
 interface BcryptModule {
   hash: (data: string, saltOrRounds: string | number) => Promise<string>;
   compare: (data: string, encrypted: string) => Promise<boolean>;
@@ -139,7 +149,18 @@ async function verifyPbkdf2(password: string, passwordHash: string): Promise<boo
   }
 
   try {
-    const iterations = Number.parseInt(iterationsStr, 10);
+    const parsedIterations = Number.parseInt(iterationsStr, 10);
+    if (!Number.isFinite(parsedIterations)) return false;
+
+    // Clamp instead of rejecting so legacy hashes remain verifiable without
+    // allowing a malicious stored record to force an arbitrary work factor.
+    const iterations = Math.min(
+      Math.max(parsedIterations, PBKDF2_MIN_ITERATIONS),
+      PBKDF2_MAX_ITERATIONS
+    );
+    if (salt.length === 0 || salt.length > PBKDF2_MAX_SALT_LENGTH) return false;
+    if (storedHash.length === 0 || storedHash.length > PBKDF2_MAX_HASH_LENGTH) return false;
+
     const keyLength = 64;
     const digest = 'sha256';
 

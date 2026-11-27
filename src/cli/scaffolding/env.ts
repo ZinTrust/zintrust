@@ -91,7 +91,7 @@ const SecurityAndDeployment = (): string[] => [
   'CSRF_COOKIE_SECURE=false',
   'CSRF_COOKIE_HTTP_ONLY=true',
   'CSRF_COOKIE_SAME_SITE=lax',
-  'CSRF_SKIP_PATHS=/api/*,/queue-monitor/*,/api/_sys/queue/*,/api/_sys/schedule/*',
+  'CSRF_SKIP_PATHS=/queue-monitor/*',
   '',
   'CORS_ENABLED=true',
   'CORS_ORIGINS=*',

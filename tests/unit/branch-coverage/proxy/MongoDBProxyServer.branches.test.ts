@@ -214,13 +214,15 @@ describe('MongoDBProxyServer uncovered branches', () => {
       post({ operation: 'countDocuments', collection: 'c' })
     );
     expect(noMethod.status).toBe(500);
-    expect(String(JSON.stringify(noMethod.body))).toContain('Method countDocuments not found');
+    expect(String(JSON.stringify(noMethod.body))).toContain('Internal server error');
+    expect(H.logger.error).toHaveBeenCalled();
 
     const unsupported = await H.capturedBackend.handle(
       post({ operation: 'dropDatabase', collection: 'c' })
     );
     expect(unsupported.status).toBe(500);
-    expect(String(JSON.stringify(unsupported.body))).toContain('Unsupported MongoDB operation');
+    expect(String(JSON.stringify(unsupported.body))).toContain('Internal server error');
+    expect(H.logger.error).toHaveBeenCalled();
   });
 
   it('covers argument fallbacks for every supported operation handler', async () => {

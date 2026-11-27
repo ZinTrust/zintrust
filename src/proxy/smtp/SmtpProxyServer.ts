@@ -342,7 +342,7 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
       return { status: 200, body: { ok: true } };
     } catch (error) {
       Logger.error('[SmtpProxy] Failed to send email', error);
-      return ErrorHandler.toProxyError(500, 'SMTP_PROXY_ERROR', String(error));
+      return ErrorHandler.toProxyServerError(500, 'SMTP_PROXY_ERROR', error, 'Internal server error');
     }
   },
   async health(): Promise<ProxyResponse> {
@@ -351,7 +351,7 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
       await Promise.resolve();
       return { status: 200, body: { status: 'healthy' } };
     } catch (error) {
-      return ErrorHandler.toProxyError(503, 'UNHEALTHY', String(error));
+      return ErrorHandler.toProxyServerError(503, 'UNHEALTHY', error, 'Service unavailable');
     }
   },
 });

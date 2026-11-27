@@ -108,6 +108,25 @@ describe('branch coverage: SecurityMiddleware branches', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
+  it('short-circuits CORS when it is disabled in security config', async () => {
+    vi.doMock('@config/security', () => ({
+      securityConfig: { cors: { enabled: false, origins: ['*'] } },
+    }));
+
+    const { SecurityMiddleware: DisabledSecurityMiddleware } =
+      await import('@/middleware/SecurityMiddleware');
+
+    const { req, res, next, headers } = createReqRes({
+      method: 'OPTIONS',
+      headers: { origin: 'https://client.example' },
+    });
+    await DisabledSecurityMiddleware.create()(req, res, next);
+
+    expect(headers).not.toHaveProperty('access-control-allow-origin');
+    expect(res.setStatus).not.toHaveBeenCalledWith(204);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
   it('omits credentials and max-age when both are explicitly undefined', async () => {
     const middleware = SecurityMiddleware.create({
       cors: { origin: 'https://client.example', credentials: undefined, maxAge: undefined },
@@ -123,7 +142,7 @@ describe('branch coverage: SecurityMiddleware branches', () => {
     expect(headers).not.toHaveProperty('access-control-max-age');
   });
 
-  it('reflects the request origin for wildcard arrays with and without credentials', async () => {
+  it('never reflects arbitrary origins for wildcard arrays when credentials are enabled', async () => {
     const withCredentials = SecurityMiddleware.create({
       cors: { origin: ['*'], credentials: true },
     });
@@ -136,7 +155,8 @@ describe('branch coverage: SecurityMiddleware branches', () => {
       headers: { origin: 'https://client.example' },
     });
     await withCredentials(first.req, first.res, first.next);
-    expect(first.headers['access-control-allow-origin']).toBe('https://client.example');
+    expect(first.headers).not.toHaveProperty('access-control-allow-origin');
+    expect(first.next).toHaveBeenCalledOnce();
 
     const second = createReqRes({
       method: 'OPTIONS',
@@ -144,6 +164,17 @@ describe('branch coverage: SecurityMiddleware branches', () => {
     });
     await withoutCredentials(second.req, second.res, second.next);
     expect(second.headers['access-control-allow-origin']).toBe('*');
+
+    // A request origin that is explicitly allowlisted may still be reflected with credentials.
+    const withAllowlist = SecurityMiddleware.create({
+      cors: { origin: ['*', 'https://client.example'], credentials: true },
+    });
+    const third = createReqRes({
+      method: 'OPTIONS',
+      headers: { origin: 'https://client.example' },
+    });
+    await withAllowlist(third.req, third.res, third.next);
+    expect(third.headers['access-control-allow-origin']).toBe('https://client.example');
   });
 
   it('rejects disallowed origins for both preflight and actual requests', async () => {

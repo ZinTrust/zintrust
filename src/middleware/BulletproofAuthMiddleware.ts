@@ -250,6 +250,19 @@ const normalizeStaticSecrets = (staticSecrets?: readonly string[]): string[] => 
   );
 };
 
+let normalizedSecretsInput: readonly string[] | undefined;
+let normalizedSecretsCache: string[] | undefined;
+
+const getNormalizedStaticSecrets = (staticSecrets?: readonly string[]): string[] => {
+  if (staticSecrets === undefined) return [];
+  if (normalizedSecretsInput === staticSecrets && normalizedSecretsCache !== undefined) {
+    return normalizedSecretsCache;
+  }
+  normalizedSecretsInput = staticSecrets;
+  normalizedSecretsCache = normalizeStaticSecrets(staticSecrets);
+  return normalizedSecretsCache;
+};
+
 const createDynamicSignedRequestAttempt = (params: {
   req: IRequest;
   baseParams: {
@@ -287,6 +300,14 @@ const createDynamicSignedRequestAttempt = (params: {
   };
 };
 
+const NON_SIGNATURE_FAILURE_CODES = new Set([
+  'MISSING_HEADER',
+  'INVALID_TIMESTAMP',
+  'EXPIRED',
+  'INVALID_BODY_SHA',
+  'REPLAYED',
+]);
+
 const collectSignedRequestAttempts = async (params: {
   req: IRequest;
   baseParams: {
@@ -301,8 +322,11 @@ const collectSignedRequestAttempts = async (params: {
   getSecretForKeyId: SecretForKeyResolver;
   staticSecrets?: readonly string[];
 }): Promise<SignedRequestAttemptOutcome[]> => {
-  const staticSecrets = normalizeStaticSecrets(params.staticSecrets);
+  const staticSecrets = getNormalizedStaticSecrets(params.staticSecrets);
+  const keyIdHint = params.baseParams.headers['x-zt-key-id'];
+
   const attemptResolvers: Array<() => Promise<SignedRequestVerificationResult>> = [
+    // The dynamic resolver selects the secret by x-zt-key-id; try it first.
     createDynamicSignedRequestAttempt({
       req: params.req,
       baseParams: params.baseParams,
@@ -317,15 +341,31 @@ const collectSignedRequestAttempts = async (params: {
     }),
   ];
 
-  return Promise.all(
-    attemptResolvers.map(async (attemptResolver): Promise<SignedRequestAttemptOutcome> => {
-      try {
-        return { result: await attemptResolver(), error: undefined };
-      } catch (error) {
-        return { result: undefined, error };
+  const outcomes: SignedRequestAttemptOutcome[] = [];
+  for (const attemptResolver of attemptResolvers) {
+    try {
+      // Sequential on purpose: stop after the key-id hinted secret verifies successfully.
+      // eslint-disable-next-line no-await-in-loop
+      const result = await attemptResolver();
+      outcomes.push({ result, error: undefined });
+
+      if (result.ok === true) {
+        // Key-id hint resolved a valid secret; don't verify every backup on the hot path.
+        if (keyIdHint !== undefined && keyIdHint.trim() !== '') break;
+      } else if (
+        keyIdHint !== undefined &&
+        keyIdHint.trim() !== '' &&
+        NON_SIGNATURE_FAILURE_CODES.has(result.code)
+      ) {
+        // These failures are independent of the secret; backups cannot succeed either.
+        break;
       }
-    })
-  );
+    } catch (error) {
+      outcomes.push({ result: undefined, error });
+    }
+  }
+
+  return outcomes;
 };
 
 const verifySignedRequest = async (params: {

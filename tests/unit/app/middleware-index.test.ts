@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+// authMiddleware verifies the bearer token against the configured JWT secret.
+process.env['JWT_SECRET'] = 'test-jwt-secret';
+
 const loggerInfo = vi.fn();
 const loggerError = vi.fn();
 
@@ -100,7 +103,15 @@ describe('app/Middleware/index.ts', () => {
     expect(resMissing.json).toHaveBeenCalledWith({ error: 'Unauthorized' });
     expect(nextMissing).not.toHaveBeenCalled();
 
-    const reqOk = createReq({ getHeader: vi.fn(() => 'token') });
+    // A real signed token is required now that authMiddleware verifies the JWT
+    // (an arbitrary `Authorization: token` header is rejected).
+    const { JwtManager } = await import('@security/JwtManager');
+    const { securityConfig } = await import('@config/security');
+    const jwt = JwtManager.create();
+    jwt.setHmacSecret(securityConfig.jwt.secret);
+    const token = jwt.sign({ sub: 'user-1' }, { algorithm: 'HS256' });
+
+    const reqOk = createReq({ getHeader: vi.fn(() => `Bearer ${token}`) });
     const resOk = createRes();
     const nextOk = vi.fn().mockResolvedValue(undefined);
 

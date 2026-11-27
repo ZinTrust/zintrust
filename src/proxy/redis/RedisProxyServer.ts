@@ -232,7 +232,12 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
         await client.quit();
       }
     } catch (error) {
-      return ErrorHandler.toProxyError(500, 'REDIS_PROXY_ERROR', String(error));
+      return ErrorHandler.toProxyServerError(
+        500,
+        'REDIS_PROXY_ERROR',
+        error,
+        'Internal server error'
+      );
     }
   },
   health: async (): Promise<ProxyResponse> => {
@@ -248,7 +253,7 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
       return { status: 200, body: { status: 'healthy' } };
     } catch (error) {
       Logger.warn('[RedisProxyServer] health check failed', error);
-      return { status: 503, body: { status: 'unhealthy', error: String(error) } };
+      return { status: 503, body: { status: 'unhealthy', error: 'Service unavailable' } };
     }
   },
 });

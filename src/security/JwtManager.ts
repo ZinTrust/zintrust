@@ -7,7 +7,14 @@
 import { SystemTraceBridge } from '@/trace/SystemTraceBridge';
 import { securityConfig } from '@config/security';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { createHmac, createSign, createVerify, randomBytes } from '@node-singletons/crypto';
+import {
+  createHash,
+  createHmac,
+  createSign,
+  createVerify,
+  randomBytes,
+  timingSafeEqual,
+} from '@node-singletons/crypto';
 import type { AuthorizationHeader } from '@security/JwtSessions';
 import { JwtSessions } from '@security/JwtSessions';
 
@@ -114,6 +121,8 @@ const signAccessToken = async (payload: JwtPayload, expiresIn?: number): Promise
   if (algorithm !== 'HS256' && algorithm !== 'HS512') {
     token = jwt.sign(payload, {
       algorithm,
+      // Non-HMAC tokens must expire too, otherwise a leaked token is valid forever.
+      expiresIn: expiresIn ?? securityConfig.jwt.expiresIn,
       issuer: securityConfig.jwt.issuer,
       audience: securityConfig.jwt.audience,
       jwtId: jwt.generateJwtId(),
@@ -283,9 +292,20 @@ function base64Decode(data: string): string {
 }
 
 /**
- * Timing safe string comparison
+ * Timing safe string comparison.
+ *
+ * Compare fixed-length SHA-256 digests so both the length and the matching
+ * prefix of the inputs stay hidden. Falls back to the original byte loop only
+ * on runtimes that do not expose node:crypto.
  */
 function timingSafeEquals(a: string, b: string): boolean {
+  if (typeof timingSafeEqual === 'function' && typeof createHash === 'function') {
+    const left = createHash('sha256').update(a, 'utf8').digest();
+    const right = createHash('sha256').update(b, 'utf8').digest();
+    return timingSafeEqual(left, right);
+  }
+
+  // Fallback for runtimes without node:crypto (no length/prefix leak avoidance).
   if (a.length !== b.length) {
     return false;
   }
@@ -406,7 +426,7 @@ function buildClaims(payload: JwtPayload, options: JwtOptions, now: number): Jwt
 }
 
 /**
- * Verify JWT claims (expiration, not before)
+ * Verify JWT claims (expiration, not before, issuer, audience)
  */
 function verifyClaims(payload: JwtPayload): void {
   const now = Math.floor(Date.now() / 1000);
@@ -417,5 +437,22 @@ function verifyClaims(payload: JwtPayload): void {
 
   if (payload.nbf !== undefined && payload.nbf !== null && payload.nbf > now) {
     throw ErrorFactory.createSecurityError('Token not yet valid');
+  }
+
+  // Reject tokens minted for a different issuer/audience that share the same
+  // signing secret (CWE-347). Tokens that omit these claims remain supported
+  // for backwards compatibility with legacy, unscoped tokens.
+  const expectedIssuer = securityConfig.jwt.issuer;
+  if (expectedIssuer !== '' && payload.iss !== undefined && payload.iss !== null) {
+    if (payload.iss !== expectedIssuer) {
+      throw ErrorFactory.createSecurityError(`Invalid issuer: expected ${expectedIssuer}`);
+    }
+  }
+
+  const expectedAudience = securityConfig.jwt.audience;
+  if (expectedAudience !== '' && payload.aud !== undefined && payload.aud !== null) {
+    if (payload.aud !== expectedAudience) {
+      throw ErrorFactory.createSecurityError(`Invalid audience: expected ${expectedAudience}`);
+    }
   }
 }

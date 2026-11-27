@@ -71,7 +71,7 @@ const parseUrlEncodedParams = (text: string): Record<string, unknown> => {
   const result: Record<string, unknown> = {};
 
   for (const [key, value] of params.entries()) {
-    if (Object.prototype.hasOwnProperty.call(result, key)) {
+    if (Object.hasOwn(result, key)) {
       const existing = result[key];
       if (Array.isArray(existing)) {
         existing.push(value);

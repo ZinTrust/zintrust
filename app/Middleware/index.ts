@@ -4,11 +4,13 @@
  */
 
 import { Logger } from '@config/logger';
+import { securityConfig } from '@config/security';
 import { formatHttpRequestLog } from '@http/HttpStatus';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';
 import type { IJwtManager, JwtAlgorithm, JwtManagerType } from '@security/JwtManager';
+import { JwtManager } from '@security/JwtManager';
 import { JwtSessions } from '@security/JwtSessions';
 import { XssProtection } from '@security/XssProtection';
 import type { ISchema, SchemaType } from '@validation/Validator';
@@ -29,17 +31,49 @@ const resolveSchema = (schema: ValidationSchema): ISchema =>
   'getRules' in schema ? schema : schema.create();
 
 /**
- * Authentication Middleware
- * Verify user is authenticated
+ * Authentication Middleware (framework JWT).
+ *
+ * This verifies the Bearer token signature and requires an active session. It is NOT a
+ * presence-only check: `Authorization: anything` is rejected. Routes that use a different
+ * auth scheme should use that scheme's verifier instead.
  */
 export const authMiddleware = async (
   req: IRequest,
   res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
-  const token = req.getHeader('authorization');
+  const header = req.getHeader('authorization');
+  const raw = Array.isArray(header) ? header[0] : header;
+  const authorizationHeader = typeof raw === 'string' ? raw.trim() : '';
 
-  if (token === undefined || token === '') {
+  if (authorizationHeader === '') {
+    res.setStatus(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const [scheme, ...rest] = authorizationHeader.split(/\s+/);
+  const token = rest.join(' ').trim();
+  if (scheme?.toLowerCase() !== 'bearer' || token === '') {
+    res.setStatus(401).json({ error: 'Invalid authorization header format' });
+    return;
+  }
+
+  try {
+    const algorithm = securityConfig.jwt.algorithm;
+    const jwt: IJwtManager = JwtManager.create();
+    if (algorithm === 'HS256' || algorithm === 'HS512') {
+      jwt.setHmacSecret(securityConfig.jwt.secret);
+    }
+
+    jwt.verify(token, algorithm);
+    if (!(await JwtSessions.isActive(token))) {
+      res.setStatus(401).json({ error: 'Unauthorized' });
+      return;
+    }
+  } catch (error) {
+    Logger.debug('authMiddleware JWT verification failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.setStatus(401).json({ error: 'Unauthorized' });
     return;
   }

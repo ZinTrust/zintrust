@@ -71,7 +71,7 @@ const queuePayload = <T extends Record<string, unknown>>(extra: T): T & { db?: n
 };
 
 const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
-  Object.prototype.hasOwnProperty.call(value, key);
+  Object.hasOwn(value, key);
 
 const isPullJobId = (value: unknown): value is string | number =>
   (typeof value === 'string' && value.trim() !== '') ||

@@ -59,6 +59,21 @@ const shouldHideStackFromResponse = (error: unknown): boolean => {
   );
 };
 
+const isProductionEnv = (): boolean => {
+  try {
+    return String(Env.NODE_ENV ?? '').trim().toLowerCase() === 'production';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Stack traces are hidden by default. Opt in explicitly with DEV_ERROR_PAGES=true,
+ * and never enable them in production.
+ */
+const shouldIncludeStackInResponse = (error: unknown): boolean =>
+  !isProductionEnv() && Env.getBool('DEV_ERROR_PAGES', false) && !shouldHideStackFromResponse(error);
+
 export const ErrorHandlerMiddleware = Object.freeze({
   create(options: ErrorHandlerOptions = {}): Middleware {
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
@@ -70,7 +85,7 @@ export const ErrorHandlerMiddleware = Object.freeze({
 
         const requestId =
           RequestContext.get(req)?.requestId ?? (req.context['requestId'] as string);
-        const includeStack = Env.NODE_ENV !== 'production' && !shouldHideStackFromResponse(error);
+        const includeStack = shouldIncludeStackInResponse(error);
 
         if (!isWritableEnded(res)) {
           const errorMode = Env.get('ERROR_MODE', 'html');

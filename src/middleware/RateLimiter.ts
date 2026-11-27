@@ -41,6 +41,12 @@ interface ClientState {
   resetTime: number;
 }
 
+const MAX_MEMORY_ENTRIES = Math.max(1, Env.getInt('RATE_LIMIT_MAX_ENTRIES', 10_000));
+const MEMORY_CLEANUP_INTERVAL_MS = Math.max(
+  1_000,
+  Math.min(Env.getInt('RATE_LIMIT_CLEANUP_INTERVAL_MS', 10_000), 60_000)
+);
+
 type RateLimitStore = Readonly<{
   get: (key: string) => Promise<ClientState | null>;
   set: (key: string, value: ClientState, ttlSeconds: number) => Promise<void>;
@@ -49,14 +55,22 @@ type RateLimitStore = Readonly<{
 
 const createMemoryStore = (): RateLimitStore => {
   const entries = new Map<string, ClientState>();
-  let nextCleanupAt = Date.now() + 60_000;
+  let nextCleanupAt = Date.now() + MEMORY_CLEANUP_INTERVAL_MS;
 
   const cleanupExpired = (now: number): void => {
     if (now < nextCleanupAt) return;
     for (const [k, state] of entries.entries()) {
       if (now > state.resetTime) entries.delete(k);
     }
-    nextCleanupAt = now + 60_000;
+    nextCleanupAt = now + MEMORY_CLEANUP_INTERVAL_MS;
+  };
+
+  const evictOldestIfNeeded = (key: string): void => {
+    if (entries.has(key) || entries.size < MAX_MEMORY_ENTRIES) return;
+    for (const oldestKey of entries.keys()) {
+      entries.delete(oldestKey);
+      if (entries.size < MAX_MEMORY_ENTRIES) break;
+    }
   };
 
   return Object.freeze({
@@ -76,6 +90,7 @@ const createMemoryStore = (): RateLimitStore => {
       await Promise.resolve();
       const now = Date.now();
       cleanupExpired(now);
+      evictOldestIfNeeded(key);
       entries.set(key, { ...value });
     },
     async delete(key: string): Promise<void> {
@@ -101,7 +116,7 @@ const createCacheStore = (storeName: string): RateLimitStore => {
 };
 
 const normalizeStoreName = (name: unknown): RateLimitStoreName => {
-  const raw = String(name ?? '')
+  const raw = (typeof name === 'string' ? name : '')
     .trim()
     .toLowerCase();
   if (raw === 'redis') return 'redis';
@@ -179,24 +194,116 @@ const resolveRemoteAddressFromRaw = (raw: unknown): string | undefined => {
   );
 };
 
+type TrustedProxyConfig = Readonly<{ trustAll: boolean; proxies: ReadonlySet<string> }>;
+let cachedTrustConfig: TrustedProxyConfig & { cacheKey: string } | undefined;
+
+const normalizeIp = (value: string): string => {
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.startsWith('::ffff:') ? trimmed.slice(7) : trimmed;
+};
+
+/**
+ * X-Forwarded-For is only consulted when the direct peer is an explicitly trusted proxy.
+ * TRUST_PROXY=true trusts any peer (operator opt-in); TRUSTED_PROXIES is an IP allowlist.
+ */
+const getTrustedProxyConfig = (): TrustedProxyConfig => {
+  const trustProxyRaw = Env.get('TRUST_PROXY', '');
+  const trustedProxiesRaw = Env.get('TRUSTED_PROXIES', '');
+  const cacheKey = `${trustProxyRaw}\u0000${trustedProxiesRaw}`;
+  if (cachedTrustConfig?.cacheKey === cacheKey) return cachedTrustConfig;
+
+  const trustProxy = trustProxyRaw.trim().toLowerCase();
+  const trustAll = trustProxy === 'true' || trustProxy === '1' || trustProxy === 'all';
+  const proxies = new Set(
+    trustedProxiesRaw
+      .split(',')
+      .map((entry) => normalizeIp(entry))
+      .filter((entry) => entry !== '')
+  );
+
+  cachedTrustConfig = Object.freeze({ cacheKey, trustAll, proxies });
+  return cachedTrustConfig;
+};
+
+const isTrustedPeer = (peer: string | undefined, config: TrustedProxyConfig): boolean => {
+  if (config.trustAll) return true;
+  if (peer === undefined) return false;
+  return config.proxies.has(normalizeIp(peer));
+};
+
+const resolveClientKey = (req: IRequest): string => {
+  const raw = req.getRaw() as unknown;
+  const rawIp = resolveRemoteAddressFromRaw(raw);
+  const config = getTrustedProxyConfig();
+
+  if (isTrustedPeer(rawIp, config)) {
+    const forwardedFor = req.getHeader('x-forwarded-for');
+    if (typeof forwardedFor === 'string' && forwardedFor.trim() !== '') {
+      const hops = forwardedFor
+        .split(',')
+        .map((hop) => normalizeIp(hop))
+        .filter((hop) => hop !== '');
+
+      // Take the right-most untrusted hop so a client cannot inject a fresh identity.
+      for (let index = hops.length - 1; index >= 0; index--) {
+        const hop = hops[index];
+        if (hop !== undefined && !config.proxies.has(hop)) return hop;
+      }
+      if (hops.length > 0) return hops[0] ?? 'unknown';
+    }
+  }
+
+  return rawIp ?? 'unknown';
+};
+
 const DEFAULT_OPTIONS: RateLimitOptions = {
   windowMs: 60 * 1000, // 1 minute
   maxRequests: 100, // 100 requests per minute
   message: 'Too many requests, please try again later.',
   statusCode: 429,
   headers: true,
-  keyGenerator: (req: IRequest) => {
-    const forwardedFor = req.getHeader('x-forwarded-for');
-    const forwardedForIp =
-      typeof forwardedFor === 'string' && forwardedFor.length > 0
-        ? forwardedFor.split(',')[0]?.trim()
-        : undefined;
+  keyGenerator: resolveClientKey,
+};
 
-    const raw = req.getRaw() as unknown;
-    const rawIp = resolveRemoteAddressFromRaw(raw);
+type ClientRegistry = Readonly<{
+  cleanupExpiredClients: (now: number) => void;
+  getOrInitClient: (key: string, now: number) => ClientState;
+}>;
 
-    return forwardedForIp ?? rawIp ?? 'unknown';
-  },
+const createClientRegistry = (windowMs: number): ClientRegistry => {
+  const clients = new Map<string, ClientState>();
+
+  // Cleanup to prevent unbounded growth, done lazily to avoid timers in serverless runtimes.
+  const cleanupIntervalMs = Math.min(windowMs, MEMORY_CLEANUP_INTERVAL_MS);
+  let nextCleanupAt = Date.now() + cleanupIntervalMs;
+
+  const cleanupExpiredClients = (now: number): void => {
+    if (now < nextCleanupAt) return;
+    for (const [k, state] of clients.entries()) {
+      if (now > state.resetTime) clients.delete(k);
+    }
+    nextCleanupAt = now + cleanupIntervalMs;
+  };
+
+  const evictOldestIfNeeded = (key: string): void => {
+    if (clients.has(key) || clients.size < MAX_MEMORY_ENTRIES) return;
+    for (const oldestKey of clients.keys()) {
+      clients.delete(oldestKey);
+      if (clients.size < MAX_MEMORY_ENTRIES) break;
+    }
+  };
+
+  const getOrInitClient = (key: string, now: number): ClientState => {
+    let client = clients.get(key);
+    if (!client || now > client.resetTime) {
+      client = { count: 0, resetTime: now + windowMs };
+      evictOldestIfNeeded(key);
+      clients.set(key, client);
+    }
+    return client;
+  };
+
+  return Object.freeze({ cleanupExpiredClients, getOrInitClient });
 };
 
 export const RateLimiter = Object.freeze({
@@ -267,29 +374,7 @@ export const RateLimiter = Object.freeze({
     const useMemoryInstanceStore = storeName === 'memory';
 
     // Middleware store is per-instance (matches prior behavior).
-    const clients = new Map<string, ClientState>();
-
-    // Cleanup to prevent unbounded growth.
-    // Done lazily (on requests) to avoid background timers in serverless/test environments.
-    let nextCleanupAt = Date.now() + config.windowMs;
-    const cleanupExpiredClients = (now: number): void => {
-      if (now < nextCleanupAt) return;
-      for (const [k, state] of clients.entries()) {
-        if (now > state.resetTime) {
-          clients.delete(k);
-        }
-      }
-      nextCleanupAt = now + config.windowMs;
-    };
-
-    const getOrInitClient = (key: string, now: number): ClientState => {
-      let client = clients.get(key);
-      if (!client || now > client.resetTime) {
-        client = { count: 0, resetTime: now + config.windowMs };
-        clients.set(key, client);
-      }
-      return client;
-    };
+    const { cleanupExpiredClients, getOrInitClient } = createClientRegistry(config.windowMs);
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
       const key = config.keyGenerator ? config.keyGenerator(req) : 'unknown';

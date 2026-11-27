@@ -226,12 +226,24 @@ describe('branch coverage: BulletproofAuthMiddleware branches', () => {
     expect(result.next).toHaveBeenCalledOnce();
   });
 
-  it('deduplicates repeated backup signing secrets', async () => {
+  it('short-circuits on the key-id hint and deduplicates repeated backup secrets', async () => {
     mocks.envGet.mockImplementation((key: string) =>
       key === 'BULLETPROOF_SIGNING_SECRET_BK' ? 'backup,backup' : ''
     );
     const result = await run(baseHeaders);
     expect(result.next).toHaveBeenCalledOnce();
+    // A successful key-id hinted attempt avoids trying any backups.
+    expect(mocks.signedVerify).toHaveBeenCalledTimes(1);
+
+    // When the primary fails on signature, only the single deduplicated backup is tried.
+    vi.clearAllMocks();
+    mocks.signedVerify.mockResolvedValueOnce({
+      ok: false,
+      code: 'INVALID_SIGNATURE',
+      message: 'invalid signature',
+    });
+    const withBackup = await run(baseHeaders);
+    expect(withBackup.next).toHaveBeenCalledOnce();
     expect(mocks.signedVerify).toHaveBeenCalledTimes(2);
   });
 

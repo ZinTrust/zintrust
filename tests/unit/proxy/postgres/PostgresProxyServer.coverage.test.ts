@@ -28,7 +28,13 @@ vi.mock('@proxy/SqlProxyServerDeps', () => {
   return {
     Env,
     Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-    ErrorHandler: { toProxyError },
+    ErrorHandler: {
+      toProxyError,
+      toProxyServerError: vi.fn((status, code, _error, message) => ({
+        status,
+        body: { code, message },
+      })),
+    },
     resolveBaseConfig: () => ({ host: '127.0.0.1', port: 1, maxBodyBytes: 1_000_000 }),
     resolveBaseSigningConfig: () => ({
       keyId: 'kid',

@@ -175,12 +175,17 @@ function handleRequest(
   logger?: AdapterConfig['logger']
 ): void {
   const chunks: Buffer[] = [];
+  const maxSize = config.maxBodySize ?? 10 * 1024 * 1024;
+  let totalBytes = 0;
+  let rejected = false;
   let body: Buffer | null = null;
 
-  // Collect request body
+  // Collect request body, tracking the accumulated byte count (not chunk count).
   req.on('data', (chunk: Buffer) => {
-    const maxSize = config.maxBodySize ?? 10 * 1024 * 1024;
-    if (chunks.length * chunk.length > maxSize) {
+    if (rejected) return;
+    totalBytes += chunk.length;
+    if (totalBytes > maxSize) {
+      rejected = true;
       res.writeHead(413, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Payload Too Large' }));
       req.socket.destroy();
@@ -190,6 +195,7 @@ function handleRequest(
   });
 
   req.on('end', async (): Promise<void> => {
+    if (rejected) return;
     try {
       body = chunks.length > 0 ? Buffer.concat(chunks) : null;
 

@@ -9,6 +9,12 @@ import { interpolate } from '@mail/template-utils';
 
 const looksLikeHtml = (value: string): boolean => /<\s*html\b|<!doctype\b|<\s*body\b/i.test(value);
 
+const formatLastError = (error: unknown): string => {
+  if (error instanceof Error) return `. Last error: ${error.message}`;
+  if (typeof error === 'string') return `. Last error: ${error}`;
+  return '';
+};
+
 const builtinTemplateLoaders = Object.freeze({
   'auth-password-reset': async () => import('./templates/auth-password-reset.js'),
   'auth-welcome': async () => import('./templates/auth-welcome.js'),
@@ -197,7 +203,7 @@ async function loadTemplateContent(templateName: string): Promise<string> {
   throw ErrorFactory.createConfigError(
     `Failed to load template from known paths: ${[...fileCandidates, ...moduleCandidates].join(
       ', '
-    )}` + (lastError === undefined ? '' : `. Last error: ${String(lastError)}`)
+    )}${formatLastError(lastError)}`
   );
 }
 
@@ -219,7 +225,7 @@ export async function loadTemplate(
       APP_NAME: Env.APP_NAME ?? 'ZinTrust',
       ...variables,
     };
-    let rendered = interpolate(template, mergedVars);
+    let rendered = interpolate(template, mergedVars, true);
 
     // Handle conditional blocks {{#if_condition}}...{{/if_condition}}
     rendered = renderConditionals(rendered, variables);
@@ -255,18 +261,11 @@ function renderLoops(template: string, variables: TemplateVariables): string {
     }
 
     return array
-      .map((item): string => {
-        let rendered = content;
-
-        if (typeof item === 'object' && item !== null) {
-          for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
-            const regex = new RegExp(`{{${key}}}`, 'g');
-            rendered = rendered.replaceAll(regex, String(value ?? ''));
-          }
-        }
-
-        return rendered;
-      })
+      .map((item): string =>
+        typeof item === 'object' && item !== null
+          ? interpolate(content, item as TemplateVariables, true)
+          : content
+      )
       .join('');
   });
 }

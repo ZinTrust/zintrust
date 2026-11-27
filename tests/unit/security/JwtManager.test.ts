@@ -104,20 +104,27 @@ describe('JwtManager', () => {
     );
   });
 
-  it('should handle custom claims (iss, aud, sub, jti)', () => {
-    const payload = { data: 'test' };
-    const options = {
-      issuer: 'my-app',
-      audience: 'my-users',
-      subject: 'user-1',
-      jwtId: 'unique-id',
-    };
+  it('should reject tokens whose issuer/audience do not match configuration', () => {
+    const token = jwtManager.sign(
+      { data: 'test' },
+      {
+        issuer: 'my-app',
+        audience: 'my-users',
+        subject: 'user-1',
+        jwtId: 'unique-id',
+      }
+    );
 
-    const token = jwtManager.sign(payload, options);
+    expect(() => jwtManager.verify(token)).toThrow(/Invalid (issuer|audience)/);
+  });
+
+  it('should handle custom sub and jti claims', () => {
+    const token = jwtManager.sign(
+      { data: 'test' },
+      { subject: 'user-1', jwtId: 'unique-id' }
+    );
     const decoded = jwtManager.verify(token);
 
-    expect(decoded.iss).toBe('my-app');
-    expect(decoded.aud).toBe('my-users');
     expect(decoded.sub).toBe('user-1');
     expect(decoded.jti).toBe('unique-id');
   });

@@ -154,7 +154,7 @@ function createSessionApi(
   maxSessions: number
 ): ISession {
   const withoutKey = (data: SessionData, key: string): SessionData => {
-    if (!Object.prototype.hasOwnProperty.call(data, key)) return data;
+    if (!Object.hasOwn(data, key)) return data;
     const record = data as Record<string, unknown>;
     const { [key]: _removed, ...rest } = record;
     return rest;
@@ -189,7 +189,7 @@ function createSessionApi(
     },
 
     has(key: string): boolean {
-      return Object.prototype.hasOwnProperty.call(ensureStored().data, key);
+      return Object.hasOwn(ensureStored().data, key);
     },
 
     forget(key: string): void {
@@ -211,6 +211,12 @@ function createSessionApi(
 }
 
 export const SessionManager = Object.freeze({
+  /**
+   * Create a session manager. The expiry sweep timer is unref'd (Node) so it never keeps a
+   * process alive, but every manager still owns its timer and session Map: call `dispose()`
+   * when a per-tenant/per-request manager is no longer needed. The application-wide singleton
+   * is disposed during shutdown by the framework.
+   */
   create(options: SessionManagerOptions = {}): ISessionManager {
     const config = { ...DEFAULT_OPTIONS, ...options };
     const sessions = new Map<string, StoredSession>();

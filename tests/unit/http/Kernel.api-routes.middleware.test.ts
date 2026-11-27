@@ -31,6 +31,9 @@ describe('Kernel + routes/api.ts middleware wiring', () => {
     const jwt = JwtManager.create();
     jwt.setHmacSecret(jwtSecret);
     const token = jwt.sign({ sub: '123' }, { algorithm: 'HS256' });
+    // Register the session so the real `auth` middleware passes and the
+    // BulletproofAuthMiddleware is the one that rejects this request.
+    await JwtSessions.register(token);
 
     const r = await env.request({
       method: 'GET',

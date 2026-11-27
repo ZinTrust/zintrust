@@ -4,7 +4,21 @@ import { randomBytes } from '@node-singletons/crypto';
 
 export const generateUuid = (): string => {
   if (typeof globalThis?.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; // NOSONAR
+  if (typeof globalThis?.crypto?.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    return bytesToHex(bytes);
+  }
+
+  // Node / nodejs_compat fallback: use a CSPRNG, never Math.random (CWE-338).
+  try {
+    return randomBytes(16).toString('hex');
+  } catch (error) {
+    throw ErrorFactory.createTryCatchError(
+      'Secure crypto API not available to generate a UUID.',
+      error
+    );
+  }
 };
 
 export function generateSecureJobId(
@@ -44,7 +58,16 @@ export function isEmpty(value: unknown): boolean {
 }
 
 export function toStr(value: unknown): string {
-  return String(value ?? '');
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value) ?? '';
+  } catch {
+    return '';
+  }
 }
 
 export function stripSpaces(value: unknown): string {

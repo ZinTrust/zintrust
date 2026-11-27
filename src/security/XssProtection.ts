@@ -34,6 +34,111 @@ const escapeHtml = (text: string): string => {
  */
 const MAX_SANITIZE_LOOPS = 50;
 
+// Hoisted module constants: avoid recompiling these on every attribute/URL.
+const URL_SCHEME_PATTERN = /^([a-z][a-z0-9+.-]*):/i;
+const ALLOWED_URL_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
+const ALLOWED_DATA_IMAGE_PREFIXES = [
+  'data:image/png',
+  'data:image/jpeg',
+  'data:image/jpg',
+  'data:image/gif',
+  'data:image/webp',
+  'data:image/avif',
+] as const;
+
+/**
+ * Tags that may survive as markup. Any other element is escaped to inert text
+ * instead of being trusted — a blacklist alone is bypassable via mutation XSS
+ * and namespace confusion (CWE-79).
+ */
+const ALLOWED_HTML_TAGS = new Set([
+  'a',
+  'abbr',
+  'article',
+  'aside',
+  'b',
+  'bdi',
+  'bdo',
+  'blockquote',
+  'br',
+  'caption',
+  'cite',
+  'code',
+  'col',
+  'colgroup',
+  'dd',
+  'del',
+  'details',
+  'div',
+  'dl',
+  'dt',
+  'em',
+  'figcaption',
+  'figure',
+  'footer',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'header',
+  'hgroup',
+  'hr',
+  'i',
+  'img',
+  'ins',
+  'kbd',
+  'li',
+  'main',
+  'mark',
+  'nav',
+  'ol',
+  'p',
+  'pre',
+  'q',
+  'rp',
+  'rt',
+  'ruby',
+  's',
+  'samp',
+  'section',
+  'small',
+  'span',
+  'strong',
+  'sub',
+  'summary',
+  'sup',
+  'table',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'time',
+  'tr',
+  'u',
+  'ul',
+  'var',
+  'wbr',
+]);
+const HTML_TAG_PATTERN = /<\/?([a-z][a-z0-9-]*)\b[^>]*>/gi;
+const NAMESPACE_ELEMENT_PATTERN = /<(svg|math|template)\b[\s\S]*?<\/\1\s*>/gi;
+const NAMESPACE_OPEN_TAG_PATTERN = /<(svg|math|template)\b[^>]*>/gi;
+
+/** Remove foreign-namespace elements wholesale — a common mXSS vector. */
+const removeNamespaceElements = (input: string): string => {
+  const withoutBlocks = input.replaceAll(NAMESPACE_ELEMENT_PATTERN, '');
+  return withoutBlocks.replaceAll(NAMESPACE_OPEN_TAG_PATTERN, '');
+};
+
+/** Escape tags that are not explicitly allowed, leaving text content intact. */
+const escapeDisallowedTags = (input: string): string => {
+  return input.replaceAll(HTML_TAG_PATTERN, (match: string, tagName: string): string => {
+    return ALLOWED_HTML_TAGS.has(tagName.toLowerCase()) ? match : escapeHtml(match);
+  });
+};
+
 function removeScripts(input: string): string {
   // Remove script tags and content (loop until stable to avoid incomplete multi-character sanitization)
   let sanitized = input;
@@ -44,7 +149,8 @@ function removeScripts(input: string): string {
     prevSanitized = sanitized;
     sanitized = sanitized.replaceAll(/<script\b[\s\S]*?<\/script[^<]*?>/gi, '');
     loopCount++;
-  } while (sanitized !== prevSanitized && loopCount < MAX_SANITIZE_LOOPS);
+    if (sanitized === prevSanitized) break; // Nothing left to remove.
+  } while (loopCount < MAX_SANITIZE_LOOPS);
 
   if (loopCount >= MAX_SANITIZE_LOOPS) {
     Logger.warn('[XSS] Sanitization loop limit reached (script removal)');
@@ -72,7 +178,8 @@ function removeEventHandlers(input: string): string {
     prevSanitized = sanitized;
     sanitized = sanitized.replaceAll(/\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[^\s>]*)/gi, '');
     loopCount++;
-  } while (sanitized !== prevSanitized && loopCount < MAX_SANITIZE_LOOPS);
+    if (sanitized === prevSanitized) break; // Nothing left to remove.
+  } while (loopCount < MAX_SANITIZE_LOOPS);
 
   if (loopCount >= MAX_SANITIZE_LOOPS) {
     Logger.warn('[XSS] Sanitization loop limit reached (event handler removal)');
@@ -112,16 +219,7 @@ function stripDangerousUrlAttributes(input: string): string {
 
       // Allow-list a narrow set of data:image/* URLs for common raster formats.
       if (protocolCheck.startsWith('data:')) {
-        const allowedDataImagePrefixes = [
-          'data:image/png',
-          'data:image/jpeg',
-          'data:image/jpg',
-          'data:image/gif',
-          'data:image/webp',
-          'data:image/avif',
-        ];
-
-        if (allowedDataImagePrefixes.some((p) => protocolCheck.startsWith(p))) {
+        if (ALLOWED_DATA_IMAGE_PREFIXES.some((p) => protocolCheck.startsWith(p))) {
           return match;
         }
         return '';
@@ -133,11 +231,10 @@ function stripDangerousUrlAttributes(input: string): string {
       }
 
       // If a scheme is present, allowlist it.
-      const schemeMatch = new RegExp(/^([a-z][a-z0-9+.-]*):/i).exec(protocolCheck);
+      const schemeMatch = URL_SCHEME_PATTERN.exec(protocolCheck);
       if (schemeMatch) {
         const scheme = schemeMatch[1].toLowerCase();
-        const allowedSchemes = new Set(['http', 'https', 'mailto', 'tel']);
-        if (!allowedSchemes.has(scheme)) {
+        if (!ALLOWED_URL_SCHEMES.has(scheme)) {
           return '';
         }
       }
@@ -158,7 +255,8 @@ function removeStyles(input: string): string {
     prevSanitized = sanitized;
     sanitized = sanitized.replaceAll(/<style\b[\s\S]*?<\/style>/gi, '');
     loopCount++;
-  } while (sanitized !== prevSanitized && loopCount < MAX_SANITIZE_LOOPS);
+    if (sanitized === prevSanitized) break; // Nothing left to remove.
+  } while (loopCount < MAX_SANITIZE_LOOPS);
 
   if (loopCount >= MAX_SANITIZE_LOOPS) {
     Logger.warn('[XSS] Sanitization loop limit reached (style removal)');
@@ -181,6 +279,10 @@ function sanitizeHtml(html: string): string {
 
   sanitized = removeDangerousTags(sanitized);
 
+  // Foreign-namespace elements (svg/math/template) are a common mutation-XSS vector.
+  sanitized = removeNamespaceElements(sanitized);
+  if (!sanitized) return '';
+
   sanitized = removeEventHandlers(sanitized);
   if (!sanitized) return '';
 
@@ -194,6 +296,10 @@ function sanitizeHtml(html: string): string {
 
   // Remove object and embed tags
   sanitized = sanitized.replaceAll(/<(?:object|embed|applet|meta|link|base)\b[\s\S]*?>/gi, '');
+
+  // Final allowlist pass: escape any element tag we did not explicitly permit.
+  // Text content is preserved, but a non-allowlisted tag can no longer become markup.
+  sanitized = escapeDisallowedTags(sanitized);
 
   return sanitized.trim();
 }
@@ -298,16 +404,7 @@ const encodeHref = (href: string): string => {
   // Explicitly block common dangerous protocols (including obfuscated versions).
   // Allow-list a narrow set of data:image/* URLs for common raster formats.
   if (protocolCheck.startsWith('data:')) {
-    const allowedDataImagePrefixes = [
-      'data:image/png',
-      'data:image/jpeg',
-      'data:image/jpg',
-      'data:image/gif',
-      'data:image/webp',
-      'data:image/avif',
-    ];
-
-    if (allowedDataImagePrefixes.some((p) => protocolCheck.startsWith(p))) {
+    if (ALLOWED_DATA_IMAGE_PREFIXES.some((p) => protocolCheck.startsWith(p))) {
       return escapeHtml(href);
     }
     return '';
@@ -319,11 +416,10 @@ const encodeHref = (href: string): string => {
   }
 
   // If a scheme is present, allowlist it.
-  const schemeMatch = new RegExp(/^([a-z][a-z0-9+.-]*):/i).exec(protocolCheck);
+  const schemeMatch = URL_SCHEME_PATTERN.exec(protocolCheck);
   if (schemeMatch) {
     const scheme = schemeMatch[1].toLowerCase();
-    const allowedSchemes = new Set(['http', 'https', 'mailto', 'tel']);
-    if (!allowedSchemes.has(scheme)) {
+    if (!ALLOWED_URL_SCHEMES.has(scheme)) {
       return '';
     }
   }

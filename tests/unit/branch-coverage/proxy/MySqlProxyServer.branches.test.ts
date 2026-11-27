@@ -45,7 +45,13 @@ vi.mock('@proxy/SqlProxyServerDeps', () => {
       },
     },
     Logger: H.logger,
-    ErrorHandler: { toProxyError },
+    ErrorHandler: {
+      toProxyError,
+      toProxyServerError: vi.fn((status, code, _error, message) => ({
+        status,
+        body: { code, message },
+      })),
+    },
     resolveBaseConfig: (overrides: any) => ({
       ...H.baseConfig,
       ...(overrides?.host === undefined ? {} : { host: overrides.host }),

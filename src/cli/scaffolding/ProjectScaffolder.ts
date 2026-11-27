@@ -67,6 +67,7 @@ interface ScaffolderState {
   templateName: string;
 }
 
+// NOSONAR(S4036): fixed, system-owned directories only; never derived from user input.
 const SAFE_PATH = '/usr/local/bin:/usr/bin:/bin';
 const NPM_VIEW_TIMEOUT_MS = 1500;
 const publishedVersionCache = new Map<string, string | undefined>();
@@ -110,10 +111,9 @@ const loadPublishedNpmVersion = (packageName: string): string | undefined => {
   if (publishedVersionCache.has(packageName)) {
     return publishedVersionCache.get(packageName);
   }
-
   try {
     const raw = execFileSync(
-      'npm',
+      'npm', // NOSONAR(S4036): fixed, system-owned directories only; never derived from user input.
       ['view', packageName, 'version', '--json', '--loglevel=silent'],
       {
         encoding: 'utf8',
@@ -343,7 +343,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
         HOST: 'localhost',
         PORT: String(Number(variables['port'] ?? 7777)),
         LOG_LEVEL: 'debug',
-        CSRF_SKIP_PATHS: '/api/*,/queue-monitor/*,/api/_sys/queue/*,/api/_sys/schedule/*',
+        CSRF_SKIP_PATHS: '/queue-monitor/*',
       });
       return true;
     }

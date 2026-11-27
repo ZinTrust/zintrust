@@ -216,8 +216,11 @@ describe('patch coverage: JwtSessions', () => {
     expect(JwtSessions.getDriver()).toBe('memory');
   });
 
-  it('memory driver: expired registrations should not bloat logoutAll work', async () => {
+  it('memory driver: expired registrations are pruned once the cleanup gate elapses', async () => {
     vi.resetModules();
+    vi.useFakeTimers();
+    const now = Date.now();
+    vi.setSystemTime(now);
 
     mockEnvModule();
     mockWorkersModule();
@@ -228,7 +231,6 @@ describe('patch coverage: JwtSessions', () => {
       },
     }));
 
-    const now = Date.now();
     vi.doMock('@security/JwtManager', () => ({
       JwtManager: {
         create: () => ({
@@ -242,7 +244,7 @@ describe('patch coverage: JwtSessions', () => {
             }
 
             return {
-              exp: Math.floor((now + 60_000) / 1000),
+              exp: Math.floor((now + 600_000) / 1000),
               jti: token,
               sub: 'u-exp',
             };
@@ -265,13 +267,15 @@ describe('patch coverage: JwtSessions', () => {
     const { JwtSessions } = await import('@/security/JwtSessions');
     JwtSessions._resetForTests();
 
-    // Register many expired tokens first. Each new register triggers cleanup of prior entries.
+    // Sweeps are time-gated to once per minute, so expired entries are retained
+    // until the gate elapses.
     for (let i = 0; i < 200; i++) {
       // eslint-disable-next-line no-await-in-loop
       await JwtSessions.register(`expired:${i}`);
     }
 
-    // Register one active token to force a final cleanup pass.
+    // Advance past the cleanup gate and register an active token to trigger a sweep.
+    vi.setSystemTime(now + 61_000);
     await JwtSessions.register('active:1');
     expect(await JwtSessions.isActive('active:1')).toBe(true);
 
@@ -288,6 +292,8 @@ describe('patch coverage: JwtSessions', () => {
     } finally {
       Map.prototype.delete = originalDelete;
     }
+
+    vi.useRealTimers();
 
     // Should be small; allow some slack for internal map operations.
     expect(deleteCalls).toBeLessThan(50);

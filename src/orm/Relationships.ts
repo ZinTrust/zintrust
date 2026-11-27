@@ -1,6 +1,11 @@
 /**
  * Relationship Types
  * Define how models relate to each other
+ *
+ * Performance note: every lazy `relation.get()` issues its own query. Accessing a relation in a
+ * loop over N models is the classic N+1 pattern. For collections prefer `Model.query().with('rel')`
+ * (or `QueryBuilder.with()/load()`), which batches the related rows into one `WHERE IN` query.
+ * The `get()` methods below remain for single-instance access and backwards compatibility.
  */
 
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -53,6 +58,13 @@ const getRelatedTableName = (relatedModel: ModelStatic): string => {
 
 const hasEmptyRelationValue = (value: unknown): boolean =>
   value === undefined || value === null || value === '';
+
+/** Morph-map keys are strings; only primitives are stringified so objects never become '[object Object]'. */
+const resolveMorphKey = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'bigint') return String(value);
+  return undefined;
+};
 
 const buildThroughQuery = (
   modelClass: ModelStatic,
@@ -152,6 +164,7 @@ export const HasMany = Object.freeze({
       related: relatedModel,
       foreignKey,
       localKey,
+      // One query per call: use `with('relation')` when iterating over a collection.
       async get(instance: IModel): Promise<unknown[]> {
         const value = instance.getAttribute(localKey);
         if (value === undefined || value === null || value === '') return [];
@@ -175,6 +188,7 @@ export const BelongsTo = Object.freeze({
       related: relatedModel,
       foreignKey,
       localKey,
+      // One query per call: use `with('relation')` when iterating over a collection.
       async get(instance: IModel): Promise<unknown> {
         const value = instance.getAttribute(foreignKey);
         if (value === undefined || value === null || value === '') return null;
@@ -360,12 +374,13 @@ export const MorphTo = Object.freeze({
           return null;
         }
 
-        const relatedModel = morphMap[String(type)];
-        if (relatedModel === undefined) {
+        const morphKey = resolveMorphKey(type);
+        const relatedModel = morphKey === undefined ? undefined : morphMap[morphKey];
+        if (morphKey === undefined || relatedModel === undefined) {
           throw ErrorFactory.createConfigError(
-            `Unknown morph type: ${String(type)}. Available types: ${Object.keys(morphMap).join(
-              ', '
-            )}`
+            `Unknown morph type: ${morphKey ?? `non-primitive value (${typeof type})`}. Available types: ${Object.keys(
+              morphMap
+            ).join(', ')}`
           );
         }
 

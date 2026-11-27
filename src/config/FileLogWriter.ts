@@ -14,6 +14,12 @@ import * as path from '@node-singletons/path';
 const streamCache = new Map<string, fs.WriteStream>();
 const pendingWrites = new Map<string, string[]>();
 
+// Per-process guards so the per-line sync filesystem scans only happen occasionally.
+const MAINTENANCE_INTERVAL_MS = 60_000;
+let dirEnsuredFor: string | null = null;
+let nextCleanupAt = 0;
+let nextRotateAt = 0;
+
 const isWorkersRuntime = (): boolean => {
   const g = globalThis as { CF?: unknown; caches?: unknown; WebSocketPair?: unknown };
   return g.CF !== undefined || g.caches !== undefined || g.WebSocketPair !== undefined;
@@ -129,6 +135,15 @@ const cleanupOldLogs = (logsDir: string, keepDays: number): void => {
 
     safeUnlink(fullPath);
   }
+};
+
+/**
+ * Time-gated cleanup so a hot logging path does not rescan the logs directory on every line.
+ */
+const maybeCleanupOldLogs = (logsDir: string, now: number): void => {
+  if (now < nextCleanupAt) return;
+  cleanupOldLogs(logsDir, Env.LOG_ROTATION_DAYS);
+  nextCleanupAt = now + MAINTENANCE_INTERVAL_MS;
 };
 
 type CleanOnceOptions = {
@@ -325,18 +340,26 @@ export const FileLogWriter = Object.freeze({
     if (cwd === '') return false;
 
     const logsDir = path.join(cwd, 'logs');
-    ensureDirSafeBestEffort(logsDir);
+    if (dirEnsuredFor !== logsDir) {
+      ensureDirSafeBestEffort(logsDir);
+      dirEnsuredFor = logsDir;
+    }
 
-    const dateStr = getDateStr(new Date());
+    const now = Date.now();
+    const dateStr = getDateStr(new Date(now));
     const logFile = path.join(logsDir, `app-${dateStr}.log`);
 
-    rotateIfNeeded(logFile, Env.LOG_ROTATION_SIZE);
+    // Stat/rotation checks are relatively expensive; run them at most once per interval.
+    if (now >= nextRotateAt) {
+      rotateIfNeeded(logFile, Env.LOG_ROTATION_SIZE);
+      nextRotateAt = now + MAINTENANCE_INTERVAL_MS;
+    }
 
     // In test environments we sometimes mock @node-singletons/fs without stream APIs.
     // Fall back to synchronous append to avoid runtime crashes.
     if (!canUseWriteStreams()) {
       appendFileSafe(logFile, `${line}\n`);
-      cleanupOldLogs(logsDir, Env.LOG_ROTATION_DAYS);
+      maybeCleanupOldLogs(logsDir, now);
       return true;
     }
 
@@ -353,7 +376,7 @@ export const FileLogWriter = Object.freeze({
       return false;
     }
 
-    cleanupOldLogs(logsDir, Env.LOG_ROTATION_DAYS);
+    maybeCleanupOldLogs(logsDir, now);
     return true;
   },
 

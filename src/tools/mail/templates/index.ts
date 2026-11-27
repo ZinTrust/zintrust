@@ -14,14 +14,17 @@ export type MailTemplate = {
 
 export type MailTemplateRegistry = Record<string, unknown>;
 
-const renderString = (template: string, data: Record<string, unknown>): string => {
-  let out = template;
-  for (const [key, value] of Object.entries(data)) {
-    const replacement = value === null || value === undefined ? '' : String(value);
-    out = out.replaceAll(new RegExp(String.raw`{{\s*${key}\s*}}`, 'g'), replacement);
-  }
-  return out;
-};
+import { interpolate } from '@mail/template-utils';
+
+/**
+ * Render a string with one shared token regex. HTML callers pass `escapeValues = true` so
+ * user-controlled values cannot inject markup; the replacer function also avoids `$` semantics.
+ */
+const renderString = (
+  template: string,
+  data: Record<string, unknown>,
+  escapeValues = false
+): string => interpolate(template, data, escapeValues);
 
 export const MailTemplateRenderer = Object.freeze({
   renderString,
@@ -30,7 +33,8 @@ export const MailTemplateRenderer = Object.freeze({
     return {
       subject: renderString(template.subject, data),
       text: renderString(template.text, data),
-      html: typeof template.html === 'string' ? renderString(template.html, data) : undefined,
+      html:
+        typeof template.html === 'string' ? renderString(template.html, data, true) : undefined,
     };
   },
 });
@@ -94,18 +98,26 @@ export function listTemplates(): string[] {
  * Note: HTML templates don't have embedded metadata like markdown templates did.
  * This function returns the raw HTML content.
  */
+/** Templates are immutable once loaded; cache them so bulk mail never re-reads from disk. */
+const loadedTemplates = new Map<string, MarkdownTemplateMetadata>();
+
 export function loadTemplate(name: string): MarkdownTemplateMetadata {
+  const cached = loadedTemplates.get(name);
+  if (cached !== undefined) return cached;
+
   try {
     const templatesDir = join(process.cwd(), 'src/tools/mail/templates');
     const filePath = join(templatesDir, `${name}.html`);
     const content = readFileSync(filePath, 'utf8');
 
-    return {
+    const loaded: MarkdownTemplateMetadata = {
       subject: undefined,
       preheader: undefined,
       variables: undefined,
       content,
     };
+    loadedTemplates.set(name, loaded);
+    return loaded;
   } catch (error) {
     throw ErrorFactory.createTryCatchError(
       `Template "${name}" not found: ${(error as Error).message}`
@@ -122,15 +134,8 @@ export function renderTemplate(
   variables?: Record<string, unknown>
 ): MarkdownRenderResult {
   const template = loadTemplate(name);
-  let html = template.content;
-
-  // Simple variable interpolation
-  if (variables) {
-    for (const [key, value] of Object.entries(variables)) {
-      const regex = new RegExp(String.raw`{{\s*${key}\s*}}`, 'g');
-      html = html.replace(regex, String(value ?? ''));
-    }
-  }
+  // One shared token regex; values are escaped for the HTML context.
+  const html = variables ? renderString(template.content, variables, true) : template.content;
 
   return {
     html,

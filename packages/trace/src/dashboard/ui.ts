@@ -217,7 +217,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
         page = 'monitoring';
       } else {
         const queryPage = search.get('page');
-        if (queryPage && Object.prototype.hasOwnProperty.call(PAGE_COPY, queryPage)) {
+        if (queryPage && Object.hasOwn(PAGE_COPY, queryPage)) {
           page = queryPage;
         }
         const queryUuid = search.get('uuid') || search.get('entry');
@@ -1470,7 +1470,7 @@ const DASHBOARD_DOCUMENT = String.raw`<!DOCTYPE html>
       }
       if (action === 'detail-tab') {
         const tab = String(target.getAttribute('data-tab') || 'summary');
-        if (Object.prototype.hasOwnProperty.call(DETAIL_BATCH_SCOPE_BY_TAB, tab)) {
+        if (Object.hasOwn(DETAIL_BATCH_SCOPE_BY_TAB, tab)) {
           loadDetailBatchTab(tab, 1);
           return;
         }

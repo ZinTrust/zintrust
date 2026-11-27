@@ -25,7 +25,7 @@ export const shouldRetryAuthStoreInsertWithGeneratedId = (error: unknown): boole
 export const withGeneratedAuthStoreId = (
   payload: Record<string, unknown>
 ): Record<string, unknown> => {
-  if (Object.prototype.hasOwnProperty.call(payload, 'id')) {
+  if (Object.hasOwn(payload, 'id')) {
     return payload;
   }
 

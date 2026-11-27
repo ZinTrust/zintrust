@@ -79,7 +79,7 @@ export const BulletproofKeyGenerateCommand = Object.freeze({
           envContent = upsertEnvLine(envContent, ENV_KEY, key);
 
           await fs.writeFile(envPath, envContent);
-          Logger.info(`Bulletproof signing secret set successfully. [${key}]`);
+          Logger.info(`Bulletproof signing secret set successfully in ${envPath} (value hidden)`);
         } catch (error) {
           Logger.error('Failed to update .env file', error);
         }

@@ -5,6 +5,7 @@ import { Logger } from '@config/logger';
 import { securityConfig } from '@config/security';
 import { createRedisConnection } from '@config/workers';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { createHash } from '@node-singletons/crypto';
 import { useDatabase } from '@orm/Database';
 import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 import {
@@ -38,6 +39,11 @@ const DEFAULTS = {
 } as const;
 
 const defaultTtlMs = Math.max(securityConfig.jwt.expiresIn * 1000, 60_000);
+
+/** Full memory-store sweeps are capped to once per minute. */
+const CLEANUP_INTERVAL_MS = 60_000;
+/** Hard cap on in-memory revocation entries. */
+const MAX_MEMORY_ENTRIES = 50_000;
 
 const normalizeDriverName = (raw: unknown): TokenRevocationDriverName => {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -89,10 +95,29 @@ const resolveExpiryMs = (token: string): { expiresAtMs: number; sub?: string; jt
   }
 };
 
+/**
+ * Derive a fixed-size key from a token so raw bearer credentials are never
+ * retained in memory (CWE-312). Uses node:crypto when available; the fallback
+ * is a deterministic non-cryptographic digest for runtimes without it.
+ */
+const hashTokenKey = (token: string): string => {
+  if (typeof createHash === 'function') {
+    return createHash('sha256').update(token, 'utf8').digest('hex');
+  }
+
+  // Runtime without node:crypto: FNV-1a fallback (dev-only, best effort).
+  let hash = 2166136261;
+  for (let i = 0; i < token.length; i += 1) {
+    hash ^= token.codePointAt(i) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv:${(hash >>> 0).toString(16)}`;
+};
+
 const resolveKey = (token: string): RevocationKey => {
   const { expiresAtMs, sub, jti } = resolveExpiryMs(token);
   return {
-    id: jti ?? token,
+    id: jti ?? hashTokenKey(token),
     expiresAtMs,
     sub,
   };
@@ -120,9 +145,13 @@ const logWarnBestEffort = (message: string, meta: Record<string, unknown>): void
 
 const createMemoryStore = (): TokenRevocationStore => {
   const revoked = new Map<string, number>();
+  let nextCleanupAt = 0;
 
   const cleanupExpired = (): void => {
     const now = Date.now();
+    if (now < nextCleanupAt) return;
+    nextCleanupAt = now + CLEANUP_INTERVAL_MS;
+
     for (const [id, expiresAtMs] of revoked.entries()) {
       if (expiresAtMs <= now) revoked.delete(id);
     }
@@ -131,6 +160,10 @@ const createMemoryStore = (): TokenRevocationStore => {
   return {
     async revoke(key: RevocationKey): Promise<void> {
       cleanupExpired();
+      if (revoked.size >= MAX_MEMORY_ENTRIES && !revoked.has(key.id)) {
+        const oldest = revoked.keys().next();
+        if (oldest.done !== true) revoked.delete(oldest.value);
+      }
       revoked.set(key.id, key.expiresAtMs);
       await Promise.resolve();
     },
@@ -617,7 +650,7 @@ const kvRemoteIsRevokedViaProxy = async (
     key: `${ctx.keyPrefix}${id}`,
     type: 'text',
   });
-  return out.value !== null && out.value !== undefined && String(out.value).trim() !== '';
+  return typeof out.value === 'string' && out.value.trim() !== '';
 };
 
 const kvRemoteRevokeViaCloudflareApi = async (
@@ -783,7 +816,8 @@ export const TokenRevocation = Object.freeze({
   /**
    * Mark a token as revoked.
    *
-   * Storage is keyed by JWT `jti` when present; otherwise falls back to the raw token string.
+   * Storage is keyed by JWT `jti` when present; otherwise a SHA-256 digest of
+   * the token is used so the raw credential is never retained.
    */
   async revoke(header: AuthorizationHeader): Promise<string | null> {
     const token = getBearerToken(header);

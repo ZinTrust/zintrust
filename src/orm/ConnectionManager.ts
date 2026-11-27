@@ -298,6 +298,13 @@ const getHealthyExistingConnection = async (
     return conn;
   }
 
+  if (conn !== undefined && conn !== null) {
+    try {
+      await closeConnection(conn);
+    } catch (err) {
+      Logger.error(`Failed to close unhealthy connection ${id}:`, err as Error);
+    }
+  }
   state.connections.delete(id);
   state.connectionPool.delete(id); // O(1) instead of O(n) filter
   return null;

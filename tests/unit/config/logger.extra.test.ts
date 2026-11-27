@@ -124,7 +124,7 @@ describe('Logger additional branches', () => {
     expect(parsed.data['visible']).toBe('ok');
   });
 
-  it('updates SENSITIVE_FIELDS dynamically and ignores malformed entries', async () => {
+  it('re-reads SENSITIVE_FIELDS on a fresh module import and ignores malformed entries', async () => {
     setEnvValue('LOG_FORMAT', 'json');
     setEnvValue('SENSITIVE_FIELDS', 'custom_one, invalid key, ???');
 
@@ -136,9 +136,15 @@ describe('Logger additional branches', () => {
       'invalid key': 'visible-invalid',
     });
 
+    // The sensitive-field set is cached on first use; a fresh module instance
+    // is needed to observe a changed SENSITIVE_FIELDS configuration.
+    vi.resetModules();
+    resetEnvMock();
+    setEnvValue('LOG_FORMAT', 'json');
     setEnvValue('SENSITIVE_FIELDS', 'custom_two');
 
-    Logger.info('dynamic-redaction-2', {
+    const Logger2 = await loadLogger();
+    Logger2.info('dynamic-redaction-2', {
       custom_one: 'visible-b',
       custom_two: 'secret-b',
     });
@@ -256,6 +262,11 @@ describe('Logger additional branches', () => {
   });
 
   it('emitCloudLogs enqueues to Kv/Slack/Http based on level', async () => {
+    // Sink flags are cached on first use, so set them before loading the logger.
+    mockState.env.bools.set('KV_LOG_ENABLED', true);
+    mockState.env.bools.set('SLACK_LOG_ENABLED', true);
+    mockState.env.bools.set('HTTP_LOG_ENABLED', true);
+
     const Logger = await loadLogger();
 
     Logger.error('err-level', new Error('boom'));

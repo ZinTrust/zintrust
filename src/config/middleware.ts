@@ -472,7 +472,11 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
   const loadMiddlewareConfig: Partial<MiddlewaresType> =
     StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
 
+  // No /api/* exemption: state-changing API routes are CSRF-protected by default.
   const defaultCsrfSkipPaths = ['/broadcasting/auth', '/apps/*/events'];
+
+  // Ignore a broad /api/* exemption even when it comes from an inherited .env or project config.
+  const isBroadApiExemption = (path: string): boolean => /^\/api(?:\/\*+)?$/i.test(path.trim());
 
   const mergeCsrfSkipPaths = (...groups: ReadonlyArray<readonly string[]>): string[] => {
     const merged = new Set<string>();
@@ -492,10 +496,10 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
   const skipPathsFromEnv = Env.get('CSRF_SKIP_PATHS', '')
     .split(',')
     .map((path: string) => path.trim())
-    .filter((path: string) => path.length > 0);
+    .filter((path: string) => path.length > 0 && !isBroadApiExemption(path));
 
   const configuredSkipPaths = Array.isArray(loadMiddlewareConfig.skipPaths)
-    ? loadMiddlewareConfig.skipPaths
+    ? loadMiddlewareConfig.skipPaths.filter((path: string) => !isBroadApiExemption(path))
     : [];
 
   const effectiveSkipPaths = mergeCsrfSkipPaths(

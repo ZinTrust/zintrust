@@ -49,6 +49,10 @@ export interface PasswordResetTokenBrokerType {
 const DEFAULT_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_TOKEN_BYTES = 32; // 256 bits
 
+/** Sweep at most once per minute, or after this many create calls. */
+const CLEANUP_INTERVAL_MS = 60_000;
+const CLEANUP_EVERY_N_CREATES = 100;
+
 const createInMemoryStore = (): IPasswordResetTokenStore => {
   const map = new Map<string, PasswordResetTokenRecord>();
 
@@ -88,8 +92,24 @@ const create = (options: PasswordResetTokenBrokerOptions = {}): IPasswordResetTo
   const tokenBytes = normalizeTokenBytes(options.tokenBytes ?? DEFAULT_TOKEN_BYTES);
   const now = options.now ?? (() => new Date());
 
+  let nextCleanupAt = 0;
+  let createsSinceCleanup = 0;
+
+  const maybeCleanup = async (): Promise<void> => {
+    if (typeof store.cleanup !== 'function') return;
+    const wallClock = Date.now();
+    if (wallClock < nextCleanupAt && createsSinceCleanup < CLEANUP_EVERY_N_CREATES) return;
+
+    nextCleanupAt = wallClock + CLEANUP_INTERVAL_MS;
+    createsSinceCleanup = 0;
+    await store.cleanup(now());
+  };
+
   return {
     async createToken(identifier: string): Promise<string> {
+      await maybeCleanup();
+      createsSinceCleanup += 1;
+
       const normalizedIdentifier = normalizeIdentifier(identifier);
 
       const token = randomBytes(tokenBytes).toString('hex');

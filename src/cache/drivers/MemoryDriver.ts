@@ -17,13 +17,17 @@ function isUnrefableTimer(value: unknown): value is UnrefableTimer {
   );
 }
 
+/** Default hard cap for non-TTL entries, which the TTL sweep can never evict. */
+export const DEFAULT_MAX_ENTRIES = 10_000;
+
 /**
  * Memory Cache Driver
  * Simple in-memory storage for local development
  * Refactored to Functional Object pattern
  */
-const create = (): CacheDriver => {
+const create = (maxEntries: number = DEFAULT_MAX_ENTRIES): CacheDriver => {
   const storage = new Map<string, { value: unknown; expires: number | null }>();
+  const limit = Number.isInteger(maxEntries) && maxEntries > 0 ? maxEntries : DEFAULT_MAX_ENTRIES;
 
   // Background cleanup interval (runs every 60 seconds)
   const cleanupInterval = setInterval(() => {
@@ -56,6 +60,13 @@ const create = (): CacheDriver => {
 
     async set<T>(key: string, value: T, ttl?: number): Promise<void> {
       const expires = ttl === undefined ? null : Date.now() + ttl * 1000;
+      // Refresh insertion order so the first key is always the oldest one.
+      storage.delete(key);
+      // Non-TTL entries never expire, so enforce a hard cap on every write.
+      if (storage.size >= limit) {
+        const oldestKey = storage.keys().next().value;
+        if (oldestKey !== undefined) storage.delete(oldestKey);
+      }
       storage.set(key, { value, expires });
       await Promise.resolve();
     },

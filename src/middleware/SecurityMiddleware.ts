@@ -20,6 +20,7 @@ export interface SecurityOptions {
     action?: 'DENY' | 'SAMEORIGIN';
   };
   cors?: {
+    enabled?: boolean;
     origin?: string | string[];
     methods?: string[];
     allowedHeaders?: string[];
@@ -90,13 +91,22 @@ const resolveAllowedOrigin = (
 
   if (typeof configuredOrigin === 'string') {
     if (configuredOrigin.trim() === '*') {
-      return credentials === true && requestOrigin !== undefined ? requestOrigin : '*';
+      // Never reflect an arbitrary origin when credentials are enabled.
+      return credentials === true ? undefined : '*';
     }
     return configuredOrigin;
   }
 
   if (hasWildcard(configuredOrigin)) {
-    return credentials === true && requestOrigin !== undefined ? requestOrigin : '*';
+    const explicitOrigins = configuredOrigin.filter((value) => value.trim() !== '*');
+    if (credentials === true) {
+      // Fall back to the explicit allowlist; never echo the wildcard with credentials.
+      if (requestOrigin !== undefined && explicitOrigins.includes(requestOrigin)) {
+        return requestOrigin;
+      }
+      return undefined;
+    }
+    return '*';
   }
 
   if (requestOrigin === undefined || !configuredOrigin.includes(requestOrigin)) {
@@ -177,6 +187,7 @@ const DEFAULT_OPTIONS: SecurityOptions = {
     action: 'SAMEORIGIN',
   },
   cors: {
+    enabled: (getSecurityCorsConfig() as { enabled?: boolean }).enabled ?? true,
     origin: resolveCorsOrigin(),
     methods: normalizeCorsList(getSecurityCorsConfig().methods, [
       'GET',
@@ -286,7 +297,7 @@ function applyCsp(res: IResponse, csp?: SecurityOptions['csp']): void {
 }
 
 function applyCors(req: IRequest, res: IResponse, cors?: SecurityOptions['cors']): boolean {
-  if (!cors) return false;
+  if (!cors || cors.enabled === false) return false;
 
   const method = req.getMethod();
   const originHeader = req.getHeader('origin');

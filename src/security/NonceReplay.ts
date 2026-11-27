@@ -2,8 +2,7 @@ export type NonceReplayVerifier = (keyId: string, nonce: string, ttlMs: number) 
 
 export type MemoryNonceReplayOptions = {
   /**
-   * Cleanup interval to prevent unbounded map growth.
-   * Default: 500 accepted nonces.
+   * @deprecated Cleanup is now time-gated; retained for API compatibility.
    */
   cleanupEvery?: number;
   /**
@@ -22,19 +21,22 @@ const DEFAULTS: Required<MemoryNonceReplayOptions> = {
   maxEntries: 25_000,
 } as const;
 
+/** Sweep expired nonces at most once per minute instead of on every request. */
+const CLEANUP_INTERVAL_MS = 60_000;
+
 export const NonceReplay = Object.freeze({
   /**
    * In-memory, best-effort replay protection.
    *
-   * Works in both Node and Workers, but does not provide cross-instance guarantees.
-   * For strict production replay protection, supply your own verifier backed by Redis/KV.
+   * DEV-ONLY / best-effort: state is per-process and in-memory, so it cannot
+   * stop replays across instances or isolates. For production, supply a
+   * verifier backed by an atomic store (Redis `SET NX PX` / KV / Durable Object).
    */
   createMemoryVerifier(options: MemoryNonceReplayOptions = {}): NonceReplayVerifier {
-    const cleanupEvery = options.cleanupEvery ?? DEFAULTS.cleanupEvery;
-    const maxEntries = options.maxEntries ?? DEFAULTS.maxEntries;
+    const maxEntries = Math.max(1, options.maxEntries ?? DEFAULTS.maxEntries);
 
     const store = new Map<string, NonceEntry>();
-    let accepted = 0;
+    let nextCleanupAt = 0;
 
     const cleanup = (nowMs: number): void => {
       for (const [key, entry] of store.entries()) {
@@ -44,21 +46,31 @@ export const NonceReplay = Object.freeze({
 
     return async (keyId: string, nonce: string, ttlMs: number): Promise<boolean> => {
       const nowMs = Date.now();
+
+      // Time-gated sweep: no full Map walk on the hot path.
+      if (nowMs >= nextCleanupAt) {
+        cleanup(nowMs);
+        nextCleanupAt = nowMs + CLEANUP_INTERVAL_MS;
+      }
+
       const expiresAtMs = nowMs + Math.max(1, ttlMs);
       const compositeKey = `${keyId}:${nonce}`;
 
+      // The get/set pair below is synchronous, so it is an atomic critical
+      // section within this single-process store (no `await` between them).
       const existing = store.get(compositeKey);
       if (existing !== undefined && existing.expiresAtMs > nowMs) {
         await Promise.resolve();
         return false;
       }
 
-      store.set(compositeKey, { expiresAtMs });
-      accepted += 1;
-
-      if (store.size > maxEntries || accepted % cleanupEvery === 0) {
-        cleanup(nowMs);
+      // Hard cap: Map preserves insertion order, so evict the oldest entry.
+      if (store.size >= maxEntries) {
+        const oldest = store.keys().next();
+        if (oldest.done !== true) store.delete(oldest.value);
       }
+
+      store.set(compositeKey, { expiresAtMs });
 
       await Promise.resolve();
       return true;

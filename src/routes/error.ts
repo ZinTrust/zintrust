@@ -3,8 +3,8 @@
  * Centralizes 404/500 handling and HTML error page rendering.
  */
 
-import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
+import { Env } from '@config/env';
 import {
   serveErrorPagesFileAsync,
   serveZintrustSvgFile,
@@ -22,6 +22,21 @@ import type * as http from '@node-singletons/http';
 
 // Cache Set at module level to avoid repeated creation
 const REDACTED_HEADERS = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key']);
+
+const isProductionEnv = (): boolean => {
+  try {
+    return String(Env.NODE_ENV ?? '').trim().toLowerCase() === 'production';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Error details and stacks are hidden by default. Set DEV_ERROR_PAGES=true to opt in
+ * outside of production; NODE_ENV is compared case-insensitively.
+ */
+const shouldShowErrorDetails = (): boolean =>
+  Env.getBool('DEV_ERROR_PAGES', false) && !isProductionEnv();
 
 const redactHeaders = (headers: Record<string, unknown>): Record<string, unknown> => {
   const out: Record<string, unknown> = {};
@@ -117,7 +132,7 @@ const handleInternalServerErrorWithWrappers = async (
 ): Promise<void> => {
   response.setStatus(500);
 
-  const isDev = appConfig.isDevelopment();
+  const isDev = shouldShowErrorDetails();
   const err =
     error instanceof Error ? error : ErrorFactory.createGeneralError('Unknown error', error);
 

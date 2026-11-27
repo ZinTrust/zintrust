@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from '@node-singletons/crypto';
+
 export type SignedRequestHeaders = {
   'x-zt-key-id': string;
   'x-zt-timestamp': string;
@@ -78,7 +80,18 @@ const getHeader = (
   return (headers as Record<string, string | undefined>)[name];
 };
 
+/**
+ * Constant-time comparison of fixed-length SHA-256 digests (CWE-208).
+ * Falls back to a byte loop on runtimes without node:crypto.
+ */
 const timingSafeEquals = (a: string, b: string): boolean => {
+  if (typeof timingSafeEqual === 'function' && typeof createHash === 'function') {
+    const left = createHash('sha256').update(a, 'utf8').digest();
+    const right = createHash('sha256').update(b, 'utf8').digest();
+    return timingSafeEqual(left, right);
+  }
+
+  // Runtime-safe fallback for environments without node:crypto.
   if (a.length !== b.length) return false;
   let result = 0;
   for (let i = 0; i < a.length; i++) {

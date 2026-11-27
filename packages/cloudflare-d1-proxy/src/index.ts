@@ -47,6 +47,8 @@ type D1Env = {
   ZT_MAX_SQL_BYTES?: string;
   ZT_MAX_PARAMS?: string;
   ZT_D1_STATEMENTS_JSON?: string;
+  NODE_ENV?: string;
+  ALLOW_RAW_PROXY_SQL?: string;
 };
 
 const DEFAULT_SIGNING_WINDOW_MS = 60_000;
@@ -88,6 +90,28 @@ const isDebugEnabled = (env: D1Env): boolean => {
   const normalized = raw.trim().toLowerCase();
   return normalized === 'true' || normalized === '1' || normalized === 'yes';
 };
+
+/**
+ * Raw SQL is dangerous even for signed callers. It is denied unless an operator opts in
+ * explicitly; the statement endpoint (allowlisted IDs) remains the default interface.
+ */
+const isRawSqlAllowed = (env: D1Env): boolean => {
+  const raw = env.ALLOW_RAW_PROXY_SQL;
+  if (typeof raw === 'string') {
+    const normalized = raw.trim().toLowerCase();
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+  }
+  // Production is deny-by-default; development/test keep the historical behaviour.
+  return (env.NODE_ENV ?? '').trim().toLowerCase() !== 'production';
+};
+
+const denyRawSql = (): Response =>
+  toErrorResponse(
+    403,
+    'RAW_SQL_DISABLED',
+    'Raw SQL is disabled. Use /zin/d1/statement with an allowlisted statementId.'
+  );
 
 const safeErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -229,16 +253,10 @@ const requireDb = (env: D1Env): Response | D1Database => {
   return db;
 };
 
-const toD1ExceptionResponse = (error: unknown): Response => {
-  let message: string;
-  if (error instanceof Error) {
-    message = error.message;
-  } else if (typeof error === 'string') {
-    message = error;
-  } else {
-    message = 'Unknown D1 error';
-  }
-  return toErrorResponse(500, 'D1_ERROR', message);
+/** Never return driver internals (SQL, hosts, stack fragments) to callers. */
+const toD1ExceptionResponse = (env: D1Env, op: string, error: unknown): Response => {
+  logProxyError(env, { op }, error);
+  return toErrorResponse(500, 'D1_ERROR', 'D1 request failed');
 };
 
 const parseSqlPayload = (
@@ -298,6 +316,7 @@ const readAndVerifyJson = async (
 
 const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
   try {
+    if (!isRawSqlAllowed(env)) return denyRawSql();
     const check = await readAndVerifyJson(request, env);
     if (check.ok === false) return check.response;
 
@@ -317,13 +336,13 @@ const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
     const rows = result.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {
-    logProxyError(env, { op: 'query', path: '/zin/d1/query' }, error);
-    return toD1ExceptionResponse(error);
+    return toD1ExceptionResponse(env, 'query', error);
   }
 };
 
 const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> => {
   try {
+    if (!isRawSqlAllowed(env)) return denyRawSql();
     const check = await readAndVerifyJson(request, env);
     if (check.ok === false) return check.response;
 
@@ -342,13 +361,13 @@ const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> =
       .first<Record<string, unknown>>();
     return json(200, { row: row ?? null });
   } catch (error) {
-    logProxyError(env, { op: 'queryOne', path: '/zin/d1/queryOne' }, error);
-    return toD1ExceptionResponse(error);
+    return toD1ExceptionResponse(env, 'queryOne', error);
   }
 };
 
 const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
   try {
+    if (!isRawSqlAllowed(env)) return denyRawSql();
     const check = await readAndVerifyJson(request, env);
     if (check.ok === false) return check.response;
 
@@ -366,8 +385,7 @@ const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
       .run();
     return json(200, { ok: true, meta: out.meta });
   } catch (error) {
-    logProxyError(env, { op: 'exec', path: '/zin/d1/exec' }, error);
-    return toD1ExceptionResponse(error);
+    return toD1ExceptionResponse(env, 'exec', error);
   }
 };
 
@@ -429,8 +447,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
     const rows = out.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {
-    logProxyError(env, { op: 'statement', path: '/zin/d1/statement' }, error);
-    return toD1ExceptionResponse(error);
+    return toD1ExceptionResponse(env, 'statement', error);
   }
 };
 
