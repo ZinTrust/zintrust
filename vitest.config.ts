@@ -259,9 +259,6 @@ export default defineConfig({
         'app/Workers/TestWorker.ts',
         // Application operational surfaces (excluded from unit coverage + gates)
         'app/Jobs/**',
-        'routes/apiDev.ts',
-        'routes/mail.ts',
-        'routes/registerDirectMysqlTestRoutes.ts',
         'src/collections/index.ts',
         'src/events/index.ts',
         'src/session/index.ts',
@@ -289,7 +286,6 @@ export default defineConfig({
         'src/tools/templates/index.ts',
         // Integration/runtime-only surfaces not exercised by unit suite.
         'app/Workers/**',
-        'routes/DirectMysqlTestRoutes.ts',
         // Keep most queue internals excluded (noise), but do NOT exclude files that
         // commonly change and are enforced by patch-coverage gates.
         'src/tools/queue/DeduplicationBuilder.ts',
