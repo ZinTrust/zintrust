@@ -5,7 +5,7 @@ x-proxy-runtime: &proxy-runtime
   #   ZINTRUST_IMAGE=zintrust/zintrust:latest
   image: ${ZINTRUST_IMAGE:-zintrust/zintrust:latest}
   build:
-    context: .
+    context: ..
     dockerfile: Dockerfile
   pull_policy: ${PROXY_PULL_POLICY:-always}
   restart: unless-stopped
@@ -33,7 +33,7 @@ services:
   proxy-gateway:
     image: ${PROXY_GATEWAY_IMAGE:-zintrust/zintrust-proxy-gateway:latest}
     build:
-      context: ./docker/proxy-gateway
+      context: ./proxy-gateway
       dockerfile: Dockerfile
     pull_policy: ${PROXY_PULL_POLICY:-always}
     restart: unless-stopped

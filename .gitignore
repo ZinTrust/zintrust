@@ -129,3 +129,9 @@ client-project/
 .vitest/
 --version/
 .claude/
+
+# Generated artifacts — regenerate locally or in CI
+/worker-configuration.d.ts
+/.env.example.generated
+/.env.keys
+/sbom.json

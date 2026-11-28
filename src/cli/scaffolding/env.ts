@@ -6,7 +6,7 @@ const HeaderAndApp = (name: string, port: number, baseUrl: string, appKey: strin
   '# Notes:',
   '# - No ${VAR} interpolation: compatible with standard Node dotenv behavior.',
   '# - Secrets are intentionally empty unless auto-generated (APP_KEY).',
-  '# - For the complete key list (auto-generated), see: -envexample.generated',
+  '# - For the complete key list (auto-generated), see: .env.example.generated',
   '',
   '# ============================================================================',
   '# APP',

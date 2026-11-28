@@ -6,7 +6,7 @@ services:
   workers-api:
     image: ${ZINTRUST_IMAGE:-zintrust/zintrust:latest}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     command: ['node', '--experimental-specifier-resolution=node', 'dist/src/boot/bootstrap.js']
     environment:

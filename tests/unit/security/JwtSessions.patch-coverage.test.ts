@@ -719,7 +719,7 @@ describe('patch coverage: JwtSessions', () => {
     expect(kvBinding.delete).toHaveBeenCalled();
   });
 
-  it('kv-remote driver: uses RemoteSignedJson and throws when URL missing', async () => {
+  it('kv-remote driver: uses RemoteSignedJson and fails closed when URL missing', async () => {
     vi.resetModules();
 
     mockEnvModule();
@@ -772,7 +772,7 @@ describe('patch coverage: JwtSessions', () => {
     await JwtSessions.logoutAll('rsub');
     expect(requests.some((r) => r.path === '/zin/kv/delete')).toBe(true);
 
-    // Missing KV_REMOTE_URL should throw.
+    // Missing KV_REMOTE_URL must deny the session, not throw into socket handlers.
     vi.resetModules();
     const env2 = makeEnv({ JWT_SESSION_DRIVER: 'kv-remote', KV_REMOTE_URL: '' });
     for (const [k, v] of Object.entries(env2)) process.env[k] = v;
@@ -780,6 +780,6 @@ describe('patch coverage: JwtSessions', () => {
     const { JwtSessions: JwtSessions2 } = await import('@/security/JwtSessions');
     JwtSessions2._resetForTests();
 
-    await expect(JwtSessions2.isActive('token')).rejects.toThrow(/KV remote proxy URL is missing/i);
+    await expect(JwtSessions2.isActive('token')).resolves.toBe(false);
   });
 });

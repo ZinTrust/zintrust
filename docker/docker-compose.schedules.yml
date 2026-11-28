@@ -4,7 +4,7 @@ services:
   schedules:
     image: ${ZINTRUST_IMAGE:-zintrust/zintrust:latest}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     environment:
       NODE_ENV: ${NODE_ENV:-development}
@@ -24,8 +24,8 @@ services:
       # Database (for job-tracking cleanup schedule)
       # Supported: postgresql | mysql | sqlserver | sqlite | d1 | d1-remote
       # Tip: to use mysql or sqlserver, start the corresponding profile:
-      #   docker compose -f docker-compose.schedules.yml --profile mysql up -d
-      #   docker compose -f docker-compose.schedules.yml --profile sqlserver up -d
+      #   docker compose -f docker/docker-compose.schedules.yml --profile mysql up -d
+      #   docker compose -f docker/docker-compose.schedules.yml --profile sqlserver up -d
       DB_CONNECTION: ${DB_CONNECTION:-postgresql}
 
       # PostgreSQL

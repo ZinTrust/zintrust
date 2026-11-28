@@ -8,7 +8,7 @@ The proxy stack uses:
 ## Quick start
 
 ```bash
-docker compose -f docker-compose.proxy.yml up -d
+docker compose -f docker/docker-compose.proxy.yml up -d
 ```
 
 ## Pin a version
@@ -16,7 +16,7 @@ docker compose -f docker-compose.proxy.yml up -d
 ```bash
 ZINTRUST_IMAGE=zintrust/zintrust:<version> \
 PROXY_GATEWAY_IMAGE=zintrust/zintrust-proxy-gateway:<version> \
-docker compose -f docker-compose.proxy.yml up -d
+docker compose -f docker/docker-compose.proxy.yml up -d
 ```
 
 ## Publishing images (maintainers)

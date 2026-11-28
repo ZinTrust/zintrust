@@ -20,6 +20,22 @@ Token invalidation (logout) uses the JWT revocation store:
 
 When using the `database` driver, run migrations to create the `zintrust_jwt_revocations` table.
 
+## Active JWT Sessions in Durable Objects
+
+`JwtSessions` tracks active tokens separately from revocation. With the default `database` driver it registers its connection lazily, so it also works in a Durable Object isolate that never runs the main Worker boot. When the isolate has no `globalThis.env`, pass the binding explicitly:
+
+```typescript
+import { JwtSessions } from '@zintrust/core';
+
+const sessions = JwtSessions.withConnection({ driver: 'd1', d1: env.ZIN_DB });
+
+if (!(await sessions.isActive(token))) {
+  // reject the socket auth frame
+}
+```
+
+`isActive()` fails closed — it returns `false` when the auth store cannot be read — so an unavailable store denies access instead of throwing into request or WebSocket handlers. Write operations (`register`, `logout`, `logoutAll`) still surface errors, making configuration problems visible.
+
 ## JWT Revocation Driver Selection
 
 Use this as a quick rule-of-thumb when choosing `JWT_REVOCATION_DRIVER`:

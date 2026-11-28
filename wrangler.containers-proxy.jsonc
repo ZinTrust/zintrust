@@ -3,7 +3,7 @@
  * ZinTrust Cloudflare Containers Proxy
  * ============================================================================
  * This Worker acts as the "gateway" for the DB/KV/SMTP proxy stack, similar to
- * `docker-compose.proxy.yml`'s `proxy-gateway`, but on Cloudflare.
+ * `docker/docker-compose.proxy.yml`'s `proxy-gateway`, but on Cloudflare.
  *
  * Requests are routed by path prefix:
  *   /mysql/*     -> ZintrustMySqlProxyContainer (port 8789)

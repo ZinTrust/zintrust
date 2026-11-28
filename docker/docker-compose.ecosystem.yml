@@ -2,7 +2,7 @@ name: zintrust-ecosystem
 
 x-app-runtime: &app-runtime
   build:
-    context: .
+    context: ..
     dockerfile: Dockerfile
 
 x-common-env: &common-env
@@ -54,7 +54,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ..:/app
       - /app/node_modules
       - /app/dist
     healthcheck:
@@ -95,7 +95,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ..:/app
       - /app/node_modules
       - /app/dist
     networks:
@@ -166,12 +166,12 @@ services:
     networks:
       - zintrust-network
 
-  # Proxies (optional; separate blocks like docker-compose.proxy.yml)
+  # Proxies (optional; separate stacks like docker/docker-compose.proxy.yml)
   # These can be started/stopped independently.
   proxy-gateway:
     image: ${PROXY_GATEWAY_IMAGE:-zintrust-proxy-gateway:local}
     build:
-      context: ./docker/proxy-gateway
+      context: ./proxy-gateway
       dockerfile: Dockerfile
     restart: unless-stopped
     mem_limit: ${PROXY_GATEWAY_MEM_LIMIT:-512m}
@@ -207,7 +207,7 @@ services:
   proxy-mysql:
     image: ${PROXY_IMAGE:-zintrust-proxy:local}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: runtime
     command: ['node', 'dist/bin/zin.js', 'proxy:mysql', '--host', '0.0.0.0', '--port', '8789']
@@ -241,7 +241,7 @@ services:
   proxy-pg:
     image: ${PROXY_IMAGE:-zintrust-proxy:local}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: runtime
     command: ['node', 'dist/bin/zin.js', 'proxy:postgres', '--host', '0.0.0.0', '--port', '8790']
@@ -275,7 +275,7 @@ services:
   proxy-redis:
     image: ${PROXY_IMAGE:-zintrust-proxy:local}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: runtime
     command: ['node', 'dist/bin/zin.js', 'proxy:redis', '--host', '0.0.0.0', '--port', '8791']
@@ -308,7 +308,7 @@ services:
   proxy-mongodb:
     image: ${PROXY_IMAGE:-zintrust-proxy:local}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: runtime
     command: ['node', 'dist/bin/zin.js', 'proxy:mongodb', '--host', '0.0.0.0', '--port', '8792']
@@ -339,7 +339,7 @@ services:
   proxy-sqlserver:
     image: ${PROXY_IMAGE:-zintrust-proxy:local}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: runtime
     command: ['node', 'dist/bin/zin.js', 'proxy:sqlserver', '--host', '0.0.0.0', '--port', '8793']
@@ -373,7 +373,7 @@ services:
   proxy-smtp:
     image: ${PROXY_IMAGE:-zintrust-proxy:local}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: runtime
     command: ['node', 'dist/bin/zin.js', 'proxy:smtp', '--host', '0.0.0.0', '--port', '8794']
