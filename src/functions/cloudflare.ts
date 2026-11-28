@@ -307,6 +307,9 @@ export class ZintrustSocketHub {
   private readonly delegate: SocketHubInstance | null;
 
   constructor(state: unknown, env: unknown) {
+    // Durable Objects run in a separate isolate from the Worker fetch path,
+    // so framework code here needs the DO env to resolve bindings (e.g. D1).
+    (globalThis as unknown as { env?: unknown }).env = resolveWorkersEnv(env);
     const HubClass = getRegisteredSocketHubClass();
     this.delegate = HubClass ? new HubClass(state, env) : null;
   }

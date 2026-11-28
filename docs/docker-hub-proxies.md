@@ -41,11 +41,11 @@ Each proxy type is activated by passing a command to the runtime container:
 
 ## Quick start
 
-The fastest way to run the full proxy stack is via the `docker-compose.proxy.yml` file included in the [ZinTrust repository](https://github.com/ZinTrust/zintrust).
+The fastest way to run the full proxy stack is via the `docker/docker-compose.proxy.yml` file included in the [ZinTrust repository](https://github.com/ZinTrust/zintrust).
 
 ```bash
 # Pull the compose file
-curl -O https://raw.githubusercontent.com/ZinTrust/zintrust/master/docker-compose.proxy.yml
+curl -O https://raw.githubusercontent.com/ZinTrust/zintrust/master/docker/docker-compose.proxy.yml
 
 # Create a minimal env file
 cat > .env.proxy <<'EOF'
@@ -77,7 +77,7 @@ The gateway will be available at **http://localhost:8800**.
 
 ### Operational (Docker Compose only)
 
-These are Docker-only tuning knobs used by `docker-compose.proxy.yml`:
+These are Docker-only tuning knobs used by `docker/docker-compose.proxy.yml`:
 
 | Variable             | Default  | Description                                 |
 | -------------------- | -------- | ------------------------------------------- |

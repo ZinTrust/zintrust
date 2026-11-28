@@ -232,9 +232,9 @@ This corresponds to `docker build --target runtime ...`.
 
 ## Docker Compose (local dev)
 
-The included `docker-compose.yml` is optimized for local development:
+The included `docker/docker-compose.yml` is optimized for local development:
 
-- mounts the repo into the container (`.:/app`) for live iteration
+- mounts the repo into the container (`..:/app` from the compose file) for live iteration
 - runs `npm run dev` in the app container
 - starts PostgreSQL by default
 - includes Redis under the `optional` profile
@@ -242,13 +242,13 @@ The included `docker-compose.yml` is optimized for local development:
 Start dev services:
 
 ```bash
-docker-compose up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
 Start dev services including Redis:
 
 ```bash
-docker-compose --profile optional up -d
+docker compose -f docker/docker-compose.yml --profile optional up -d
 ```
 
 ## Environment variables
@@ -265,7 +265,7 @@ You can override these via your shell environment or a `.env` file that Docker C
 The Docker setup uses two different conventions:
 
 - Compose maps `3000:3000` by default and sets `PORT=3000`.
-- Health checks in both `Dockerfile` and `docker-compose.yml` call `http://localhost:7777/health`.
+- Health checks in both `Dockerfile` and `docker/docker-compose.yml` call `http://localhost:7777/health`.
 
 ZinTrust projects default to port `7777` unless configured otherwise. If your container is configured to listen on `3000`, update the health check URL accordingly (or set your server port to `7777` and map ports as you prefer).
 

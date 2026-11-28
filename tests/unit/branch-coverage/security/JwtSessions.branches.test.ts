@@ -269,11 +269,11 @@ describe('branch coverage: JwtSessions branches', () => {
 
     sessions = await load();
     state.table.first.mockRejectedValueOnce(new Error('read failed'));
-    await expect(sessions.isActive('t')).rejects.toThrow(/missing required columns/);
+    await expect(sessions.isActive('t')).resolves.toBe(false);
 
     sessions = await load();
     state.table.first.mockRejectedValueOnce('plain read failure');
-    await expect(sessions.isActive('t')).rejects.toThrow(/missing required columns/);
+    await expect(sessions.isActive('t')).resolves.toBe(false);
   });
 
   it('ignores non-array redis subject index values', async () => {
@@ -308,11 +308,11 @@ describe('branch coverage: JwtSessions branches', () => {
     expect(state.redis.del).toHaveBeenCalledTimes(1);
   });
 
-  it('throws when the configured KV binding is absent', async () => {
+  it('fails closed when the configured KV binding is absent', async () => {
     state.env['JWT_SESSION_DRIVER'] = 'kv';
     state.getKVBinding.mockReturnValue(null);
     const sessions = await load();
-    await expect(sessions.isActive('t')).rejects.toThrow(/KV binding .* not found/);
+    await expect(sessions.isActive('t')).resolves.toBe(false);
   });
 
   it('ignores whitespace-only KV subject index values', async () => {
@@ -348,11 +348,11 @@ describe('branch coverage: JwtSessions branches', () => {
     expect(body.namespace).toBeUndefined();
   });
 
-  it('rejects KV remote requests with missing signing credentials', async () => {
+  it('fails closed for KV remote requests with missing signing credentials', async () => {
     state.env['JWT_SESSION_DRIVER'] = 'kv-remote';
     state.env['KV_REMOTE_KEY_ID'] = '';
     const sessions = await load();
-    await expect(sessions.isActive('t')).rejects.toThrow(/signing credentials are missing/);
+    await expect(sessions.isActive('t')).resolves.toBe(false);
   });
 
   it('ignores non-string and empty values returned by the KV remote proxy', async () => {

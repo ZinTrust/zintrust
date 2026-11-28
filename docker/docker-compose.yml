@@ -2,7 +2,7 @@ services:
   # Web Application (Producer Only)
   web:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     ports:
       - '${PORT:-3000}:3000'
@@ -48,7 +48,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ..:/app
       - /app/node_modules
       - /app/dist
     command: npm run dev
@@ -68,7 +68,7 @@ services:
   # Background Workers (Consumer Only)
   workers:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     # No ports needed for workers usually
     environment:
@@ -102,7 +102,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ..:/app
       - /app/node_modules
       - /app/dist
     # Run workers using tsx in development
@@ -169,7 +169,7 @@ services:
 
   app-mysql:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     ports:
       - '${MYSQL_APP_PORT:-3001}:3000'
@@ -208,7 +208,7 @@ services:
       mysql:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ..:/app
       - /app/node_modules
       - /app/dist
     command: npm run dev
@@ -235,7 +235,7 @@ services:
       APP_KEY: '${APP_KEY:-dev-secret}'
       CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
     volumes:
-      - ./packages/cloudflare-d1-proxy:/work
+      - ../packages/cloudflare-d1-proxy:/work
     command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 7777"
     ports:
       - '${D1_PROXY_PORT:-7777}:7777'
@@ -252,7 +252,7 @@ services:
       APP_KEY: '${APP_KEY:-dev-secret}'
       CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
     volumes:
-      - ./packages/cloudflare-kv-proxy:/work
+      - ../packages/cloudflare-kv-proxy:/work
     command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 8788"
     ports:
       - '${KV_PROXY_PORT:-8788}:8788'

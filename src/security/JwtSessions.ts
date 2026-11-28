@@ -3,9 +3,12 @@ import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { securityConfig } from '@config/security';
+import type { DatabaseConfigShape } from '@config/type';
 import { createRedisConnection } from '@config/workers';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase } from '@orm/Database';
+import type { DatabaseConfig } from '@orm/DatabaseAdapter';
+import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 import {
   shouldRetryAuthStoreInsertWithGeneratedId,
   withGeneratedAuthStoreId,
@@ -216,14 +219,97 @@ const insertActiveSessionRecord = async (
   }
 };
 
-const createDatabaseStore = (params: { connection: string; table: string }): JwtSessionsStore => {
+const logWarnBestEffort = (message: string, meta: Record<string, unknown>): void => {
+  const anyLogger = Logger as unknown as {
+    warn?: (msg: string, meta?: unknown) => void;
+    debug?: (msg: string, meta?: unknown) => void;
+    info?: (msg: string, meta?: unknown) => void;
+  };
+
+  if (typeof anyLogger.warn === 'function') {
+    anyLogger.warn(message, meta);
+    return;
+  }
+  if (typeof anyLogger.debug === 'function') {
+    anyLogger.debug(message, meta);
+    return;
+  }
+  if (typeof anyLogger.info === 'function') {
+    anyLogger.info(message, meta);
+  }
+};
+
+type DatabaseStoreParams = {
+  connection: string;
+  table: string;
+  /** Explicit config (e.g. a D1 binding passed by a Durable Object). */
+  config?: DatabaseConfig;
+};
+
+type DatabaseConnectionResolver = () => Promise<ReturnType<typeof useDatabase>>;
+
+/**
+ * A Durable Object runs in its own isolate, so the main Worker boot (which
+ * registers database connections from runtime config) never runs there.
+ * Register lazily on first use, but never clobber a connection that an
+ * explicit caller (or the boot sequence) already registered.
+ */
+const createDatabaseConnectionResolver = (params: DatabaseStoreParams): DatabaseConnectionResolver => {
+  let registrationAttempted = false;
+
+  const ensureRuntimeRegistration = async (): Promise<void> => {
+    if (registrationAttempted || params.config !== undefined) return;
+    registrationAttempted = true;
+
+    try {
+      // Probe first: registering runtime config clears and rebuilds the
+      // connection registry, which would discard an explicit registration.
+      useDatabase(undefined, params.connection);
+      return;
+    } catch {
+      // Connection missing (or unusable): try runtime config as a fallback.
+    }
+
+    try {
+      // Lazy import keeps this module loadable in isolated/minimal runtimes
+      // where the full config tree is unavailable.
+      let runtimeConfig: DatabaseConfigShape | null = null;
+      try {
+        const configModule = await import('@config/database');
+        runtimeConfig = configModule.databaseConfig;
+      } catch {
+        // Fall through to a minimal config so registration is still attempted.
+      }
+
+      registerDatabasesFromRuntimeConfig(
+        runtimeConfig ?? {
+          default: Env.get('DB_CONNECTION', 'mysql'),
+          connections: {},
+        }
+      );
+    } catch {
+      // Best-effort. The caller still surfaces the original registration
+      // error when no runtime config is available.
+    }
+  };
+
+  return async () => {
+    await ensureRuntimeRegistration();
+    return params.config === undefined
+      ? useDatabase(undefined, params.connection)
+      : useDatabase(params.config, params.connection);
+  };
+};
+
+const createDatabaseStore = (params: DatabaseStoreParams): JwtSessionsStore => {
+  const resolveDb = createDatabaseConnectionResolver(params);
   let checkCount = 0;
 
   const maybeCleanup = async (): Promise<void> => {
     checkCount += 1;
     if (checkCount % 250 !== 0) return;
     try {
-      const db = useDatabase(undefined, params.connection);
+      const db = await resolveDb();
       await db.table(params.table).where('expires_at_ms', '<=', Date.now()).delete();
     } catch (error) {
       Logger.debug('JwtSessions database cleanup failed', {
@@ -234,7 +320,7 @@ const createDatabaseStore = (params: { connection: string; table: string }): Jwt
 
   return {
     async upsertActive(key: SessionKey): Promise<void> {
-      const db = useDatabase(undefined, params.connection);
+      const db = await resolveDb();
       const record = createActiveSessionRecord(key);
 
       try {
@@ -256,7 +342,7 @@ const createDatabaseStore = (params: { connection: string; table: string }): Jwt
 
     async isActive(id: string): Promise<boolean> {
       await maybeCleanup();
-      const db = useDatabase(undefined, params.connection);
+      const db = await resolveDb();
 
       try {
         const row = await db
@@ -287,12 +373,12 @@ const createDatabaseStore = (params: { connection: string; table: string }): Jwt
     },
 
     async deleteById(id: string): Promise<void> {
-      const db = useDatabase(undefined, params.connection);
+      const db = await resolveDb();
       await db.table(params.table).where('jti', '=', id).delete();
     },
 
     async deleteAllForSub(sub: string): Promise<void> {
-      const db = useDatabase(undefined, params.connection);
+      const db = await resolveDb();
       await db.table(params.table).where('sub', '=', sub).where('kind', '=', 'active').delete();
     },
   };
@@ -672,38 +758,78 @@ const resolveStore = (): { driver: JwtSessionsDriverName; store: JwtSessionsStor
   return { driver, store: cachedStore };
 };
 
+export type JwtSessionsApi = {
+  register: (token: string) => Promise<void>;
+  isActive: (token: string) => Promise<boolean>;
+  logout: (header: AuthorizationHeader) => Promise<string | null>;
+  logoutAll: (sub: string) => Promise<void>;
+  getDriver: () => JwtSessionsDriverName;
+};
+
+type ResolvedStore = { driver: JwtSessionsDriverName; store: JwtSessionsStore };
+
+const createJwtSessionsApi = (resolveSessionStore: () => ResolvedStore): JwtSessionsApi =>
+  Object.freeze({
+    async register(token: string): Promise<void> {
+      const { store } = resolveSessionStore();
+      await store.upsertActive(resolveKey(token));
+    },
+
+    async isActive(token: string): Promise<boolean> {
+      try {
+        const { store } = resolveSessionStore();
+        const key = resolveKey(token);
+        return await store.isActive(key.id);
+      } catch (error) {
+        // Fail closed: an auth-store error must deny the session instead of
+        // throwing into request or WebSocket handlers.
+        logWarnBestEffort('JwtSessions auth store check failed (treating session as inactive)', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return false;
+      }
+    },
+
+    async logout(header: AuthorizationHeader): Promise<string | null> {
+      const token = getBearerToken(header);
+      if (token === null) return null;
+
+      const { store } = resolveSessionStore();
+      const key = resolveKey(token);
+      await store.deleteById(key.id);
+      return token;
+    },
+
+    async logoutAll(sub: string): Promise<void> {
+      const normalized = typeof sub === 'string' ? sub.trim() : '';
+      if (normalized === '') return;
+
+      const { store } = resolveSessionStore();
+      await store.deleteAllForSub(normalized);
+    },
+
+    getDriver(): JwtSessionsDriverName {
+      return resolveSessionStore().driver;
+    },
+  });
+
 export const JwtSessions = Object.freeze({
-  async register(token: string): Promise<void> {
-    const { store } = resolveStore();
-    await store.upsertActive(resolveKey(token));
-  },
+  ...createJwtSessionsApi(resolveStore),
 
-  async isActive(token: string): Promise<boolean> {
-    const { store } = resolveStore();
-    const key = resolveKey(token);
-    return store.isActive(key.id);
-  },
-
-  async logout(header: AuthorizationHeader): Promise<string | null> {
-    const token = getBearerToken(header);
-    if (token === null) return null;
-
-    const { store } = resolveStore();
-    const key = resolveKey(token);
-    await store.deleteById(key.id);
-    return token;
-  },
-
-  async logoutAll(sub: string): Promise<void> {
-    const normalized = typeof sub === 'string' ? sub.trim() : '';
-    if (normalized === '') return;
-
-    const { store } = resolveStore();
-    await store.deleteAllForSub(normalized);
-  },
-
-  getDriver(): JwtSessionsDriverName {
-    return resolveStore().driver;
+  /**
+   * Scoped facade backed by an explicit database config, for isolates (such as
+   * Durable Objects) that never run the main Worker boot sequence and therefore
+   * have no registered connection or `globalThis.env`.
+   *
+   * Example: `JwtSessions.withConnection({ driver: 'd1', d1: env.ZIN_DB })`.
+   */
+  withConnection(config: DatabaseConfig): JwtSessionsApi {
+    const table = Env.get(
+      'JWT_SESSION_DB_TABLE',
+      Env.get('JWT_REVOCATION_DB_TABLE', DEFAULTS.dbTable)
+    );
+    const store = createDatabaseStore({ connection: DEFAULTS.dbConnection, table, config });
+    return createJwtSessionsApi(() => ({ driver: 'database', store }));
   },
 
   _resetForTests(): void {

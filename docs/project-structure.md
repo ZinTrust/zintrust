@@ -33,11 +33,13 @@ project-root/
 ├── Dockerfile.<proxy-c>.local
 ├── Dockerfile.workers                 # multi-worker compose image
 │
-├── docker-compose.worker.yml          # single worker compose
-├── docker-compose.workers.yml         # all workers compose
-├── docker-compose.proxy.yml           # proxy gateway compose
-├── docker-compose.<proxy-a>.yml       # per-proxy compose (one per proxy)
-├── docker-compose.<proxy-b>.yml
+├── docker/                            # container assets and compose stacks
+│   ├── docker-compose.yml             # local development stack
+│   ├── docker-compose.workers.yml     # all workers compose
+│   ├── docker-compose.proxy.yml       # proxy gateway compose
+│   ├── docker-compose.ecosystem.yml   # ecosystem stack
+│   ├── docker-compose.schedules.yml   # schedules stack
+│   └── proxy-gateway/                 # gateway Dockerfile + nginx.conf
 │
 ├── package.json
 ├── tsconfig.json

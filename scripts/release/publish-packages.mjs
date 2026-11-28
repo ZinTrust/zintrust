@@ -330,6 +330,7 @@ async function assertCoreShimHasRequiredExports() {
       'export declare const QueryBuilder: any;',
       'export declare const SQLiteAdapter: any;',
       'export declare function useDatabase(...args: any[]): IDatabase;',
+      'getType: (...args: any[]) => string;',
       'export declare const MigrationSchema: any;',
       'export type Blueprint = any;',
     ],
@@ -1058,6 +1059,7 @@ export type IDatabase = {
   queryOne: (...args: any[]) => Promise<any>;
   execute: (...args: any[]) => Promise<any>;
   table: (...args: any[]) => DbQueryBuilder;
+  getType: (...args: any[]) => string;
 };
 export type Blueprint = any;
 `;
@@ -1544,6 +1546,9 @@ export function useDatabase() {
     async disconnect() {},
     isConnected() {
       return true;
+    },
+    getType() {
+      return 'sqlite';
     },
     async query() {
       return [];
@@ -2093,6 +2098,7 @@ export type IDatabase = {
   queryOne: (...args: any[]) => Promise<any>;
   execute: (...args: any[]) => Promise<any>;
   table: (...args: any[]) => DbQueryBuilder;
+  getType: (...args: any[]) => string;
 };
 export type DbQueryBuilder = {
   limit(...args: any[]): DbQueryBuilder;
@@ -2132,6 +2138,9 @@ export function useDatabase() {
     async disconnect() {},
     isConnected() {
       return true;
+    },
+    getType() {
+      return 'sqlite';
     },
     async query() {
       return [];
@@ -2184,6 +2193,9 @@ export function useDatabase() {
     async disconnect() {},
     isConnected() {
       return true;
+    },
+    getType() {
+      return 'sqlite';
     },
     async query() {
       return [];

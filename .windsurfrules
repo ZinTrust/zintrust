@@ -30,7 +30,7 @@
 - Follow existing naming conventions (PascalCase for classes, camelCase for variables)
 - Environment files: .env, .env.example (dotenv syntax)
 - Config files: *.config.ts (TypeScript)
-- Docker: docker-compose.yml (YAML), Dockerfile (dockerfile)
+- Docker: docker/docker-compose*.yml (YAML), Dockerfile (dockerfile)
 
 ## Required Extensions (based on .vscode/extensions.json)
 

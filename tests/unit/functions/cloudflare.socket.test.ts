@@ -80,6 +80,20 @@ describe('functions/cloudflare socket intercept', () => {
     expect(mod.ZintrustSocketHub).toBeTypeOf('function');
   });
 
+  it('publishes the Durable Object env for framework binding resolution', async () => {
+    getRuntimeMock.mockReturnValue(undefined);
+
+    const mod = await import('../../../src/functions/cloudflare?socket-do-env');
+    const d1 = { prepare: vi.fn() };
+    const hub = new mod.ZintrustSocketHub({}, { ZIN_DB: d1, MODE: 'do' });
+    await hub.fetch(new Request('https://example.test/socket'));
+
+    expect((globalThis as { env?: Record<string, unknown> }).env).toMatchObject({
+      ZIN_DB: d1,
+      MODE: 'do',
+    });
+  });
+
   it('returns a safe 503 response when the optional socket package is not registered', async () => {
     getRuntimeMock.mockReturnValue(undefined);
 
